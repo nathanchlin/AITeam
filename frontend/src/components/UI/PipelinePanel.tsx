@@ -427,14 +427,14 @@ export function PipelinePanel() {
                   </div>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => copyToClipboard(`http://localhost:8000${outputUrl}`)}
+                      onClick={() => copyToClipboard(outputUrl)}
                       className="px-3 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
                     >
                       {copiedUrl ? <Check size={14} /> : <Copy size={14} />}
                       {copiedUrl ? '已复制' : '复制链接'}
                     </button>
                     <a
-                      href={`${API_BASE}${outputUrl}`}
+                      href={outputUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition-colors flex items-center gap-2 text-sm"
