@@ -14,7 +14,7 @@ import type { Agent } from './types';
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
 
 function App() {
-  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel } = useAgentStore();
+  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, setPlans, setCurrentPlan } = useAgentStore();
   const { selectedAgentId, chatPanelOpen, streamContent } = useAgentStore();
   const [loading, setLoading] = useState(true);
   useWebSocket();
@@ -23,16 +23,24 @@ function App() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [agentsRes, tasksRes] = await Promise.all([
+        const [agentsRes, tasksRes, plansRes] = await Promise.all([
           fetch(`${API_BASE}/api/agents`),
           fetch(`${API_BASE}/api/tasks`),
+          fetch(`${API_BASE}/api/pipeline/plans`),
         ]);
 
         const agentsData = await agentsRes.json();
         const tasksData = await tasksRes.json();
+        const plansData = await plansRes.json();
 
         setAgents(agentsData);
         setTasks(tasksData);
+        setPlans(plansData);
+
+        // Set the most recent plan as current if exists
+        if (plansData.length > 0) {
+          setCurrentPlan(plansData[0].id);
+        }
       } catch (error) {
         console.error('Failed to fetch data:', error);
       } finally {
@@ -41,7 +49,7 @@ function App() {
     };
 
     fetchData();
-  }, [setAgents, setTasks]);
+  }, [setAgents, setTasks, setPlans, setCurrentPlan]);
 
   const createAgent = async (name: string, type: Agent['type']) => {
     try {
