@@ -4,6 +4,7 @@ from typing import Optional, Dict, Any, List
 from datetime import datetime
 import uuid
 import json
+from pathlib import Path
 from app.services.agent_manager import agent_manager
 from app.services.output_manager import output_manager
 from app.models.schemas import (
@@ -12,11 +13,77 @@ from app.models.schemas import (
 )
 from app.llm.glm_client import glm_client
 
+# Storage path for plan persistence
+PLANS_STORAGE_FILE = Path(__file__).parent.parent.parent / "data" / "plans.json"
+
 
 class CoordinatorService:
     def __init__(self):
         self.plans: Dict[str, Plan] = {}
         self.websocket_manager = None
+        # Load persisted plans on initialization
+        self._load_plans()
+
+    def _load_plans(self):
+        """Load plans from persistent storage"""
+        try:
+            if PLANS_STORAGE_FILE.exists():
+                with open(PLANS_STORAGE_FILE, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    for plan_id, plan_data in data.get('plans', {}).items():
+                        # Convert tasks back to PlanTask objects
+                        tasks = []
+                        for task_data in plan_data.get('tasks', []):
+                            tasks.append(PlanTask(**task_data))
+                        plan_data['tasks'] = tasks
+
+                        # Convert discussion back to DiscussionMessage objects
+                        discussion = []
+                        for msg_data in plan_data.get('discussion', []):
+                            discussion.append(DiscussionMessage(**msg_data))
+                        plan_data['discussion'] = discussion
+
+                        # Parse datetime strings
+                        if plan_data.get('created_at'):
+                            plan_data['created_at'] = datetime.fromisoformat(plan_data['created_at'])
+                        if plan_data.get('updated_at'):
+                            plan_data['updated_at'] = datetime.fromisoformat(plan_data['updated_at'])
+                        if plan_data.get('started_at'):
+                            plan_data['started_at'] = datetime.fromisoformat(plan_data['started_at'])
+                        if plan_data.get('completed_at'):
+                            plan_data['completed_at'] = datetime.fromisoformat(plan_data['completed_at'])
+
+                        self.plans[plan_id] = Plan(**plan_data)
+                print(f"[Coordinator] Loaded {len(self.plans)} plans from storage")
+        except Exception as e:
+            print(f"[Coordinator] Error loading plans: {e}")
+
+    def _save_plans(self):
+        """Save plans to persistent storage"""
+        try:
+            # Ensure directory exists
+            PLANS_STORAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+            # Convert plans to serializable format
+            plans_data = {}
+            for plan_id, plan in self.plans.items():
+                plan_dict = plan.model_dump()
+                # Convert datetime objects to ISO format strings
+                if plan_dict.get('created_at'):
+                    plan_dict['created_at'] = plan_dict['created_at'].isoformat()
+                if plan_dict.get('updated_at'):
+                    plan_dict['updated_at'] = plan_dict['updated_at'].isoformat()
+                if plan_dict.get('started_at'):
+                    plan_dict['started_at'] = plan_dict['started_at'].isoformat()
+                if plan_dict.get('completed_at'):
+                    plan_dict['completed_at'] = plan_dict['completed_at'].isoformat()
+                plans_data[plan_id] = plan_dict
+
+            with open(PLANS_STORAGE_FILE, 'w', encoding='utf-8') as f:
+                json.dump({'plans': plans_data, 'saved_at': datetime.utcnow().isoformat()}, f, ensure_ascii=False, indent=2)
+
+        except Exception as e:
+            print(f"[Coordinator] Error saving plans: {e}")
 
     def set_websocket_manager(self, ws_manager):
         self.websocket_manager = ws_manager
@@ -42,6 +109,7 @@ class CoordinatorService:
             status=PlanStatus.DRAFT,
         )
         self.plans[plan_id] = plan
+        self._save_plans()  # Persist plan
         return plan
 
     async def add_discussion_message(
@@ -71,6 +139,7 @@ class CoordinatorService:
         )
         plan.discussion.append(msg)
         plan.updated_at = datetime.utcnow()
+        self._save_plans()  # Persist after adding message
 
         await self.broadcast({
             "type": "discussion",
@@ -361,6 +430,7 @@ class CoordinatorService:
 
         plan.status = PlanStatus.APPROVED
         plan.updated_at = datetime.utcnow()
+        self._save_plans()  # Persist after generating plan
 
         # Add plan to broadcast
         await self.broadcast({
@@ -382,6 +452,7 @@ class CoordinatorService:
 
         plan.status = PlanStatus.EXECUTING
         plan.started_at = datetime.utcnow()
+        self._save_plans()  # Persist status change
 
         # Post start message to group chat
         await self.add_discussion_message(
@@ -577,6 +648,7 @@ class CoordinatorService:
                     "agent": agent.name,
                     "result": full_response,
                 })
+                self._save_plans()  # Persist task completion
 
                 # Save output to files
                 try:
@@ -697,6 +769,7 @@ class CoordinatorService:
                     "agent": agent.name,
                     "result": full_response,
                 })
+                self._save_plans()  # Persist test task completion
 
                 # Check if tests passed
                 if "[FAIL]" in full_response or "发现的问题" in full_response:
@@ -741,6 +814,7 @@ class CoordinatorService:
         # Final status
         plan.status = PlanStatus.COMPLETED
         plan.completed_at = datetime.utcnow()
+        self._save_plans()  # Persist completion
 
         # Post final result to discussion
         output_dir = output_manager.get_output_path(plan_id)

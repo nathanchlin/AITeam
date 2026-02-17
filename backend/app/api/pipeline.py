@@ -251,3 +251,52 @@ async def recover_stuck_pipeline(plan_id: str):
     asyncio.create_task(coordinator.execute_plan(plan_id))
 
     return {"message": "Pipeline recovery started", "plan_id": plan_id}
+
+
+@router.post("/resume/{plan_id}")
+async def resume_pipeline(plan_id: str):
+    """Resume an interrupted pipeline from its current state"""
+    from app.main import websocket_manager
+    coordinator.set_websocket_manager(websocket_manager)
+
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Check which phase to resume from
+    if plan.status == PlanStatus.DRAFT:
+        # Resume from beginning
+        import asyncio
+        asyncio.create_task(coordinator.run_pipeline_with_plan(plan_id))
+        return {"message": "Pipeline resumed from beginning", "plan_id": plan_id, "phase": "draft"}
+
+    elif plan.status == PlanStatus.DISCUSSING:
+        # Resume from discussion phase
+        import asyncio
+        async def resume_from_discussion():
+            await coordinator.organize_discussion(plan_id)
+            await coordinator.generate_plan(plan_id)
+            await coordinator.execute_plan(plan_id)
+        asyncio.create_task(resume_from_discussion())
+        return {"message": "Pipeline resumed from discussion", "plan_id": plan_id, "phase": "discussing"}
+
+    elif plan.status == PlanStatus.APPROVED:
+        # Resume from execution phase
+        import asyncio
+        asyncio.create_task(coordinator.execute_plan(plan_id))
+        return {"message": "Pipeline resumed from execution", "plan_id": plan_id, "phase": "approved"}
+
+    elif plan.status == PlanStatus.EXECUTING:
+        # Resume execution (reset running tasks to pending)
+        for task in plan.tasks:
+            if task.status == TaskStatus.RUNNING:
+                task.status = TaskStatus.PENDING
+        import asyncio
+        asyncio.create_task(coordinator.execute_plan(plan_id))
+        return {"message": "Pipeline resumed from execution", "plan_id": plan_id, "phase": "executing"}
+
+    elif plan.status == PlanStatus.COMPLETED:
+        return {"message": "Pipeline already completed", "plan_id": plan_id, "phase": "completed"}
+
+    else:
+        raise HTTPException(status_code=400, detail=f"Unknown plan status: {plan.status}")
