@@ -77,8 +77,17 @@ class CoordinatorService:
 
     def _save_plans(self):
         """Save plans to persistent storage with atomic write"""
-        import tempfile
         import shutil
+
+        def convert_datetime(obj):
+            """Recursively convert datetime objects to ISO format strings"""
+            if isinstance(obj, dict):
+                return {k: convert_datetime(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_datetime(item) for item in obj]
+            elif isinstance(obj, datetime):
+                return obj.isoformat()
+            return obj
 
         try:
             # Ensure directory exists
@@ -88,15 +97,8 @@ class CoordinatorService:
             plans_data = {}
             for plan_id, plan in self.plans.items():
                 plan_dict = plan.model_dump()
-                # Convert datetime objects to ISO format strings
-                if plan_dict.get('created_at'):
-                    plan_dict['created_at'] = plan_dict['created_at'].isoformat()
-                if plan_dict.get('updated_at'):
-                    plan_dict['updated_at'] = plan_dict['updated_at'].isoformat()
-                if plan_dict.get('started_at'):
-                    plan_dict['started_at'] = plan_dict['started_at'].isoformat()
-                if plan_dict.get('completed_at'):
-                    plan_dict['completed_at'] = plan_dict['completed_at'].isoformat()
+                # Recursively convert all datetime objects
+                plan_dict = convert_datetime(plan_dict)
                 plans_data[plan_id] = plan_dict
 
             # Atomic write: write to temp file first, then rename
