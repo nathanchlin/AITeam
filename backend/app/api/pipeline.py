@@ -1,11 +1,14 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi.responses import FileResponse
 from typing import List
+import os
 from app.models.schemas import (
     PipelineRequest,
     Plan, PlanCreate, PlanUpdate,
     DiscussionMessage, DiscussionMessageCreate,
 )
 from app.services.coordinator import coordinator
+from app.services.output_manager import output_manager
 from app.services.agent_manager import agent_manager
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
@@ -134,3 +137,51 @@ async def add_discussion_message(plan_id: str, msg_data: DiscussionMessageCreate
         reply_to=msg_data.reply_to,
     )
     return msg.model_dump()
+
+
+@router.get("/output/{plan_id}")
+async def get_output(plan_id: str):
+    """Get output files for a plan"""
+    output_dir = output_manager.get_output_path(plan_id)
+    if not os.path.exists(output_dir):
+        raise HTTPException(status_code=404, detail="Output not found")
+
+    # List all files
+    files = []
+    for f in os.listdir(output_dir):
+        filepath = os.path.join(output_dir, f)
+        files.append({
+            "name": f,
+            "size": os.path.getsize(filepath),
+            "modified": os.path.getmtime(filepath),
+        })
+
+    return {"plan_id": plan_id, "output_dir": output_dir, "files": files}
+
+
+@router.get("/output/{plan_id}/files/{filename}")
+async def get_output_file(plan_id: str, filename: str):
+    """Get a specific output file"""
+    output_dir = output_manager.get_output_path(plan_id)
+    filepath = os.path.join(output_dir, filename)
+
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return FileResponse(filepath)
+
+
+@router.get("/output/{plan_id}/preview")
+async def get_output_preview(plan_id: str):
+    """Get preview URL for the generated output"""
+    output_dir = output_manager.get_output_path(plan_id)
+
+    # Check for index.html
+    index_path = os.path.join(output_dir, "index.html")
+    if os.path.exists(index_path):
+        return {
+            "preview_url": f"/api/pipeline/output/{plan_id}/files/index.html",
+            "has_preview": True
+        }
+
+    return {"has_preview": False, "message": "No preview available"}

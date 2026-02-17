@@ -4,6 +4,7 @@ from datetime import datetime
 import uuid
 import json
 from app.services.agent_manager import agent_manager
+from app.services.output_manager import output_manager
 from app.models.schemas import (
     AgentType, AgentStatus, TaskStatus, PlanStatus,
     Plan, PlanTask, PlanCreate, DiscussionMessage
@@ -446,6 +447,20 @@ class CoordinatorService:
                 "result": full_response,
             })
 
+            # Save output to files
+            try:
+                saved_files = output_manager.save_task_output(
+                    plan_id=plan_id,
+                    task_id=task.id,
+                    task_title=task.title,
+                    agent_type=task.assigned_agent_type or agent.type.value,
+                    content=full_response,
+                )
+                if saved_files:
+                    print(f"[OutputManager] Saved {len(saved_files)} files for task: {task.title}")
+            except Exception as e:
+                print(f"[OutputManager] Error saving output: {e}")
+
             agent.update_status(AgentStatus.IDLE)
 
             await self.broadcast({
@@ -460,6 +475,17 @@ class CoordinatorService:
 
         plan.status = PlanStatus.COMPLETED
         plan.completed_at = datetime.utcnow()
+
+        # Save final plan output
+        try:
+            output_dir = output_manager.save_plan_output(
+                plan_id=plan_id,
+                plan_title=plan.title,
+                tasks=[t.model_dump() for t in plan.tasks],
+            )
+            print(f"[OutputManager] Plan output saved to: {output_dir}")
+        except Exception as e:
+            print(f"[OutputManager] Error saving plan output: {e}")
 
         await self.broadcast({
             "type": "plan_update",
