@@ -82,6 +82,7 @@ class OutputManager:
         self.ensure_dir(plan_dir)
 
         saved_files = []
+        code_counter = self._get_next_code_counter(plan_dir)
 
         # Extract code blocks
         code_blocks = self.extract_code_blocks(content)
@@ -89,12 +90,15 @@ class OutputManager:
         if code_blocks:
             for i, block in enumerate(code_blocks):
                 filename = block['filename']
-                filepath = os.path.join(plan_dir, filename)
 
-                # Handle duplicate filenames
-                if os.path.exists(filepath) and len(code_blocks) > 1:
-                    base, ext = os.path.splitext(filename)
-                    filepath = os.path.join(plan_dir, f"{base}_{i}{ext}")
+                # Always use numbered filenames to avoid overwriting
+                base, ext = os.path.splitext(filename)
+                if base in ['code', 'script', 'style', 'index']:
+                    filepath = os.path.join(plan_dir, f"{base}_{code_counter + i}{ext}")
+                else:
+                    filepath = os.path.join(plan_dir, filename)
+                    if os.path.exists(filepath):
+                        filepath = os.path.join(plan_dir, f"{base}_{code_counter + i}{ext}")
 
                 with open(filepath, 'w', encoding='utf-8') as f:
                     f.write(block['code'])
@@ -114,6 +118,89 @@ class OutputManager:
 
         saved_files.append(md_path)
         return saved_files
+
+    def _get_next_code_counter(self, plan_dir: str) -> int:
+        """Get the next available code counter for numbered files"""
+        max_counter = -1
+        for f in os.listdir(plan_dir):
+            match = re.match(r'.+_(\d+)\.\w+$', f)
+            if match:
+                counter = int(match.group(1))
+                max_counter = max(max_counter, counter)
+        return max_counter + 1
+
+    def consolidate_web_app(self, plan_id: str, plan_title: str) -> bool:
+        """Consolidate code fragments into a working web application"""
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+        if not os.path.exists(plan_dir):
+            return False
+
+        # Check if index.html already exists and is complete
+        index_path = os.path.join(plan_dir, "index.html")
+        if os.path.exists(index_path):
+            with open(index_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # Check if it's a complete HTML with script tags
+                if '<script' in content and 'function' in content:
+                    return True  # Already consolidated
+
+        # Collect all JS code
+        js_code = []
+        for f in sorted(os.listdir(plan_dir)):
+            if f.endswith('.js'):
+                filepath = os.path.join(plan_dir, f)
+                with open(filepath, 'r', encoding='utf-8') as file:
+                    js_code.append(f"// From {f}\n{file.read()}")
+
+        # Collect all CSS
+        css_code = []
+        for f in sorted(os.listdir(plan_dir)):
+            if f.endswith('.css'):
+                filepath = os.path.join(plan_dir, f)
+                with open(filepath, 'r', encoding='utf-8') as file:
+                    css_code.append(f"/* From {f} */\n{file.read()}")
+
+        # Find or create index.html
+        html_content = None
+        for f in os.listdir(plan_dir):
+            if f.endswith('.html'):
+                filepath = os.path.join(plan_dir, f)
+                with open(filepath, 'r', encoding='utf-8') as file:
+                    html_content = file.read()
+                break
+
+        if not html_content:
+            # Create a basic HTML structure
+            html_content = self._generate_basic_html(plan_title)
+
+        # Inject CSS and JS if not already present
+        if css_code and '<style>' not in html_content:
+            combined_css = '\n'.join(css_code)
+            html_content = html_content.replace('</head>', f'<style>\n{combined_css}\n</style>\n</head>')
+
+        if js_code and '<script>' not in html_content:
+            combined_js = '\n'.join(js_code)
+            html_content = html_content.replace('</body>', f'<script>\n{combined_js}\n</script>\n</body>')
+
+        # Write consolidated index.html
+        with open(index_path, 'w', encoding='utf-8') as f:
+            f.write(html_content)
+
+        return True
+
+    def _generate_basic_html(self, title: str) -> str:
+        """Generate a basic HTML template"""
+        return f'''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+</head>
+<body>
+    <div id="app"></div>
+</body>
+</html>'''
 
     def save_plan_output(
         self,
@@ -141,6 +228,9 @@ class OutputManager:
                         with open(index_path, 'w', encoding='utf-8') as f:
                             f.write(html_match.group(1))
                         break
+
+        # Try to consolidate web app
+        self.consolidate_web_app(plan_id, plan_title)
 
         # Create README
         readme_path = os.path.join(plan_dir, "README.md")

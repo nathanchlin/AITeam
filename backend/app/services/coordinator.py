@@ -751,6 +751,10 @@ class CoordinatorService:
                     plan_title=plan.title,
                     tasks=[t.model_dump() for t in plan.tasks],
                 )
+                # Consolidate web app code fragments
+                if plan.target_output == "web-app":
+                    output_manager.consolidate_web_app(plan_id, plan.title)
+                    print(f"[OutputManager] Consolidated web app for plan {plan_id[:8]}")
             except Exception as e:
                 print(f"[OutputManager] Error saving plan output: {e}")
 
