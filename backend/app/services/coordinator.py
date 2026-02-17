@@ -26,40 +26,60 @@ class CoordinatorService:
 
     def _load_plans(self):
         """Load plans from persistent storage"""
+        import shutil
+
+        if not PLANS_STORAGE_FILE.exists():
+            return
+
         try:
-            if PLANS_STORAGE_FILE.exists():
-                with open(PLANS_STORAGE_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    for plan_id, plan_data in data.get('plans', {}).items():
-                        # Convert tasks back to PlanTask objects
-                        tasks = []
-                        for task_data in plan_data.get('tasks', []):
-                            tasks.append(PlanTask(**task_data))
-                        plan_data['tasks'] = tasks
+            with open(PLANS_STORAGE_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
 
-                        # Convert discussion back to DiscussionMessage objects
-                        discussion = []
-                        for msg_data in plan_data.get('discussion', []):
-                            discussion.append(DiscussionMessage(**msg_data))
-                        plan_data['discussion'] = discussion
+            for plan_id, plan_data in data.get('plans', {}).items():
+                try:
+                    # Convert tasks back to PlanTask objects
+                    tasks = []
+                    for task_data in plan_data.get('tasks', []):
+                        tasks.append(PlanTask(**task_data))
+                    plan_data['tasks'] = tasks
 
-                        # Parse datetime strings
-                        if plan_data.get('created_at'):
-                            plan_data['created_at'] = datetime.fromisoformat(plan_data['created_at'])
-                        if plan_data.get('updated_at'):
-                            plan_data['updated_at'] = datetime.fromisoformat(plan_data['updated_at'])
-                        if plan_data.get('started_at'):
-                            plan_data['started_at'] = datetime.fromisoformat(plan_data['started_at'])
-                        if plan_data.get('completed_at'):
-                            plan_data['completed_at'] = datetime.fromisoformat(plan_data['completed_at'])
+                    # Convert discussion back to DiscussionMessage objects
+                    discussion = []
+                    for msg_data in plan_data.get('discussion', []):
+                        discussion.append(DiscussionMessage(**msg_data))
+                    plan_data['discussion'] = discussion
 
-                        self.plans[plan_id] = Plan(**plan_data)
-                print(f"[Coordinator] Loaded {len(self.plans)} plans from storage")
+                    # Parse datetime strings
+                    if plan_data.get('created_at'):
+                        plan_data['created_at'] = datetime.fromisoformat(plan_data['created_at'])
+                    if plan_data.get('updated_at'):
+                        plan_data['updated_at'] = datetime.fromisoformat(plan_data['updated_at'])
+                    if plan_data.get('started_at'):
+                        plan_data['started_at'] = datetime.fromisoformat(plan_data['started_at'])
+                    if plan_data.get('completed_at'):
+                        plan_data['completed_at'] = datetime.fromisoformat(plan_data['completed_at'])
+
+                    self.plans[plan_id] = Plan(**plan_data)
+                except Exception as e:
+                    print(f"[Coordinator] Error loading plan {plan_id}: {e}")
+                    continue
+
+            print(f"[Coordinator] Loaded {len(self.plans)} plans from storage")
+
+        except json.JSONDecodeError as e:
+            # Backup corrupted file and start fresh
+            print(f"[Coordinator] JSON file corrupted: {e}")
+            backup_file = PLANS_STORAGE_FILE.with_suffix('.json.corrupted')
+            shutil.move(str(PLANS_STORAGE_FILE), str(backup_file))
+            print(f"[Coordinator] Corrupted file backed up to {backup_file}")
         except Exception as e:
             print(f"[Coordinator] Error loading plans: {e}")
 
     def _save_plans(self):
-        """Save plans to persistent storage"""
+        """Save plans to persistent storage with atomic write"""
+        import tempfile
+        import shutil
+
         try:
             # Ensure directory exists
             PLANS_STORAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
@@ -79,8 +99,13 @@ class CoordinatorService:
                     plan_dict['completed_at'] = plan_dict['completed_at'].isoformat()
                 plans_data[plan_id] = plan_dict
 
-            with open(PLANS_STORAGE_FILE, 'w', encoding='utf-8') as f:
+            # Atomic write: write to temp file first, then rename
+            temp_file = PLANS_STORAGE_FILE.with_suffix('.tmp')
+            with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump({'plans': plans_data, 'saved_at': datetime.utcnow().isoformat()}, f, ensure_ascii=False, indent=2)
+
+            # Atomic rename
+            shutil.move(str(temp_file), str(PLANS_STORAGE_FILE))
 
         except Exception as e:
             print(f"[Coordinator] Error saving plans: {e}")
