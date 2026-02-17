@@ -6,15 +6,16 @@ import { Sidebar } from './components/UI/Sidebar';
 import { TaskPanel } from './components/UI/TaskPanel';
 import { ChatPanel } from './components/UI/ChatPanel';
 import { PipelinePanel } from './components/UI/PipelinePanel';
+import { ProjectsPanel } from './components/UI/ProjectsPanel';
 import { useAgentStore } from './stores/agentStore';
 import { useWebSocket } from './hooks/useWebSocket';
-import { GitBranch } from 'lucide-react';
+import { GitBranch, Folder } from 'lucide-react';
 import type { Agent } from './types';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
 
 function App() {
-  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, setPlans, setCurrentPlan } = useAgentStore();
+  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan } = useAgentStore();
   const { selectedAgentId, chatPanelOpen, streamContent } = useAgentStore();
   const [loading, setLoading] = useState(true);
   useWebSocket();
@@ -172,8 +173,24 @@ function App() {
         <span className="text-sm font-medium">协作流水线</span>
       </button>
 
+      {/* Projects Button */}
+      <button
+        onClick={toggleProjectsPanel}
+        className={`absolute top-2 right-4 z-20 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+          projectsPanelOpen
+            ? 'bg-yellow-600 text-white'
+            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+        }`}
+      >
+        <Folder size={18} />
+        <span className="text-sm font-medium">项目</span>
+      </button>
+
       {/* Pipeline Panel */}
       <PipelinePanel />
+
+      {/* Projects Panel */}
+      <ProjectsPanel />
 
       {selectedAgent && chatPanelOpen && (
         <ChatPanel

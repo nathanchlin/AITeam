@@ -42,12 +42,14 @@ interface AgentState {
   taskPanelOpen: boolean;
   chatPanelOpen: boolean;
   pipelinePanelOpen: boolean;
+  projectsPanelOpen: boolean;
   thinkingLog: Array<{ agentId: string; agentName: string; thought: string; timestamp: number }>;
 
   toggleSidebar: () => void;
   toggleTaskPanel: () => void;
   toggleChatPanel: () => void;
   togglePipelinePanel: () => void;
+  toggleProjectsPanel: () => void;
   addThinkingLog: (agentId: string, agentName: string, thought: string) => void;
   clearThinkingLog: () => void;
   appendStreamContent: (taskId: string, content: string) => void;
@@ -129,12 +131,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   taskPanelOpen: false,
   chatPanelOpen: false,
   pipelinePanelOpen: false,
+  projectsPanelOpen: false,
   thinkingLog: [],
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   toggleTaskPanel: () => set((state) => ({ taskPanelOpen: !state.taskPanelOpen })),
   toggleChatPanel: () => set((state) => ({ chatPanelOpen: !state.chatPanelOpen })),
   togglePipelinePanel: () => set((state) => ({ pipelinePanelOpen: !state.pipelinePanelOpen })),
+  toggleProjectsPanel: () => set((state) => ({ projectsPanelOpen: !state.projectsPanelOpen })),
   addThinkingLog: (agentId, agentName, thought) =>
     set((state) => ({
       thinkingLog: [
