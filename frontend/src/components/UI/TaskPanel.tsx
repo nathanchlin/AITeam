@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
-import type { Task, AgentType } from '../../types';
+import type { Task } from '../../types';
 import { ClipboardList, Play, Plus, X, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 
 interface TaskPanelProps {

@@ -477,6 +477,7 @@ class CoordinatorService:
         plan.completed_at = datetime.utcnow()
 
         # Save final plan output
+        output_dir = None
         try:
             output_dir = output_manager.save_plan_output(
                 plan_id=plan_id,
@@ -487,12 +488,26 @@ class CoordinatorService:
         except Exception as e:
             print(f"[OutputManager] Error saving plan output: {e}")
 
+        # Post final result to discussion
+        if output_dir:
+            preview_url = f"/api/pipeline/output/{plan_id}/files/index.html"
+            result_message = f"🎉 项目已完成！\n\n📦 输出目录: {output_dir}\n\n🌐 预览地址: http://localhost:8000{preview_url}\n\n点击链接查看生成的网页。"
+            await self.add_discussion_message(
+                plan_id=plan_id,
+                agent_id="system",
+                agent_name="系统",
+                agent_type="assistant",
+                content=result_message,
+                message_type="comment",
+            )
+
         await self.broadcast({
             "type": "plan_update",
             "data": {
                 "plan_id": plan_id,
                 "status": "completed",
                 "results": results,
+                "output_url": f"/api/pipeline/output/{plan_id}/files/index.html" if output_dir else None,
             }
         })
 

@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html, Text, Float } from '@react-three/drei';
+import { Html, Float } from '@react-three/drei';
 import * as THREE from 'three';
 import { useAgentStore } from '../../stores/agentStore';
 import type { Agent } from '../../types';

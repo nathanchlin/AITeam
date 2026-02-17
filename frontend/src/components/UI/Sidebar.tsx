@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, type AgentType } from '../../types';
-import { Plus, Users, Settings, X } from 'lucide-react';
+import { Plus, Users, X } from 'lucide-react';
 
 interface SidebarProps {
   onCreateAgent: (name: string, type: AgentType) => void;

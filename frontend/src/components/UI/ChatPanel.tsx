@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { Agent, Task } from '../../types';
 import { AGENT_COLORS, AGENT_LABELS } from '../../types';

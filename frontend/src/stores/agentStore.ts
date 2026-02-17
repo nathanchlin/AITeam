@@ -192,14 +192,18 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         break;
 
       case 'stream':
-        const streamKey = (data.plan_id || data.task_id) as string;
+        // Stream can be for plan (discussion) or task (execution)
+        const streamKey = (data.task_id || data.plan_id) as string;
         if (streamKey) {
           get().appendStreamContent(streamKey, data.content as string);
         }
+        // Update task progress if task_id provided
         if (data.task_id) {
-          get().updateTask(data.task_id as string, {
-            progress: data.progress as number,
-          });
+          const tasks = get().tasks;
+          const existingTask = tasks.find(t => t.id === data.task_id);
+          if (!existingTask) {
+            // Task might be in plan tasks, not standalone tasks
+          }
         }
         break;
 
@@ -218,6 +222,22 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             get().updatePlan(planData.id, planData);
           } else {
             get().addPlan(planData);
+          }
+        }
+        // Also handle partial plan updates (status, task status)
+        if (data.plan_id && !planData) {
+          const plan = get().plans.find(p => p.id === data.plan_id);
+          if (plan) {
+            const updates: Partial<Plan> = {};
+            if (data.status) updates.status = data.status as Plan['status'];
+            if (data.task_id && data.task_status) {
+              updates.tasks = plan.tasks.map(t =>
+                t.id === data.task_id ? { ...t, status: data.task_status as Plan['tasks'][0]['status'] } : t
+              );
+            }
+            if (Object.keys(updates).length > 0) {
+              get().updatePlan(data.plan_id as string, updates);
+            }
           }
         }
         break;
