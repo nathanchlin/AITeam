@@ -1,4 +1,5 @@
 import asyncio
+import os
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import uuid
@@ -374,13 +375,23 @@ class CoordinatorService:
         return plan
 
     async def execute_plan(self, plan_id: str) -> str:
-        """Phase 4: Execute the plan step by step"""
+        """Phase 4: Execute the plan step by step with testing and feedback loop"""
         plan = self.plans.get(plan_id)
         if not plan:
             return "Plan not found"
 
         plan.status = PlanStatus.EXECUTING
         plan.started_at = datetime.utcnow()
+
+        # Post start message to group chat
+        await self.add_discussion_message(
+            plan_id=plan_id,
+            agent_id="system",
+            agent_name="系统",
+            agent_type="assistant",
+            content=f"🚀 开始执行计划：{plan.title}\n\n共有 {len(plan.tasks)} 个任务需要完成。",
+            message_type="comment",
+        )
 
         await self.broadcast({
             "type": "plan_update",
@@ -393,105 +404,259 @@ class CoordinatorService:
         # Sort tasks by order
         sorted_tasks = sorted(plan.tasks, key=lambda t: t.order)
         results = []
+        max_fix_iterations = 3  # Maximum bug fix iterations
+        fix_iteration = 0
 
-        for task in sorted_tasks:
-            if not task.assigned_agent_id:
-                continue
+        # Separate coding tasks and testing tasks
+        coding_tasks = [t for t in sorted_tasks if t.assigned_agent_type in ['coder', 'analyst', 'assistant']]
+        testing_tasks = [t for t in sorted_tasks if t.assigned_agent_type == 'tester']
 
-            agent = agent_manager.get_agent(task.assigned_agent_id)
-            if not agent:
-                continue
+        while fix_iteration < max_fix_iterations:
+            # Execute coding tasks
+            for task in coding_tasks:
+                if task.status == TaskStatus.COMPLETED:
+                    continue  # Skip already completed tasks
 
-            # Update task status
-            task.status = TaskStatus.RUNNING
+                if not task.assigned_agent_id:
+                    continue
 
-            await self.broadcast({
-                "type": "plan_update",
-                "data": {
-                    "plan_id": plan_id,
-                    "task_id": task.id,
-                    "status": "running",
-                }
-            })
+                agent = agent_manager.get_agent(task.assigned_agent_id)
+                if not agent:
+                    continue
 
-            # Create task description
-            task_description = f"""任务：{task.title}
+                # Post task start to group chat
+                await self.add_discussion_message(
+                    plan_id=plan_id,
+                    agent_id=agent.id,
+                    agent_name=agent.name,
+                    agent_type=agent.type.value,
+                    content=f"📝 开始任务：{task.title}",
+                    message_type="comment",
+                )
+
+                # Update task status
+                task.status = TaskStatus.RUNNING
+
+                await self.broadcast({
+                    "type": "plan_update",
+                    "data": {
+                        "plan_id": plan_id,
+                        "task_id": task.id,
+                        "status": "running",
+                    }
+                })
+
+                # Create task description
+                fix_context = ""
+                if fix_iteration > 0:
+                    # Get previous test results for context
+                    test_results = [r for r in results if '测试' in r.get('task', '')]
+                    if test_results:
+                        fix_context = f"\n\n⚠️ 之前的测试发现问题，请修复以下问题：\n{test_results[-1].get('result', '')}"
+
+                task_description = f"""任务：{task.title}
 
 描述：{task.description or '无详细描述'}
 
 原始需求上下文：{plan.original_request}
-
+{fix_context}
 请完成你的任务部分，提供详细的输出。"""
 
-            # Execute task
-            agent.update_status(AgentStatus.WORKING)
-            full_response = ""
+                # Execute task
+                agent.update_status(AgentStatus.WORKING)
+                full_response = ""
 
-            async for update in agent.execute_task(task_description):
-                if update["type"] == "stream":
-                    full_response += update["content"]
-                    await self.broadcast({
-                        "type": "stream",
-                        "data": {
-                            "plan_id": plan_id,
-                            "task_id": task.id,
-                            "agent_id": agent.id,
-                            "content": update["content"],
-                        }
-                    })
+                async for update in agent.execute_task(task_description):
+                    if update["type"] == "stream":
+                        full_response += update["content"]
+                        await self.broadcast({
+                            "type": "stream",
+                            "data": {
+                                "plan_id": plan_id,
+                                "task_id": task.id,
+                                "agent_id": agent.id,
+                                "content": update["content"],
+                            }
+                        })
 
-            task.status = TaskStatus.COMPLETED
-            results.append({
-                "task": task.title,
-                "agent": agent.name,
-                "result": full_response,
-            })
-
-            # Save output to files
-            try:
-                saved_files = output_manager.save_task_output(
-                    plan_id=plan_id,
-                    task_id=task.id,
-                    task_title=task.title,
-                    agent_type=task.assigned_agent_type or agent.type.value,
-                    content=full_response,
-                )
-                if saved_files:
-                    print(f"[OutputManager] Saved {len(saved_files)} files for task: {task.title}")
-            except Exception as e:
-                print(f"[OutputManager] Error saving output: {e}")
-
-            agent.update_status(AgentStatus.IDLE)
-
-            await self.broadcast({
-                "type": "plan_update",
-                "data": {
-                    "plan_id": plan_id,
-                    "task_id": task.id,
-                    "status": "completed",
+                task.status = TaskStatus.COMPLETED
+                results.append({
+                    "task": task.title,
+                    "agent": agent.name,
                     "result": full_response,
-                }
-            })
+                })
 
+                # Save output to files
+                try:
+                    saved_files = output_manager.save_task_output(
+                        plan_id=plan_id,
+                        task_id=task.id,
+                        task_title=task.title,
+                        agent_type=task.assigned_agent_type or agent.type.value,
+                        content=full_response,
+                    )
+                    if saved_files:
+                        print(f"[OutputManager] Saved {len(saved_files)} files for task: {task.title}")
+                except Exception as e:
+                    print(f"[OutputManager] Error saving output: {e}")
+
+                agent.update_status(AgentStatus.IDLE)
+
+                # Post task completion to group chat
+                summary = full_response[:200] + "..." if len(full_response) > 200 else full_response
+                await self.add_discussion_message(
+                    plan_id=plan_id,
+                    agent_id=agent.id,
+                    agent_name=agent.name,
+                    agent_type=agent.type.value,
+                    content=f"✅ 完成任务：{task.title}\n\n{summary}",
+                    message_type="comment",
+                )
+
+                await self.broadcast({
+                    "type": "plan_update",
+                    "data": {
+                        "plan_id": plan_id,
+                        "task_id": task.id,
+                        "status": "completed",
+                        "result": full_response,
+                    }
+                })
+
+            # Save combined output for testing
+            try:
+                output_manager.save_plan_output(
+                    plan_id=plan_id,
+                    plan_title=plan.title,
+                    tasks=[t.model_dump() for t in plan.tasks],
+                )
+            except Exception as e:
+                print(f"[OutputManager] Error saving plan output: {e}")
+
+            # Execute testing tasks
+            all_tests_passed = True
+            test_feedback = []
+
+            for task in testing_tasks:
+                if not task.assigned_agent_id:
+                    continue
+
+                agent = agent_manager.get_agent(task.assigned_agent_id)
+                if not agent:
+                    continue
+
+                # Post test start to group chat
+                await self.add_discussion_message(
+                    plan_id=plan_id,
+                    agent_id=agent.id,
+                    agent_name=agent.name,
+                    agent_type=agent.type.value,
+                    content=f"🧪 开始测试：{task.title}",
+                    message_type="comment",
+                )
+
+                task.status = TaskStatus.RUNNING
+                agent.update_status(AgentStatus.WORKING)
+
+                # Read generated code for testing context
+                output_dir = output_manager.get_output_path(plan_id)
+                code_context = ""
+                try:
+                    index_path = os.path.join(output_dir, "index.html")
+                    if os.path.exists(index_path):
+                        with open(index_path, 'r', encoding='utf-8') as f:
+                            code_content = f.read()
+                            # Include key parts of the code for testing
+                            code_context = f"\n\n生成的代码（关键部分）：\n```html\n{code_content[:3000]}...\n```\n"
+                except Exception as e:
+                    print(f"[Test] Error reading code: {e}")
+
+                test_prompt = f"""作为测试工程师，请对生成的代码进行实际验证。
+
+原始需求：{plan.original_request}
+
+测试任务：{task.title}
+{code_context}
+
+请执行以下测试步骤：
+1. 代码完整性检查：是否包含所有必要的功能代码
+2. 逻辑验证：核心功能逻辑是否正确实现
+3. 边界情况：是否处理了边界条件和错误情况
+
+输出格式：
+## 测试结果
+- [PASS/FAIL] 测试项1: 描述
+- [PASS/FAIL] 测试项2: 描述
+
+## 发现的问题
+（如果有问题，详细描述）
+
+## 建议
+（修复建议）"""
+
+                full_response = ""
+                async for update in agent.execute_task(test_prompt):
+                    if update["type"] == "stream":
+                        full_response += update["content"]
+
+                task.status = TaskStatus.COMPLETED
+                results.append({
+                    "task": task.title,
+                    "agent": agent.name,
+                    "result": full_response,
+                })
+
+                # Check if tests passed
+                if "[FAIL]" in full_response or "发现的问题" in full_response:
+                    all_tests_passed = False
+                    test_feedback.append(full_response)
+
+                # Post test result to group chat
+                result_emoji = "✅" if "[FAIL]" not in full_response else "❌"
+                summary = full_response[:300] + "..." if len(full_response) > 300 else full_response
+                await self.add_discussion_message(
+                    plan_id=plan_id,
+                    agent_id=agent.id,
+                    agent_name=agent.name,
+                    agent_type=agent.type.value,
+                    content=f"{result_emoji} 测试完成：{task.title}\n\n{summary}",
+                    message_type="comment",
+                )
+
+                agent.update_status(AgentStatus.IDLE)
+
+            # Check if we need to fix bugs
+            if all_tests_passed or fix_iteration >= max_fix_iterations - 1:
+                break
+
+            fix_iteration += 1
+
+            # Post fix iteration message to group chat
+            await self.add_discussion_message(
+                plan_id=plan_id,
+                agent_id="system",
+                agent_name="系统",
+                agent_type="assistant",
+                content=f"🔄 测试发现问题，开始第 {fix_iteration} 轮修复...\n\n问题摘要：\n" + "\n".join([fb[:200] for fb in test_feedback]),
+                message_type="comment",
+            )
+
+            # Reset coding tasks for re-execution
+            for task in coding_tasks:
+                if "核心" in task.title or "功能" in task.title or "实现" in task.title:
+                    task.status = TaskStatus.PENDING
+
+        # Final status
         plan.status = PlanStatus.COMPLETED
         plan.completed_at = datetime.utcnow()
 
-        # Save final plan output
-        output_dir = None
-        try:
-            output_dir = output_manager.save_plan_output(
-                plan_id=plan_id,
-                plan_title=plan.title,
-                tasks=[t.model_dump() for t in plan.tasks],
-            )
-            print(f"[OutputManager] Plan output saved to: {output_dir}")
-        except Exception as e:
-            print(f"[OutputManager] Error saving plan output: {e}")
-
         # Post final result to discussion
+        output_dir = output_manager.get_output_path(plan_id)
         if output_dir:
             preview_url = f"/api/pipeline/output/{plan_id}/files/index.html"
-            result_message = f"🎉 项目已完成！\n\n📦 输出目录: {output_dir}\n\n🌐 预览地址: http://localhost:8000{preview_url}\n\n点击链接查看生成的网页。"
+            result_emoji = "🎉" if all_tests_passed else "⚠️"
+            status_text = "所有测试通过！" if all_tests_passed else f"经过 {fix_iteration + 1} 轮修复后完成"
+            result_message = f"{result_emoji} 项目已完成！\n\n📊 状态: {status_text}\n\n📦 输出目录: {output_dir}\n\n🌐 预览地址: http://localhost:8000{preview_url}\n\n点击链接查看生成的网页。"
             await self.add_discussion_message(
                 plan_id=plan_id,
                 agent_id="system",
