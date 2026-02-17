@@ -14,20 +14,20 @@ async def list_projects():
     """List all generated projects from output directory"""
     if not os.path.exists(OUTPUT_DIR):
         return {"projects": []}
-    
+
     projects = []
-    
+
     for plan_id_short in os.listdir(OUTPUT_DIR):
         project_dir = os.path.join(OUTPUT_DIR, plan_id_short)
-        
+
         if not os.path.isdir(project_dir):
             continue
-        
+
         # Check for index.html
         index_path = os.path.join(project_dir, "index.html")
         has_preview = os.path.exists(index_path)
-        
-        # Get file list
+
+        # Get file list (limited to top 10 files)
         files = []
         total_size = 0
         for f in os.listdir(project_dir):
@@ -40,10 +40,11 @@ async def list_projects():
                     "size": size,
                     "modified": os.path.getmtime(filepath),
                 })
-        
-        # Sort by modification time
+
+        # Sort by modification time and limit
         files.sort(key=lambda x: x["modified"], reverse=True)
-        
+        files_limited = files[:10]  # Only return top 10 files
+
         # Get project title from README or use directory name
         title = plan_id_short
         readme_path = os.path.join(project_dir, "README.md")
@@ -55,22 +56,22 @@ async def list_projects():
                         title = first_line[2:].strip()
             except:
                 pass
-        
+
         projects.append({
             "id": plan_id_short,
             "title": title,
             "path": project_dir,
-            "files": files,
+            "files": files_limited,
             "file_count": len(files),
             "total_size": total_size,
             "has_preview": has_preview,
             "preview_url": f"/api/projects/{plan_id_short}/preview" if has_preview else None,
             "modified": os.path.getmtime(project_dir),
         })
-    
+
     # Sort by modification time (newest first)
     projects.sort(key=lambda x: x["modified"], reverse=True)
-    
+
     return {"projects": projects}
 
 
