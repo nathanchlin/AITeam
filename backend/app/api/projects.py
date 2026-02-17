@@ -1,12 +1,35 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 import os
+import json
+from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 OUTPUT_DIR = "output"
+PLANS_STORAGE_FILE = Path(__file__).parent.parent.parent / "data" / "plans.json"
+
+
+def load_plans_data():
+    """Load plans data from storage file"""
+    try:
+        if PLANS_STORAGE_FILE.exists():
+            with open(PLANS_STORAGE_FILE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except:
+        pass
+    return {"plans": {}}
+
+
+def find_plan_by_short_id(short_id: str):
+    """Find a plan by its short ID (first 8 characters)"""
+    data = load_plans_data()
+    for plan_id, plan in data.get('plans', {}).items():
+        if plan_id.startswith(short_id):
+            return plan
+    return None
 
 
 @router.get("/")
@@ -26,6 +49,10 @@ async def list_projects():
         # Check for index.html
         index_path = os.path.join(project_dir, "index.html")
         has_preview = os.path.exists(index_path)
+
+        # Check for discussion history
+        discussion_path = os.path.join(project_dir, "discussion.json")
+        has_discussion = os.path.exists(discussion_path)
 
         # Get file list (limited to top 10 files)
         files = []
@@ -65,6 +92,7 @@ async def list_projects():
             "file_count": len(files),
             "total_size": total_size,
             "has_preview": has_preview,
+            "has_discussion": has_discussion,
             "preview_url": f"/api/projects/{plan_id_short}/preview" if has_preview else None,
             "modified": os.path.getmtime(project_dir),
         })
@@ -92,8 +120,37 @@ async def get_project_file(project_id: str, filename: str):
     """Get a specific file from a project"""
     project_dir = os.path.join(OUTPUT_DIR, project_id)
     filepath = os.path.join(project_dir, filename)
-    
+
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")
-    
+
     return FileResponse(filepath)
+
+
+@router.get("/{project_id}/discussion")
+async def get_project_discussion(project_id: str):
+    """Get discussion history for a project"""
+    project_dir = os.path.join(OUTPUT_DIR, project_id)
+
+    if not os.path.exists(project_dir):
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Try to read from discussion.json first
+    discussion_path = os.path.join(project_dir, "discussion.json")
+    if os.path.exists(discussion_path):
+        try:
+            with open(discussion_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return {"discussion": data.get("discussion", []), "title": data.get("title", project_id)}
+        except:
+            pass
+
+    # Fallback: try to find from plans.json
+    plan = find_plan_by_short_id(project_id)
+    if plan:
+        return {
+            "discussion": plan.get("discussion", []),
+            "title": plan.get("title", project_id)
+        }
+
+    return {"discussion": [], "title": project_id}

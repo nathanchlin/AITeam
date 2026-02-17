@@ -889,6 +889,21 @@ class CoordinatorService:
                 message_type="comment",
             )
 
+            # Save discussion history to output directory
+            try:
+                discussion_path = os.path.join(output_dir, "discussion.json")
+                discussion_data = {
+                    "title": plan.title,
+                    "original_request": plan.original_request,
+                    "discussion": [msg.model_dump() for msg in plan.discussion],
+                    "saved_at": datetime.utcnow().isoformat()
+                }
+                with open(discussion_path, 'w', encoding='utf-8') as f:
+                    json.dump(discussion_data, f, ensure_ascii=False, indent=2)
+                print(f"[Coordinator] Saved discussion history to {discussion_path}")
+            except Exception as e:
+                print(f"[Coordinator] Error saving discussion: {e}")
+
         await self.broadcast({
             "type": "plan_update",
             "data": {
