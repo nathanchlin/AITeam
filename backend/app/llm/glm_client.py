@@ -34,6 +34,13 @@ class GLMClient:
 4. 进行友好对话
 
 请用友好、专业的方式回应。""",
+            "tester": """你是一个专业的软件测试工程师。你的职责是：
+1. 分析需求并设计测试用例
+2. 执行功能测试和回归测试
+3. 发现并报告Bug
+4. 验证Bug修复
+
+请用系统化、严谨的方式工作。""",
             "custom": custom_prompt or "你是一个自定义AI助手。请根据用户的需求提供帮助。"
         }
         return base_prompts.get(agent_type, base_prompts["assistant"])

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Agent, Task, WebSocketMessage } from '../types';
+import type { Agent, Task, Plan, DiscussionMessage, WebSocketMessage } from '../types';
 
 interface AgentState {
   // Agents
@@ -21,16 +21,33 @@ interface AgentState {
   selectTask: (id: string | null) => void;
   setTaskResult: (id: string, result: string) => void;
 
+  // Plans & Pipeline
+  plans: Plan[];
+  currentPlanId: string | null;
+  setPlans: (plans: Plan[]) => void;
+  addPlan: (plan: Plan) => void;
+  updatePlan: (id: string, updates: Partial<Plan>) => void;
+  setCurrentPlan: (id: string | null) => void;
+
+  // Discussion
+  discussionMessages: DiscussionMessage[];
+  addDiscussionMessage: (msg: DiscussionMessage) => void;
+  clearDiscussion: () => void;
+
+  // Stream content
+  streamContent: Record<string, string>;
+
   // UI State
   sidebarOpen: boolean;
   taskPanelOpen: boolean;
   chatPanelOpen: boolean;
+  pipelinePanelOpen: boolean;
   thinkingLog: Array<{ agentId: string; agentName: string; thought: string; timestamp: number }>;
-  streamContent: Record<string, string>;
 
   toggleSidebar: () => void;
   toggleTaskPanel: () => void;
   toggleChatPanel: () => void;
+  togglePipelinePanel: () => void;
   addThinkingLog: (agentId: string, agentName: string, thought: string) => void;
   clearThinkingLog: () => void;
   appendStreamContent: (taskId: string, content: string) => void;
@@ -76,7 +93,6 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   selectTask: (id) => set({ selectedTaskId: id }),
   setTaskResult: (id, result) =>
     set((state) => {
-      // Clear stream content and set result
       const { [id]: _, ...rest } = state.streamContent;
       return {
         streamContent: rest,
@@ -86,16 +102,39 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       };
     }),
 
+  // Plans
+  plans: [],
+  currentPlanId: null,
+  setPlans: (plans) => set({ plans }),
+  addPlan: (plan) => set((state) => ({ plans: [plan, ...state.plans] })),
+  updatePlan: (id, updates) =>
+    set((state) => ({
+      plans: state.plans.map((p) => (p.id === id ? { ...p, ...updates } : p)),
+    })),
+  setCurrentPlan: (id) => set({ currentPlanId: id }),
+
+  // Discussion
+  discussionMessages: [],
+  addDiscussionMessage: (msg) =>
+    set((state) => ({
+      discussionMessages: [...state.discussionMessages, msg],
+    })),
+  clearDiscussion: () => set({ discussionMessages: [] }),
+
+  // Stream content
+  streamContent: {},
+
   // UI State
   sidebarOpen: true,
   taskPanelOpen: false,
   chatPanelOpen: false,
+  pipelinePanelOpen: false,
   thinkingLog: [],
-  streamContent: {},
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   toggleTaskPanel: () => set((state) => ({ taskPanelOpen: !state.taskPanelOpen })),
   toggleChatPanel: () => set((state) => ({ chatPanelOpen: !state.chatPanelOpen })),
+  togglePipelinePanel: () => set((state) => ({ pipelinePanelOpen: !state.pipelinePanelOpen })),
   addThinkingLog: (agentId, agentName, thought) =>
     set((state) => ({
       thinkingLog: [
@@ -139,7 +178,6 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           progress: data.progress as number,
           result: data.result as string | undefined,
         });
-        // When task completes, clear stream content
         if (status === 'completed' && data.result) {
           get().clearStreamContent(data.task_id as string);
         }
@@ -154,10 +192,34 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         break;
 
       case 'stream':
-        get().appendStreamContent(data.task_id as string, data.content as string);
-        get().updateTask(data.task_id as string, {
-          progress: data.progress as number,
-        });
+        const streamKey = (data.plan_id || data.task_id) as string;
+        if (streamKey) {
+          get().appendStreamContent(streamKey, data.content as string);
+        }
+        if (data.task_id) {
+          get().updateTask(data.task_id as string, {
+            progress: data.progress as number,
+          });
+        }
+        break;
+
+      case 'discussion':
+        const msg = data.message as DiscussionMessage;
+        if (msg) {
+          get().addDiscussionMessage(msg);
+        }
+        break;
+
+      case 'plan_update':
+        const planData = data.plan as Plan;
+        if (planData) {
+          const existingPlan = get().plans.find(p => p.id === planData.id);
+          if (existingPlan) {
+            get().updatePlan(planData.id, planData);
+          } else {
+            get().addPlan(planData);
+          }
+        }
         break;
 
       case 'chat':

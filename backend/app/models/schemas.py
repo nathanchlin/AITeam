@@ -8,6 +8,7 @@ class AgentType(str, Enum):
     CODER = "coder"
     ANALYST = "analyst"
     ASSISTANT = "assistant"
+    TESTER = "tester"
     CUSTOM = "custom"
 
 
@@ -23,6 +24,14 @@ class TaskStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class PlanStatus(str, Enum):
+    DRAFT = "draft"
+    DISCUSSING = "discussing"
+    APPROVED = "approved"
+    EXECUTING = "executing"
+    COMPLETED = "completed"
 
 
 class AgentBase(BaseModel):
@@ -60,6 +69,7 @@ class TaskBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
     agent_id: Optional[str] = None
+    parent_task_id: Optional[str] = None
 
 
 class TaskCreate(TaskBase):
@@ -89,6 +99,72 @@ class Task(TaskBase):
         from_attributes = True
 
 
+# Discussion system
+class DiscussionMessage(BaseModel):
+    id: str
+    plan_id: str
+    agent_id: str
+    agent_name: str
+    agent_type: str
+    content: str
+    message_type: str = "comment"  # comment, proposal, question, answer, agreement
+    reply_to: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class DiscussionMessageCreate(BaseModel):
+    content: str
+    message_type: str = "comment"
+    reply_to: Optional[str] = None
+
+
+# Plan system
+class PlanTask(BaseModel):
+    id: str
+    title: str
+    description: Optional[str] = None
+    assigned_agent_id: Optional[str] = None
+    assigned_agent_type: Optional[str] = None
+    dependencies: List[str] = Field(default_factory=list)
+    status: TaskStatus = TaskStatus.PENDING
+    order: int = 0
+
+
+class PlanBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    original_request: str
+    target_output: Optional[str] = None  # e.g., "web-app", "api", "report"
+
+
+class PlanCreate(PlanBase):
+    pass
+
+
+class PlanUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    status: Optional[PlanStatus] = None
+    tasks: Optional[List[PlanTask]] = None
+    is_approved: Optional[bool] = None
+
+
+class Plan(PlanBase):
+    id: str
+    status: PlanStatus = PlanStatus.DRAFT
+    tasks: List[PlanTask] = Field(default_factory=list)
+    discussion: List[DiscussionMessage] = Field(default_factory=list)
+    is_approved: bool = False
+    created_by_agent_id: Optional[str] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
 class ChatMessage(BaseModel):
     id: str
     agent_id: str
@@ -98,7 +174,7 @@ class ChatMessage(BaseModel):
 
 
 class WebSocketMessage(BaseModel):
-    type: str  # "task_update", "agent_update", "thinking", "chat"
+    type: str  # "task_update", "agent_update", "thinking", "chat", "discussion", "plan_update"
     data: Dict[str, Any]
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
@@ -108,3 +184,9 @@ class ThinkingStep(BaseModel):
     thought: str
     action: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+# Pipeline request
+class PipelineRequest(BaseModel):
+    request: str
+    target_output: str = "web-app"  # web-app, api, report, etc.

@@ -5,14 +5,16 @@ import { World } from './components/Scene/World';
 import { Sidebar } from './components/UI/Sidebar';
 import { TaskPanel } from './components/UI/TaskPanel';
 import { ChatPanel } from './components/UI/ChatPanel';
+import { PipelinePanel } from './components/UI/PipelinePanel';
 import { useAgentStore } from './stores/agentStore';
 import { useWebSocket } from './hooks/useWebSocket';
+import { GitBranch } from 'lucide-react';
 import type { Agent } from './types';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
 
 function App() {
-  const { agents, setAgents, tasks, setTasks } = useAgentStore();
+  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel } = useAgentStore();
   const { selectedAgentId, chatPanelOpen, streamContent } = useAgentStore();
   const [loading, setLoading] = useState(true);
   useWebSocket();
@@ -50,9 +52,9 @@ function App() {
           name,
           type,
           position: {
-            x: (Math.random() - 0.5) * 6,
+            x: (Math.random() - 0.5) * 8,
             y: 0,
-            z: (Math.random() - 0.5) * 6,
+            z: (Math.random() - 0.5) * 8,
           },
         }),
       });
@@ -107,7 +109,7 @@ function App() {
     <div className="w-full h-full relative bg-gray-900">
       {/* 3D Canvas */}
       <Canvas
-        camera={{ position: [8, 8, 8], fov: 50 }}
+        camera={{ position: [10, 10, 10], fov: 50 }}
         shadows
         className="w-full h-full"
       >
@@ -138,8 +140,8 @@ function App() {
             enablePan={true}
             enableZoom={true}
             enableRotate={true}
-            minDistance={3}
-            maxDistance={20}
+            minDistance={5}
+            maxDistance={25}
             maxPolarAngle={Math.PI / 2 - 0.1}
           />
         </Suspense>
@@ -148,6 +150,22 @@ function App() {
       {/* UI Overlay */}
       <Sidebar onCreateAgent={createAgent} />
       <TaskPanel tasks={tasks} onCreateTask={createTask} onStartTask={startTask} />
+
+      {/* Pipeline Button */}
+      <button
+        onClick={togglePipelinePanel}
+        className={`absolute top-2 left-1/2 transform -translate-x-1/2 z-20 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+          pipelinePanelOpen
+            ? 'bg-purple-600 text-white'
+            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+        }`}
+      >
+        <GitBranch size={18} />
+        <span className="text-sm font-medium">协作流水线</span>
+      </button>
+
+      {/* Pipeline Panel */}
+      <PipelinePanel />
 
       {selectedAgent && chatPanelOpen && (
         <ChatPanel
@@ -167,7 +185,7 @@ function ConnectionStatus() {
   const { wsConnected } = useAgentStore();
 
   return (
-    <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-10">
+    <div className="absolute bottom-4 left-4 z-10">
       <div
         className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
           wsConnected

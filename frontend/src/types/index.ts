@@ -1,6 +1,7 @@
-export type AgentType = 'coder' | 'analyst' | 'assistant' | 'custom';
+export type AgentType = 'coder' | 'analyst' | 'assistant' | 'tester' | 'custom';
 export type AgentStatus = 'idle' | 'working' | 'waiting' | 'error';
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type PlanStatus = 'draft' | 'discussing' | 'approved' | 'executing' | 'completed';
 
 export interface Position {
   x: number;
@@ -26,6 +27,7 @@ export interface Task {
   title: string;
   description?: string;
   agent_id?: string;
+  parent_task_id?: string;
   status: TaskStatus;
   progress: number;
   result?: string;
@@ -41,6 +43,48 @@ export interface ThinkingStep {
   thought: string;
   action?: string;
   timestamp: string;
+}
+
+// Discussion system
+export interface DiscussionMessage {
+  id: string;
+  plan_id: string;
+  agent_id: string;
+  agent_name: string;
+  agent_type: string;
+  content: string;
+  message_type: 'comment' | 'proposal' | 'question' | 'answer' | 'agreement';
+  reply_to?: string;
+  timestamp: string;
+}
+
+// Plan system
+export interface PlanTask {
+  id: string;
+  title: string;
+  description?: string;
+  assigned_agent_id?: string;
+  assigned_agent_type?: string;
+  dependencies: string[];
+  status: TaskStatus;
+  order: number;
+}
+
+export interface Plan {
+  id: string;
+  title: string;
+  description?: string;
+  original_request: string;
+  target_output?: string;
+  status: PlanStatus;
+  tasks: PlanTask[];
+  discussion: DiscussionMessage[];
+  is_approved: boolean;
+  created_by_agent_id?: string;
+  created_at: string;
+  updated_at: string;
+  started_at?: string;
+  completed_at?: string;
 }
 
 export interface ChatMessage {
@@ -73,6 +117,11 @@ export const AGENT_COLORS: Record<AgentType, { primary: string; secondary: strin
     secondary: '#A78BFA',
     light: '#C4B5FD',
   },
+  tester: {
+    primary: '#F97316',
+    secondary: '#FB923C',
+    light: '#FDBA74',
+  },
   custom: {
     primary: '#F59E0B',
     secondary: '#FBBF24',
@@ -83,6 +132,7 @@ export const AGENT_COLORS: Record<AgentType, { primary: string; secondary: strin
 export const AGENT_LABELS: Record<AgentType, string> = {
   coder: '代码开发',
   analyst: '数据分析',
-  assistant: '通用助手',
+  assistant: '协调者',
+  tester: '测试工程师',
   custom: '自定义',
 };

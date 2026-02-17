@@ -109,7 +109,7 @@ export function Sidebar({ onCreateAgent }: SidebarProps) {
               <div>
                 <label className="text-gray-400 text-sm block mb-2">Type</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(['coder', 'analyst', 'assistant', 'custom'] as AgentType[]).map((type) => (
+                  {(['coder', 'analyst', 'assistant', 'tester', 'custom'] as AgentType[]).map((type) => (
                     <button
                       key={type}
                       onClick={() => setNewAgentType(type)}

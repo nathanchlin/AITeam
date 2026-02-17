@@ -1,7 +1,7 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api import agents, tasks
+from app.api import agents, tasks, pipeline
 from app.api.ws import websocket_endpoint, ws_manager as websocket_manager
 from app.services.agent_manager import agent_manager
 from app.models.schemas import AgentType
@@ -25,6 +25,7 @@ app.add_middleware(
 # Include routers
 app.include_router(agents.router, prefix="/api")
 app.include_router(tasks.router, prefix="/api")
+app.include_router(pipeline.router, prefix="/api")
 
 
 # WebSocket manager export for task executor
@@ -52,25 +53,31 @@ async def websocket_route(websocket: WebSocket):
 
 @app.on_event("startup")
 async def startup_event():
-    # Create some default agents
+    # Create default agents with Tester
     default_agents = [
         {
             "name": "CodeMaster",
             "type": AgentType.CODER,
             "description": "专业代码开发专家，擅长编写和调试代码",
-            "position": {"x": -3, "y": 0, "z": 0},
+            "position": {"x": -4, "y": 0, "z": 0},
         },
         {
             "name": "DataAnalyst",
             "type": AgentType.ANALYST,
             "description": "数据分析专家，擅长数据分析和报告生成",
-            "position": {"x": 0, "y": 0, "z": 0},
+            "position": {"x": -1.5, "y": 0, "z": 0},
         },
         {
-            "name": "Assistant",
+            "name": "Coordinator",
             "type": AgentType.ASSISTANT,
-            "description": "智能通用助手，可以处理各种任务",
-            "position": {"x": 3, "y": 0, "z": 0},
+            "description": "项目协调者，负责需求分析和任务分配",
+            "position": {"x": 1.5, "y": 0, "z": 0},
+        },
+        {
+            "name": "Tester",
+            "type": AgentType.TESTER,
+            "description": "测试工程师，负责测试和质量保证",
+            "position": {"x": 4, "y": 0, "z": 0},
         },
     ]
 

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, AsyncGenerator
 from datetime import datetime
 import uuid
-from app.models.schemas import AgentType, AgentStatus, Agent
+from app.models.schemas import AgentType, AgentStatus
 from app.llm.glm_client import glm_client
 
 
@@ -69,9 +69,11 @@ class CoderAgent(BaseAgent):
 1. 编写高质量、可维护的代码
 2. 调试和修复代码问题
 3. 进行代码审查和优化
-4. 解释技术概念和最佳实践
+4. 实现功能模块
+5. 编写技术文档
 
-请用专业但友好的方式回应，必要时提供代码示例。"""
+请用专业但友好的方式回应，必要时提供完整可运行的代码示例。
+当代码需要作为独立文件时，请明确标注文件名。"""
 
     async def execute_task(self, task: str) -> AsyncGenerator[Dict[str, Any], None]:
         self.update_status(AgentStatus.WORKING)
@@ -96,6 +98,7 @@ class AnalystAgent(BaseAgent):
 2. 生成分析报告
 3. 创建数据可视化建议
 4. 解读数据趋势和模式
+5. 评估项目可行性和风险
 
 请用清晰、结构化的方式呈现分析结果。"""
 
@@ -117,13 +120,14 @@ class AssistantAgent(BaseAgent):
         super().__init__(id, name, AgentType.ASSISTANT, **kwargs)
 
     def get_system_prompt(self) -> str:
-        return self.custom_prompt or """你是一个智能通用助手。你的职责包括：
-1. 回答各种问题
-2. 提供建议和解决方案
-3. 协助完成各种任务
-4. 进行友好对话
+        return self.custom_prompt or """你是一个智能通用助手和项目协调者。你的职责包括：
+1. 理解用户需求并进行拆解
+2. 协调不同专业领域的Agent进行协作
+3. 组织讨论并形成执行计划
+4. 汇总和整合各Agent的工作成果
+5. 确保项目按计划推进
 
-请用友好、专业的方式回应。"""
+请用友好、专业的方式回应，善于组织和协调。"""
 
     async def execute_task(self, task: str) -> AsyncGenerator[Dict[str, Any], None]:
         self.update_status(AgentStatus.WORKING)
@@ -136,6 +140,34 @@ class AssistantAgent(BaseAgent):
 
         self.update_status(AgentStatus.IDLE)
         yield {"type": "complete", "content": "处理完成"}
+
+
+class TesterAgent(BaseAgent):
+    def __init__(self, id: str, name: str, **kwargs):
+        super().__init__(id, name, AgentType.TESTER, **kwargs)
+
+    def get_system_prompt(self) -> str:
+        return self.custom_prompt or """你是一个专业的软件测试工程师。你的职责包括：
+1. 分析需求并设计测试用例
+2. 执行功能测试和回归测试
+3. 发现并报告Bug
+4. 验证Bug修复
+5. 确保产品质量
+
+请用系统化、严谨的方式工作，关注边界条件和异常情况。
+发现问题时，请清晰描述问题、预期结果和实际结果。"""
+
+    async def execute_task(self, task: str) -> AsyncGenerator[Dict[str, Any], None]:
+        self.update_status(AgentStatus.WORKING)
+
+        yield {"type": "thinking", "content": f"[{self.name}] 开始测试任务..."}
+        yield {"type": "thinking", "content": f"[{self.name}] 测试目标：{task}"}
+
+        async for chunk in glm_client.chat_stream(task, "tester", self.custom_prompt):
+            yield {"type": "stream", "content": chunk}
+
+        self.update_status(AgentStatus.IDLE)
+        yield {"type": "complete", "content": "测试完成"}
 
 
 class CustomAgent(BaseAgent):
@@ -174,6 +206,8 @@ def create_agent(
         return AnalystAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position)
     elif agent_type == AgentType.ASSISTANT:
         return AssistantAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position)
+    elif agent_type == AgentType.TESTER:
+        return TesterAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position)
     elif agent_type == AgentType.CUSTOM:
         return CustomAgent(agent_id, name, custom_prompt=custom_prompt or "", description=description, position=position)
     else:
