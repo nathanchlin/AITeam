@@ -193,6 +193,7 @@ async def check_pipeline_health():
     """Check for stuck pipelines and return status"""
     stuck_pipelines = []
     running_pipelines = []
+    TASK_TIMEOUT_SECONDS = 900  # 15 minutes
 
     for plan_id, plan in coordinator.plans.items():
         if plan.status == PlanStatus.EXECUTING:
@@ -208,10 +209,25 @@ async def check_pipeline_health():
                         "running_task": task.title,
                     })
 
+                    # Check if task is stuck (running for more than timeout + buffer)
+                    # Note: This is a safety check; actual timeout is handled in coordinator
+                    if plan.started_at:
+                        elapsed = current_time - plan.started_at.timestamp()
+                        if elapsed > TASK_TIMEOUT_SECONDS * 4:  # 4x timeout = definitely stuck
+                            stuck_pipelines.append({
+                                "plan_id": plan_id,
+                                "plan_title": plan.title,
+                                "running_task": task.title,
+                                "elapsed_seconds": int(elapsed),
+                                "message": "Pipeline may be stuck (running for over 1 hour)",
+                            })
+
     return {
         "running_pipelines": running_pipelines,
         "stuck_pipelines": stuck_pipelines,
         "total_plans": len(coordinator.plans),
+        "task_timeout_seconds": TASK_TIMEOUT_SECONDS,
+        "max_retries_per_task": 3,
     }
 
 

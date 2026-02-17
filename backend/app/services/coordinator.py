@@ -424,37 +424,45 @@ class CoordinatorService:
                 if not agent:
                     continue
 
-                # Post task start to group chat
-                await self.add_discussion_message(
-                    plan_id=plan_id,
-                    agent_id=agent.id,
-                    agent_name=agent.name,
-                    agent_type=agent.type.value,
-                    content=f"📝 开始任务：{task.title}",
-                    message_type="comment",
-                )
+                # Execute task with retry logic
+                task_timeout = 900  # 15 minutes timeout per task
+                max_task_retries = 3  # Max retries per task
+                task_retry_count = 0
+                task_success = False
 
-                # Update task status
-                task.status = TaskStatus.RUNNING
+                while task_retry_count < max_task_retries and not task_success:
+                    # Post task start to group chat
+                    retry_msg = f" (第 {task_retry_count + 1} 次尝试)" if task_retry_count > 0 else ""
+                    await self.add_discussion_message(
+                        plan_id=plan_id,
+                        agent_id=agent.id,
+                        agent_name=agent.name,
+                        agent_type=agent.type.value,
+                        content=f"📝 开始任务：{task.title}{retry_msg}",
+                        message_type="comment",
+                    )
 
-                await self.broadcast({
-                    "type": "plan_update",
-                    "data": {
-                        "plan_id": plan_id,
-                        "task_id": task.id,
-                        "status": "running",
-                    }
-                })
+                    # Update task status
+                    task.status = TaskStatus.RUNNING
 
-                # Create task description
-                fix_context = ""
-                if fix_iteration > 0:
-                    # Get previous test results for context
-                    test_results = [r for r in results if '测试' in r.get('task', '')]
-                    if test_results:
-                        fix_context = f"\n\n⚠️ 之前的测试发现问题，请修复以下问题：\n{test_results[-1].get('result', '')}"
+                    await self.broadcast({
+                        "type": "plan_update",
+                        "data": {
+                            "plan_id": plan_id,
+                            "task_id": task.id,
+                            "status": "running",
+                        }
+                    })
 
-                task_description = f"""任务：{task.title}
+                    # Create task description
+                    fix_context = ""
+                    if fix_iteration > 0:
+                        # Get previous test results for context
+                        test_results = [r for r in results if '测试' in r.get('task', '')]
+                        if test_results:
+                            fix_context = f"\n\n⚠️ 之前的测试发现问题，请修复以下问题：\n{test_results[-1].get('result', '')}"
+
+                    task_description = f"""任务：{task.title}
 
 描述：{task.description or '无详细描述'}
 
@@ -462,63 +470,101 @@ class CoordinatorService:
 {fix_context}
 请完成你的任务部分，提供详细的输出。"""
 
-                # Execute task with timeout
-                agent.update_status(AgentStatus.WORKING)
-                full_response = ""
-                task_timeout = 180  # 3 minutes timeout per task
+                    # Execute task with timeout
+                    agent.update_status(AgentStatus.WORKING)
+                    full_response = ""
 
-                try:
-                    async def execute_with_timeout():
-                        nonlocal full_response
-                        async for update in agent.execute_task(task_description):
-                            if update["type"] == "stream":
-                                full_response += update["content"]
-                                await self.broadcast({
-                                    "type": "stream",
-                                    "data": {
-                                        "plan_id": plan_id,
-                                        "task_id": task.id,
-                                        "agent_id": agent.id,
-                                        "content": update["content"],
-                                    }
-                                })
+                    try:
+                        async def execute_with_timeout():
+                            nonlocal full_response
+                            async for update in agent.execute_task(task_description):
+                                if update["type"] == "stream":
+                                    full_response += update["content"]
+                                    await self.broadcast({
+                                        "type": "stream",
+                                        "data": {
+                                            "plan_id": plan_id,
+                                            "task_id": task.id,
+                                            "agent_id": agent.id,
+                                            "content": update["content"],
+                                        }
+                                    })
 
-                    await asyncio.wait_for(execute_with_timeout(), timeout=task_timeout)
+                        await asyncio.wait_for(execute_with_timeout(), timeout=task_timeout)
 
-                except asyncio.TimeoutError:
-                    # Task timed out
-                    error_msg = f"⚠️ 任务超时（{task_timeout}秒），已自动跳过"
-                    print(f"[Pipeline] Task timeout: {task.title}")
+                        # Task completed successfully
+                        task_success = True
 
-                    await self.add_discussion_message(
-                        plan_id=plan_id,
-                        agent_id=agent.id,
-                        agent_name=agent.name,
-                        agent_type=agent.type.value,
-                        content=error_msg,
-                        message_type="comment",
-                    )
+                    except asyncio.TimeoutError:
+                        # Task timed out
+                        task_retry_count += 1
+                        error_msg = f"⚠️ 任务超时（{task_timeout}秒/15分钟），第 {task_retry_count} 次尝试失败"
+                        print(f"[Pipeline] Task timeout: {task.title}, retry {task_retry_count}/{max_task_retries}")
 
-                    task.status = TaskStatus.FAILED
-                    agent.update_status(AgentStatus.IDLE)
-                    continue
+                        await self.add_discussion_message(
+                            plan_id=plan_id,
+                            agent_id=agent.id,
+                            agent_name=agent.name,
+                            agent_type=agent.type.value,
+                            content=error_msg,
+                            message_type="comment",
+                        )
 
-                except Exception as e:
-                    # Task failed with error
-                    error_msg = f"❌ 任务执行出错：{str(e)}"
-                    print(f"[Pipeline] Task error: {task.title} - {e}")
+                        agent.update_status(AgentStatus.IDLE)
 
-                    await self.add_discussion_message(
-                        plan_id=plan_id,
-                        agent_id=agent.id,
-                        agent_name=agent.name,
-                        agent_type=agent.type.value,
-                        content=error_msg,
-                        message_type="comment",
-                    )
+                        if task_retry_count >= max_task_retries:
+                            # All retries exhausted, restart entire pipeline
+                            error_msg = f"❌ 任务「{task.title}」已重试 {max_task_retries} 次均失败，将重启整个流程"
+                            print(f"[Pipeline] Task failed after {max_task_retries} retries, restarting pipeline")
 
-                    task.status = TaskStatus.FAILED
-                    agent.update_status(AgentStatus.IDLE)
+                            await self.add_discussion_message(
+                                plan_id=plan_id,
+                                agent_id="system",
+                                agent_name="系统",
+                                agent_type="assistant",
+                                content=error_msg,
+                                message_type="comment",
+                            )
+
+                            # Reset all tasks to pending
+                            for t in plan.tasks:
+                                t.status = TaskStatus.PENDING
+
+                            # Restart pipeline from beginning
+                            await self.add_discussion_message(
+                                plan_id=plan_id,
+                                agent_id="system",
+                                agent_name="系统",
+                                agent_type="assistant",
+                                content="🔄 正在重新启动整个流程...",
+                                message_type="comment",
+                            )
+
+                            # Recursively restart pipeline
+                            return await self.run_pipeline_with_plan(plan_id)
+
+                        continue  # Retry the same task
+
+                    except Exception as e:
+                        # Task failed with error
+                        error_msg = f"❌ 任务执行出错：{str(e)}"
+                        print(f"[Pipeline] Task error: {task.title} - {e}")
+
+                        await self.add_discussion_message(
+                            plan_id=plan_id,
+                            agent_id=agent.id,
+                            agent_name=agent.name,
+                            agent_type=agent.type.value,
+                            content=error_msg,
+                            message_type="comment",
+                        )
+
+                        task.status = TaskStatus.FAILED
+                        agent.update_status(AgentStatus.IDLE)
+                        break  # Exit retry loop on non-timeout errors
+
+                # If task was not successful after all retries, skip to next task
+                if not task_success:
                     continue
 
                 # Only process if we got a response
