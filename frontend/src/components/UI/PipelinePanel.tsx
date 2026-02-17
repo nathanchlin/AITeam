@@ -12,7 +12,6 @@ export function PipelinePanel() {
     plans,
     currentPlanId,
     setCurrentPlan,
-    discussionMessages,
     streamContent,
     agents,
     updatePlan,
@@ -33,8 +32,8 @@ export function PipelinePanel() {
   const completedTasksCount = currentPlan?.tasks.filter(t => t.status === 'completed').length || 0;
   const totalTasks = currentPlan?.tasks.length || 0;
 
-  // Group discussion messages by plan
-  const planDiscussions = currentPlan ? discussionMessages.filter(m => m.plan_id === currentPlan.id) : [];
+  // Get discussion messages from current plan (they're stored in the plan itself)
+  const planDiscussions = currentPlan?.discussion || [];
 
   // Poll for plan updates when plan is active
   useEffect(() => {
