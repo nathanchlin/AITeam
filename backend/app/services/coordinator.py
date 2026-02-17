@@ -60,6 +60,10 @@ class CoordinatorService:
                         plan_data['completed_at'] = datetime.fromisoformat(plan_data['completed_at'])
 
                     self.plans[plan_id] = Plan(**plan_data)
+
+                    # Re-assign agents to tasks (agent IDs may have changed after restart)
+                    self._reassign_agents(plan_id)
+
                 except Exception as e:
                     print(f"[Coordinator] Error loading plan {plan_id}: {e}")
                     continue
@@ -74,6 +78,32 @@ class CoordinatorService:
             print(f"[Coordinator] Corrupted file backed up to {backup_file}")
         except Exception as e:
             print(f"[Coordinator] Error loading plans: {e}")
+
+    def _reassign_agents(self, plan_id: str):
+        """Re-assign agents to tasks after loading (agent IDs may have changed)"""
+        plan = self.plans.get(plan_id)
+        if not plan:
+            return
+
+        # Get current agents by type
+        agents_by_type = {}
+        for agent in agent_manager.get_all_agents():
+            agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
+            if agent_type not in agents_by_type:
+                agents_by_type[agent_type] = agent
+
+        # Re-assign agents to tasks
+        reassigned = 0
+        for task in plan.tasks:
+            if task.assigned_agent_type and task.assigned_agent_type in agents_by_type:
+                agent = agents_by_type[task.assigned_agent_type]
+                if task.assigned_agent_id != agent.id:
+                    task.assigned_agent_id = agent.id
+                    reassigned += 1
+
+        if reassigned > 0:
+            print(f"[Coordinator] Re-assigned {reassigned} agents for plan {plan_id[:8]}")
+            self._save_plans()
 
     def _save_plans(self):
         """Save plans to persistent storage with atomic write"""

@@ -263,6 +263,15 @@ async def resume_pipeline(plan_id: str):
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
 
+    # Re-assign agents to tasks (agent IDs may have changed after restart)
+    coordinator._reassign_agents(plan_id)
+
+    # Check if there are pending tasks even though status is completed
+    pending_tasks = [t for t in plan.tasks if t.status == TaskStatus.PENDING]
+    if plan.status == PlanStatus.COMPLETED and pending_tasks:
+        # Reset status to executing if there are pending tasks
+        plan.status = PlanStatus.EXECUTING
+
     # Check which phase to resume from
     if plan.status == PlanStatus.DRAFT:
         # Resume from beginning
