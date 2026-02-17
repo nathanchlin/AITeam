@@ -4,59 +4,35 @@ import { useAgentStore } from '../../stores/agentStore';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
 
-interface OutputProject {
-  plan_id: string;
-  title?: string;
-  original_request?: string;
-  output_dir: string;
-  files: Array<{
-    name: string;
-    size: number;
-    modified: number;
-  }>;
+interface ProjectFile {
+  name: string;
+  size: number;
+  modified: number;
+}
+
+interface Project {
+  id: string;
+  title: string;
+  path: string;
+  files: ProjectFile[];
+  file_count: number;
+  total_size: number;
   has_preview: boolean;
-  preview_url?: string;
+  preview_url: string | null;
+  modified: number;
 }
 
 export function ProjectsPanel() {
   const { projectsPanelOpen, toggleProjectsPanel } = useAgentStore();
-  const [projects, setProjects] = useState<OutputProject[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
 
   const fetchProjects = async () => {
     setLoading(true);
     try {
-      // Get all plans
-      const plansRes = await fetch(`${API_BASE}/api/pipeline/plans`);
-      const plans = await plansRes.json();
-
-      // Get output for each completed plan
-      const projectPromises = plans
-        .filter((p: { status: string }) => p.status === 'completed')
-        .map(async (p: { id: string; title: string; original_request: string }) => {
-          try {
-            const outputRes = await fetch(`${API_BASE}/api/pipeline/output/${p.id}`);
-            const outputData = await outputRes.json();
-
-            const previewRes = await fetch(`${API_BASE}/api/pipeline/output/${p.id}/preview`);
-            const previewData = await previewRes.json();
-
-            return {
-              plan_id: p.id,
-              title: p.title,
-              original_request: p.original_request,
-              output_dir: outputData.output_dir,
-              files: outputData.files || [],
-              has_preview: previewData.has_preview,
-              preview_url: previewData.preview_url,
-            };
-          } catch {
-            return null;
-          }
-        });
-
-      const results = await Promise.all(projectPromises);
-      setProjects(results.filter(Boolean) as OutputProject[]);
+      const res = await fetch(`${API_BASE}/api/projects/`);
+      const data = await res.json();
+      setProjects(data.projects || []);
     } catch (error) {
       console.error('Failed to fetch projects:', error);
     } finally {
@@ -73,12 +49,13 @@ export function ProjectsPanel() {
   if (!projectsPanelOpen) return null;
 
   return (
-    <div className="absolute top-16 left-4 w-[400px] max-h-[500px] bg-gray-900/95 backdrop-blur rounded-lg flex flex-col z-20 overflow-hidden shadow-2xl border border-gray-700">
+    <div className="absolute top-16 right-4 w-[420px] max-h-[550px] bg-gray-900/95 backdrop-blur rounded-lg flex flex-col z-20 overflow-hidden shadow-2xl border border-gray-700">
       {/* Header */}
       <div className="p-4 border-b border-gray-700 flex items-center justify-between bg-gray-800">
         <div className="flex items-center gap-3">
           <Folder size={20} className="text-yellow-400" />
           <h2 className="text-white font-bold">已生成的项目</h2>
+          <span className="text-xs text-gray-400">({projects.length})</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -108,16 +85,16 @@ export function ProjectsPanel() {
         ) : projects.length > 0 ? (
           projects.map((project) => (
             <div
-              key={project.plan_id}
+              key={project.id}
               className="p-4 bg-gray-800/50 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors"
             >
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1 min-w-0">
                   <h3 className="text-white text-sm font-medium truncate">
-                    {project.title || '未命名项目'}
+                    {project.title}
                   </h3>
                   <p className="text-gray-500 text-xs mt-1">
-                    {project.files.length} 个文件
+                    {project.file_count} 个文件 · {(project.total_size / 1024).toFixed(1)} KB
                   </p>
                 </div>
                 {project.has_preview && (
@@ -125,7 +102,7 @@ export function ProjectsPanel() {
                     href={`${API_BASE}${project.preview_url}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs transition-colors whitespace-nowrap"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-xs transition-colors whitespace-nowrap ml-2"
                   >
                     <ExternalLink size={12} />
                     打开
@@ -134,7 +111,7 @@ export function ProjectsPanel() {
               </div>
 
               {/* File list */}
-              <div className="mt-3 space-y-1">
+              <div className="mt-3 space-y-1 max-h-24 overflow-y-auto">
                 {project.files.slice(0, 5).map((file, index) => (
                   <div
                     key={index}

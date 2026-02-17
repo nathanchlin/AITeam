@@ -1,7 +1,7 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api import agents, tasks, pipeline
+from app.api import agents, tasks, pipeline, projects
 from app.api.ws import websocket_endpoint, ws_manager as websocket_manager
 from app.services.agent_manager import agent_manager
 from app.models.schemas import AgentType
@@ -26,6 +26,7 @@ app.add_middleware(
 app.include_router(agents.router, prefix="/api")
 app.include_router(tasks.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")
+app.include_router(projects.router, prefix="/api")
 
 
 # WebSocket manager export for task executor
