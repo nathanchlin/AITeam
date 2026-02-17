@@ -462,22 +462,68 @@ class CoordinatorService:
 {fix_context}
 请完成你的任务部分，提供详细的输出。"""
 
-                # Execute task
+                # Execute task with timeout
                 agent.update_status(AgentStatus.WORKING)
                 full_response = ""
+                task_timeout = 180  # 3 minutes timeout per task
 
-                async for update in agent.execute_task(task_description):
-                    if update["type"] == "stream":
-                        full_response += update["content"]
-                        await self.broadcast({
-                            "type": "stream",
-                            "data": {
-                                "plan_id": plan_id,
-                                "task_id": task.id,
-                                "agent_id": agent.id,
-                                "content": update["content"],
-                            }
-                        })
+                try:
+                    async def execute_with_timeout():
+                        nonlocal full_response
+                        async for update in agent.execute_task(task_description):
+                            if update["type"] == "stream":
+                                full_response += update["content"]
+                                await self.broadcast({
+                                    "type": "stream",
+                                    "data": {
+                                        "plan_id": plan_id,
+                                        "task_id": task.id,
+                                        "agent_id": agent.id,
+                                        "content": update["content"],
+                                    }
+                                })
+
+                    await asyncio.wait_for(execute_with_timeout(), timeout=task_timeout)
+
+                except asyncio.TimeoutError:
+                    # Task timed out
+                    error_msg = f"⚠️ 任务超时（{task_timeout}秒），已自动跳过"
+                    print(f"[Pipeline] Task timeout: {task.title}")
+
+                    await self.add_discussion_message(
+                        plan_id=plan_id,
+                        agent_id=agent.id,
+                        agent_name=agent.name,
+                        agent_type=agent.type.value,
+                        content=error_msg,
+                        message_type="comment",
+                    )
+
+                    task.status = TaskStatus.FAILED
+                    agent.update_status(AgentStatus.IDLE)
+                    continue
+
+                except Exception as e:
+                    # Task failed with error
+                    error_msg = f"❌ 任务执行出错：{str(e)}"
+                    print(f"[Pipeline] Task error: {task.title} - {e}")
+
+                    await self.add_discussion_message(
+                        plan_id=plan_id,
+                        agent_id=agent.id,
+                        agent_name=agent.name,
+                        agent_type=agent.type.value,
+                        content=error_msg,
+                        message_type="comment",
+                    )
+
+                    task.status = TaskStatus.FAILED
+                    agent.update_status(AgentStatus.IDLE)
+                    continue
+
+                # Only process if we got a response
+                if not full_response:
+                    full_response = "[任务未产生输出]"
 
                 task.status = TaskStatus.COMPLETED
                 results.append({

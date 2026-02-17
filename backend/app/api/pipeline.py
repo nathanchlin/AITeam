@@ -6,6 +6,7 @@ from app.models.schemas import (
     PipelineRequest,
     Plan, PlanCreate, PlanUpdate,
     DiscussionMessage, DiscussionMessageCreate,
+    PlanStatus, TaskStatus,
 )
 from app.services.coordinator import coordinator
 from app.services.output_manager import output_manager
@@ -185,3 +186,52 @@ async def get_output_preview(plan_id: str):
         }
 
     return {"has_preview": False, "message": "No preview available"}
+
+
+@router.get("/health")
+async def check_pipeline_health():
+    """Check for stuck pipelines and return status"""
+    stuck_pipelines = []
+    running_pipelines = []
+
+    for plan_id, plan in coordinator.plans.items():
+        if plan.status == PlanStatus.EXECUTING:
+            # Check if any task has been running for too long
+            import time
+            current_time = time.time()
+
+            for task in plan.tasks:
+                if task.status == TaskStatus.RUNNING:
+                    running_pipelines.append({
+                        "plan_id": plan_id,
+                        "plan_title": plan.title,
+                        "running_task": task.title,
+                    })
+
+    return {
+        "running_pipelines": running_pipelines,
+        "stuck_pipelines": stuck_pipelines,
+        "total_plans": len(coordinator.plans),
+    }
+
+
+@router.post("/recover/{plan_id}")
+async def recover_stuck_pipeline(plan_id: str):
+    """Recover a stuck pipeline by restarting it"""
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan.status != PlanStatus.EXECUTING:
+        raise HTTPException(status_code=400, detail="Plan is not in executing state")
+
+    # Reset all running tasks to pending
+    for task in plan.tasks:
+        if task.status == TaskStatus.RUNNING:
+            task.status = TaskStatus.PENDING
+
+    # Restart execution
+    import asyncio
+    asyncio.create_task(coordinator.execute_plan(plan_id))
+
+    return {"message": "Pipeline recovery started", "plan_id": plan_id}

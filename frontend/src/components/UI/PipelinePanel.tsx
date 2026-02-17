@@ -15,6 +15,7 @@ export function PipelinePanel() {
     streamContent,
     agents,
     updatePlan,
+    setPlans,
   } = useAgentStore();
 
   const [request, setRequest] = useState('');
@@ -34,6 +35,19 @@ export function PipelinePanel() {
 
   // Get discussion messages from current plan (they're stored in the plan itself)
   const planDiscussions = currentPlan?.discussion || [];
+
+  // Fetch all plans
+  const fetchPlans = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/plans`);
+      if (res.ok) {
+        const plansData = await res.json();
+        setPlans(plansData);
+      }
+    } catch (e) {
+      console.error('Fetch plans error:', e);
+    }
+  };
 
   // Poll for plan updates when plan is active
   useEffect(() => {
@@ -78,6 +92,9 @@ export function PipelinePanel() {
       console.log('Pipeline started:', data);
       setCurrentPlan(data.plan_id);
       setRequest('');
+
+      // Immediately fetch the new plan to refresh the list
+      await fetchPlans();
     } catch (error) {
       console.error('Failed to start pipeline:', error);
     } finally {
