@@ -135,22 +135,19 @@ class OutputManager:
         if not os.path.exists(plan_dir):
             return False
 
-        # Check if index.html already exists and is complete
         index_path = os.path.join(plan_dir, "index.html")
-        if os.path.exists(index_path):
-            with open(index_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-                # Check if it's a complete HTML with script tags
-                if '<script' in content and 'function' in content:
-                    return True  # Already consolidated
 
-        # Collect all JS code
+        # Collect all JS code from .js files
         js_code = []
+        js_files = []
         for f in sorted(os.listdir(plan_dir)):
             if f.endswith('.js'):
                 filepath = os.path.join(plan_dir, f)
+                js_files.append(f)
                 with open(filepath, 'r', encoding='utf-8') as file:
-                    js_code.append(f"// From {f}\n{file.read()}")
+                    content = file.read()
+                    if content.strip():  # Only include non-empty files
+                        js_code.append(f"// From {f}\n{content}")
 
         # Collect all CSS
         css_code = []
@@ -158,7 +155,9 @@ class OutputManager:
             if f.endswith('.css'):
                 filepath = os.path.join(plan_dir, f)
                 with open(filepath, 'r', encoding='utf-8') as file:
-                    css_code.append(f"/* From {f} */\n{file.read()}")
+                    css_content = file.read()
+                    if css_content.strip():
+                        css_code.append(f"/* From {f} */\n{css_content}")
 
         # Find or create index.html
         html_content = None
@@ -173,13 +172,24 @@ class OutputManager:
             # Create a basic HTML structure
             html_content = self._generate_basic_html(plan_title)
 
-        # Inject CSS and JS if not already present
-        if css_code and '<style>' not in html_content:
+        # Check if HTML has inline JavaScript (actual code between script tags)
+        has_inline_js = bool(re.search(r'<script[^>]*>[\s\S]*?\w+[\s\S]*?</script>', html_content))
+
+        # Inject CSS if not already present (inline styles)
+        if css_code and '<style>' not in html_content and '<link rel="stylesheet"' not in html_content:
             combined_css = '\n'.join(css_code)
             html_content = html_content.replace('</head>', f'<style>\n{combined_css}\n</style>\n</head>')
 
-        if js_code and '<script>' not in html_content:
+        # Handle JavaScript consolidation
+        if js_code and not has_inline_js:
             combined_js = '\n'.join(js_code)
+
+            # Remove external script references and inject inline script
+            # This ensures all JS code is in one place
+            html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*></script>', '', html_content)
+            html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*/>', '', html_content)
+
+            # Inject the combined JS before </body>
             html_content = html_content.replace('</body>', f'<script>\n{combined_js}\n</script>\n</body>')
 
         # Write consolidated index.html

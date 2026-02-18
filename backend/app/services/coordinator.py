@@ -787,12 +787,38 @@ class CoordinatorService:
                 output_dir = output_manager.get_output_path(plan_id)
                 code_context = ""
                 try:
+                    # Read all relevant code files
+                    code_parts = []
+
+                    # Read index.html
                     index_path = os.path.join(output_dir, "index.html")
                     if os.path.exists(index_path):
                         with open(index_path, 'r', encoding='utf-8') as f:
-                            code_content = f.read()
-                            # Include key parts of the code for testing
-                            code_context = f"\n\n生成的代码（关键部分）：\n```html\n{code_content[:3000]}...\n```\n"
+                            html_content = f.read()
+                            code_parts.append(f"<!-- index.html -->\n{html_content[:5000]}")
+
+                    # Read JavaScript files
+                    for filename in sorted(os.listdir(output_dir)):
+                        if filename.endswith('.js'):
+                            js_path = os.path.join(output_dir, filename)
+                            with open(js_path, 'r', encoding='utf-8') as f:
+                                js_content = f.read()
+                                code_parts.append(f"// {filename}\n{js_content[:8000]}")
+
+                    # Read CSS files
+                    for filename in sorted(os.listdir(output_dir)):
+                        if filename.endswith('.css'):
+                            css_path = os.path.join(output_dir, filename)
+                            with open(css_path, 'r', encoding='utf-8') as f:
+                                css_content = f.read()
+                                code_parts.append(f"/* {filename} */\n{css_content[:3000]}")
+
+                    if code_parts:
+                        combined_code = "\n\n".join(code_parts)
+                        # Limit total size to avoid token limits
+                        if len(combined_code) > 15000:
+                            combined_code = combined_code[:15000] + "\n\n... (代码已截断)"
+                        code_context = f"\n\n生成的代码：\n```\n{combined_code}\n```\n"
                 except Exception as e:
                     print(f"[Test] Error reading code: {e}")
 
