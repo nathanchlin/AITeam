@@ -202,6 +202,10 @@ class OutputManager:
         html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*/>', '', html_content)
         html_content = re.sub(r'<link[^>]*href=["\'][^"\']+\.css["\'][^>]*>', '', html_content)
 
+        # Remove Phaser CDN - we enforce pure Canvas
+        html_content = re.sub(r'<script\s+src=["\'][^"\']*phaser[^"\']*\.js["\']?\s*>\s*</script>', '', html_content, flags=re.IGNORECASE)
+        html_content = re.sub(r'<script\s+src=["\'][^"\']*phaser[^"\']*["\']?\s*/>', '', html_content, flags=re.IGNORECASE)
+
         # Inject CSS if not already present (inline styles)
         if css_code and '<style>' not in html_content:
             combined_css = '\n'.join(css_code)
