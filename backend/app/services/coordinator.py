@@ -623,12 +623,25 @@ class CoordinatorService:
                         if test_results:
                             fix_context = f"\n\n⚠️ 之前的测试发现问题，请修复以下问题：\n{test_results[-1].get('result', '')}"
 
+                    # Add web-app specific instructions
+                    web_app_instructions = ""
+                    if plan.target_output == "web-app" and agent.type.value == "coder":
+                        web_app_instructions = """
+
+⚠️ Web应用开发要求：
+1. 生成完整的单文件 HTML（包含内联 CSS 和 JavaScript）
+2. 不要引用外部文件（如 js/xxx.js, css/xxx.css）
+3. 所有代码必须完整可运行，不能只写片段或伪代码
+4. 必须包含初始化代码（window.onload 或 DOMContentLoaded）
+5. 对于游戏，必须包含：游戏循环、初始化函数、事件绑定"""
+
                     task_description = f"""任务：{task.title}
 
 描述：{task.description or '无详细描述'}
 
 原始需求上下文：{plan.original_request}
-{fix_context}
+{fix_context}{web_app_instructions}
+
 请完成你的任务部分，提供详细的输出。"""
 
                     # Execute task with timeout

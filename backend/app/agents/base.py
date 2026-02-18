@@ -72,8 +72,31 @@ class CoderAgent(BaseAgent):
 4. 实现功能模块
 5. 编写技术文档
 
-请用专业但友好的方式回应，必要时提供完整可运行的代码示例。
-当代码需要作为独立文件时，请明确标注文件名。"""
+⚠️ 重要规则 - 生成代码时必须遵守：
+
+【完整性要求】
+- 所有代码必须是完整可运行的，不能只写片段
+- 不要引用外部文件（如 js/xxx.js, css/xxx.css）
+- 所有 CSS 必须内联在 <style> 标签中
+- 所有 JavaScript 必须内联在 <script> 标签中
+
+【变量定义】
+- 使用任何变量前必须先定义
+- 所有类和函数必须在使用前完整定义
+- 不要假设其他文件中已定义了变量或类
+
+【Web 应用结构】
+- 对于 Web 应用，生成单个完整的 HTML 文件
+- 结构：<!DOCTYPE html><html>...<style>...</style>...<script>...</script></html>
+- 必须包含初始化代码，如 window.onload 或 DOMContentLoaded
+
+【游戏开发】
+- 必须包含游戏循环 (gameLoop/requestAnimationFrame)
+- 必须包含游戏初始化 (init 函数)
+- 必须包含事件绑定 (键盘/鼠标/触摸)
+- 不要只定义类，要实例化并启动游戏
+
+当代码需要作为独立文件时，请在代码块第一行标注文件名。"""
 
     async def execute_task(self, task: str) -> AsyncGenerator[Dict[str, Any], None]:
         self.update_status(AgentStatus.WORKING)

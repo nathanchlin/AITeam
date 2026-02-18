@@ -213,11 +213,90 @@ class OutputManager:
             # Inject the combined JS before </body>
             html_content = html_content.replace('</body>', f'<script>\n{combined_js}\n</script>\n</body>')
 
+        # Validate and fix common issues
+        html_content = self._validate_and_fix_html(html_content, plan_title)
+
         # Write consolidated index.html
         with open(index_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
 
         return True
+
+    def _validate_and_fix_html(self, html_content: str, plan_title: str) -> str:
+        """Validate and fix common issues in HTML content"""
+        issues = []
+
+        # Check for external file references that don't exist
+        external_js = re.findall(r'<script\s+src=["\']([^"\']+\.js)["\']', html_content)
+        if external_js:
+            issues.append(f"外部 JS 引用: {external_js}")
+            # Remove external references - they won't work
+            for src in external_js:
+                html_content = re.sub(rf'<script\s+src=["\']?{re.escape(src)}["\']?\s*></script>', '', html_content)
+                html_content = re.sub(rf'<script\s+src=["\']?{re.escape(src)}["\']?\s*/>', '', html_content)
+
+        external_css = re.findall(r'<link[^>]+href=["\']([^"\']+\.css)["\']', html_content)
+        if external_css:
+            issues.append(f"外部 CSS 引用: {external_css}")
+            # Remove external references
+            for href in external_css:
+                html_content = re.sub(rf'<link[^>]+href=["\']?{re.escape(href)}["\']?[^>]*/>', '', html_content)
+
+        # Check for potential undefined global variables in inline JS
+        script_match = re.search(r'<script[^>]*>([\s\S]*?)</script>', html_content)
+        if script_match:
+            js_code = script_match.group(1)
+
+            # Check for common patterns that indicate incomplete code
+            if re.search(r'\bnew\s+\w+\(', js_code):
+                # Find class usages
+                used_classes = set(re.findall(r'\bnew\s+(\w+)\(', js_code))
+                # Find class definitions
+                defined_classes = set(re.findall(r'\bclass\s+(\w+)', js_code))
+
+                undefined_classes = used_classes - defined_classes
+                # Filter out built-in classes
+                builtin_classes = {'Object', 'Array', 'String', 'Number', 'Boolean', 'Function',
+                                   'Date', 'RegExp', 'Error', 'Map', 'Set', 'Promise', 'Image', 'Audio'}
+                undefined_classes = undefined_classes - builtin_classes
+
+                if undefined_classes:
+                    issues.append(f"可能未定义的类: {undefined_classes}")
+
+        # Check for missing initialization
+        has_init = bool(re.search(r'(window\.onload|DOMContentLoaded|addEventListener.*load|\.\s*init\s*\()', html_content))
+        has_game_loop = bool(re.search(r'(gameLoop|requestAnimationFrame|setInterval)', html_content))
+        has_class_def = bool(re.search(r'class\s+\w+', html_content))
+
+        if has_class_def and not has_init:
+            issues.append("缺少初始化代码 (window.onload/DOMContentLoaded)")
+
+        if has_class_def and has_game_loop and not has_init:
+            # Add basic initialization wrapper
+            init_wrapper = '''
+<script>
+// 自动添加的初始化代码
+document.addEventListener('DOMContentLoaded', function() {
+    // 尝试自动初始化游戏
+    if (typeof Game !== 'undefined' && !window.game) {
+        try {
+            window.game = new Game();
+        } catch(e) {
+            console.log('自动初始化失败:', e.message);
+        }
+    }
+});
+</script>
+'''
+            html_content = html_content.replace('</body>', init_wrapper + '</body>')
+            issues.append("已添加自动初始化包装器")
+
+        if issues:
+            print(f"[OutputManager] 代码验证发现 {len(issues)} 个问题:")
+            for issue in issues:
+                print(f"  - {issue}")
+
+        return html_content
 
     def _generate_basic_html(self, title: str) -> str:
         """Generate a basic HTML template"""
