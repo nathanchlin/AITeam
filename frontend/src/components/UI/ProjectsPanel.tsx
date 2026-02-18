@@ -274,25 +274,27 @@ export function ProjectsPanel() {
                 </div>
               </div>
 
-              {/* File list */}
-              <div className="mt-3 space-y-1 max-h-24 overflow-y-auto">
-                {project.files.slice(0, 5).map((file, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between text-xs"
-                  >
-                    <span className="text-gray-400 truncate">{file.name}</span>
-                    <span className="text-gray-500">
-                      {(file.size / 1024).toFixed(1)} KB
-                    </span>
-                  </div>
-                ))}
-                {project.files.length > 5 && (
-                  <div className="text-xs text-gray-500">
-                    还有 {project.files.length - 5} 个文件...
-                  </div>
-                )}
-              </div>
+              {/* File list - only show if files are loaded */}
+              {project.files && project.files.length > 0 && (
+                <div className="mt-3 space-y-1 max-h-24 overflow-y-auto">
+                  {project.files.slice(0, 5).map((file, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between text-xs"
+                    >
+                      <span className="text-gray-400 truncate">{file.name}</span>
+                      <span className="text-gray-500">
+                        {(file.size / 1024).toFixed(1)} KB
+                      </span>
+                    </div>
+                  ))}
+                  {project.files.length > 5 && (
+                    <div className="text-xs text-gray-500">
+                      还有 {project.files.length - 5} 个文件...
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))
         ) : (

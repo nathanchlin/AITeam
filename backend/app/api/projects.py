@@ -5,11 +5,15 @@ import json
 from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Any
+import time
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 OUTPUT_DIR = "output"
 PLANS_STORAGE_FILE = Path(__file__).parent.parent.parent / "data" / "plans.json"
+
+# Simple cache for project list
+_projects_cache = {"data": None, "timestamp": 0, "ttl": 5}  # 5 second cache
 
 
 def load_plans_data():
@@ -32,9 +36,72 @@ def find_plan_by_short_id(short_id: str):
     return None
 
 
+def _get_project_info_fast(project_dir: str, plan_id_short: str) -> Dict[str, Any]:
+    """Get project info with minimal I/O"""
+    # Use scandir which is faster than listdir + stat
+    has_preview = False
+    has_discussion = False
+    total_size = 0
+    file_count = 0
+    latest_mtime = 0
+
+    try:
+        with os.scandir(project_dir) as entries:
+            for entry in entries:
+                if entry.is_file():
+                    file_count += 1
+                    try:
+                        stat = entry.stat()
+                        total_size += stat.st_size
+                        if stat.st_mtime > latest_mtime:
+                            latest_mtime = stat.st_mtime
+                    except:
+                        pass
+
+                    name = entry.name.lower()
+                    if name == "index.html":
+                        has_preview = True
+                    elif name == "discussion.json":
+                        has_discussion = True
+    except:
+        pass
+
+    # Get title from README (fast read, only first line)
+    title = plan_id_short
+    readme_path = os.path.join(project_dir, "README.md")
+    if os.path.exists(readme_path):
+        try:
+            with open(readme_path, 'r', encoding='utf-8') as f:
+                first_line = f.readline()
+                if first_line.startswith('# '):
+                    title = first_line[2:].strip()
+        except:
+            pass
+
+    return {
+        "id": plan_id_short,
+        "title": title,
+        "path": project_dir,
+        "files": [],  # Don't return files list - fetch on demand
+        "file_count": file_count,
+        "total_size": total_size,
+        "has_preview": has_preview,
+        "has_discussion": has_discussion,
+        "preview_url": f"/api/projects/{plan_id_short}/preview" if has_preview else None,
+        "modified": latest_mtime,
+    }
+
+
 @router.get("/")
 async def list_projects():
     """List all generated projects from output directory"""
+    global _projects_cache
+
+    # Check cache
+    current_time = time.time()
+    if _projects_cache["data"] is not None and (current_time - _projects_cache["timestamp"]) < _projects_cache["ttl"]:
+        return {"projects": _projects_cache["data"]}
+
     if not os.path.exists(OUTPUT_DIR):
         return {"projects": []}
 
@@ -46,61 +113,48 @@ async def list_projects():
         if not os.path.isdir(project_dir):
             continue
 
-        # Check for index.html
-        index_path = os.path.join(project_dir, "index.html")
-        has_preview = os.path.exists(index_path)
-
-        # Check for discussion history
-        discussion_path = os.path.join(project_dir, "discussion.json")
-        has_discussion = os.path.exists(discussion_path)
-
-        # Get file list (limited to top 10 files)
-        files = []
-        total_size = 0
-        for f in os.listdir(project_dir):
-            filepath = os.path.join(project_dir, f)
-            if os.path.isfile(filepath):
-                size = os.path.getsize(filepath)
-                total_size += size
-                files.append({
-                    "name": f,
-                    "size": size,
-                    "modified": os.path.getmtime(filepath),
-                })
-
-        # Sort by modification time and limit
-        files.sort(key=lambda x: x["modified"], reverse=True)
-        files_limited = files[:10]  # Only return top 10 files
-
-        # Get project title from README or use directory name
-        title = plan_id_short
-        readme_path = os.path.join(project_dir, "README.md")
-        if os.path.exists(readme_path):
-            try:
-                with open(readme_path, 'r', encoding='utf-8') as f:
-                    first_line = f.readline()
-                    if first_line.startswith('# '):
-                        title = first_line[2:].strip()
-            except:
-                pass
-
-        projects.append({
-            "id": plan_id_short,
-            "title": title,
-            "path": project_dir,
-            "files": files_limited,
-            "file_count": len(files),
-            "total_size": total_size,
-            "has_preview": has_preview,
-            "has_discussion": has_discussion,
-            "preview_url": f"/api/projects/{plan_id_short}/preview" if has_preview else None,
-            "modified": os.path.getmtime(project_dir),
-        })
+        project_info = _get_project_info_fast(project_dir, plan_id_short)
+        projects.append(project_info)
 
     # Sort by modification time (newest first)
     projects.sort(key=lambda x: x["modified"], reverse=True)
 
+    # Update cache
+    _projects_cache["data"] = projects
+    _projects_cache["timestamp"] = current_time
+
     return {"projects": projects}
+
+
+@router.get("/{project_id}/files")
+async def get_project_files(project_id: str):
+    """Get file list for a specific project (on demand)"""
+    project_dir = os.path.join(OUTPUT_DIR, project_id)
+
+    if not os.path.exists(project_dir):
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    files = []
+    try:
+        with os.scandir(project_dir) as entries:
+            for entry in entries:
+                if entry.is_file():
+                    try:
+                        stat = entry.stat()
+                        files.append({
+                            "name": entry.name,
+                            "size": stat.st_size,
+                            "modified": stat.st_mtime,
+                        })
+                    except:
+                        pass
+    except:
+        pass
+
+    # Sort by modification time
+    files.sort(key=lambda x: x["modified"], reverse=True)
+
+    return {"project_id": project_id, "files": files[:20]}  # Return top 20 files
 
 
 @router.get("/{project_id}/preview")
