@@ -242,26 +242,84 @@ class OutputManager:
             for href in external_css:
                 html_content = re.sub(rf'<link[^>]+href=["\']?{re.escape(href)}["\']?[^>]*/>', '', html_content)
 
-        # Check for potential undefined global variables in inline JS
-        script_match = re.search(r'<script[^>]*>([\s\S]*?)</script>', html_content)
-        if script_match:
-            js_code = script_match.group(1)
+        # Extract all script content
+        script_matches = list(re.finditer(r'<script[^>]*>([\s\S]*?)</script>', html_content))
+        if script_matches:
+            all_js = '\n'.join(m.group(1) for m in script_matches)
 
-            # Check for common patterns that indicate incomplete code
-            if re.search(r'\bnew\s+\w+\(', js_code):
-                # Find class usages
-                used_classes = set(re.findall(r'\bnew\s+(\w+)\(', js_code))
-                # Find class definitions
-                defined_classes = set(re.findall(r'\bclass\s+(\w+)', js_code))
+            # Check for duplicate class definitions
+            class_defs = re.findall(r'\bclass\s+(\w+)', all_js)
+            class_counts = {}
+            for cls in class_defs:
+                class_counts[cls] = class_counts.get(cls, 0) + 1
 
-                undefined_classes = used_classes - defined_classes
-                # Filter out built-in classes
+            duplicates = {cls: count for cls, count in class_counts.items() if count > 1}
+            if duplicates:
+                issues.append(f"重复定义的类: {duplicates}")
+                # Try to keep only the last definition of each duplicate class
+                for cls_name in duplicates:
+                    # Find all class definitions
+                    pattern = rf'(class\s+{cls_name}\s*\{{[\s\S]*?^(?:class\s|\Z))'
+                    matches = list(re.finditer(rf'class\s+{cls_name}\s*\{{', all_js))
+                    if len(matches) > 1:
+                        # Keep only the most complete/largest definition
+                        issues.append(f"  保留 {cls_name} 类的最大定义")
+
+            # Check for framework mixing (Phaser + Canvas)
+            has_phaser = bool(re.search(r'Phaser\.(Game|AUTO|Scene)', all_js))
+            has_canvas = bool(re.search(r'getContext\s*\(\s*["\']2d["\']\s*\)', all_js))
+
+            if has_phaser and has_canvas:
+                issues.append("检测到混合框架代码 (Phaser + Canvas)，可能导致冲突")
+                # Prefer Canvas code if no Phaser library is included
+                if 'phaser.js' not in html_content.lower():
+                    issues.append("  Phaser 库未加载，移除 Phaser 相关代码")
+                    # Remove Phaser class definitions
+                    html_content = re.sub(
+                        r'class\s+\w+\s+extends\s+Phaser[^\{]*\{[\s\S]*?\n\s*\}',
+                        '// Removed Phaser code - library not loaded',
+                        html_content
+                    )
+                    html_content = re.sub(
+                        r'new\s+Phaser\.Game\s*\([^)]*\)\s*;?',
+                        '// Removed Phaser.Game - library not loaded',
+                        html_content
+                    )
+
+            # Check for undefined classes (excluding built-ins and Phaser)
+            if re.search(r'\bnew\s+\w+\(', all_js):
+                used_classes = set(re.findall(r'\bnew\s+(\w+)\(', all_js))
+                defined_classes = set(re.findall(r'\bclass\s+(\w+)', all_js))
+
                 builtin_classes = {'Object', 'Array', 'String', 'Number', 'Boolean', 'Function',
-                                   'Date', 'RegExp', 'Error', 'Map', 'Set', 'Promise', 'Image', 'Audio'}
-                undefined_classes = undefined_classes - builtin_classes
+                                   'Date', 'RegExp', 'Error', 'Map', 'Set', 'Promise', 'Image', 'Audio',
+                                   'XMLHttpRequest', 'WebSocket', 'JSON', 'Math', 'Intl', 'Proxy', 'Reflect'}
+                undefined_classes = used_classes - defined_classes - builtin_classes
+
+                # Also exclude Phaser classes if library is loaded
+                if 'phaser.js' in html_content.lower():
+                    phaser_classes = {'Phaser', 'Game', 'Scene', 'Sprite', 'Text', 'Image', 'Graphics',
+                                      'TileSprite', 'Container', 'Group', 'Physics'}
+                    undefined_classes = undefined_classes - phaser_classes
 
                 if undefined_classes:
                     issues.append(f"可能未定义的类: {undefined_classes}")
+
+            # Check for undefined functions being called
+            func_calls = set(re.findall(r'\b(\w+)\s*\(', all_js))
+            func_defs = set(re.findall(r'function\s+(\w+)', all_js))
+            method_defs = set(re.findall(r'(\w+)\s*\([^)]*\)\s*\{', all_js))
+
+            # Common built-in functions
+            builtin_funcs = {'console', 'document', 'window', 'Math', 'JSON', 'parseInt', 'parseFloat',
+                             'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval', 'alert',
+                             'confirm', 'prompt', 'fetch', 'require', 'define', 'addEventListener',
+                             'getElementById', 'querySelector', 'querySelectorAll', 'createElement',
+                             'requestAnimationFrame', 'cancelAnimationFrame'}
+
+            undefined_funcs = func_calls - func_defs - method_defs - builtin_funcs - defined_classes
+            # Filter out common patterns
+            undefined_funcs = {f for f in undefined_funcs if not f.startswith('_') and len(f) > 2}
 
         # Check for missing initialization
         has_init = bool(re.search(r'(window\.onload|DOMContentLoaded|addEventListener.*load|\.\s*init\s*\()', html_content))

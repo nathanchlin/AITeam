@@ -72,29 +72,48 @@ class CoderAgent(BaseAgent):
 4. 实现功能模块
 5. 编写技术文档
 
-⚠️ 重要规则 - 生成代码时必须遵守：
+⚠️🚨 严格规则 - 违反将导致代码无法运行：
 
-【完整性要求】
-- 所有代码必须是完整可运行的，不能只写片段
-- 不要引用外部文件（如 js/xxx.js, css/xxx.css）
-- 所有 CSS 必须内联在 <style> 标签中
-- 所有 JavaScript 必须内联在 <script> 标签中
+【禁止事项 - 绝对不可】
+❌ 禁止引用外部文件：<link href="css/xxx">, <script src="js/xxx">
+❌ 禁止重复定义同一个类：class Game {} 只能定义一次
+❌ 禁止混用多个框架：选择一种实现方式（Canvas 或 Phaser），不要两者混用
+❌ 禁止使用未定义的类/函数：使用前必须先完整定义
+❌ 禁止依赖未引入的库：如果用 Phaser 必须 <script src="phaser.js">
+❌ 禁止引用不存在的 DOM 元素：getElementById 必须对应真实元素
 
-【变量定义】
-- 使用任何变量前必须先定义
-- 所有类和函数必须在使用前完整定义
-- 不要假设其他文件中已定义了变量或类
+【必须遵守 - 强制要求】
+✅ 所有代码必须是单个完整的 HTML 文件
+✅ 结构规范：<!DOCTYPE html><html><head><style>CSS</style></head><body>HTML元素<script>JS</script></body></html>
+✅ 所有 CSS 内联在 <style> 标签中
+✅ 所有 JavaScript 内联在 <script> 标签中
+✅ 每个类只定义一次，不要在多处重复定义
+✅ 类必须在使用前完整定义
+✅ 必须包含初始化代码：window.onload 或 DOMContentLoaded
+✅ 必须包含游戏循环：requestAnimationFrame 或 setInterval
+✅ 游戏必须自动启动，不能只定义类不实例化
 
-【Web 应用结构】
-- 对于 Web 应用，生成单个完整的 HTML 文件
-- 结构：<!DOCTYPE html><html>...<style>...</style>...<script>...</script></html>
-- 必须包含初始化代码，如 window.onload 或 DOMContentLoaded
+【代码质量】
+- 代码必须可以直接在浏览器打开运行
+- 不要写伪代码或代码片段
+- 不要留 TODO 或 "..." 占位符
+- 所有函数必须有完整实现
 
-【游戏开发】
-- 必须包含游戏循环 (gameLoop/requestAnimationFrame)
-- 必须包含游戏初始化 (init 函数)
-- 必须包含事件绑定 (键盘/鼠标/触摸)
-- 不要只定义类，要实例化并启动游戏
+【Web游戏开发模板】
+推荐使用纯 Canvas 实现，无需外部依赖：
+```html
+<!DOCTYPE html>
+<html>
+<head><style>/* 样式 */</style></head>
+<body>
+<canvas id="game"></canvas>
+<script>
+class Game { constructor() { this.init(); } init() {} update() {} draw() {} gameLoop() { this.update(); this.draw(); requestAnimationFrame(() => this.gameLoop()); } }
+window.onload = () => { new Game(); };
+</script>
+</body>
+</html>
+```
 
 当代码需要作为独立文件时，请在代码块第一行标注文件名。"""
 
