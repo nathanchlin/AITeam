@@ -807,6 +807,28 @@ class CoordinatorService:
             except Exception as e:
                 print(f"[OutputManager] Error saving plan output: {e}")
 
+            # Pre-test validation
+            if plan.target_output == "web-app":
+                print(f"[Coordinator] Running pre-test validation...")
+                validation = output_manager.pre_test_validation(plan_id)
+
+                if not validation["passed"]:
+                    # Post validation failure message
+                    error_list = "\n".join([f"- ❌ {err}" for err in validation["errors"]])
+                    await self.add_discussion_message(
+                        plan_id=plan_id,
+                        agent_id="system",
+                        agent_name="系统",
+                        agent_type="assistant",
+                        content=f"⚠️ 预测试验证失败\n\n{error_list}\n\n请在测试前修复这些问题。",
+                        message_type="comment",
+                    )
+                    print(f"[Coordinator] Pre-test validation failed, skipping tests")
+                    # Skip to end without running tests
+                    plan.status = PlanStatus.COMPLETED
+                    self._save_plans()
+                    return plan
+
             # Execute testing tasks
             all_tests_passed = True
             test_feedback = []

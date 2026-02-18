@@ -417,6 +417,139 @@ document.addEventListener('DOMContentLoaded', function() {
         """Get the output directory path for a plan"""
         return os.path.join(self.base_dir, plan_id[:8])
 
+    def pre_test_validation(self, plan_id: str) -> Dict[str, Any]:
+        """Pre-test validation to ensure code is complete and error-free"""
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+        index_path = os.path.join(plan_dir, "index.html")
+
+        result = {
+            "passed": True,
+            "errors": [],
+            "warnings": [],
+            "auto_fixed": [],
+        }
+
+        if not os.path.exists(index_path):
+            result["passed"] = False
+            result["errors"].append("index.html 不存在")
+            return result
+
+        with open(index_path, 'r', encoding='utf-8') as f:
+            html_content = f.read()
+
+        # 1. Check for external file references
+        external_js = re.findall(r'<script\s+src=["\']([^"\']+)["\']', html_content)
+        external_css = re.findall(r'<link[^>]+href=["\']([^"\']+\.css)["\']', html_content)
+
+        if external_js:
+            result["errors"].append(f"外部 JS 引用: {external_js}")
+            result["passed"] = False
+
+        if external_css:
+            result["errors"].append(f"外部 CSS 引用: {external_css}")
+            result["passed"] = False
+
+        # 2. Check for CDN dependencies (may be blocked)
+        cdn_refs = re.findall(r'(https?://cdn[^"\']+)', html_content)
+        if cdn_refs:
+            result["warnings"].append(f"CDN 依赖: {cdn_refs[:3]}... (可能被墙)")
+
+        # 3. Check for incomplete code patterns
+        incomplete_patterns = [
+            (r'//\s*TODO', 'TODO 注释'),
+            (r'\.\.\.(?:\s|")', '省略号 ...'),
+            (r'//\s*其他方法', '未实现的方法注释'),
+            (r'//\s*待实现', '待实现注释'),
+            (r'function\s+\w+\s*\(\s*\)\s*\{\s*\}', '空函数'),
+        ]
+
+        for pattern, desc in incomplete_patterns:
+            if re.search(pattern, html_content):
+                result["warnings"].append(f"可能不完整的代码: {desc}")
+
+        # 4. Extract and validate JavaScript
+        script_match = re.search(r'<script[^>]*>([\s\S]*?)</script>', html_content)
+        if script_match:
+            js_code = script_match.group(1)
+
+            # Check for class definitions
+            defined_classes = set(re.findall(r'\bclass\s+(\w+)', js_code))
+
+            # Check for duplicate class definitions
+            class_list = re.findall(r'\bclass\s+(\w+)', js_code)
+            class_counts = {}
+            for cls in class_list:
+                class_counts[cls] = class_counts.get(cls, 0) + 1
+            for cls, count in class_counts.items():
+                if count > 1:
+                    result["errors"].append(f"类 {cls} 被定义了 {count} 次")
+                    result["passed"] = False
+
+            # Check for undefined class usage
+            used_classes = set(re.findall(r'\bnew\s+(\w+)\(', js_code))
+            builtin_classes = {'Object', 'Array', 'String', 'Number', 'Boolean', 'Function',
+                               'Date', 'RegExp', 'Error', 'Map', 'Set', 'Promise', 'Image', 'Audio',
+                               'XMLHttpRequest', 'WebSocket', 'JSON', 'Math', 'Intl', 'Proxy', 'Reflect',
+                               'Animation', 'CanvasGradient', 'CanvasPattern', 'Path2D'}
+            undefined_classes = used_classes - defined_classes - builtin_classes
+
+            # Filter Phaser classes if CDN is included
+            if any('phaser' in ref.lower() for ref in cdn_refs):
+                phaser_classes = {'Phaser', 'Game', 'Scene', 'Sprite', 'Text', 'Image'}
+                undefined_classes = undefined_classes - phaser_classes
+
+            if undefined_classes:
+                result["errors"].append(f"使用未定义的类: {undefined_classes}")
+                result["passed"] = False
+
+            # Check for Phaser usage without CDN
+            if re.search(r'Phaser\.(Game|Scene|AUTO)', js_code):
+                if not any('phaser' in ref.lower() for ref in cdn_refs):
+                    result["errors"].append("使用了 Phaser 但未引入库")
+                    result["passed"] = False
+
+            # Check for initialization
+            has_init = bool(re.search(r'(window\.onload|DOMContentLoaded|init\s*\(\))', js_code))
+            has_class = bool(defined_classes)
+
+            if has_class and not has_init:
+                result["errors"].append("缺少初始化代码")
+                result["passed"] = False
+
+            # Check for game loop (if it's a game)
+            has_game_loop = bool(re.search(r'(requestAnimationFrame|gameLoop|setInterval)', js_code))
+            has_canvas = bool(re.search(r'getContext\s*\(', html_content))
+
+            if has_canvas and defined_classes and not has_game_loop:
+                result["warnings"].append("Canvas 游戏可能缺少游戏循环")
+
+        # 5. Check HTML structure
+        if not re.search(r'<!DOCTYPE\s+html', html_content, re.IGNORECASE):
+            result["warnings"].append("缺少 DOCTYPE 声明")
+        if not re.search(r'</html>', html_content, re.IGNORECASE):
+            result["errors"].append("HTML 未正确闭合")
+            result["passed"] = False
+        if '<style>' not in html_content and not external_css:
+            result["warnings"].append("没有内联 CSS")
+
+        # 6. Check DOM elements exist
+        dom_ids = re.findall(r'getElementById\s*\(\s*["\']([^"\']+)["\']', html_content)
+        for dom_id in dom_ids:
+            if f'id="{dom_id}"' not in html_content and f"id='{dom_id}'" not in html_content:
+                result["warnings"].append(f"DOM 元素 #{dom_id} 被引用但可能不存在")
+
+        # Print summary
+        if result["errors"] or result["warnings"]:
+            print(f"[PreTestValidation] 验证结果:")
+            for err in result["errors"]:
+                print(f"  ❌ 错误: {err}")
+            for warn in result["warnings"]:
+                print(f"  ⚠️ 警告: {warn}")
+        else:
+            print(f"[PreTestValidation] ✅ 验证通过")
+
+        return result
+
 
 # Global instance
 output_manager = OutputManager()
