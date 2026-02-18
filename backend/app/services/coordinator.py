@@ -819,6 +819,20 @@ class CoordinatorService:
                 # Read generated code for testing context
                 output_dir = output_manager.get_output_path(plan_id)
                 code_context = ""
+
+                # Patterns that indicate Node.js/test code (not browser-compatible)
+                node_patterns = [
+                    r'module\.exports',
+                    r'require\s*\(',
+                    r'import\s+.*from\s+["\']',
+                    r'@testing-library',
+                    r'jest\.mock',
+                    r'describe\s*\(',
+                    r'it\s*\(',
+                    r'test\s*\(',
+                    r'expect\s*\(',
+                ]
+
                 try:
                     # Read all relevant code files
                     code_parts = []
@@ -830,13 +844,17 @@ class CoordinatorService:
                             html_content = f.read()
                             code_parts.append(f"<!-- index.html -->\n{html_content[:5000]}")
 
-                    # Read JavaScript files
+                    # Read JavaScript files (skip Node.js/test code)
                     for filename in sorted(os.listdir(output_dir)):
                         if filename.endswith('.js'):
                             js_path = os.path.join(output_dir, filename)
                             with open(js_path, 'r', encoding='utf-8') as f:
                                 js_content = f.read()
-                                code_parts.append(f"// {filename}\n{js_content[:8000]}")
+
+                                # Skip Node.js/test code
+                                is_node_code = any(re.search(pattern, js_content) for pattern in node_patterns)
+                                if not is_node_code:
+                                    code_parts.append(f"// {filename}\n{js_content[:8000]}")
 
                     # Read CSS files
                     for filename in sorted(os.listdir(output_dir)):

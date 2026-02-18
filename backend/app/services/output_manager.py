@@ -137,16 +137,34 @@ class OutputManager:
 
         index_path = os.path.join(plan_dir, "index.html")
 
-        # Collect all JS code from .js files
+        # Collect all JS code from .js files (browser-compatible only)
         js_code = []
         js_files = []
+
+        # Patterns that indicate Node.js/test code (not browser-compatible)
+        node_patterns = [
+            r'module\.exports',
+            r'require\s*\(',
+            r'import\s+.*from\s+["\']',
+            r'@testing-library',
+            r'jest\.mock',
+            r'describe\s*\(',
+            r'it\s*\(',
+            r'test\s*\(',
+            r'expect\s*\(',
+        ]
+
         for f in sorted(os.listdir(plan_dir)):
             if f.endswith('.js'):
                 filepath = os.path.join(plan_dir, f)
-                js_files.append(f)
                 with open(filepath, 'r', encoding='utf-8') as file:
                     content = file.read()
-                    if content.strip():  # Only include non-empty files
+
+                    # Skip Node.js/test code
+                    is_node_code = any(re.search(pattern, content) for pattern in node_patterns)
+
+                    if content.strip() and not is_node_code:
+                        js_files.append(f)
                         js_code.append(f"// From {f}\n{content}")
 
         # Collect all CSS
@@ -172,8 +190,12 @@ class OutputManager:
             # Create a basic HTML structure
             html_content = self._generate_basic_html(plan_title)
 
-        # Check if HTML has inline JavaScript (actual code between script tags)
-        has_inline_js = bool(re.search(r'<script[^>]*>[\s\S]*?\w+[\s\S]*?</script>', html_content))
+        # Check if HTML already has substantial inline JavaScript (more than just imports)
+        # Look for actual function definitions or class definitions
+        has_meaningful_js = bool(re.search(
+            r'<script[^>]*>[\s\S]*(?:function\s+\w+|class\s+\w+|const\s+\w+\s*=)',
+            html_content
+        ))
 
         # Inject CSS if not already present (inline styles)
         if css_code and '<style>' not in html_content and '<link rel="stylesheet"' not in html_content:
@@ -181,11 +203,10 @@ class OutputManager:
             html_content = html_content.replace('</head>', f'<style>\n{combined_css}\n</style>\n</head>')
 
         # Handle JavaScript consolidation
-        if js_code and not has_inline_js:
+        if js_code and not has_meaningful_js:
             combined_js = '\n'.join(js_code)
 
             # Remove external script references and inject inline script
-            # This ensures all JS code is in one place
             html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*></script>', '', html_content)
             html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*/>', '', html_content)
 
