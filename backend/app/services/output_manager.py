@@ -200,7 +200,7 @@ class OutputManager:
         # ALWAYS remove external script and CSS references - they won't work in single file
         html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*></script>', '', html_content)
         html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*/>', '', html_content)
-        html_content = re.sub(r'<link[^>]+href=["\'][^"\']+\.css["\'][^>]*/>', '', html_content)
+        html_content = re.sub(r'<link[^>]*href=["\'][^"\']+\.css["\'][^>]*>', '', html_content)
 
         # Inject CSS if not already present (inline styles)
         if css_code and '<style>' not in html_content:
