@@ -494,7 +494,7 @@ document.addEventListener('DOMContentLoaded', function() {
             builtin_classes = {'Object', 'Array', 'String', 'Number', 'Boolean', 'Function',
                                'Date', 'RegExp', 'Error', 'Map', 'Set', 'Promise', 'Image', 'Audio',
                                'XMLHttpRequest', 'WebSocket', 'JSON', 'Math', 'Intl', 'Proxy', 'Reflect',
-                               'Animation', 'CanvasGradient', 'CanvasPattern', 'Path2D'}
+                               'Animation', 'CanvasGradient', 'CanvasPattern', 'Path2D', 'BigInt'}
             undefined_classes = used_classes - defined_classes - builtin_classes
 
             # Filter Phaser classes if CDN is included
@@ -506,6 +506,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 result["errors"].append(f"使用未定义的类: {undefined_classes}")
                 result["passed"] = False
 
+            # Check for undefined variable references (common patterns)
+            undefined_var_patterns = [
+                (r'\btextureCache\b', 'textureCache'),
+                (r'\baudioCache\b', 'audioCache'),
+                (r'\bbullets\s*=', 'bullets 数组'),
+                (r'\bgetWorldVertices\b', 'getWorldVertices 函数'),
+                (r'\bprojectPolygon\b', 'projectPolygon 函数'),
+            ]
+            for pattern, name in undefined_var_patterns:
+                if re.search(pattern, js_code):
+                    result["warnings"].append(f"可能未定义: {name}")
+
             # Check for Phaser usage without CDN
             if re.search(r'Phaser\.(Game|Scene|AUTO)', js_code):
                 if not any('phaser' in ref.lower() for ref in cdn_refs):
@@ -513,7 +525,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     result["passed"] = False
 
             # Check for initialization
-            has_init = bool(re.search(r'(window\.onload|DOMContentLoaded|init\s*\(\))', js_code))
+            has_init = bool(re.search(r'(window\.onload|DOMContentLoaded|init\s*\(\)|addEventListener.*load)', js_code))
             has_class = bool(defined_classes)
 
             if has_class and not has_init:
@@ -522,10 +534,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
             # Check for game loop (if it's a game)
             has_game_loop = bool(re.search(r'(requestAnimationFrame|gameLoop|setInterval)', js_code))
-            has_canvas = bool(re.search(r'getContext\s*\(', html_content))
 
-            if has_canvas and defined_classes and not has_game_loop:
-                result["warnings"].append("Canvas 游戏可能缺少游戏循环")
+            if has_class and not has_game_loop:
+                result["warnings"].append("代码有类但没有游戏循环")
+
+            # Check for Canvas (required for web games)
+            has_canvas = bool(re.search(r'getContext\s*\(', html_content))
+            has_canvas_element = bool(re.search(r'<canvas', html_content))
+
+            if defined_classes and not has_canvas:
+                result["warnings"].append("Web 游戏应该使用 Canvas 渲染")
 
         # 5. Check HTML structure
         if not re.search(r'<!DOCTYPE\s+html', html_content, re.IGNORECASE):
