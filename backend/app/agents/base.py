@@ -99,8 +99,13 @@ class CoderAgent(BaseAgent):
 - 不要留 TODO 或 "..." 占位符
 - 所有函数必须有完整实现
 
+【游戏框架选择 - 重要】
+🚫 禁止使用 Phaser、Pixi.js 等外部游戏框架
+✅ 只能使用原生 Canvas API (getContext('2d'))
+✅ 原因：单文件HTML无法加载外部框架，框架CDN可能被墙
+
 【Web游戏开发模板】
-推荐使用纯 Canvas 实现，无需外部依赖：
+必须使用纯 Canvas 实现：
 ```html
 <!DOCTYPE html>
 <html>

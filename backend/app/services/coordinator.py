@@ -633,7 +633,10 @@ class CoordinatorService:
 2. 不要引用外部文件（如 js/xxx.js, css/xxx.css）
 3. 所有代码必须完整可运行，不能只写片段或伪代码
 4. 必须包含初始化代码（window.onload 或 DOMContentLoaded）
-5. 对于游戏，必须包含：游戏循环、初始化函数、事件绑定"""
+5. 对于游戏，必须包含：游戏循环、初始化函数、事件绑定
+
+🚫 禁止使用外部游戏框架（Phaser、Pixi.js、Three.js等）
+✅ 只能使用原生 Canvas API 进行游戏开发"""
 
                     task_description = f"""任务：{task.title}
 
