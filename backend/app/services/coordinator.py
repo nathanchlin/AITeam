@@ -903,15 +903,28 @@ class CoordinatorService:
                 except Exception as e:
                     print(f"[Test] Error reading code: {e}")
 
+                # Detect technology stack from code
+                tech_stack_info = ""
+                if code_context:
+                    if "Phaser" in code_context:
+                        tech_stack_info = "\n\n【技术栈】此项目使用 Phaser.js 框架"
+                    elif "getContext('2d')" in code_context or "canvas.getContext" in code_context:
+                        tech_stack_info = "\n\n【技术栈】此项目使用纯 Canvas 实现，不需要 Phaser.js 等框架"
+                    elif "THREE" in code_context or "Three.js" in code_context:
+                        tech_stack_info = "\n\n【技术栈】此项目使用 Three.js 框架"
+
                 test_prompt = f"""作为测试工程师，请对生成的代码进行实际验证。
 
 原始需求：{plan.original_request}
+{tech_stack_info}
 
 测试任务：{task.title}
 {code_context}
 
+⚠️ 重要：首先识别代码使用的技术栈，只测试实际使用的技术，不要假设需要未使用的框架。
+
 请执行以下测试步骤：
-1. 代码完整性检查：是否包含所有必要的功能代码
+1. 代码完整性检查：检查必要功能代码是否存在（基于实际技术栈）
 2. 逻辑验证：核心功能逻辑是否正确实现
 3. 边界情况：是否处理了边界条件和错误情况
 
