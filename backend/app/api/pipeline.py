@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
-from typing import List
+from typing import List, Optional
 import os
 from app.models.schemas import (
     PipelineRequest,
@@ -11,6 +11,12 @@ from app.models.schemas import (
 from app.services.coordinator import coordinator
 from app.services.output_manager import output_manager
 from app.services.agent_manager import agent_manager
+from app.core.tasks import (
+    run_pipeline_task,
+    execute_phase_task,
+    get_task_status,
+)
+from app.core.broadcast import broadcast_manager
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
@@ -18,9 +24,11 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 @router.post("/start")
 async def start_pipeline(request: PipelineRequest):
     """Start a new pipeline: Discussion → Planning → Execution"""
-    import asyncio
     from app.main import websocket_manager
+    from app.core.broadcast import websocket_bridge
 
+    # Connect WebSocket bridge for cross-process communication
+    websocket_bridge.connect(websocket_manager)
     coordinator.set_websocket_manager(websocket_manager)
 
     # Create plan first
@@ -30,20 +38,13 @@ async def start_pipeline(request: PipelineRequest):
         selected_agent_ids=request.selected_agent_ids,
     )
 
-    # Run pipeline in background
-    async def run_pipeline_safe():
-        try:
-            await coordinator.run_pipeline_with_plan(plan.id)
-        except Exception as e:
-            print(f"[Pipeline Error] {e}")
-            import traceback
-            traceback.print_exc()
-
-    asyncio.create_task(run_pipeline_safe())
+    # Submit to Celery for persistent execution
+    celery_task = run_pipeline_task.delay(plan.id)
 
     return {
         "message": "Pipeline started",
         "plan_id": plan.id,
+        "celery_task_id": celery_task.id,
         "request": request.request,
         "target_output": request.target_output,
         "selected_agent_ids": request.selected_agent_ids,
@@ -74,6 +75,14 @@ async def get_plan(plan_id: str):
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
     return plan.model_dump()
+
+
+@router.delete("/plans/{plan_id}")
+async def delete_plan(plan_id: str):
+    """Delete a plan"""
+    if not coordinator.delete_plan(plan_id):
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return {"message": "Plan deleted successfully", "plan_id": plan_id}
 
 
 @router.post("/plans/{plan_id}/analyze")
@@ -165,8 +174,29 @@ async def get_output(plan_id: str):
 @router.get("/output/{plan_id}/files/{filename}")
 async def get_output_file(plan_id: str, filename: str):
     """Get a specific output file"""
-    output_dir = output_manager.get_output_path(plan_id)
+    try:
+        output_dir = output_manager.get_output_path(plan_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Output path error: {str(e)}")
     filepath = os.path.join(output_dir, filename)
+
+    # 若请求的是 index.html 但不存在，尝试按需合并生成（流水线可能未跑完或未生成 index.html）
+    if filename == "index.html" and not os.path.exists(filepath):
+        plan = coordinator.get_plan(plan_id)
+        plan_title = plan.title if plan else "Output"
+        try:
+            if output_manager.consolidate_web_app(plan_id, plan_title):
+                filepath = os.path.join(output_dir, filename)
+                if os.path.exists(filepath):
+                    return FileResponse(filepath)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to generate index.html: {str(e)}",
+            )
+        raise HTTPException(status_code=404, detail="index.html not found and could not be generated from fragments")
 
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")
@@ -235,7 +265,7 @@ async def check_pipeline_health():
 
 @router.post("/recover/{plan_id}")
 async def recover_stuck_pipeline(plan_id: str):
-    """Recover a stuck pipeline by restarting it"""
+    """Recover a stuck pipeline by restarting it via Celery"""
     plan = coordinator.get_plan(plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -248,17 +278,24 @@ async def recover_stuck_pipeline(plan_id: str):
         if task.status == TaskStatus.RUNNING:
             task.status = TaskStatus.PENDING
 
-    # Restart execution
-    import asyncio
-    asyncio.create_task(coordinator.execute_plan(plan_id))
+    # Submit recovery task to Celery
+    celery_task = execute_phase_task.delay(plan_id, "execute")
 
-    return {"message": "Pipeline recovery started", "plan_id": plan_id}
+    return {
+        "message": "Pipeline recovery started",
+        "plan_id": plan_id,
+        "celery_task_id": celery_task.id,
+    }
 
 
 @router.post("/resume/{plan_id}")
 async def resume_pipeline(plan_id: str):
-    """Resume an interrupted pipeline from its current state"""
+    """Resume an interrupted pipeline from its current state via Celery"""
     from app.main import websocket_manager
+    from app.core.broadcast import websocket_bridge
+
+    # Connect WebSocket bridge for cross-process communication
+    websocket_bridge.connect(websocket_manager)
     coordinator.set_websocket_manager(websocket_manager)
 
     plan = coordinator.get_plan(plan_id)
@@ -277,37 +314,87 @@ async def resume_pipeline(plan_id: str):
     # Check which phase to resume from
     if plan.status == PlanStatus.DRAFT:
         # Resume from beginning
-        import asyncio
-        asyncio.create_task(coordinator.run_pipeline_with_plan(plan_id))
-        return {"message": "Pipeline resumed from beginning", "plan_id": plan_id, "phase": "draft"}
+        celery_task = run_pipeline_task.delay(plan_id)
+        return {
+            "message": "Pipeline resumed from beginning",
+            "plan_id": plan_id,
+            "phase": "draft",
+            "celery_task_id": celery_task.id,
+        }
 
     elif plan.status == PlanStatus.DISCUSSING:
         # Resume from discussion phase
-        import asyncio
-        async def resume_from_discussion():
-            await coordinator.organize_discussion(plan_id)
-            await coordinator.generate_plan(plan_id)
-            await coordinator.execute_plan(plan_id)
-        asyncio.create_task(resume_from_discussion())
-        return {"message": "Pipeline resumed from discussion", "plan_id": plan_id, "phase": "discussing"}
+        celery_task = execute_phase_task.delay(plan_id, "full")
+        return {
+            "message": "Pipeline resumed from discussion",
+            "plan_id": plan_id,
+            "phase": "discussing",
+            "celery_task_id": celery_task.id,
+        }
 
     elif plan.status == PlanStatus.APPROVED:
         # Resume from execution phase
-        import asyncio
-        asyncio.create_task(coordinator.execute_plan(plan_id))
-        return {"message": "Pipeline resumed from execution", "plan_id": plan_id, "phase": "approved"}
+        celery_task = execute_phase_task.delay(plan_id, "execute")
+        return {
+            "message": "Pipeline resumed from execution",
+            "plan_id": plan_id,
+            "phase": "approved",
+            "celery_task_id": celery_task.id,
+        }
 
     elif plan.status == PlanStatus.EXECUTING:
         # Resume execution (reset running tasks to pending)
         for task in plan.tasks:
             if task.status == TaskStatus.RUNNING:
                 task.status = TaskStatus.PENDING
-        import asyncio
-        asyncio.create_task(coordinator.execute_plan(plan_id))
-        return {"message": "Pipeline resumed from execution", "plan_id": plan_id, "phase": "executing"}
+        celery_task = execute_phase_task.delay(plan_id, "execute")
+        return {
+            "message": "Pipeline resumed from execution",
+            "plan_id": plan_id,
+            "phase": "executing",
+            "celery_task_id": celery_task.id,
+        }
 
     elif plan.status == PlanStatus.COMPLETED:
         return {"message": "Pipeline already completed", "plan_id": plan_id, "phase": "completed"}
 
     else:
         raise HTTPException(status_code=400, detail=f"Unknown plan status: {plan.status}")
+
+
+@router.post("/restart/{plan_id}")
+async def restart_pipeline(plan_id: str):
+    """Restart a plan from the beginning: clear tasks and discussion, then run full pipeline via Celery"""
+    from app.main import websocket_manager
+    from app.core.broadcast import websocket_bridge
+
+    # Connect WebSocket bridge for cross-process communication
+    websocket_bridge.connect(websocket_manager)
+    coordinator.set_websocket_manager(websocket_manager)
+
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Reset to initial state (keep original_request, target_output, selected_agent_ids)
+    plan.status = PlanStatus.DRAFT
+    plan.tasks = []
+    plan.discussion = []
+    plan.started_at = None
+    plan.completed_at = None
+    coordinator._save_plans()
+
+    # Submit to Celery
+    celery_task = run_pipeline_task.delay(plan_id)
+
+    return {
+        "message": "Plan restarted from beginning",
+        "plan_id": plan_id,
+        "celery_task_id": celery_task.id,
+    }
+
+
+@router.get("/task/{task_id}")
+async def get_celery_task_status(task_id: str):
+    """Get the status of a Celery task"""
+    return get_task_status(task_id)

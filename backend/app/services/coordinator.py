@@ -21,6 +21,7 @@ class CoordinatorService:
     def __init__(self):
         self.plans: Dict[str, Plan] = {}
         self.websocket_manager = None
+        self.broadcast_manager = None
         # Load persisted plans on initialization
         self._load_plans()
 
@@ -145,8 +146,17 @@ class CoordinatorService:
     def set_websocket_manager(self, ws_manager):
         self.websocket_manager = ws_manager
 
+    def set_broadcast_manager(self, broadcast_manager):
+        """Set broadcast manager for cross-process communication."""
+        self.broadcast_manager = broadcast_manager
+
     async def broadcast(self, message: Dict[str, Any]):
-        if self.websocket_manager:
+        """Broadcast message to WebSocket clients (supports cross-process via Redis)."""
+        # Use broadcast manager for cross-process communication (Celery workers)
+        if self.broadcast_manager:
+            await self.broadcast_manager.broadcast(message)
+        # Fallback to direct WebSocket broadcast (same process)
+        elif self.websocket_manager:
             await self.websocket_manager.broadcast(message)
 
     async def create_plan(
@@ -381,8 +391,18 @@ class CoordinatorService:
                 prompt = f"{agent.custom_prompt}\n\n{prompt}"
 
             response = ""
-            async for chunk in glm_client.chat_stream(prompt, agent.type.value):
-                response += chunk
+            try:
+                async def _collect_response():
+                    nonlocal response
+                    async for chunk in glm_client.chat_stream(prompt, agent.type.value):
+                        response += chunk
+                await asyncio.wait_for(_collect_response(), timeout=90)
+            except asyncio.TimeoutError:
+                print(f"[Coordinator] organize_discussion agent {agent.name} timeout 90s, using fallback")
+                response = f"(该 Agent 回复超时，已跳过。建议：{plan.original_request[:80]}…)"
+            except Exception as e:
+                print(f"[Coordinator] organize_discussion agent {agent.name} error: {e}")
+                response = f"(回复出错: {str(e)[:100]})"
 
             await self.add_discussion_message(
                 plan_id, agent.id, agent.name, agent.type.value,
@@ -468,43 +488,52 @@ class CoordinatorService:
 确保任务按顺序排列，每个任务明确分配给合适的Agent（从可用的Agent类型中选择）。"""
 
         full_response = ""
-        async for chunk in glm_client.chat_stream(plan_prompt, "assistant"):
-            full_response += chunk
+        plan_generation_timeout = 90  # 计划生成最多 90 秒，超时用兜底任务，避免卡在“计划生成中”
 
-        # Parse JSON from response
+        async def _stream_plan_response():
+            nonlocal full_response
+            async for chunk in glm_client.chat_stream(plan_prompt, "assistant"):
+                full_response += chunk
+            return full_response
+
         try:
-            # Extract JSON from response
-            json_start = full_response.find("{")
-            json_end = full_response.rfind("}") + 1
-            json_str = full_response[json_start:json_end]
-            plan_data = json.loads(json_str)
+            full_response = await asyncio.wait_for(_stream_plan_response(), timeout=plan_generation_timeout)
+        except asyncio.TimeoutError:
+            print(f"[Coordinator] generate_plan timeout after {plan_generation_timeout}s, using fallback plan")
+            full_response = ""
+        except Exception as e:
+            print(f"[Coordinator] generate_plan LLM error: {e}")
+            full_response = ""
 
-            plan.title = plan_data.get("title", plan.title)
-            plan.description = plan_data.get("description", "")
+        # Parse JSON from response（失败则用兜底计划，确保不会一直停在“等待计划生成”）
+        try:
+            if full_response and "{" in full_response and "}" in full_response:
+                json_start = full_response.find("{")
+                json_end = full_response.rfind("}") + 1
+                json_str = full_response[json_start:json_end]
+                plan_data = json.loads(json_str)
 
-            # Create plan tasks
-            for i, task_data in enumerate(plan_data.get("tasks", [])):
-                agent_type_str = task_data.get("assigned_agent_type", "coder")
-                assigned_agent_id = None
+                plan.title = plan_data.get("title", plan.title)
+                plan.description = plan_data.get("description", "")
 
-                # Find the right agent from selected agents
-                if agent_type_str in agents_by_type:
-                    assigned_agent_id = agents_by_type[agent_type_str].id
+                for i, task_data in enumerate(plan_data.get("tasks", [])):
+                    agent_type_str = task_data.get("assigned_agent_type", "coder")
+                    assigned_agent_id = agents_by_type.get(agent_type_str)
+                    assigned_agent_id = assigned_agent_id.id if assigned_agent_id else None
 
-                plan_task = PlanTask(
-                    id=str(uuid.uuid4()),
-                    title=task_data.get("title", "未命名任务"),
-                    description=task_data.get("description", ""),
-                    assigned_agent_id=assigned_agent_id,
-                    assigned_agent_type=agent_type_str,
-                    order=i + 1,
-                )
-                plan.tasks.append(plan_task)
-
-        except json.JSONDecodeError as e:
-            # Fallback: create a simple plan
-            plan.description = full_response
-            # Assign to first available coder or assistant
+                    plan.tasks.append(PlanTask(
+                        id=str(uuid.uuid4()),
+                        title=task_data.get("title", "未命名任务"),
+                        description=task_data.get("description", ""),
+                        assigned_agent_id=assigned_agent_id,
+                        assigned_agent_type=agent_type_str,
+                        order=i + 1,
+                    ))
+            else:
+                raise ValueError("empty or invalid response")
+        except Exception as e:
+            print(f"[Coordinator] generate_plan parse error: {e}, using fallback plan")
+            plan.description = plan.description or full_response or "(计划生成超时或解析失败，已使用兜底任务)"
             fallback_agent = agents_by_type.get("coder") or agents_by_type.get("assistant") or (selected_agents[0] if selected_agents else None)
             plan.tasks = [
                 PlanTask(
@@ -519,9 +548,8 @@ class CoordinatorService:
 
         plan.status = PlanStatus.APPROVED
         plan.updated_at = datetime.utcnow()
-        self._save_plans()  # Persist after generating plan
+        self._save_plans()
 
-        # Add plan to broadcast
         await self.broadcast({
             "type": "plan_update",
             "data": {
@@ -538,6 +566,12 @@ class CoordinatorService:
         plan = self.plans.get(plan_id)
         if not plan:
             return "Plan not found"
+
+        # 防止卡住：将任何处于 RUNNING 的任务重置为 PENDING，便于恢复或重新执行
+        for task in plan.tasks:
+            if task.status == TaskStatus.RUNNING:
+                task.status = TaskStatus.PENDING
+        self._save_plans()
 
         plan.status = PlanStatus.EXECUTING
         plan.started_at = datetime.utcnow()
@@ -628,12 +662,12 @@ class CoordinatorService:
                     if plan.target_output == "web-app" and agent.type.value == "coder":
                         web_app_instructions = """
 
-⚠️ Web应用开发要求：
-1. 生成完整的单文件 HTML（包含内联 CSS 和 JavaScript）
-2. 不要引用外部文件（如 js/xxx.js, css/xxx.css）
-3. 所有代码必须完整可运行，不能只写片段或伪代码
-4. 必须包含初始化代码（window.onload 或 DOMContentLoaded）
-5. 对于游戏，必须包含：游戏循环、初始化函数、事件绑定
+⚠️ Web应用开发要求（必须全部满足，否则视为未完成任务）：
+1. 生成完整的单文件 HTML（包含内联 CSS 和 JavaScript），打开即可运行。
+2. 不要引用外部文件（如 js/xxx.js, css/xxx.css）。
+3. 禁止只输出类骨架或伪代码：每个类的方法必须有可执行实现体，不能只有注释或空函数。
+4. 必须包含：<canvas> 元素、getContext('2d')、requestAnimationFrame 游戏循环、window.onload 或 DOMContentLoaded 初始化、键盘/鼠标事件绑定。
+5. 若本计划中有多个任务分别产出模块（如 code_1.js 与 code_2.js），你负责的 HTML 应把所需逻辑整合进同一文件，确保最终 index.html 可独立运行，不依赖同目录其他 .js 文件。
 
 🚫 禁止使用外部游戏框架（Phaser、Pixi.js、Three.js等）
 ✅ 只能使用原生 Canvas API 进行游戏开发"""
@@ -652,93 +686,95 @@ class CoordinatorService:
                     full_response = ""
 
                     try:
-                        async def execute_with_timeout():
-                            nonlocal full_response
-                            async for update in agent.execute_task(task_description):
-                                if update["type"] == "stream":
-                                    full_response += update["content"]
-                                    await self.broadcast({
-                                        "type": "stream",
-                                        "data": {
-                                            "plan_id": plan_id,
-                                            "task_id": task.id,
-                                            "agent_id": agent.id,
-                                            "content": update["content"],
-                                        }
-                                    })
+                        try:
+                            async def execute_with_timeout():
+                                nonlocal full_response
+                                async for update in agent.execute_task(task_description):
+                                    if update["type"] == "stream":
+                                        full_response += update["content"]
+                                        await self.broadcast({
+                                            "type": "stream",
+                                            "data": {
+                                                "plan_id": plan_id,
+                                                "task_id": task.id,
+                                                "agent_id": agent.id,
+                                                "content": update["content"],
+                                            }
+                                        })
 
-                        await asyncio.wait_for(execute_with_timeout(), timeout=task_timeout)
+                            await asyncio.wait_for(execute_with_timeout(), timeout=task_timeout)
 
-                        # Task completed successfully
-                        task_success = True
+                            # Task completed successfully
+                            task_success = True
 
-                    except asyncio.TimeoutError:
-                        # Task timed out
-                        task_retry_count += 1
-                        error_msg = f"⚠️ 任务超时（{task_timeout}秒/15分钟），第 {task_retry_count} 次尝试失败"
-                        print(f"[Pipeline] Task timeout: {task.title}, retry {task_retry_count}/{max_task_retries}")
-
-                        await self.add_discussion_message(
-                            plan_id=plan_id,
-                            agent_id=agent.id,
-                            agent_name=agent.name,
-                            agent_type=agent.type.value,
-                            content=error_msg,
-                            message_type="comment",
-                        )
-
-                        agent.update_status(AgentStatus.IDLE)
-
-                        if task_retry_count >= max_task_retries:
-                            # All retries exhausted, restart entire pipeline
-                            error_msg = f"❌ 任务「{task.title}」已重试 {max_task_retries} 次均失败，将重启整个流程"
-                            print(f"[Pipeline] Task failed after {max_task_retries} retries, restarting pipeline")
+                        except asyncio.TimeoutError:
+                            # Task timed out
+                            task_retry_count += 1
+                            error_msg = f"⚠️ 任务超时（{task_timeout}秒/15分钟），第 {task_retry_count} 次尝试失败"
+                            print(f"[Pipeline] Task timeout: {task.title}, retry {task_retry_count}/{max_task_retries}")
 
                             await self.add_discussion_message(
                                 plan_id=plan_id,
-                                agent_id="system",
-                                agent_name="系统",
-                                agent_type="assistant",
+                                agent_id=agent.id,
+                                agent_name=agent.name,
+                                agent_type=agent.type.value,
                                 content=error_msg,
                                 message_type="comment",
                             )
 
-                            # Reset all tasks to pending
-                            for t in plan.tasks:
-                                t.status = TaskStatus.PENDING
+                            if task_retry_count >= max_task_retries:
+                                # All retries exhausted, restart entire pipeline
+                                error_msg = f"❌ 任务「{task.title}」已重试 {max_task_retries} 次均失败，将重启整个流程"
+                                print(f"[Pipeline] Task failed after {max_task_retries} retries, restarting pipeline")
 
-                            # Restart pipeline from beginning
+                                await self.add_discussion_message(
+                                    plan_id=plan_id,
+                                    agent_id="system",
+                                    agent_name="系统",
+                                    agent_type="assistant",
+                                    content=error_msg,
+                                    message_type="comment",
+                                )
+
+                                # Reset all tasks to pending
+                                for t in plan.tasks:
+                                    t.status = TaskStatus.PENDING
+
+                                await self.add_discussion_message(
+                                    plan_id=plan_id,
+                                    agent_id="system",
+                                    agent_name="系统",
+                                    agent_type="assistant",
+                                    content="🔄 正在重新启动整个流程...",
+                                    message_type="comment",
+                                )
+
+                                return await self.run_pipeline_with_plan(plan_id)
+
+                            continue  # Retry the same task
+
+                        except Exception as e:
+                            # Task failed with error
+                            error_msg = f"❌ 任务执行出错：{str(e)}"
+                            print(f"[Pipeline] Task error: {task.title} - {e}")
+
                             await self.add_discussion_message(
                                 plan_id=plan_id,
-                                agent_id="system",
-                                agent_name="系统",
-                                agent_type="assistant",
-                                content="🔄 正在重新启动整个流程...",
+                                agent_id=agent.id,
+                                agent_name=agent.name,
+                                agent_type=agent.type.value,
+                                content=error_msg,
                                 message_type="comment",
                             )
 
-                            # Recursively restart pipeline
-                            return await self.run_pipeline_with_plan(plan_id)
-
-                        continue  # Retry the same task
-
-                    except Exception as e:
-                        # Task failed with error
-                        error_msg = f"❌ 任务执行出错：{str(e)}"
-                        print(f"[Pipeline] Task error: {task.title} - {e}")
-
-                        await self.add_discussion_message(
-                            plan_id=plan_id,
-                            agent_id=agent.id,
-                            agent_name=agent.name,
-                            agent_type=agent.type.value,
-                            content=error_msg,
-                            message_type="comment",
-                        )
-
-                        task.status = TaskStatus.FAILED
+                            task.status = TaskStatus.FAILED
+                            break  # Exit retry loop on non-timeout errors
+                    finally:
+                        # 确保 agent 不会一直处于 WORKING（超时/异常/正常结束都恢复）
                         agent.update_status(AgentStatus.IDLE)
-                        break  # Exit retry loop on non-timeout errors
+                        if task.status == TaskStatus.RUNNING:
+                            task.status = TaskStatus.PENDING
+                            self._save_plans()
 
                 # If task was not successful after all retries, skip to next task
                 if not task_success:
@@ -1106,6 +1142,14 @@ class CoordinatorService:
 
     def get_all_plans(self) -> List[Plan]:
         return list(self.plans.values())
+
+    def delete_plan(self, plan_id: str) -> bool:
+        """Delete a plan by ID"""
+        if plan_id in self.plans:
+            del self.plans[plan_id]
+            self._save_plans()
+            return True
+        return False
 
 
 # Global instance

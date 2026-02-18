@@ -1,6 +1,19 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./backend
@@ -11,9 +24,52 @@ services:
       - GLM_API_KEY=${GLM_API_KEY}
       - GLM_MODEL=glm-4
       - DATABASE_URL=sqlite+aiosqlite:///./data/aiteam.db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
     volumes:
       - ./backend/data:/app/data
+      - ./backend/output:/app/output
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    environment:
+      - GLM_API_KEY=${GLM_API_KEY}
+      - GLM_MODEL=glm-4
+      - DATABASE_URL=sqlite+aiosqlite:///./data/aiteam.db
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    volumes:
+      - ./backend/data:/app/data
+      - ./backend/output:/app/output
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: ["celery", "-A", "app.core.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    command: ["celery", "-A", "app.core.celery_app", "beat", "--loglevel=info"]
+    profiles:
+      - scheduler
 
   frontend:
     build:
@@ -24,3 +80,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  redis_data:
