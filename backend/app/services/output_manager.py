@@ -197,19 +197,19 @@ class OutputManager:
             html_content
         ))
 
+        # ALWAYS remove external script and CSS references - they won't work in single file
+        html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*></script>', '', html_content)
+        html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*/>', '', html_content)
+        html_content = re.sub(r'<link[^>]+href=["\'][^"\']+\.css["\'][^>]*/>', '', html_content)
+
         # Inject CSS if not already present (inline styles)
-        if css_code and '<style>' not in html_content and '<link rel="stylesheet"' not in html_content:
+        if css_code and '<style>' not in html_content:
             combined_css = '\n'.join(css_code)
             html_content = html_content.replace('</head>', f'<style>\n{combined_css}\n</style>\n</head>')
 
         # Handle JavaScript consolidation
         if js_code and not has_meaningful_js:
             combined_js = '\n'.join(js_code)
-
-            # Remove external script references and inject inline script
-            html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*></script>', '', html_content)
-            html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*/>', '', html_content)
-
             # Inject the combined JS before </body>
             html_content = html_content.replace('</body>', f'<script>\n{combined_js}\n</script>\n</body>')
 
