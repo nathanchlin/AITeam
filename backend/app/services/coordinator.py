@@ -833,56 +833,73 @@ class CoordinatorService:
                 output_dir = output_manager.get_output_path(plan_id)
                 code_context = ""
 
-                # Patterns that indicate Node.js/test code (not browser-compatible)
-                node_patterns = [
-                    r'module\.exports',
-                    r'require\s*\(',
-                    r'import\s+.*from\s+["\']',
-                    r'@testing-library',
-                    r'jest\.mock',
-                    r'describe\s*\(',
-                    r'it\s*\(',
-                    r'test\s*\(',
-                    r'expect\s*\(',
-                ]
-
                 try:
-                    # Read all relevant code files
-                    code_parts = []
-
-                    # Read index.html
+                    # Read the consolidated index.html (this should have all code inline)
                     index_path = os.path.join(output_dir, "index.html")
                     if os.path.exists(index_path):
                         with open(index_path, 'r', encoding='utf-8') as f:
                             html_content = f.read()
-                            code_parts.append(f"<!-- index.html -->\n{html_content[:5000]}")
 
-                    # Read JavaScript files (skip Node.js/test code)
-                    for filename in sorted(os.listdir(output_dir)):
-                        if filename.endswith('.js'):
-                            js_path = os.path.join(output_dir, filename)
-                            with open(js_path, 'r', encoding='utf-8') as f:
-                                js_content = f.read()
+                        # Check if the HTML has substantial inline code
+                        has_inline_js = bool(re.search(
+                            r'<script[^>]*>[\s\S]{500,}',  # At least 500 chars of JS
+                            html_content
+                        ))
 
-                                # Skip Node.js/test code
-                                is_node_code = any(re.search(pattern, js_content) for pattern in node_patterns)
-                                if not is_node_code:
-                                    code_parts.append(f"// {filename}\n{js_content[:8000]}")
+                        if has_inline_js:
+                            # Use the full HTML content (it's consolidated)
+                            # Limit to reasonable size for LLM context
+                            if len(html_content) > 20000:
+                                # Try to include more of the JavaScript
+                                # Find script content and prioritize it
+                                script_match = re.search(r'<script[^>]*>([\s\S]*?)</script>', html_content)
+                                if script_match:
+                                    js_content = script_match.group(1)
+                                    # Include HTML structure + full JS
+                                    html_without_js = re.sub(r'<script[^>]*>[\s\S]*?</script>', '', html_content)
+                                    code_context = f"\n\n生成的代码：\n```\n{html_without_js[:5000]}\n\n<script>\n{js_content[:12000]}\n</script>\n```\n"
+                                else:
+                                    code_context = f"\n\n生成的代码：\n```\n{html_content[:15000]}\n```\n"
+                            else:
+                                code_context = f"\n\n生成的代码：\n```\n{html_content}\n```\n"
+                        else:
+                            # Fallback: read separate JS files if HTML doesn't have inline code
+                            code_parts = [f"<!-- index.html -->\n{html_content[:5000]}"]
 
-                    # Read CSS files
-                    for filename in sorted(os.listdir(output_dir)):
-                        if filename.endswith('.css'):
-                            css_path = os.path.join(output_dir, filename)
-                            with open(css_path, 'r', encoding='utf-8') as f:
-                                css_content = f.read()
-                                code_parts.append(f"/* {filename} */\n{css_content[:3000]}")
+                            # Patterns that indicate Node.js/test code
+                            node_patterns = [
+                                r'module\.exports',
+                                r'require\s*\(',
+                                r'import\s+.*from\s+["\']',
+                                r'@testing-library',
+                                r'jest\.mock',
+                                r'describe\s*\(',
+                                r'it\s*\(',
+                                r'test\s*\(',
+                                r'expect\s*\(',
+                            ]
 
-                    if code_parts:
-                        combined_code = "\n\n".join(code_parts)
-                        # Limit total size to avoid token limits
-                        if len(combined_code) > 15000:
-                            combined_code = combined_code[:15000] + "\n\n... (代码已截断)"
-                        code_context = f"\n\n生成的代码：\n```\n{combined_code}\n```\n"
+                            for filename in sorted(os.listdir(output_dir)):
+                                if filename.endswith('.js'):
+                                    js_path = os.path.join(output_dir, filename)
+                                    with open(js_path, 'r', encoding='utf-8') as f:
+                                        js_content = f.read()
+                                        is_node_code = any(re.search(pattern, js_content) for pattern in node_patterns)
+                                        if not is_node_code:
+                                            code_parts.append(f"// {filename}\n{js_content[:8000]}")
+
+                            for filename in sorted(os.listdir(output_dir)):
+                                if filename.endswith('.css'):
+                                    css_path = os.path.join(output_dir, filename)
+                                    with open(css_path, 'r', encoding='utf-8') as f:
+                                        css_content = f.read()
+                                        code_parts.append(f"/* {filename} */\n{css_content[:3000]}")
+
+                            combined_code = "\n\n".join(code_parts)
+                            if len(combined_code) > 15000:
+                                combined_code = combined_code[:15000] + "\n\n... (代码已截断)"
+                            code_context = f"\n\n生成的代码：\n```\n{combined_code}\n```\n"
+
                 except Exception as e:
                     print(f"[Test] Error reading code: {e}")
 
