@@ -20,6 +20,7 @@ export function PipelinePanel() {
 
   const [request, setRequest] = useState('');
   const [targetOutput, setTargetOutput] = useState('web-app');
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [starting, setStarting] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -86,12 +87,14 @@ export function PipelinePanel() {
         body: JSON.stringify({
           request: request.trim(),
           target_output: targetOutput,
+          selected_agent_ids: selectedAgentIds,
         }),
       });
       const data = await res.json();
       console.log('Pipeline started:', data);
       setCurrentPlan(data.plan_id);
       setRequest('');
+      setSelectedAgentIds([]);
 
       // Immediately fetch the new plan to refresh the list
       await fetchPlans();
@@ -100,6 +103,22 @@ export function PipelinePanel() {
     } finally {
       setStarting(false);
     }
+  };
+
+  const toggleAgentSelection = (agentId: string) => {
+    setSelectedAgentIds(prev =>
+      prev.includes(agentId)
+        ? prev.filter(id => id !== agentId)
+        : [...prev, agentId]
+    );
+  };
+
+  const selectAllAgents = () => {
+    setSelectedAgentIds(agents.map(a => a.id));
+  };
+
+  const clearAgentSelection = () => {
+    setSelectedAgentIds([]);
   };
 
   const getStatusColor = (status: string) => {
@@ -197,6 +216,70 @@ export function PipelinePanel() {
             rows={2}
             disabled={starting}
           />
+
+          {/* Agent Selection */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400">选择协作 Agent：</span>
+              <div className="flex gap-2">
+                <button
+                  onClick={selectAllAgents}
+                  className="text-xs text-purple-400 hover:text-purple-300"
+                >
+                  全选
+                </button>
+                <span className="text-gray-600">|</span>
+                <button
+                  onClick={clearAgentSelection}
+                  className="text-xs text-gray-400 hover:text-gray-300"
+                >
+                  清除
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {agents.map((agent) => {
+                const isSelected = selectedAgentIds.includes(agent.id);
+                const agentColor = AGENT_COLORS[agent.type as keyof typeof AGENT_COLORS]?.primary || '#888';
+                return (
+                  <button
+                    key={agent.id}
+                    onClick={() => toggleAgentSelection(agent.id)}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-all ${
+                      isSelected
+                        ? 'ring-2 ring-offset-1 ring-offset-gray-800'
+                        : 'opacity-60 hover:opacity-100'
+                    }`}
+                    style={{
+                      backgroundColor: isSelected ? agentColor : `${agentColor}40`,
+                      color: isSelected ? 'white' : '#ccc',
+                      ringColor: agentColor,
+                    }}
+                  >
+                    <div
+                      className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold"
+                      style={{ backgroundColor: agentColor }}
+                    >
+                      {agent.name.charAt(0)}
+                    </div>
+                    <span>{agent.name}</span>
+                    <span className="text-[10px] opacity-70">
+                      ({AGENT_LABELS[agent.type as keyof typeof AGENT_LABELS] || agent.type})
+                    </span>
+                    {isSelected && (
+                      <Check size={12} className="ml-0.5" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedAgentIds.length === 0 && (
+              <p className="text-xs text-yellow-500">
+                未选择 Agent，将使用所有可用 Agent
+              </p>
+            )}
+          </div>
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-400">目标输出：</span>

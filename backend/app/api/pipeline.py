@@ -27,6 +27,7 @@ async def start_pipeline(request: PipelineRequest):
     plan = await coordinator.create_plan(
         request=request.request,
         target_output=request.target_output,
+        selected_agent_ids=request.selected_agent_ids,
     )
 
     # Run pipeline in background
@@ -45,6 +46,7 @@ async def start_pipeline(request: PipelineRequest):
         "plan_id": plan.id,
         "request": request.request,
         "target_output": request.target_output,
+        "selected_agent_ids": request.selected_agent_ids,
     }
 
 

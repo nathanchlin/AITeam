@@ -154,6 +154,7 @@ class CoordinatorService:
         request: str,
         target_output: str = "web-app",
         created_by_agent_id: Optional[str] = None,
+        selected_agent_ids: Optional[List[str]] = None,
     ) -> Plan:
         """Create a new plan from a user request"""
         plan_id = str(uuid.uuid4())
@@ -163,6 +164,7 @@ class CoordinatorService:
             original_request=request,
             target_output=target_output,
             created_by_agent_id=created_by_agent_id,
+            selected_agent_ids=selected_agent_ids or [],
             status=PlanStatus.DRAFT,
         )
         self.plans[plan_id] = plan
@@ -283,100 +285,115 @@ class CoordinatorService:
 
         plan.status = PlanStatus.DISCUSSING
 
-        # Get all agents
-        agents = agent_manager.get_all_agents()
+        # Get selected agents or fall back to all available
+        all_agents = agent_manager.get_all_agents()
+
+        if plan.selected_agent_ids:
+            # Use only selected agents
+            selected_agents = [a for a in all_agents if a.id in plan.selected_agent_ids]
+        else:
+            # Fall back to all available agents
+            selected_agents = all_agents
+
+        if not selected_agents:
+            return "No agents available for discussion"
+
+        # Find assistant (or first agent if no assistant)
+        assistant = next((a for a in selected_agents if a.type == AgentType.ASSISTANT), None)
+        if not assistant:
+            assistant = selected_agents[0]
 
         # Assistant initiates discussion
-        assistant = next((a for a in agents if a.type == AgentType.ASSISTANT), None)
-        coder = next((a for a in agents if a.type == AgentType.CODER), None)
-        analyst = next((a for a in agents if a.type == AgentType.ANALYST), None)
-        tester = next((a for a in agents if a.type == AgentType.TESTER), None)
-
-        if not all([assistant, coder, analyst, tester]):
-            return "Not all required agents found"
-
-        # Assistant asks for opinions
         await self.add_discussion_message(
-            plan_id, assistant.id, assistant.name, "assistant",
-            "各位，请针对这个项目发表你们的看法和建议。",
+            plan_id, assistant.id, assistant.name, assistant.type.value,
+            f"各位，请针对这个项目发表你们的看法和建议。参与本次协作的Agent有: {', '.join([a.name for a in selected_agents])}",
             "question"
         )
 
-        # Coder's input
-        coder.update_status(AgentStatus.WORKING)
-        coder_prompt = f"""作为代码开发专家，请针对以下项目需求给出你的技术建议：
+        # Define prompts for different agent types
+        agent_prompts = {
+            AgentType.CODER: """作为代码开发专家，请针对以下项目需求给出你的技术建议：
 
-需求：{plan.original_request}
+需求：{request}
 
 请简短说明：
 1. 推荐的技术栈
 2. 需要实现的核心模块
 3. 预计的开发步骤（3-5步）
 
-保持简洁，每项1-2句话。"""
+保持简洁，每项1-2句话。""",
 
-        coder_response = ""
-        async for chunk in glm_client.chat_stream(coder_prompt, "coder"):
-            coder_response += chunk
+            AgentType.ANALYST: """作为数据分析师，请针对以下项目给出你的分析：
 
-        await self.add_discussion_message(
-            plan_id, coder.id, coder.name, "coder",
-            coder_response,
-            "proposal"
-        )
-        coder.update_status(AgentStatus.IDLE)
-
-        # Analyst's input
-        analyst.update_status(AgentStatus.WORKING)
-        analyst_prompt = f"""作为数据分析师，请针对以下项目给出你的分析：
-
-需求：{plan.original_request}
+需求：{request}
 
 请简短说明：
 1. 项目可行性评估
 2. 潜在风险点
 3. 性能考量
 
-保持简洁，每项1-2句话。"""
+保持简洁，每项1-2句话。""",
 
-        analyst_response = ""
-        async for chunk in glm_client.chat_stream(analyst_prompt, "analyst"):
-            analyst_response += chunk
+            AgentType.TESTER: """作为测试工程师，请针对以下项目给出你的测试建议：
 
-        await self.add_discussion_message(
-            plan_id, analyst.id, analyst.name, "analyst",
-            analyst_response,
-            "proposal"
-        )
-        analyst.update_status(AgentStatus.IDLE)
-
-        # Tester's input
-        tester.update_status(AgentStatus.WORKING)
-        tester_prompt = f"""作为测试工程师，请针对以下项目给出你的测试建议：
-
-需求：{plan.original_request}
+需求：{request}
 
 请简短说明：
 1. 需要测试的核心功能
 2. 关键测试场景
 3. 质量保证建议
 
-保持简洁，每项1-2句话。"""
+保持简洁，每项1-2句话。""",
 
-        tester_response = ""
-        async for chunk in glm_client.chat_stream(tester_prompt, "tester"):
-            tester_response += chunk
+            AgentType.ASSISTANT: """作为项目助手，请针对以下项目给出你的建议：
 
-        await self.add_discussion_message(
-            plan_id, tester.id, tester.name, "tester",
-            tester_response,
-            "proposal"
-        )
-        tester.update_status(AgentStatus.IDLE)
+需求：{request}
+
+请简短说明：
+1. 项目整体规划
+2. 需要注意的事项
+3. 预期成果
+
+保持简洁，每项1-2句话。""",
+        }
+
+        # Let each selected agent (except assistant) participate
+        for agent in selected_agents:
+            if agent.id == assistant.id:
+                continue  # Skip assistant, they already initiated
+
+            agent.update_status(AgentStatus.WORKING)
+
+            # Get prompt template for this agent type
+            prompt_template = agent_prompts.get(agent.type)
+            if not prompt_template:
+                # Custom agent - use generic prompt
+                prompt_template = f"""作为{agent.name}，请针对以下项目给出你的专业建议：
+
+需求：{{request}}
+
+请简短说明你的专业观点和建议。保持简洁。"""
+
+            prompt = prompt_template.format(request=plan.original_request)
+
+            # Use custom prompt if available
+            if agent.custom_prompt:
+                prompt = f"{agent.custom_prompt}\n\n{prompt}"
+
+            response = ""
+            async for chunk in glm_client.chat_stream(prompt, agent.type.value):
+                response += chunk
+
+            await self.add_discussion_message(
+                plan_id, agent.id, agent.name, agent.type.value,
+                response,
+                "proposal"
+            )
+            agent.update_status(AgentStatus.IDLE)
 
         # Assistant summarizes
         await self.add_discussion_message(
-            plan_id, assistant.id, assistant.name, "assistant",
+            plan_id, assistant.id, assistant.name, assistant.type.value,
             "感谢各位的建议。我来总结一下大家的意见，形成最终计划。",
             "comment"
         )
@@ -389,15 +406,28 @@ class CoordinatorService:
         if not plan:
             raise ValueError(f"Plan {plan_id} not found")
 
-        # Get agents
-        agents = agent_manager.get_all_agents()
-        assistant = next((a for a in agents if a.type == AgentType.ASSISTANT), None)
-        coder = next((a for a in agents if a.type == AgentType.CODER), None)
-        analyst = next((a for a in agents if a.type == AgentType.ANALYST), None)
-        tester = next((a for a in agents if a.type == AgentType.TESTER), None)
+        # Get selected agents or fall back to all available
+        all_agents = agent_manager.get_all_agents()
+
+        if plan.selected_agent_ids:
+            selected_agents = [a for a in all_agents if a.id in plan.selected_agent_ids]
+        else:
+            selected_agents = all_agents
+
+        # Find assistant (or first agent if no assistant)
+        assistant = next((a for a in selected_agents if a.type == AgentType.ASSISTANT), None)
+        if not assistant and selected_agents:
+            assistant = selected_agents[0]
 
         if not assistant:
-            raise ValueError("No Assistant agent found")
+            raise ValueError("No agent available to generate plan")
+
+        # Build a map of agent types to agents for task assignment
+        agents_by_type = {}
+        for agent in selected_agents:
+            agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
+            if agent_type not in agents_by_type:
+                agents_by_type[agent_type] = agent
 
         assistant.update_status(AgentStatus.WORKING)
 
@@ -407,6 +437,10 @@ class CoordinatorService:
             for msg in plan.discussion[-5:]  # Last 5 messages
         ])
 
+        # Build available agent types string for prompt
+        available_agent_types = list(agents_by_type.keys())
+        agent_types_str = "/".join(available_agent_types)
+
         plan_prompt = f"""基于以下讨论，请生成详细的执行计划：
 
 原始需求：{plan.original_request}
@@ -414,6 +448,8 @@ class CoordinatorService:
 
 讨论摘要：
 {discussion_summary}
+
+可用的Agent类型：{agent_types_str}
 
 请以JSON格式输出执行计划，格式如下：
 {{
@@ -423,13 +459,13 @@ class CoordinatorService:
     {{
       "title": "任务标题",
       "description": "任务描述",
-      "assigned_agent_type": "coder/analyst/tester/assistant",
+      "assigned_agent_type": "{agent_types_str}其中之一",
       "order": 1
     }}
   ]
 }}
 
-确保任务按顺序排列，每个任务明确分配给合适的Agent。"""
+确保任务按顺序排列，每个任务明确分配给合适的Agent（从可用的Agent类型中选择）。"""
 
         full_response = ""
         async for chunk in glm_client.chat_stream(plan_prompt, "assistant"):
@@ -451,15 +487,9 @@ class CoordinatorService:
                 agent_type_str = task_data.get("assigned_agent_type", "coder")
                 assigned_agent_id = None
 
-                # Find the right agent
-                if agent_type_str == "coder" and coder:
-                    assigned_agent_id = coder.id
-                elif agent_type_str == "analyst" and analyst:
-                    assigned_agent_id = analyst.id
-                elif agent_type_str == "tester" and tester:
-                    assigned_agent_id = tester.id
-                elif agent_type_str == "assistant" and assistant:
-                    assigned_agent_id = assistant.id
+                # Find the right agent from selected agents
+                if agent_type_str in agents_by_type:
+                    assigned_agent_id = agents_by_type[agent_type_str].id
 
                 plan_task = PlanTask(
                     id=str(uuid.uuid4()),
@@ -474,13 +504,15 @@ class CoordinatorService:
         except json.JSONDecodeError as e:
             # Fallback: create a simple plan
             plan.description = full_response
+            # Assign to first available coder or assistant
+            fallback_agent = agents_by_type.get("coder") or agents_by_type.get("assistant") or (selected_agents[0] if selected_agents else None)
             plan.tasks = [
                 PlanTask(
                     id=str(uuid.uuid4()),
                     title="实现核心功能",
                     description=plan.original_request,
-                    assigned_agent_id=coder.id if coder else None,
-                    assigned_agent_type="coder",
+                    assigned_agent_id=fallback_agent.id if fallback_agent else None,
+                    assigned_agent_type=fallback_agent.type.value if fallback_agent else "coder",
                     order=1,
                 )
             ]
@@ -536,8 +568,9 @@ class CoordinatorService:
         fix_iteration = 0
 
         # Separate coding tasks and testing tasks
-        coding_tasks = [t for t in sorted_tasks if t.assigned_agent_type in ['coder', 'analyst', 'assistant']]
-        testing_tasks = [t for t in sorted_tasks if t.assigned_agent_type == 'tester']
+        # Testing tasks are tasks with 'test' in the title or assigned to tester type
+        testing_tasks = [t for t in sorted_tasks if 'test' in t.title.lower() or t.assigned_agent_type == 'tester']
+        coding_tasks = [t for t in sorted_tasks if t not in testing_tasks]
 
         while fix_iteration < max_fix_iterations:
             # Execute coding tasks

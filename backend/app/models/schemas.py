@@ -156,6 +156,7 @@ class Plan(PlanBase):
     discussion: List[DiscussionMessage] = Field(default_factory=list)
     is_approved: bool = False
     created_by_agent_id: Optional[str] = None
+    selected_agent_ids: List[str] = Field(default_factory=list)  # Agent IDs selected for this plan
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     started_at: Optional[datetime] = None
@@ -190,3 +191,4 @@ class ThinkingStep(BaseModel):
 class PipelineRequest(BaseModel):
     request: str
     target_output: str = "web-app"  # web-app, api, report, etc.
+    selected_agent_ids: List[str] = Field(default_factory=list)  # Agent IDs to use in pipeline
