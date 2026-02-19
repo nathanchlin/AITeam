@@ -55,6 +55,7 @@ export function PipelinePanel() {
   };
 
   // Poll for plan updates when plan is active
+  // Also polls when WebSocket is disconnected (fallback sync)
   useEffect(() => {
     if (currentPlanId && currentPlan && !['completed', 'draft'].includes(currentPlan.status)) {
       const pollPlan = async () => {
@@ -69,12 +70,55 @@ export function PipelinePanel() {
         }
       };
 
+      // Poll every 3 seconds when active
       pollingRef.current = window.setInterval(pollPlan, 3000);
+      // Also poll immediately
+      pollPlan();
+
       return () => {
         if (pollingRef.current) clearInterval(pollingRef.current);
       };
     }
   }, [currentPlanId, currentPlan?.status, updatePlan]);
+
+  // Fallback: periodic sync even when status appears stuck (e.g., missed WebSocket updates)
+  useEffect(() => {
+    if (!currentPlanId || !currentPlan) return;
+    if (['completed', 'draft'].includes(currentPlan.status)) return;
+
+    // Check every 10 seconds if we need to sync
+    const fallbackSync = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/pipeline/plans/${currentPlanId}`);
+        if (res.ok) {
+          const serverPlan = await res.json();
+          // If server shows completed but local doesn't, sync it
+          if (serverPlan.status === 'completed' && currentPlan.status !== 'completed') {
+            console.log('[PipelinePanel] Fallback sync detected completed status');
+            updatePlan(currentPlanId, serverPlan);
+          }
+          // If server shows different task status, sync it
+          const localRunningTasks = currentPlan.tasks.filter(t => t.status === 'running');
+          if (localRunningTasks.length > 0) {
+            const serverTaskMap = new Map(serverPlan.tasks.map((t: { id: string; status: string }) => [t.id, t.status]));
+            for (const task of localRunningTasks) {
+              const serverStatus = serverTaskMap.get(task.id);
+              if (serverStatus === 'completed' && task.status === 'running') {
+                console.log('[PipelinePanel] Fallback sync detected task completion');
+                updatePlan(currentPlanId, serverPlan);
+                break;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[PipelinePanel] Fallback sync error:', e);
+      }
+    };
+
+    const fallbackInterval = window.setInterval(fallbackSync, 10000);
+    return () => clearInterval(fallbackInterval);
+  }, [currentPlanId, currentPlan, updatePlan]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -328,7 +372,6 @@ export function PipelinePanel() {
                     style={{
                       backgroundColor: isSelected ? agentColor : `${agentColor}40`,
                       color: isSelected ? 'white' : '#ccc',
-                      ringColor: agentColor,
                     }}
                   >
                     <div

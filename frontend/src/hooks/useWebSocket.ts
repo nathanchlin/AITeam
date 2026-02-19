@@ -5,10 +5,28 @@ const WS_URL = import.meta.env.PROD
   ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
   : 'ws://localhost:8000/ws';
 
+const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
-  const { setWsConnected, handleWebSocketMessage } = useAgentStore();
+  const { setWsConnected, handleWebSocketMessage, currentPlanId, updatePlan } = useAgentStore();
+
+  // Sync current plan state from server (called on WebSocket reconnect)
+  const syncCurrentPlan = useCallback(async () => {
+    if (!currentPlanId) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/plans/${currentPlanId}`);
+      if (res.ok) {
+        const plan = await res.json();
+        console.log('[WS] Synced plan state:', plan.status);
+        updatePlan(currentPlanId, plan);
+      }
+    } catch (e) {
+      console.error('[WS] Failed to sync plan state:', e);
+    }
+  }, [currentPlanId, updatePlan]);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -20,6 +38,8 @@ export function useWebSocket() {
     ws.onopen = () => {
       console.log('WebSocket connected');
       setWsConnected(true);
+      // Sync current plan state on reconnect
+      syncCurrentPlan();
     };
 
     ws.onclose = () => {
@@ -46,7 +66,7 @@ export function useWebSocket() {
     };
 
     wsRef.current = ws;
-  }, [setWsConnected, handleWebSocketMessage]);
+  }, [setWsConnected, handleWebSocketMessage, syncCurrentPlan]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
