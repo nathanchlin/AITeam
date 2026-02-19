@@ -8,6 +8,7 @@ interface AgentState {
   setAgents: (agents: Agent[]) => void;
   addAgent: (agent: Agent) => void;
   updateAgent: (id: string, updates: Partial<Agent>) => void;
+  updateAgentPosition: (id: string, position: { x: number; y: number; z: number }) => Promise<void>;
   removeAgent: (id: string) => void;
   selectAgent: (id: string | null) => void;
 
@@ -71,6 +72,25 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     set((state) => ({
       agents: state.agents.map((a) => (a.id === id ? { ...a, ...updates } : a)),
     })),
+  updateAgentPosition: async (id: string, position: { x: number; y: number; z: number }) => {
+    // Optimistic update
+    set((state) => ({
+      agents: state.agents.map((a) => (a.id === id ? { ...a, position } : a)),
+    }));
+    // Call backend API to persist position
+    try {
+      const response = await fetch(`/api/agents/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ position }),
+      });
+      if (!response.ok) {
+        console.error('Failed to update agent position');
+      }
+    } catch (error) {
+      console.error('Failed to update agent position:', error);
+    }
+  },
   removeAgent: (id) =>
     set((state) => ({
       agents: state.agents.filter((a) => a.id !== id),

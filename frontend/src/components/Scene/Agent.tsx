@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html, Float } from '@react-three/drei';
+import { Html, Float, DragControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useAgentStore } from '../../stores/agentStore';
 import type { Agent } from '../../types';
@@ -13,7 +13,8 @@ interface AgentModelProps {
 export function AgentModel({ agent }: AgentModelProps) {
   const meshRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
-  const { selectAgent, selectedAgentId } = useAgentStore();
+  const [isDragging, setIsDragging] = useState(false);
+  const { selectAgent, selectedAgentId, updateAgentPosition } = useAgentStore();
 
   const isSelected = selectedAgentId === agent.id;
   const colors = AGENT_COLORS[agent.type];
@@ -21,6 +22,9 @@ export function AgentModel({ agent }: AgentModelProps) {
   // Animation based on status
   useFrame((state) => {
     if (!meshRef.current) return;
+
+    // Skip position animation when dragging
+    if (isDragging) return;
 
     // Idle animation - gentle floating
     if (agent.status === 'idle') {
@@ -46,15 +50,30 @@ export function AgentModel({ agent }: AgentModelProps) {
   };
 
   return (
-    <group
-      ref={meshRef}
-      position={[agent.position.x, agent.position.y + 0.5, agent.position.z]}
-      onClick={handleClick}
-      onPointerOver={() => setHovered(true)}
-      onPointerOut={() => setHovered(false)}
+    <DragControls
+      onDragStart={() => setIsDragging(true)}
+      onDragEnd={() => {
+        setIsDragging(false);
+        // Update position from mesh ref
+        if (meshRef.current) {
+          const newPosition = {
+            x: meshRef.current.position.x,
+            y: 0, // Keep on ground level
+            z: meshRef.current.position.z,
+          };
+          updateAgentPosition(agent.id, newPosition);
+        }
+      }}
     >
+      <group
+        ref={meshRef}
+        position={[agent.position.x, agent.position.y + 0.5, agent.position.z]}
+        onClick={handleClick}
+        onPointerOver={() => setHovered(true)}
+        onPointerOut={() => setHovered(false)}
+      >
       {/* Agent body - stylized robot/character */}
-      <Float speed={agent.status === 'idle' ? 1.5 : 0} floatIntensity={0.3}>
+      <Float speed={agent.status === 'idle' && !isDragging ? 1.5 : 0} floatIntensity={0.3}>
         {/* Main body */}
         <mesh castShadow position={[0, 0.5, 0]}>
           <capsuleGeometry args={[0.4, 0.8, 8, 16]} />
@@ -155,5 +174,6 @@ export function AgentModel({ agent }: AgentModelProps) {
         </Html>
       )}
     </group>
+    </DragControls>
   );
 }
