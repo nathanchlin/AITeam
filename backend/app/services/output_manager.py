@@ -518,11 +518,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if re.search(pattern, html_content):
                 result["warnings"].append(f"可能不完整的代码: {desc}")
 
-        # 4. Extract and validate JavaScript
-        script_match = re.search(r'<script[^>]*>([\s\S]*?)</script>', html_content)
-        if script_match:
-            js_code = script_match.group(1)
+        # 4. Extract and validate JavaScript (all script tags)
+        script_matches = re.findall(r'<script[^>]*>([\s\S]*?)</script>', html_content)
+        js_code = '\n'.join(script_matches)  # Combine all script contents
 
+        if js_code:
             # Check for class definitions
             defined_classes = set(re.findall(r'\bclass\s+(\w+)', js_code))
 
