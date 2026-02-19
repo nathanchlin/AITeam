@@ -468,6 +468,34 @@ document.addEventListener('DOMContentLoaded', function() {
         """Get the output directory path for a plan"""
         return os.path.join(self.base_dir, plan_id[:8])
 
+    def read_existing_code(self, plan_id: str, max_length: int = 20000) -> Optional[str]:
+        """读取 plan 的现有 index.html 代码"""
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+        index_path = os.path.join(plan_dir, "index.html")
+
+        if not os.path.exists(index_path):
+            return None
+
+        try:
+            with open(index_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            # 限制长度以避免超过 LLM 上下文
+            if len(content) > max_length:
+                # 优先保留 JavaScript 部分
+                script_match = re.search(r'<script[^>]*>([\s\S]*?)</script>', content)
+                if script_match:
+                    js_content = script_match.group(1)
+                    html_without_js = re.sub(r'<script[^>]*>[\s\S]*?</script>', '', content)
+                    # 保留 HTML 结构摘要 + 完整 JS
+                    return f"{html_without_js[:5000]}\n\n<script>\n{js_content[:12000]}\n</script>"
+                return content[:max_length]
+
+            return content
+        except Exception as e:
+            print(f"[OutputManager] Error reading existing code: {e}")
+            return None
+
     def pre_test_validation(self, plan_id: str) -> Dict[str, Any]:
         """Pre-test validation to ensure code is complete and error-free"""
         plan_dir = os.path.join(self.base_dir, plan_id[:8])

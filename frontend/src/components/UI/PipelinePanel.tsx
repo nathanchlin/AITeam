@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
-import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2 } from 'lucide-react';
+import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw } from 'lucide-react';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
 
@@ -35,6 +35,8 @@ export function PipelinePanel() {
   const [deleting, setDeleting] = useState(false);
   const [restartMessage, setRestartMessage] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(false);
+  const [iterationRequest, setIterationRequest] = useState('');
+  const [iterating, setIterating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -302,6 +304,33 @@ export function PipelinePanel() {
       alert('删除失败');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleIterate = async () => {
+    if (!currentPlanId || !iterationRequest.trim() || iterating) return;
+    setIterating(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/iterate/${currentPlanId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ iteration_request: iterationRequest.trim() }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setIterationRequest('');
+        // Poll for updates
+        await fetchPlans();
+        console.log('Iteration started:', data);
+      } else {
+        const msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || '迭代失败');
+        alert(msg);
+      }
+    } catch (e) {
+      console.error('Iterate error:', e);
+      alert('迭代失败：' + (e instanceof Error ? e.message : '网络或服务器错误'));
+    } finally {
+      setIterating(false);
     }
   };
 
@@ -774,6 +803,46 @@ export function PipelinePanel() {
                       <ExternalLink size={14} />
                       打开网页
                     </a>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Iteration Section */}
+            {currentPlan.status === 'completed' && outputUrl && (
+              <div className="p-4 border-t border-gray-700 bg-purple-900/10">
+                <div className="flex items-center gap-2 mb-3">
+                  <RefreshCw size={16} className="text-purple-400" />
+                  <span className="text-sm font-medium text-white">迭代需求</span>
+                  <span className="text-xs text-gray-500">在原有基础上修改功能</span>
+                </div>
+                <div className="space-y-2">
+                  <textarea
+                    value={iterationRequest}
+                    onChange={(e) => setIterationRequest(e.target.value)}
+                    placeholder="输入新的需求，例如：我想添加一个规则，当敌机穿过屏幕底部时，生命值减1..."
+                    className="w-full px-3 py-2 bg-gray-700 rounded-lg text-white text-sm border border-gray-600 focus:border-purple-500 focus:outline-none resize-none"
+                    rows={2}
+                    disabled={iterating}
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      onClick={handleIterate}
+                      disabled={!iterationRequest.trim() || iterating}
+                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm"
+                    >
+                      {iterating ? (
+                        <>
+                          <Loader2 size={14} className="animate-spin" />
+                          迭代中...
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={14} />
+                          开始迭代
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>

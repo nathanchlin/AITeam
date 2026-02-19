@@ -4,6 +4,7 @@ from typing import List, Optional
 import os
 from app.models.schemas import (
     PipelineRequest,
+    IterationRequest,
     Plan, PlanCreate, PlanUpdate,
     DiscussionMessage, DiscussionMessageCreate,
     PlanStatus, TaskStatus,
@@ -421,4 +422,42 @@ async def get_task_status_endpoint(task_id: str):
         "task_id": task_id,
         "status": "deprecated",
         "message": "Celery tasks are no longer used. Use /plans/{plan_id} to check pipeline status."
+    }
+
+
+@router.post("/iterate/{plan_id}")
+async def iterate_plan(plan_id: str, request: IterationRequest, background_tasks: BackgroundTasks):
+    """对已完成的 plan 进行迭代
+
+    跳过讨论和计划阶段，直接基于现有代码进行增量修改。
+    """
+    from app.main import websocket_manager
+
+    coordinator.set_websocket_manager(websocket_manager)
+
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan.status != PlanStatus.COMPLETED:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Plan is not completed (status: {plan.status}). Only completed plans can be iterated."
+        )
+
+    # Run iteration in background
+    async def run_iteration_background():
+        try:
+            await coordinator.iterate_plan(plan_id, request.iteration_request)
+        except Exception as e:
+            print(f"[Pipeline] Error in iteration {plan_id}: {e}")
+            import traceback
+            traceback.print_exc()
+
+    background_tasks.add_task(run_iteration_background)
+
+    return {
+        "message": "Iteration started",
+        "plan_id": plan_id,
+        "iteration_request": request.iteration_request,
     }

@@ -194,3 +194,8 @@ class PipelineRequest(BaseModel):
     request: str
     target_output: str = "web-app"  # web-app, api, report, etc.
     selected_agent_ids: List[str] = Field(default_factory=list)  # Agent IDs to use in pipeline
+
+
+class IterationRequest(BaseModel):
+    """Request to iterate on a completed plan"""
+    iteration_request: str = Field(..., min_length=1, max_length=2000)

@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 import uuid
@@ -1188,6 +1189,187 @@ class CoordinatorService:
             self._save_plans()
             return True
         return False
+
+    async def iterate_plan(self, plan_id: str, iteration_request: str) -> str:
+        """对已完成的 plan 进行迭代
+
+        流程：
+        1. 验证 plan 存在且状态为 completed
+        2. 读取现有代码
+        3. 构建迭代 prompt（包含原始需求 + 现有代码 + 新需求）
+        4. 调用 CoderAgent 执行迭代任务
+        5. 保存输出并合并
+        6. 广播完成消息
+        """
+        plan = self.plans.get(plan_id)
+        if not plan:
+            raise ValueError(f"Plan {plan_id} not found")
+
+        if plan.status != PlanStatus.COMPLETED:
+            raise ValueError(f"Plan {plan_id} is not completed (status: {plan.status})")
+
+        # 更新状态为执行中
+        plan.status = PlanStatus.EXECUTING
+        self._save_plans()
+
+        # 广播状态更新
+        await self.broadcast({
+            "type": "plan_update",
+            "data": {
+                "plan_id": plan_id,
+                "status": "executing",
+            }
+        })
+
+        # 发送迭代开始消息
+        await self.add_discussion_message(
+            plan_id=plan_id,
+            agent_id="system",
+            agent_name="系统",
+            agent_type="assistant",
+            content=f"🔄 开始迭代：{iteration_request}",
+            message_type="comment",
+        )
+
+        # 读取现有代码
+        existing_code = output_manager.read_existing_code(plan_id)
+        if not existing_code:
+            plan.status = PlanStatus.COMPLETED
+            self._save_plans()
+            error_msg = "无法读取现有代码，迭代失败"
+            await self.add_discussion_message(
+                plan_id=plan_id,
+                agent_id="system",
+                agent_name="系统",
+                agent_type="assistant",
+                content=f"❌ {error_msg}",
+                message_type="comment",
+            )
+            return error_msg
+
+        # 找到 Coder Agent
+        all_agents = agent_manager.get_all_agents()
+        coder = next((a for a in all_agents if a.type == AgentType.CODER), None)
+        if not coder:
+            plan.status = PlanStatus.COMPLETED
+            self._save_plans()
+            error_msg = "没有可用的 Coder Agent，迭代失败"
+            await self.add_discussion_message(
+                plan_id=plan_id,
+                agent_id="system",
+                agent_name="系统",
+                agent_type="assistant",
+                content=f"❌ {error_msg}",
+                message_type="comment",
+            )
+            return error_msg
+
+        # 构建迭代 prompt
+        iteration_prompt = f"""你是专业的游戏开发工程师。现在需要基于现有代码进行迭代修改。
+
+## 原始需求
+{plan.original_request}
+
+## 现有代码
+```
+{existing_code}
+```
+
+## 新的迭代需求
+{iteration_request}
+
+## 任务要求
+1. 保持现有代码的核心功能和结构
+2. 只修改必要的部分以满足新需求
+3. 确保修改后的代码仍然是完整的单文件 HTML
+4. 所有 CSS 和 JS 必须内联
+5. 代码必须可以直接在浏览器中运行
+6. 不要删除现有功能，只添加或修改
+
+请输出完整的更新后的 HTML 代码。"""
+
+        # 执行迭代任务
+        coder.update_status(AgentStatus.WORKING)
+        full_response = ""
+
+        try:
+            async for update in coder.execute_task(iteration_prompt):
+                if update["type"] == "stream":
+                    full_response += update["content"]
+                    await self.broadcast({
+                        "type": "stream",
+                        "data": {
+                            "plan_id": plan_id,
+                            "agent_id": coder.id,
+                            "content": update["content"],
+                        }
+                    })
+        except Exception as e:
+            print(f"[Coordinator] Error in iterate_plan: {e}")
+            full_response = f"迭代出错: {str(e)}"
+        finally:
+            coder.update_status(AgentStatus.IDLE)
+
+        # 保存迭代后的代码
+        if full_response and '<html' in full_response.lower():
+            try:
+                # 提取 HTML 代码
+                html_match = re.search(
+                    r'(<(!DOCTYPE\s+)?html.*?</html>)',
+                    full_response,
+                    re.IGNORECASE | re.DOTALL
+                )
+                if html_match:
+                    new_html = html_match.group(1)
+                else:
+                    new_html = full_response
+
+                # 保存到输出目录
+                plan_dir = output_manager.get_output_path(plan_id)
+                index_path = os.path.join(plan_dir, "index.html")
+
+                with open(index_path, 'w', encoding='utf-8') as f:
+                    f.write(new_html)
+
+                print(f"[Coordinator] Saved iterated code to {index_path}")
+            except Exception as e:
+                print(f"[Coordinator] Error saving iterated code: {e}")
+        else:
+            print(f"[Coordinator] No valid HTML in response, saving as markdown")
+            # 保存为 markdown
+            plan_dir = output_manager.get_output_path(plan_id)
+            iter_path = os.path.join(plan_dir, f"iteration_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md")
+            with open(iter_path, 'w', encoding='utf-8') as f:
+                f.write(f"# 迭代记录\n\n**需求**: {iteration_request}\n\n**响应**:\n\n{full_response}")
+
+        # 恢复状态为完成
+        plan.status = PlanStatus.COMPLETED
+        plan.updated_at = datetime.utcnow()
+        self._save_plans()
+
+        # 发送迭代完成消息
+        output_dir = output_manager.get_output_path(plan_id)
+        preview_url = f"/api/pipeline/output/{plan_id}/files/index.html"
+        await self.add_discussion_message(
+            plan_id=plan_id,
+            agent_id=coder.id,
+            agent_name=coder.name,
+            agent_type=coder.type.value,
+            content=f"✅ 迭代完成！\n\n新的预览地址: http://localhost:8000{preview_url}",
+            message_type="comment",
+        )
+
+        # 广播完成
+        await self.broadcast({
+            "type": "plan_update",
+            "data": {
+                "plan_id": plan_id,
+                "status": "completed",
+                "output_url": preview_url,
+            }
+        })
+
+        return "迭代完成"
 
 
 # Global instance
