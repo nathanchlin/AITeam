@@ -1,9 +1,17 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS } from '../../types';
 import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2 } from 'lucide-react';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
+
+// Default panel size
+const DEFAULT_WIDTH = 900;
+const DEFAULT_HEIGHT = 700;
+const MIN_WIDTH = 600;
+const MIN_HEIGHT = 400;
+const MAX_WIDTH = 1400;
+const MAX_HEIGHT = 900;
 
 export function PipelinePanel() {
   const {
@@ -29,6 +37,63 @@ export function PipelinePanel() {
   const [copiedUrl, setCopiedUrl] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Panel size state with localStorage persistence
+  const [panelSize, setPanelSize] = useState(() => {
+    const saved = localStorage.getItem('pipelinePanelSize');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
+      }
+    }
+    return { width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT };
+  });
+
+  // Resize handling
+  const [isResizing, setIsResizing] = useState(false);
+  const resizeStartRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
+
+  const handleResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+    resizeStartRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      width: panelSize.width,
+      height: panelSize.height,
+    };
+  }, [panelSize]);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = resizeStartRef.current.x - e.clientX;
+      const deltaYS = resizeStartRef.current.y - e.clientY;
+
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, resizeStartRef.current.width + deltaX));
+      const newHeight = Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, resizeStartRef.current.height + deltaYS));
+
+      setPanelSize({ width: newWidth, height: newHeight });
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+      // Save to localStorage
+      localStorage.setItem('pipelinePanelSize', JSON.stringify(panelSize));
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, panelSize]);
 
   const currentPlan = plans.find((p) => p.id === currentPlanId);
   const currentStream = currentPlanId ? streamContent[currentPlanId] || '' : '';
@@ -308,7 +373,16 @@ export function PipelinePanel() {
   const outputUrl = currentPlan?.status === 'completed' ? `${API_BASE}/api/pipeline/output/${currentPlan.id}/files/index.html` : null;
 
   return (
-    <div className="absolute top-16 left-1/2 transform -translate-x-1/2 w-[900px] max-h-[700px] bg-gray-900/95 backdrop-blur rounded-lg flex flex-col z-20 overflow-hidden shadow-2xl border border-gray-700">
+    <div
+      ref={panelRef}
+      className="absolute top-16 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur rounded-lg flex flex-col z-20 overflow-hidden shadow-2xl border border-gray-700"
+      style={{
+        width: panelSize.width,
+        height: panelSize.height,
+        maxWidth: '95vw',
+        maxHeight: '85vh',
+      }}
+    >
       {/* Header */}
       <div className="p-4 border-b border-gray-700 flex items-center justify-between bg-gray-800">
         <div className="flex items-center gap-3">
@@ -718,7 +792,7 @@ export function PipelinePanel() {
 
       {/* Plans List */}
       {plans.length > 0 && (
-        <div className="p-3 border-t border-gray-700 bg-gray-800/50">
+        <div className="p-3 border-t border-gray-700 bg-gray-800/50 flex-shrink-0">
           <div className="flex gap-2 overflow-x-auto">
             {plans.map((plan) => (
               <button
@@ -741,6 +815,18 @@ export function PipelinePanel() {
           </div>
         </div>
       )}
+
+      {/* Resize Handle */}
+      <div
+        className={`absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-center justify-center select-none ${
+          isResizing ? 'text-purple-400' : 'text-gray-500 hover:text-gray-300'
+        } transition-colors`}
+        onMouseDown={handleResizeStart}
+      >
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L2 12M12 7L7 12M12 12L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+        </svg>
+      </div>
     </div>
   );
 }
