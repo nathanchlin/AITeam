@@ -1,16 +1,31 @@
 import os
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 import re
+
+
+def _default_output_dir() -> str:
+    """Return absolute path to backend/output, so path does not depend on process cwd."""
+    try:
+        # __file__ = .../backend/app/services/output_manager.py -> parent*3 = backend
+        backend_root = Path(__file__).resolve().parent.parent.parent
+        out = str(backend_root / "output")
+        return out
+    except Exception:
+        return os.path.abspath("output")
 
 
 class OutputManager:
     """Manages saving generated code and files from agent tasks"""
 
-    def __init__(self, base_dir: str = "output"):
-        self.base_dir = base_dir
-        self.ensure_dir(base_dir)
+    def __init__(self, base_dir: Optional[str] = None):
+        self.base_dir = base_dir if base_dir is not None else _default_output_dir()
+        try:
+            self.ensure_dir(self.base_dir)
+        except OSError:
+            pass  # 目录已存在或无权限时继续，后续读写再报错
 
     def ensure_dir(self, path: str):
         """Ensure directory exists"""
@@ -157,34 +172,41 @@ class OutputManager:
         for f in sorted(os.listdir(plan_dir)):
             if f.endswith('.js'):
                 filepath = os.path.join(plan_dir, f)
-                with open(filepath, 'r', encoding='utf-8') as file:
-                    content = file.read()
-
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='replace') as file:
+                        content = file.read()
                     # Skip Node.js/test code
                     is_node_code = any(re.search(pattern, content) for pattern in node_patterns)
-
                     if content.strip() and not is_node_code:
                         js_files.append(f)
                         js_code.append(f"// From {f}\n{content}")
+                except OSError:
+                    continue
 
         # Collect all CSS
         css_code = []
         for f in sorted(os.listdir(plan_dir)):
             if f.endswith('.css'):
                 filepath = os.path.join(plan_dir, f)
-                with open(filepath, 'r', encoding='utf-8') as file:
-                    css_content = file.read()
+                try:
+                    with open(filepath, 'r', encoding='utf-8', errors='replace') as file:
+                        css_content = file.read()
                     if css_content.strip():
                         css_code.append(f"/* From {f} */\n{css_content}")
+                except OSError:
+                    pass
 
-        # Find or create index.html
+        # Find or create index.html（多个 index_*.html 时优先用编号最大的，通常最完整）
         html_content = None
-        for f in os.listdir(plan_dir):
-            if f.endswith('.html'):
-                filepath = os.path.join(plan_dir, f)
-                with open(filepath, 'r', encoding='utf-8') as file:
-                    html_content = file.read()
-                break
+        html_files = [f for f in os.listdir(plan_dir) if f.endswith('.html')]
+        if html_files:
+            def _index_num(fname: str) -> int:
+                m = re.search(r'index_(\d+)\.html', fname)
+                return int(m.group(1)) if m else (0 if fname == 'index.html' else -1)
+            best = max(html_files, key=_index_num)
+            filepath = os.path.join(plan_dir, best)
+            with open(filepath, 'r', encoding='utf-8', errors='replace') as file:
+                html_content = file.read()
 
         if not html_content:
             # Create a basic HTML structure
@@ -291,9 +313,9 @@ class OutputManager:
                     )
 
             # Check for undefined classes (excluding built-ins and Phaser)
+            defined_classes = set(re.findall(r'\bclass\s+(\w+)', all_js))  # 始终定义，供下方 undefined_funcs 使用
             if re.search(r'\bnew\s+\w+\(', all_js):
                 used_classes = set(re.findall(r'\bnew\s+(\w+)\(', all_js))
-                defined_classes = set(re.findall(r'\bclass\s+(\w+)', all_js))
 
                 builtin_classes = {'Object', 'Array', 'String', 'Number', 'Boolean', 'Function',
                                    'Date', 'RegExp', 'Error', 'Map', 'Set', 'Promise', 'Image', 'Audio',

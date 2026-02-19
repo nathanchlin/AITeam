@@ -7,6 +7,7 @@ import { TaskPanel } from './components/UI/TaskPanel';
 import { ChatPanel } from './components/UI/ChatPanel';
 import { PipelinePanel } from './components/UI/PipelinePanel';
 import { ProjectsPanel } from './components/UI/ProjectsPanel';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import { useAgentStore } from './stores/agentStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import { GitBranch, Folder } from 'lucide-react';
@@ -14,7 +15,7 @@ import type { Agent } from './types';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
 
-function App() {
+function AppContent() {
   const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan } = useAgentStore();
   const { selectedAgentId, chatPanelOpen, streamContent } = useAgentStore();
   const [loading, setLoading] = useState(true);
@@ -226,6 +227,14 @@ function ConnectionStatus() {
         {wsConnected ? 'Connected' : 'Connecting...'}
       </div>
     </div>
+  );
+}
+
+function App() {
+  return (
+    <ErrorBoundary>
+      <AppContent />
+    </ErrorBoundary>
   );
 }
 

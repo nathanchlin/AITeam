@@ -5,8 +5,7 @@ from app.api import agents, tasks, pipeline, projects
 from app.api.ws import websocket_endpoint, ws_manager as websocket_manager
 from app.services.agent_manager import agent_manager
 from app.models.schemas import AgentType
-from app.core.broadcast import websocket_bridge
-from app.core.tasks import recover_incomplete_plans
+from app.middleware.error_handler import setup_exception_handlers
 
 # Create FastAPI app
 app = FastAPI(
@@ -14,6 +13,9 @@ app = FastAPI(
     description="Multi-Agent Visualization Collaboration System",
     version="1.0.0",
 )
+
+# Setup global exception handlers
+setup_exception_handlers(app, debug=settings.debug)
 
 # CORS middleware
 app.add_middleware(
@@ -29,10 +31,6 @@ app.include_router(agents.router, prefix="/api")
 app.include_router(tasks.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
-
-
-# WebSocket manager export for task executor
-websocket_manager = websocket_manager
 
 
 @app.get("/")
@@ -56,9 +54,6 @@ async def websocket_route(websocket: WebSocket):
 
 @app.on_event("startup")
 async def startup_event():
-    # Connect WebSocket bridge for cross-process communication
-    websocket_bridge.connect(websocket_manager)
-
     # Create default agents with Tester
     default_agents = [
         {
@@ -94,23 +89,6 @@ async def startup_event():
             description=agent_data["description"],
             position=agent_data["position"],
         )
-
-    # Recover incomplete plans (submit to Celery for persistent execution)
-    try:
-        recovery_result = recover_incomplete_plans()
-        if recovery_result["recovered"]:
-            print(f"[Startup] Recovered {len(recovery_result['recovered'])} incomplete plans:")
-            for item in recovery_result["recovered"]:
-                print(f"  - Plan {item['plan_id'][:8]}: phase={item['phase']}, task={item['celery_task_id']}")
-    except Exception as e:
-        print(f"[Startup] Error recovering plans: {e}")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up resources on shutdown."""
-    websocket_bridge.disconnect()
-    print("[Shutdown] WebSocket bridge disconnected")
 
 
 if __name__ == "__main__":

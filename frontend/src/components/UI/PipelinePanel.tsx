@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS } from '../../types';
-import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check } from 'lucide-react';
+import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2 } from 'lucide-react';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
 
@@ -22,6 +22,10 @@ export function PipelinePanel() {
   const [targetOutput, setTargetOutput] = useState('web-app');
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [starting, setStarting] = useState(false);
+  const [resuming, setResuming] = useState(false);
+  const [restarting, setRestarting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [restartMessage, setRestartMessage] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
@@ -119,6 +123,77 @@ export function PipelinePanel() {
 
   const clearAgentSelection = () => {
     setSelectedAgentIds([]);
+  };
+
+  const handleResumePipeline = async () => {
+    if (!currentPlanId || resuming) return;
+    setResuming(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/resume/${currentPlanId}`, { method: 'POST' });
+      if (res.ok) {
+        await fetchPlans();
+        const data = await res.json();
+        console.log('Pipeline resumed:', data);
+      }
+    } catch (e) {
+      console.error('Resume pipeline error:', e);
+    } finally {
+      setResuming(false);
+    }
+  };
+
+  const handleRestartPipeline = async () => {
+    if (!currentPlanId || restarting) return;
+    if (!confirm('确定要重启该流水线吗？将清空当前任务与讨论，从需求分析重新开始。')) return;
+    setRestarting(true);
+    try {
+      const url = `${API_BASE}/api/pipeline/restart/${currentPlanId}`;
+      const res = await fetch(url, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        // 先刷新列表，再单独拉取当前计划，确保 UI 拿到最新状态
+        await fetchPlans();
+        const planRes = await fetch(`${API_BASE}/api/pipeline/plans/${currentPlanId}`);
+        if (planRes.ok) {
+          const updatedPlan = await planRes.json();
+          updatePlan(currentPlanId, updatedPlan);
+        }
+        setRestartMessage('流水线已重启，正在重新分析需求…');
+        setTimeout(() => setRestartMessage(''), 4000);
+        console.log('Pipeline restarted:', data);
+      } else {
+        const msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || '重启失败');
+        alert(msg);
+      }
+    } catch (e) {
+      console.error('Restart pipeline error:', e);
+      alert('重启失败：' + (e instanceof Error ? e.message : '网络或服务器错误'));
+    } finally {
+      setRestarting(false);
+    }
+  };
+
+  const handleDeletePipeline = async () => {
+    if (!currentPlanId || deleting) return;
+    if (!confirm('确定要删除该流水线吗？删除后无法恢复。')) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/plans/${currentPlanId}`, { method: 'DELETE' });
+      if (res.ok) {
+        await fetchPlans();
+        const remaining = plans.filter((p) => p.id !== currentPlanId);
+        setCurrentPlan(remaining.length > 0 ? remaining[0].id : null);
+        console.log('Pipeline deleted:', currentPlanId);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || '删除失败');
+      }
+    } catch (e) {
+      console.error('Delete pipeline error:', e);
+      alert('删除失败');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -325,11 +400,41 @@ export function PipelinePanel() {
                 <span className={`text-sm font-medium ${getStatusColor(currentPlan.status)}`}>
                   {getStatusLabel(currentPlan.status)}
                 </span>
-                {totalTasks > 0 && (
-                  <span className="text-xs text-gray-400">
-                    任务进度: {completedTasksCount}/{totalTasks}
-                  </span>
-                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  {totalTasks > 0 && (
+                    <span className="text-xs text-gray-400">
+                      任务进度: {completedTasksCount}/{totalTasks}
+                    </span>
+                  )}
+                  {currentPlan.status === 'executing' && completedTasksCount < totalTasks && (
+                    <button
+                      onClick={handleResumePipeline}
+                      disabled={resuming}
+                      className="px-3 py-1 text-xs font-medium rounded bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {resuming ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+                      {resuming ? '恢复中...' : '继续执行'}
+                    </button>
+                  )}
+                  <button
+                    onClick={handleRestartPipeline}
+                    disabled={restarting}
+                    title="清空任务与讨论，从需求分析重新开始"
+                    className="px-3 py-1 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {restarting ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
+                    重启流水线
+                  </button>
+                  <button
+                    onClick={handleDeletePipeline}
+                    disabled={deleting}
+                    title="删除该流水线，不可恢复"
+                    className="px-3 py-1 text-xs font-medium rounded bg-red-600/80 hover:bg-red-500 text-white disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                    删除流水线
+                  </button>
+                </div>
               </div>
 
               {/* Phase Progress */}
@@ -354,6 +459,13 @@ export function PipelinePanel() {
                 ))}
               </div>
 
+              {/* Restart success hint */}
+              {restartMessage && (
+                <div className="flex items-center gap-2 p-2 bg-blue-500/10 rounded border border-blue-500/30">
+                  <CheckCircle size={14} className="text-blue-400" />
+                  <span className="text-sm text-blue-300">{restartMessage}</span>
+                </div>
+              )}
               {/* Current Activity */}
               {runningTask && (
                 <div className="flex items-center gap-2 p-2 bg-green-500/10 rounded border border-green-500/30">
@@ -505,7 +617,10 @@ export function PipelinePanel() {
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-gray-500">
                       <CheckCircle size={32} className="mb-2 opacity-30" />
-                      <p className="text-sm">等待计划生成...</p>
+                      <p className="text-sm">
+                        {currentPlan.status === 'discussing' ? '计划生成中...' : '等待计划生成...'}
+                      </p>
+                      <p className="text-xs mt-1 text-gray-600">通常 1～2 分钟内完成，超时将自动使用兜底计划</p>
                     </div>
                   )}
                 </div>

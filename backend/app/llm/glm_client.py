@@ -2,6 +2,7 @@ from zhipuai import ZhipuAI
 from typing import Optional, AsyncGenerator, List, Dict, Any
 import json
 import asyncio
+import threading
 from app.config import settings
 
 
@@ -93,18 +94,38 @@ class GLMClient:
         messages.append({"role": "user", "content": message})
 
         try:
+            # 在线程中创建流，避免阻塞事件循环
             response = await asyncio.to_thread(
                 self.client.chat.completions.create,
                 model=self.model,
                 messages=messages,
                 stream=True,
             )
-
-            for chunk in response:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
         except Exception as e:
             yield f"[错误] {str(e)}"
+            return
+
+        # 在后台线程中消费流，通过 queue 传给异步端，这样 asyncio.wait_for 才能生效
+        queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
+        loop = asyncio.get_event_loop()
+
+        def consume_stream():
+            try:
+                for chunk in response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        loop.call_soon_threadsafe(queue.put_nowait, chunk.choices[0].delta.content)
+            except Exception as e:
+                loop.call_soon_threadsafe(queue.put_nowait, f"[错误] {str(e)}")
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+
+        threading.Thread(target=consume_stream, daemon=True).start()
+
+        while True:
+            chunk = await queue.get()
+            if chunk is None:
+                break
+            yield chunk
 
     async def think_and_act(
         self,
