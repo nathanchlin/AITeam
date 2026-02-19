@@ -136,3 +136,11 @@ export const AGENT_LABELS: Record<AgentType, string> = {
   tester: '测试工程师',
   custom: '自定义',
 };
+
+// Helper function to get display type (prefer custom display_type over default label)
+export function getAgentDisplayType(agent: { type: AgentType; display_type?: string | null }): string {
+  if (agent.display_type) {
+    return agent.display_type;
+  }
+  return AGENT_LABELS[agent.type] || agent.type;
+}

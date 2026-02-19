@@ -4,7 +4,7 @@ import { Html, Float } from '@react-three/drei';
 import * as THREE from 'three';
 import { useAgentStore } from '../../stores/agentStore';
 import type { Agent } from '../../types';
-import { AGENT_COLORS } from '../../types';
+import { AGENT_COLORS, getAgentDisplayType } from '../../types';
 
 interface AgentModelProps {
   agent: Agent;
@@ -138,7 +138,7 @@ export function AgentModel({ agent }: AgentModelProps) {
       >
         <div className="bg-gray-800/80 px-2 py-1 rounded text-xs text-white whitespace-nowrap">
           {agent.name}
-          <span className="ml-1 text-gray-400">({agent.type})</span>
+          <span className="ml-1 text-gray-400">({getAgentDisplayType(agent)})</span>
         </div>
       </Html>
 

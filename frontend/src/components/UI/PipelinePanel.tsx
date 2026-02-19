@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
-import { AGENT_COLORS, AGENT_LABELS } from '../../types';
+import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
 import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2 } from 'lucide-react';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
@@ -456,7 +456,7 @@ export function PipelinePanel() {
                     </div>
                     <span>{agent.name}</span>
                     <span className="text-[10px] opacity-70">
-                      ({AGENT_LABELS[agent.type as keyof typeof AGENT_LABELS] || agent.type})
+                      ({getAgentDisplayType(agent)})
                     </span>
                     {isSelected && (
                       <Check size={12} className="ml-0.5" />

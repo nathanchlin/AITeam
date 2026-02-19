@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
-import { AGENT_COLORS, AGENT_LABELS, type AgentType } from '../../types';
+import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType, type AgentType } from '../../types';
 import { Plus, Users, X } from 'lucide-react';
 
 interface SidebarProps {
@@ -77,7 +77,7 @@ export function Sidebar({ onCreateAgent }: SidebarProps) {
                       {agent.name}
                     </div>
                     <div className="text-gray-400 text-xs flex items-center gap-2">
-                      <span>{AGENT_LABELS[agent.type]}</span>
+                      <span>{getAgentDisplayType(agent)}</span>
                       <StatusDot status={agent.status} />
                     </div>
                   </div>

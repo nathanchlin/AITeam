@@ -1,5 +1,5 @@
 import { useAgentStore } from '../../stores/agentStore';
-import { AGENT_COLORS, AGENT_LABELS } from '../../types';
+import { AGENT_COLORS, getAgentDisplayType } from '../../types';
 import { X, Trash2 } from 'lucide-react';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
@@ -36,7 +36,7 @@ export function AgentPanel() {
           </div>
           <div>
             <h3 className="text-white font-bold">{selectedAgent.name}</h3>
-            <p className="text-gray-400 text-sm">{AGENT_LABELS[selectedAgent.type]}</p>
+            <p className="text-gray-400 text-sm">{getAgentDisplayType(selectedAgent)}</p>
           </div>
         </div>
         <div className="flex gap-1">

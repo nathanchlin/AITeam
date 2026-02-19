@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { Agent, Task } from '../../types';
-import { AGENT_COLORS, AGENT_LABELS } from '../../types';
+import { AGENT_COLORS, getAgentDisplayType } from '../../types';
 import { X, Send, Loader2, Settings, Trash2, Check, Eraser } from 'lucide-react';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
@@ -180,7 +180,7 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
           <div>
             <h3 className="text-white text-sm font-bold">{agent.name}</h3>
             <p className="text-gray-400 text-xs flex items-center gap-2">
-              <span>{AGENT_LABELS[agent.type]}</span>
+              <span>{getAgentDisplayType(agent)}</span>
               <span className={`w-2 h-2 rounded-full ${
                 agent.status === 'working' ? 'bg-green-500 animate-pulse' :
                 agent.status === 'error' ? 'bg-red-500' : 'bg-gray-400'

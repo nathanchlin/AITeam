@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { Task } from '../../types';
+import { getAgentDisplayType } from '../../types';
 import { ClipboardList, Play, Plus, X, CheckCircle, Clock, AlertCircle } from 'lucide-react';
 
 interface TaskPanelProps {
@@ -170,7 +171,7 @@ export function TaskPanel({ tasks, onCreateTask, onStartTask }: TaskPanelProps) 
                   <option value="">Select an agent...</option>
                   {agents.map((agent) => (
                     <option key={agent.id} value={agent.id}>
-                      {agent.name} ({agent.type})
+                      {agent.name} ({getAgentDisplayType(agent)})
                     </option>
                   ))}
                 </select>
