@@ -536,8 +536,8 @@ export function PipelinePanel() {
         </div>
       </div>
 
-      {/* Content Section */}
-      <div className="flex-1 overflow-hidden flex flex-col">
+      {/* Content Section - Scrollable */}
+      <div className="flex-1 overflow-y-auto flex flex-col">
         {currentPlan ? (
           <>
             {/* Progress Bar */}
@@ -624,15 +624,15 @@ export function PipelinePanel() {
             </div>
 
             {/* Main Content Area - Split View */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex min-h-0">
               {/* Left: Group Chat */}
-              <div className="w-1/2 flex flex-col border-r border-gray-700">
-                <div className="p-3 border-b border-gray-700 bg-gray-800/50 flex items-center gap-2">
+              <div className="w-1/2 flex flex-col border-r border-gray-700 min-h-0">
+                <div className="p-3 border-b border-gray-700 bg-gray-800/50 flex items-center gap-2 flex-shrink-0">
                   <Users size={16} className="text-blue-400" />
                   <span className="text-sm font-medium text-white">团队群聊</span>
                   <span className="text-xs text-gray-500">({planDiscussions.length} 条消息)</span>
                 </div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
                   {planDiscussions.length > 0 ? (
                     planDiscussions.map((msg) => (
                       <div
@@ -686,12 +686,12 @@ export function PipelinePanel() {
               </div>
 
               {/* Right: Agent Work Panels */}
-              <div className="w-1/2 flex flex-col">
-                <div className="p-3 border-b border-gray-700 bg-gray-800/50 flex items-center gap-2">
+              <div className="w-1/2 flex flex-col min-h-0">
+                <div className="p-3 border-b border-gray-700 bg-gray-800/50 flex items-center gap-2 flex-shrink-0">
                   <CheckCircle size={16} className="text-green-400" />
                   <span className="text-sm font-medium text-white">任务执行</span>
                 </div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
                   {/* Task List */}
                   {currentPlan.tasks.length > 0 ? (
                     <div className="space-y-2">
