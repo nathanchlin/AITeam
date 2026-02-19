@@ -11,24 +11,15 @@ from app.models.schemas import (
 from app.services.coordinator import coordinator
 from app.services.output_manager import output_manager
 from app.services.agent_manager import agent_manager
-from app.core.tasks import (
-    run_pipeline_task,
-    execute_phase_task,
-    get_task_status,
-)
-from app.core.broadcast import broadcast_manager
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 
 @router.post("/start")
-async def start_pipeline(request: PipelineRequest):
+async def start_pipeline(request: PipelineRequest, background_tasks: BackgroundTasks):
     """Start a new pipeline: Discussion → Planning → Execution"""
     from app.main import websocket_manager
-    from app.core.broadcast import websocket_bridge
 
-    # Connect WebSocket bridge for cross-process communication
-    websocket_bridge.connect(websocket_manager)
     coordinator.set_websocket_manager(websocket_manager)
 
     # Create plan first
@@ -38,13 +29,23 @@ async def start_pipeline(request: PipelineRequest):
         selected_agent_ids=request.selected_agent_ids,
     )
 
-    # Submit to Celery for persistent execution
-    celery_task = run_pipeline_task.delay(plan.id)
+    # Run pipeline in background (replaces Celery task execution)
+    async def run_pipeline_background():
+        try:
+            await coordinator.analyze_request(plan.id)
+            await coordinator.organize_discussion(plan.id)
+            await coordinator.generate_plan(plan.id)
+            await coordinator.execute_plan(plan.id)
+        except Exception as e:
+            print(f"[Pipeline] Error executing pipeline {plan.id}: {e}")
+            import traceback
+            traceback.print_exc()
+
+    background_tasks.add_task(run_pipeline_background)
 
     return {
         "message": "Pipeline started",
         "plan_id": plan.id,
-        "celery_task_id": celery_task.id,
         "request": request.request,
         "target_output": request.target_output,
         "selected_agent_ids": request.selected_agent_ids,
@@ -264,8 +265,12 @@ async def check_pipeline_health():
 
 
 @router.post("/recover/{plan_id}")
-async def recover_stuck_pipeline(plan_id: str):
-    """Recover a stuck pipeline by restarting it via Celery"""
+async def recover_stuck_pipeline(plan_id: str, background_tasks: BackgroundTasks):
+    """Recover a stuck pipeline by restarting execution"""
+    from app.main import websocket_manager
+
+    coordinator.set_websocket_manager(websocket_manager)
+
     plan = coordinator.get_plan(plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -278,24 +283,26 @@ async def recover_stuck_pipeline(plan_id: str):
         if task.status == TaskStatus.RUNNING:
             task.status = TaskStatus.PENDING
 
-    # Submit recovery task to Celery
-    celery_task = execute_phase_task.delay(plan_id, "execute")
+    # Run execution in background
+    async def run_execute_background():
+        try:
+            await coordinator.execute_plan(plan_id)
+        except Exception as e:
+            print(f"[Pipeline] Error recovering pipeline {plan_id}: {e}")
+
+    background_tasks.add_task(run_execute_background)
 
     return {
         "message": "Pipeline recovery started",
         "plan_id": plan_id,
-        "celery_task_id": celery_task.id,
     }
 
 
 @router.post("/resume/{plan_id}")
-async def resume_pipeline(plan_id: str):
-    """Resume an interrupted pipeline from its current state via Celery"""
+async def resume_pipeline(plan_id: str, background_tasks: BackgroundTasks):
+    """Resume an interrupted pipeline from its current state"""
     from app.main import websocket_manager
-    from app.core.broadcast import websocket_bridge
 
-    # Connect WebSocket bridge for cross-process communication
-    websocket_bridge.connect(websocket_manager)
     coordinator.set_websocket_manager(websocket_manager)
 
     plan = coordinator.get_plan(plan_id)
@@ -311,35 +318,44 @@ async def resume_pipeline(plan_id: str):
         # Reset status to executing if there are pending tasks
         plan.status = PlanStatus.EXECUTING
 
+    async def run_full_pipeline():
+        try:
+            await coordinator.analyze_request(plan_id)
+            await coordinator.organize_discussion(plan_id)
+            await coordinator.generate_plan(plan_id)
+            await coordinator.execute_plan(plan_id)
+        except Exception as e:
+            print(f"[Pipeline] Error in resumed pipeline {plan_id}: {e}")
+
+    async def run_execute_only():
+        try:
+            await coordinator.execute_plan(plan_id)
+        except Exception as e:
+            print(f"[Pipeline] Error executing pipeline {plan_id}: {e}")
+
     # Check which phase to resume from
     if plan.status == PlanStatus.DRAFT:
-        # Resume from beginning
-        celery_task = run_pipeline_task.delay(plan_id)
+        background_tasks.add_task(run_full_pipeline)
         return {
             "message": "Pipeline resumed from beginning",
             "plan_id": plan_id,
             "phase": "draft",
-            "celery_task_id": celery_task.id,
         }
 
     elif plan.status == PlanStatus.DISCUSSING:
-        # Resume from discussion phase
-        celery_task = execute_phase_task.delay(plan_id, "full")
+        background_tasks.add_task(run_full_pipeline)
         return {
             "message": "Pipeline resumed from discussion",
             "plan_id": plan_id,
             "phase": "discussing",
-            "celery_task_id": celery_task.id,
         }
 
     elif plan.status == PlanStatus.APPROVED:
-        # Resume from execution phase
-        celery_task = execute_phase_task.delay(plan_id, "execute")
+        background_tasks.add_task(run_execute_only)
         return {
             "message": "Pipeline resumed from execution",
             "plan_id": plan_id,
             "phase": "approved",
-            "celery_task_id": celery_task.id,
         }
 
     elif plan.status == PlanStatus.EXECUTING:
@@ -347,12 +363,11 @@ async def resume_pipeline(plan_id: str):
         for task in plan.tasks:
             if task.status == TaskStatus.RUNNING:
                 task.status = TaskStatus.PENDING
-        celery_task = execute_phase_task.delay(plan_id, "execute")
+        background_tasks.add_task(run_execute_only)
         return {
             "message": "Pipeline resumed from execution",
             "plan_id": plan_id,
             "phase": "executing",
-            "celery_task_id": celery_task.id,
         }
 
     elif plan.status == PlanStatus.COMPLETED:
@@ -363,13 +378,10 @@ async def resume_pipeline(plan_id: str):
 
 
 @router.post("/restart/{plan_id}")
-async def restart_pipeline(plan_id: str):
-    """Restart a plan from the beginning: clear tasks and discussion, then run full pipeline via Celery"""
+async def restart_pipeline(plan_id: str, background_tasks: BackgroundTasks):
+    """Restart a plan from the beginning: clear tasks and discussion, then run full pipeline"""
     from app.main import websocket_manager
-    from app.core.broadcast import websocket_bridge
 
-    # Connect WebSocket bridge for cross-process communication
-    websocket_bridge.connect(websocket_manager)
     coordinator.set_websocket_manager(websocket_manager)
 
     plan = coordinator.get_plan(plan_id)
@@ -384,17 +396,29 @@ async def restart_pipeline(plan_id: str):
     plan.completed_at = None
     coordinator._save_plans()
 
-    # Submit to Celery
-    celery_task = run_pipeline_task.delay(plan_id)
+    # Run pipeline in background
+    async def run_pipeline_background():
+        try:
+            await coordinator.analyze_request(plan_id)
+            await coordinator.organize_discussion(plan_id)
+            await coordinator.generate_plan(plan_id)
+            await coordinator.execute_plan(plan_id)
+        except Exception as e:
+            print(f"[Pipeline] Error in restarted pipeline {plan_id}: {e}")
+
+    background_tasks.add_task(run_pipeline_background)
 
     return {
         "message": "Plan restarted from beginning",
         "plan_id": plan_id,
-        "celery_task_id": celery_task.id,
     }
 
 
 @router.get("/task/{task_id}")
-async def get_celery_task_status(task_id: str):
-    """Get the status of a Celery task"""
-    return get_task_status(task_id)
+async def get_task_status_endpoint(task_id: str):
+    """Get the status of a task (deprecated - Celery no longer used)"""
+    return {
+        "task_id": task_id,
+        "status": "deprecated",
+        "message": "Celery tasks are no longer used. Use /plans/{plan_id} to check pipeline status."
+    }
