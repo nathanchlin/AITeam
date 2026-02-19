@@ -54,6 +54,11 @@ async def websocket_route(websocket: WebSocket):
 
 @app.on_event("startup")
 async def startup_event():
+    # Only create default agents if no agents exist (first run)
+    if len(agent_manager.get_all_agents()) > 0:
+        print("[Startup] Agents loaded from storage, skipping default agent creation")
+        return
+
     # Create default agents with Tester
     default_agents = [
         {

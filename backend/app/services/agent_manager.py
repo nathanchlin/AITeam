@@ -1,6 +1,8 @@
 from typing import Dict, List, Optional
 from datetime import datetime
 import uuid
+import json
+import os
 from app.agents.base import BaseAgent, create_agent
 from app.models.schemas import AgentType, AgentStatus, Task, TaskStatus
 
@@ -9,6 +11,68 @@ class AgentManager:
     def __init__(self):
         self.agents: Dict[str, BaseAgent] = {}
         self.tasks: Dict[str, Task] = {}
+        self.data_file = os.path.join(os.path.dirname(__file__), '..', 'data', 'agents.json')
+        self._load_agents()
+
+    def _load_agents(self):
+        """Load persisted agents from file"""
+        if os.path.exists(self.data_file):
+            try:
+                with open(self.data_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    for agent_data in data.get('agents', []):
+                        # Convert string type back to AgentType enum
+                        agent_type_str = agent_data.get('type', 'assistant')
+                        try:
+                            agent_type = AgentType(agent_type_str)
+                        except ValueError:
+                            agent_type = AgentType.CUSTOM
+
+                        agent = create_agent(
+                            name=agent_data.get('name', 'Unknown'),
+                            agent_type=agent_type,
+                            description=agent_data.get('description'),
+                            custom_prompt=agent_data.get('custom_prompt'),
+                            position=agent_data.get('position'),
+                        )
+                        # Restore original ID and timestamps
+                        agent.id = agent_data.get('id', agent.id)
+                        agent.created_at = datetime.fromisoformat(agent_data['created_at']) if agent_data.get('created_at') else agent.created_at
+                        agent.updated_at = datetime.fromisoformat(agent_data['updated_at']) if agent_data.get('updated_at') else agent.updated_at
+                        agent.status = AgentStatus.IDLE  # Always start as idle
+
+                        self.agents[agent.id] = agent
+
+                print(f"[AgentManager] Loaded {len(self.agents)} agents from storage")
+            except Exception as e:
+                print(f"[AgentManager] Error loading agents: {e}")
+
+    def _save_agents(self):
+        """Persist agents to file"""
+        try:
+            os.makedirs(os.path.dirname(self.data_file), exist_ok=True)
+
+            data = {
+                'agents': [
+                    {
+                        'id': agent.id,
+                        'name': agent.name,
+                        'type': agent.type.value if hasattr(agent.type, 'value') else str(agent.type),
+                        'description': agent.description,
+                        'custom_prompt': agent.custom_prompt,
+                        'position': agent.position,
+                        'created_at': agent.created_at.isoformat() if agent.created_at else None,
+                        'updated_at': agent.updated_at.isoformat() if agent.updated_at else None,
+                    }
+                    for agent in self.agents.values()
+                ],
+                'saved_at': datetime.utcnow().isoformat(),
+            }
+
+            with open(self.data_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"[AgentManager] Error saving agents: {e}")
 
     def create_agent(
         self,
@@ -20,6 +84,7 @@ class AgentManager:
     ) -> BaseAgent:
         agent = create_agent(name, agent_type, description, custom_prompt, position)
         self.agents[agent.id] = agent
+        self._save_agents()  # Persist after creation
         return agent
 
     def get_agent(self, agent_id: str) -> Optional[BaseAgent]:
@@ -53,11 +118,13 @@ class AgentManager:
             agent.status = status
 
         agent.updated_at = datetime.utcnow()
+        self._save_agents()  # Persist after update
         return agent
 
     def delete_agent(self, agent_id: str) -> bool:
         if agent_id in self.agents:
             del self.agents[agent_id]
+            self._save_agents()  # Persist after deletion
             return True
         return False
 
