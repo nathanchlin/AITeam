@@ -37,6 +37,7 @@ class PlanStatus(str, Enum):
 class AgentBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=50)
     type: AgentType = AgentType.ASSISTANT
+    display_type: Optional[str] = None  # 自定义显示名称，如 "UI设计师"
     description: Optional[str] = None
     custom_prompt: Optional[str] = None
     position: Dict[str, float] = Field(default_factory=lambda: {"x": 0, "y": 0, "z": 0})
@@ -48,6 +49,7 @@ class AgentCreate(AgentBase):
 
 class AgentUpdate(BaseModel):
     name: Optional[str] = None
+    display_type: Optional[str] = None  # 允许更新自定义类型名称
     description: Optional[str] = None
     custom_prompt: Optional[str] = None
     position: Optional[Dict[str, float]] = None

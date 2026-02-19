@@ -20,6 +20,7 @@ async def create_agent(agent_data: AgentCreate):
         description=agent_data.description,
         custom_prompt=agent_data.custom_prompt,
         position=agent_data.position,
+        display_type=agent_data.display_type,
     )
     return agent_to_response(agent)
 
@@ -50,6 +51,7 @@ async def update_agent(agent_id: str, agent_data: AgentUpdate):
         custom_prompt=agent_data.custom_prompt,
         position=agent_data.position,
         status=agent_data.status,
+        display_type=agent_data.display_type,
     )
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")

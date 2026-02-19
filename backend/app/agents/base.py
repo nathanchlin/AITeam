@@ -15,10 +15,12 @@ class BaseAgent(ABC):
         description: Optional[str] = None,
         custom_prompt: Optional[str] = None,
         position: Optional[Dict[str, float]] = None,
+        display_type: Optional[str] = None,
     ):
         self.id = id
         self.name = name
         self.type = agent_type
+        self.display_type = display_type  # 自定义显示名称
         self.description = description
         self.custom_prompt = custom_prompt
         self.status = AgentStatus.IDLE
@@ -32,6 +34,7 @@ class BaseAgent(ABC):
             "id": self.id,
             "name": self.name,
             "type": self.type.value,
+            "display_type": self.display_type,
             "description": self.description,
             "custom_prompt": self.custom_prompt,
             "status": self.status.value,
@@ -271,19 +274,20 @@ def create_agent(
     description: Optional[str] = None,
     custom_prompt: Optional[str] = None,
     position: Optional[Dict[str, float]] = None,
+    display_type: Optional[str] = None,
 ) -> BaseAgent:
     """Factory function to create agents"""
     agent_id = str(uuid.uuid4())
 
     if agent_type == AgentType.CODER:
-        return CoderAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position)
+        return CoderAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position, display_type=display_type)
     elif agent_type == AgentType.ANALYST:
-        return AnalystAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position)
+        return AnalystAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position, display_type=display_type)
     elif agent_type == AgentType.ASSISTANT:
-        return AssistantAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position)
+        return AssistantAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position, display_type=display_type)
     elif agent_type == AgentType.TESTER:
-        return TesterAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position)
+        return TesterAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position, display_type=display_type)
     elif agent_type == AgentType.CUSTOM:
-        return CustomAgent(agent_id, name, custom_prompt=custom_prompt or "", description=description, position=position)
+        return CustomAgent(agent_id, name, custom_prompt=custom_prompt or "", description=description, position=position, display_type=display_type)
     else:
-        return AssistantAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position)
+        return AssistantAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position, display_type=display_type)

@@ -34,6 +34,7 @@ class AgentManager:
                             description=agent_data.get('description'),
                             custom_prompt=agent_data.get('custom_prompt'),
                             position=agent_data.get('position'),
+                            display_type=agent_data.get('display_type'),
                         )
                         # Restore original ID and timestamps
                         agent.id = agent_data.get('id', agent.id)
@@ -58,6 +59,7 @@ class AgentManager:
                         'id': agent.id,
                         'name': agent.name,
                         'type': agent.type.value if hasattr(agent.type, 'value') else str(agent.type),
+                        'display_type': agent.display_type,
                         'description': agent.description,
                         'custom_prompt': agent.custom_prompt,
                         'position': agent.position,
@@ -81,8 +83,9 @@ class AgentManager:
         description: Optional[str] = None,
         custom_prompt: Optional[str] = None,
         position: Optional[Dict[str, float]] = None,
+        display_type: Optional[str] = None,
     ) -> BaseAgent:
-        agent = create_agent(name, agent_type, description, custom_prompt, position)
+        agent = create_agent(name, agent_type, description, custom_prompt, position, display_type)
         self.agents[agent.id] = agent
         self._save_agents()  # Persist after creation
         return agent
@@ -101,6 +104,7 @@ class AgentManager:
         custom_prompt: Optional[str] = None,
         position: Optional[Dict[str, float]] = None,
         status: Optional[AgentStatus] = None,
+        display_type: Optional[str] = None,
     ) -> Optional[BaseAgent]:
         agent = self.agents.get(agent_id)
         if not agent:
@@ -116,6 +120,8 @@ class AgentManager:
             agent.position = position
         if status:
             agent.status = status
+        if display_type is not None:
+            agent.display_type = display_type
 
         agent.updated_at = datetime.utcnow()
         self._save_agents()  # Persist after update
