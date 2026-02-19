@@ -157,16 +157,17 @@ class OutputManager:
         js_files = []
 
         # Patterns that indicate Node.js/test code (not browser-compatible)
+        # Use \b word boundary to avoid false matches like init(), describeGame()
         node_patterns = [
             r'module\.exports',
-            r'require\s*\(',
+            r'\brequire\s*\(',
             r'import\s+.*from\s+["\']',
             r'@testing-library',
             r'jest\.mock',
-            r'describe\s*\(',
-            r'it\s*\(',
-            r'test\s*\(',
-            r'expect\s*\(',
+            r'\bdescribe\s*\(',
+            r'\bit\s*\(',
+            r'\btest\s*\(',
+            r'\bexpect\s*\(',
         ]
 
         for f in sorted(os.listdir(plan_dir)):
@@ -212,13 +213,6 @@ class OutputManager:
             # Create a basic HTML structure
             html_content = self._generate_basic_html(plan_title)
 
-        # Check if HTML already has substantial inline JavaScript (more than just imports)
-        # Look for actual function definitions or class definitions
-        has_meaningful_js = bool(re.search(
-            r'<script[^>]*>[\s\S]*(?:function\s+\w+|class\s+\w+|const\s+\w+\s*=)',
-            html_content
-        ))
-
         # ALWAYS remove external script and CSS references - they won't work in single file
         html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*></script>', '', html_content)
         html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*/>', '', html_content)
@@ -233,11 +227,21 @@ class OutputManager:
             combined_css = '\n'.join(css_code)
             html_content = html_content.replace('</head>', f'<style>\n{combined_css}\n</style>\n</head>')
 
-        # Handle JavaScript consolidation
-        if js_code and not has_meaningful_js:
+        # Handle JavaScript consolidation - always merge JS files into HTML
+        # This ensures all JS files are included, even if HTML already has some JS
+        if js_code:
             combined_js = '\n'.join(js_code)
-            # Inject the combined JS before </body>
-            html_content = html_content.replace('</body>', f'<script>\n{combined_js}\n</script>\n</body>')
+            # Find last script tag or inject before </body>
+            if '</script>' in html_content and '<script' in html_content:
+                # Insert after the last </script> to maintain code order
+                last_script_pos = html_content.rfind('</script>')
+                html_content = (
+                    html_content[:last_script_pos + len('</script>')] +
+                    f'\n<script>\n{combined_js}\n</script>' +
+                    html_content[last_script_pos + len('</script>'):]
+                )
+            else:
+                html_content = html_content.replace('</body>', f'<script>\n{combined_js}\n</script>\n</body>')
 
         # Validate and fix common issues
         html_content = self._validate_and_fix_html(html_content, plan_title)
