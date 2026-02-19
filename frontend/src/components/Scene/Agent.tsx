@@ -131,6 +131,7 @@ export function AgentModel({ agent }: AgentModelProps) {
       <Html
         position={[0, 2, 0]}
         center
+        zIndex={5}
         style={{
           pointerEvents: 'none',
           whiteSpace: 'nowrap',
@@ -144,7 +145,7 @@ export function AgentModel({ agent }: AgentModelProps) {
 
       {/* Progress bar for working status */}
       {agent.status === 'working' && agent.current_task_id && (
-        <Html position={[0, 2.3, 0]} center>
+        <Html position={[0, 2.3, 0]} center zIndex={5}>
           <div className="w-16 h-1.5 bg-gray-700 rounded-full overflow-hidden">
             <div
               className="h-full bg-yellow-500 animate-pulse"
