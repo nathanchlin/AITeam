@@ -1310,8 +1310,12 @@ class CoordinatorService:
         finally:
             coder.update_status(AgentStatus.IDLE)
 
+        # 检查是否有错误
+        has_error = "错误" in full_response or "error" in full_response.lower() or "余额不足" in full_response
+
         # 保存迭代后的代码
-        if full_response and '<html' in full_response.lower():
+        iteration_success = False
+        if full_response and '<html' in full_response.lower() and not has_error:
             try:
                 # 提取 HTML 代码
                 html_match = re.search(
@@ -1332,9 +1336,11 @@ class CoordinatorService:
                     f.write(new_html)
 
                 print(f"[Coordinator] Saved iterated code to {index_path}")
+                iteration_success = True
             except Exception as e:
                 print(f"[Coordinator] Error saving iterated code: {e}")
-        else:
+
+        if not iteration_success:
             print(f"[Coordinator] No valid HTML in response, saving as markdown")
             # 保存为 markdown
             plan_dir = output_manager.get_output_path(plan_id)
@@ -1347,17 +1353,28 @@ class CoordinatorService:
         plan.updated_at = datetime.utcnow()
         self._save_plans()
 
-        # 发送迭代完成消息
-        output_dir = output_manager.get_output_path(plan_id)
+        # 发送结果消息
         preview_url = f"/api/pipeline/output/{plan_id}/files/index.html"
-        await self.add_discussion_message(
-            plan_id=plan_id,
-            agent_id=coder.id,
-            agent_name=coder.name,
-            agent_type=coder.type.value,
-            content=f"✅ 迭代完成！\n\n新的预览地址: http://localhost:8000{preview_url}",
-            message_type="comment",
-        )
+        if iteration_success:
+            await self.add_discussion_message(
+                plan_id=plan_id,
+                agent_id=coder.id,
+                agent_name=coder.name,
+                agent_type=coder.type.value,
+                content=f"✅ 迭代完成！\n\n新的预览地址: http://localhost:8000{preview_url}",
+                message_type="comment",
+            )
+        else:
+            # 提取错误信息
+            error_summary = full_response[:200] if len(full_response) > 200 else full_response
+            await self.add_discussion_message(
+                plan_id=plan_id,
+                agent_id="system",
+                agent_name="系统",
+                agent_type="assistant",
+                content=f"❌ 迭代失败\n\n错误信息: {error_summary}\n\n请检查 API 配额或稍后重试。",
+                message_type="comment",
+            )
 
         # 广播完成
         await self.broadcast({
@@ -1365,7 +1382,7 @@ class CoordinatorService:
             "data": {
                 "plan_id": plan_id,
                 "status": "completed",
-                "output_url": preview_url,
+                "output_url": preview_url if iteration_success else None,
             }
         })
 
