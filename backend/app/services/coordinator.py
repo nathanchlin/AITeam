@@ -1080,7 +1080,7 @@ class CoordinatorService:
                 discussion_data = {
                     "title": plan.title,
                     "original_request": plan.original_request,
-                    "discussion": [msg.model_dump() for msg in plan.discussion],
+                    "discussion": [msg.model_dump(mode='json') for msg in plan.discussion],
                     "saved_at": datetime.utcnow().isoformat()
                 }
                 with open(discussion_path, 'w', encoding='utf-8') as f:
