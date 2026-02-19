@@ -657,6 +657,18 @@ class CoordinatorService:
                         if test_results:
                             fix_context = f"\n\n⚠️ 之前的测试发现问题，请修复以下问题：\n{test_results[-1].get('result', '')}"
 
+                    # Build context from previously completed tasks
+                    previous_tasks_context = ""
+                    if results:
+                        previous_tasks_context = "\n\n📚 之前任务的输出（请参考这些内容来完成任务）：\n"
+                        for prev_result in results:
+                            task_title = prev_result.get('task', '未知任务')
+                            task_result = prev_result.get('result', '')
+                            # Truncate very long results to avoid context overflow
+                            if len(task_result) > 3000:
+                                task_result = task_result[:3000] + "\n... (内容已截断)"
+                            previous_tasks_context += f"\n---\n### 任务：{task_title}\n\n{task_result}\n"
+
                     # Add web-app specific instructions
                     web_app_instructions = ""
                     if plan.target_output == "web-app" and agent.type.value == "coder":
@@ -677,7 +689,7 @@ class CoordinatorService:
 描述：{task.description or '无详细描述'}
 
 原始需求上下文：{plan.original_request}
-{fix_context}{web_app_instructions}
+{previous_tasks_context}{fix_context}{web_app_instructions}
 
 请完成你的任务部分，提供详细的输出。"""
 
