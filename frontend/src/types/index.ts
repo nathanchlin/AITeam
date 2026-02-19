@@ -13,6 +13,7 @@ export interface Agent {
   id: string;
   name: string;
   type: AgentType;
+  display_type?: string | null;
   description?: string;
   custom_prompt?: string;
   status: AgentStatus;
