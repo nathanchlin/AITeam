@@ -461,11 +461,37 @@ class CoordinatorService:
         available_agent_types = list(agents_by_type.keys())
         agent_types_str = "/".join(available_agent_types)
 
+        # Add constraints for web-app projects
+        web_app_constraints = ""
+        if plan.target_output == "web-app":
+            web_app_constraints = """
+⚠️ 重要约束（Web应用项目必须遵守）：
+1. 只能生成单文件HTML应用（包含内联CSS和JavaScript），无需后端服务器
+2. 禁止创建后端相关任务（如：数据库设计、API开发、服务器搭建、用户认证等）
+3. 禁止使用Node.js特有功能（如require、module.exports、express、socket.io等）
+4. 所有功能必须在浏览器中运行，使用原生Canvas/WebGL/DOM API
+5. 如需数据存储，只能使用localStorage或sessionStorage
+6. 如需多人功能，只能实现本地多人（同一设备轮流或分屏），不能实现网络对战
+7. 任务数量控制在5-8个以内，聚焦核心功能实现
+
+任务示例（正确）：
+- "游戏界面与基础渲染" - 使用Canvas绘制游戏画面
+- "玩家控制与移动逻辑" - 处理键盘/鼠标输入
+- "碰撞检测与得分系统" - 游戏核心逻辑
+- "UI界面与动画效果" - 界面美化
+
+任务示例（错误，禁止）：
+- "后端服务器搭建" ❌
+- "数据库设计与连接" ❌
+- "用户认证系统" ❌
+- "实时同步模块" ❌
+"""
+
         plan_prompt = f"""基于以下讨论，请生成详细的执行计划：
 
 原始需求：{plan.original_request}
 目标输出：{plan.target_output}
-
+{web_app_constraints}
 讨论摘要：
 {discussion_summary}
 

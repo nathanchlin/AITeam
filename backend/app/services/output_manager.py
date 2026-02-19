@@ -168,6 +168,27 @@ class OutputManager:
             r'\bit\s*\(',
             r'\btest\s*\(',
             r'\bexpect\s*\(',
+            # Server-side frameworks and libraries
+            r'\bexpress\s*\(\)',
+            r'\bsocket\.io\b',
+            r'\bsocketIo\b',
+            r'\bmongoose\b',
+            r'\bredis\b',
+            r'\bMongoClient\b',
+            r'\bmongodb://',
+            r'\bredis://',
+            r'\bprocess\.env\b',
+            r'\b__dirname\b',
+            r'\b__filename\b',
+            r'\bhttp\.createServer\b',
+            r'\bapp\.listen\s*\(',
+            r'\bserver\.listen\s*\(',
+            r'\bcors\s*\(\)',
+            r'\bjwt\.sign\b',
+            r'\bjwt\.verify\b',
+            # MongoDB schema patterns
+            r'\bSchema\s*=\s*new\s+mongoose\.Schema',
+            r'\bObjectId\b',
         ]
 
         for f in sorted(os.listdir(plan_dir)):
