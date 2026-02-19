@@ -35,7 +35,6 @@ export function PipelinePanel() {
   const [deleting, setDeleting] = useState(false);
   const [restartMessage, setRestartMessage] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [iterationRequest, setIterationRequest] = useState('');
   const [iterating, setIterating] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
@@ -308,17 +307,17 @@ export function PipelinePanel() {
   };
 
   const handleIterate = async () => {
-    if (!currentPlanId || !iterationRequest.trim() || iterating) return;
+    if (!currentPlanId || !request.trim() || iterating) return;
     setIterating(true);
     try {
       const res = await fetch(`${API_BASE}/api/pipeline/iterate/${currentPlanId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ iteration_request: iterationRequest.trim() }),
+        body: JSON.stringify({ iteration_request: request.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setIterationRequest('');
+        setRequest(''); // 清空输入框
         // Poll for updates
         await fetchPlans();
         console.log('Iteration started:', data);
@@ -433,10 +432,14 @@ export function PipelinePanel() {
           <textarea
             value={request}
             onChange={(e) => setRequest(e.target.value)}
-            placeholder="输入你的需求，例如：我需要做一个贪吃蛇游戏..."
+            placeholder={
+              currentPlan?.status === 'completed'
+                ? "输入迭代需求，例如：我想添加一个规则，当敌机穿过屏幕底部时，生命值减1..."
+                : "输入你的需求，例如：我需要做一个贪吃蛇游戏..."
+            }
             className="w-full px-3 py-2 bg-gray-700 rounded-lg text-white text-sm border border-gray-600 focus:border-purple-500 focus:outline-none resize-none"
             rows={2}
-            disabled={starting}
+            disabled={starting || iterating}
           />
 
           {/* Agent Selection */}
@@ -515,23 +518,45 @@ export function PipelinePanel() {
                 <option value="documentation">文档</option>
               </select>
             </div>
-            <button
-              onClick={handleStartPipeline}
-              disabled={!request.trim() || starting}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              {starting ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  启动中...
-                </>
-              ) : (
-                <>
-                  <Play size={16} />
-                  启动流水线
-                </>
+            <div className="flex items-center gap-2">
+              {/* 当项目完成时，显示迭代按钮 */}
+              {currentPlan?.status === 'completed' && outputUrl && (
+                <button
+                  onClick={handleIterate}
+                  disabled={!request.trim() || iterating}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {iterating ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      迭代中...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={16} />
+                      开始迭代
+                    </>
+                  )}
+                </button>
               )}
-            </button>
+              <button
+                onClick={handleStartPipeline}
+                disabled={!request.trim() || starting}
+                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
+                {starting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    启动中...
+                  </>
+                ) : (
+                  <>
+                    <Play size={16} />
+                    启动流水线
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -775,7 +800,7 @@ export function PipelinePanel() {
 
             {/* Final Result Section */}
             {currentPlan.status === 'completed' && outputUrl && (
-              <div className="p-4 border-t border-gray-700 bg-green-900/20">
+              <div className="p-4 border-t border-gray-700 bg-green-900/20 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center">
@@ -783,7 +808,7 @@ export function PipelinePanel() {
                     </div>
                     <div>
                       <div className="text-sm font-medium text-white">项目已完成</div>
-                      <div className="text-xs text-gray-400">点击下方链接查看结果</div>
+                      <div className="text-xs text-gray-400">点击下方链接查看结果，或在上方输入迭代需求</div>
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -803,46 +828,6 @@ export function PipelinePanel() {
                       <ExternalLink size={14} />
                       打开网页
                     </a>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Iteration Section */}
-            {currentPlan.status === 'completed' && outputUrl && (
-              <div className="p-4 border-t border-gray-700 bg-purple-900/10">
-                <div className="flex items-center gap-2 mb-3">
-                  <RefreshCw size={16} className="text-purple-400" />
-                  <span className="text-sm font-medium text-white">迭代需求</span>
-                  <span className="text-xs text-gray-500">在原有基础上修改功能</span>
-                </div>
-                <div className="space-y-2">
-                  <textarea
-                    value={iterationRequest}
-                    onChange={(e) => setIterationRequest(e.target.value)}
-                    placeholder="输入新的需求，例如：我想添加一个规则，当敌机穿过屏幕底部时，生命值减1..."
-                    className="w-full px-3 py-2 bg-gray-700 rounded-lg text-white text-sm border border-gray-600 focus:border-purple-500 focus:outline-none resize-none"
-                    rows={2}
-                    disabled={iterating}
-                  />
-                  <div className="flex justify-end">
-                    <button
-                      onClick={handleIterate}
-                      disabled={!iterationRequest.trim() || iterating}
-                      className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm"
-                    >
-                      {iterating ? (
-                        <>
-                          <Loader2 size={14} className="animate-spin" />
-                          迭代中...
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw size={14} />
-                          开始迭代
-                        </>
-                      )}
-                    </button>
                   </div>
                 </div>
               </div>
