@@ -3,6 +3,7 @@ from typing import Optional, AsyncGenerator, List, Dict, Any
 import json
 import asyncio
 import threading
+import time
 from app.config import settings
 
 
@@ -80,6 +81,7 @@ class GLMClient:
         agent_type: str = "assistant",
         custom_prompt: Optional[str] = None,
         history: Optional[List[Dict[str, str]]] = None,
+        max_retries: int = 3,
     ) -> AsyncGenerator[str, None]:
         if not self.client:
             yield "错误：未配置 GLM API Key"
@@ -93,16 +95,32 @@ class GLMClient:
 
         messages.append({"role": "user", "content": message})
 
-        try:
-            # 在线程中创建流，避免阻塞事件循环
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create,
-                model=self.model,
-                messages=messages,
-                stream=True,
-            )
-        except Exception as e:
-            yield f"[错误] {str(e)}"
+        # 重试逻辑
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                # 在线程中创建流，避免阻塞事件循环
+                response = await asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    model=self.model,
+                    messages=messages,
+                    stream=True,
+                )
+                break  # 成功则跳出重试循环
+            except Exception as e:
+                last_error = str(e)
+                error_msg = str(e).lower()
+                # 检查是否是速率限制或临时错误
+                if "429" in error_msg or "rate" in error_msg or "limit" in error_msg or "余额" in error_msg:
+                    if attempt < max_retries - 1:
+                        wait_time = (attempt + 1) * 3  # 3, 6, 9 秒
+                        print(f"[GLMClient] Rate limit hit, waiting {wait_time}s before retry {attempt + 2}/{max_retries}")
+                        await asyncio.sleep(wait_time)
+                        continue
+                yield f"[错误] {str(e)}"
+                return
+        else:
+            yield f"[错误] 重试 {max_retries} 次后仍失败: {last_error}"
             return
 
         # 在后台线程中消费流，通过 queue 传给异步端，这样 asyncio.wait_for 才能生效
