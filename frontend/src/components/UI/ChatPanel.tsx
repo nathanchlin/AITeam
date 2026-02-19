@@ -18,6 +18,7 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
   const [sending, setSending] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [editName, setEditName] = useState(agent.name);
+  const [editDisplayType, setEditDisplayType] = useState(agent.display_type || '');
   const [editDescription, setEditDescription] = useState(agent.description || '');
   const [editPrompt, setEditPrompt] = useState(agent.custom_prompt || '');
   const [localStreamContent, setLocalStreamContent] = useState('');
@@ -39,9 +40,10 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
   // Sync edit state when agent changes
   useEffect(() => {
     setEditName(agent.name);
+    setEditDisplayType(agent.display_type || '');
     setEditDescription(agent.description || '');
     setEditPrompt(agent.custom_prompt || '');
-  }, [agent.id, agent.name, agent.description, agent.custom_prompt]);
+  }, [agent.id, agent.name, agent.display_type, agent.description, agent.custom_prompt]);
 
   // Poll for task updates when there's a running task
   useEffect(() => {
@@ -117,6 +119,7 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: editName,
+          display_type: editDisplayType || null,
           description: editDescription,
           custom_prompt: editPrompt,
         }),
@@ -228,6 +231,22 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
               onChange={(e) => setEditName(e.target.value)}
               className="w-full px-3 py-2 bg-gray-700 rounded text-white text-sm border border-gray-600 focus:border-blue-500 focus:outline-none"
             />
+          </div>
+
+          <div>
+            <label className="text-gray-400 text-xs block mb-1">
+              显示类型 <span className="text-gray-500">(如: UI设计师, 前端工程师)</span>
+            </label>
+            <input
+              type="text"
+              value={editDisplayType}
+              onChange={(e) => setEditDisplayType(e.target.value)}
+              className="w-full px-3 py-2 bg-gray-700 rounded text-white text-sm border border-gray-600 focus:border-blue-500 focus:outline-none"
+              placeholder="自定义显示类型..."
+            />
+            <p className="text-gray-500 text-xs mt-1">
+              基础类型: <span className="text-gray-400">{agent.type}</span>
+            </p>
           </div>
 
           <div>
