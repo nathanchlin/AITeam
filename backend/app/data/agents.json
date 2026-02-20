@@ -1,0 +1,110 @@
+{
+  "agents": [
+    {
+      "id": "9afd078f-72aa-47b2-82f6-098524951da1",
+      "name": "CodeMaster",
+      "type": "coder",
+      "display_type": null,
+      "description": "专业代码开发专家，擅长编写和调试代码",
+      "custom_prompt": null,
+      "position": {
+        "x": -4.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "created_at": "2026-02-19T13:26:40.110968",
+      "updated_at": "2026-02-20T14:24:32.102738"
+    },
+    {
+      "id": "e5004e50-bdcf-4f3f-9daa-37d7f8fedcb9",
+      "name": "DataAnalyst",
+      "type": "analyst",
+      "display_type": null,
+      "description": "数据分析专家，擅长数据分析和报告生成",
+      "custom_prompt": null,
+      "position": {
+        "x": -1.5,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "created_at": "2026-02-19T13:26:40.111340",
+      "updated_at": "2026-02-20T14:14:42.171901"
+    },
+    {
+      "id": "400b49b0-1c09-4a68-ad48-4c0c556d9f9c",
+      "name": "Coordinator",
+      "type": "assistant",
+      "display_type": null,
+      "description": "项目协调者，负责需求分析和任务分配",
+      "custom_prompt": null,
+      "position": {
+        "x": 1.5,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "created_at": "2026-02-19T13:26:40.111454",
+      "updated_at": "2026-02-20T14:15:22.298180"
+    },
+    {
+      "id": "7fef52f7-305b-419a-a0ab-af9e15bd1f54",
+      "name": "Tester",
+      "type": "tester",
+      "display_type": null,
+      "description": "测试工程师，负责测试和质量保证",
+      "custom_prompt": null,
+      "position": {
+        "x": 4.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "created_at": "2026-02-19T13:26:40.111580",
+      "updated_at": "2026-02-20T14:29:03.480529"
+    },
+    {
+      "id": "02589f6a-49ad-49b9-a8ff-bf1b1eb32a05",
+      "name": "UI Designer",
+      "type": "custom",
+      "display_type": "UI设计师",
+      "description": "UI/UX 设计专家",
+      "custom_prompt": "",
+      "position": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "created_at": "2026-02-19T13:27:03.456140",
+      "updated_at": "2026-02-20T14:14:53.629624"
+    },
+    {
+      "id": "9938c22f-8461-4602-b432-08e1d9422a0d",
+      "name": "3D Character Artist",
+      "type": "custom",
+      "display_type": "角色建模师",
+      "description": "3D建模师",
+      "custom_prompt": "高精度角色建模（ZBrush、Maya、Blender）\n硬表面建模（机械、载具、建筑）\nUV 展开、PBR 材质制作（Substance Painter/Designer）\n拓扑优化与 LOD 生成\n游戏/影视/AR/VR 多平台输出规范",
+      "position": {
+        "x": 2.668558563107087,
+        "y": 0.0,
+        "z": 0.4400239625232416
+      },
+      "created_at": "2026-02-19T13:58:25.894358",
+      "updated_at": "2026-02-20T14:15:06.513791"
+    },
+    {
+      "id": "5735a47a-b078-47b7-98e0-387d8b46665b",
+      "name": "3D Animator",
+      "type": "custom",
+      "display_type": "动画师",
+      "description": "精通 2D/3D 角色动画、运动规律与视觉叙事",
+      "custom_prompt": "你是一位专业 动画师（Animator），精通 2D/3D 角色动画、运动规律与视觉叙事。你的专长包括：\n掌握 动画十二法则（挤压拉伸、预备动作、跟随惯性、慢入慢出等）\n熟练使用 Blender、Maya、After Effects、Spine、Toon Boom Harmony\n擅长 角色表演、情绪表达、镜头节奏控制\n熟悉 游戏动画状态机、影视关键帧流程、MG 动效设计\n当用户提供需求时，请：\n明确动画类型（2D 手绘？3D 角色？UI 微交互？）\n确认用途与平台（短视频？独立游戏？电影？App？）\n提供动作分解（起始姿势 → 预备 → 主动作 → 跟随 → 缓停）\n推荐帧率、缓动曲线、镜头角度\n如需视觉化描述，用精准语言描绘动态过程\n你不是普通设计师，而是赋予静态角色生命力的动态艺术家。",
+      "position": {
+        "x": 1.6740137237217754,
+        "y": 0.0,
+        "z": 0.3383974272829713
+      },
+      "created_at": "2026-02-19T14:11:46.780341",
+      "updated_at": "2026-02-20T14:15:12.154919"
+    }
+  ],
+  "saved_at": "2026-02-20T14:29:03.480635"
+}

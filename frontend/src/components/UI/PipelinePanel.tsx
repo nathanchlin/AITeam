@@ -288,10 +288,19 @@ export function PipelinePanel() {
 
   const handleRestartPipeline = async () => {
     if (!currentPlanId || restarting) return;
-    if (!confirm('确定要重启该流水线吗？将清空当前任务与讨论，从需求分析重新开始。')) return;
+
+    // 根据当前选中的 tab 决定重启目标
+    const isIteration = activeIterationTab > 0;
+    const confirmMsg = isIteration
+      ? `确定要重启迭代${activeIterationTab}吗？将清空该迭代的任务与讨论，重新执行。`
+      : '确定要重启该流水线吗？将清空当前任务与讨论，从需求分析重新开始。';
+    if (!confirm(confirmMsg)) return;
+
     setRestarting(true);
     try {
-      const url = `${API_BASE}/api/pipeline/restart/${currentPlanId}`;
+      const url = isIteration
+        ? `${API_BASE}/api/pipeline/restart/${currentPlanId}/iteration/${activeIterationTab}`
+        : `${API_BASE}/api/pipeline/restart/${currentPlanId}`;
       const res = await fetch(url, { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -301,10 +310,14 @@ export function PipelinePanel() {
         if (planRes.ok) {
           const updatedPlan = await planRes.json();
           updatePlan(currentPlanId, updatedPlan);
+          // 如果是迭代重启，切换到对应迭代 tab
+          if (isIteration) {
+            setActiveIterationTab(activeIterationTab);
+          }
         }
-        setRestartMessage('流水线已重启，正在重新分析需求…');
+        setRestartMessage(isIteration ? `迭代${activeIterationTab}已重启…` : '流水线已重启，正在重新分析需求…');
         setTimeout(() => setRestartMessage(''), 4000);
-        console.log('Pipeline restarted:', data);
+        console.log('Pipeline/Iteration restarted:', data);
       } else {
         const msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || '重启失败');
         alert(msg);
@@ -635,11 +648,11 @@ export function PipelinePanel() {
                   <button
                     onClick={handleRestartPipeline}
                     disabled={restarting}
-                    title="清空任务与讨论，从需求分析重新开始"
+                    title={activeIterationTab > 0 ? `清空迭代${activeIterationTab}的任务与讨论，重新执行` : "清空任务与讨论，从需求分析重新开始"}
                     className="px-3 py-1 text-xs font-medium rounded bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 flex items-center gap-1"
                   >
                     {restarting ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
-                    重启流水线
+                    {activeIterationTab > 0 ? `重启迭代${activeIterationTab}` : '重启流水线'}
                   </button>
                   <button
                     onClick={handleDeletePipeline}

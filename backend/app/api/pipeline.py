@@ -415,6 +415,56 @@ async def restart_pipeline(plan_id: str, background_tasks: BackgroundTasks):
     }
 
 
+@router.post("/restart/{plan_id}/iteration/{round_number}")
+async def restart_iteration(plan_id: str, round_number: int, background_tasks: BackgroundTasks):
+    """Restart a specific iteration round: clear its tasks and discussion, then re-run"""
+    from app.main import websocket_manager
+
+    coordinator.set_websocket_manager(websocket_manager)
+
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Find the iteration
+    iteration = None
+    for iter_round in plan.iterations:
+        if iter_round.round_number == round_number:
+            iteration = iter_round
+            break
+
+    if not iteration:
+        raise HTTPException(status_code=404, detail=f"Iteration round {round_number} not found")
+
+    # Reset the iteration
+    iteration.status = PlanStatus.DRAFT
+    iteration.tasks = []
+    iteration.discussion = []
+    iteration.completed_at = None
+    plan.status = PlanStatus.EXECUTING
+    plan.current_iteration_round = round_number
+    coordinator._save_plans()
+
+    # Run iteration in background
+    async def run_iteration_background():
+        try:
+            existing_code = output_manager.read_existing_code(plan_id)
+            await coordinator._analyze_iteration_request(plan_id, iteration, existing_code, iteration.iteration_request)
+            await coordinator._organize_iteration_discussion(plan_id, iteration, existing_code, iteration.iteration_request)
+            await coordinator._generate_iteration_plan(plan_id, iteration, existing_code, iteration.iteration_request)
+            await coordinator._execute_iteration(plan_id, iteration, existing_code)
+        except Exception as e:
+            print(f"[Pipeline] Error in restarted iteration {plan_id}/{round_number}: {e}")
+
+    background_tasks.add_task(run_iteration_background)
+
+    return {
+        "message": f"Iteration round {round_number} restarted",
+        "plan_id": plan_id,
+        "iteration_round": round_number,
+    }
+
+
 @router.get("/task/{task_id}")
 async def get_task_status_endpoint(task_id: str):
     """Get the status of a task (deprecated - Celery no longer used)"""
