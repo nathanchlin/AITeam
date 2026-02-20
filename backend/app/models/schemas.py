@@ -132,6 +132,30 @@ class PlanTask(BaseModel):
     order: int = 0
 
 
+class IterationTask(BaseModel):
+    """迭代轮次中的任务"""
+    id: str
+    iteration_round: int
+    title: str
+    description: Optional[str] = None
+    assigned_agent_id: Optional[str] = None
+    assigned_agent_type: Optional[str] = None
+    dependencies: List[str] = Field(default_factory=list)
+    status: TaskStatus = TaskStatus.PENDING
+    order: int = 0
+
+
+class IterationRound(BaseModel):
+    """迭代轮次"""
+    round_number: int
+    iteration_request: str
+    status: PlanStatus = PlanStatus.DRAFT
+    tasks: List[IterationTask] = Field(default_factory=list)
+    discussion: List[DiscussionMessage] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    completed_at: Optional[datetime] = None
+
+
 class PlanBase(BaseModel):
     title: str
     description: Optional[str] = None
@@ -159,6 +183,8 @@ class Plan(PlanBase):
     is_approved: bool = False
     created_by_agent_id: Optional[str] = None
     selected_agent_ids: List[str] = Field(default_factory=list)  # Agent IDs selected for this plan
+    iterations: List[IterationRound] = Field(default_factory=list)  # 迭代轮次列表
+    current_iteration_round: int = 0  # 当前迭代轮次（0表示初始版本）
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     started_at: Optional[datetime] = None

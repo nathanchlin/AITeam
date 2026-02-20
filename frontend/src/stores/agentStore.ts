@@ -30,6 +30,10 @@ interface AgentState {
   updatePlan: (id: string, updates: Partial<Plan>) => void;
   setCurrentPlan: (id: string | null) => void;
 
+  // Iteration Tab State
+  activeIterationTab: number;  // 0 = 初始版本, 1+ = 迭代轮次
+  setActiveIterationTab: (tab: number) => void;
+
   // Discussion
   discussionMessages: DiscussionMessage[];
   addDiscussionMessage: (msg: DiscussionMessage) => void;
@@ -134,6 +138,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       plans: state.plans.map((p) => (p.id === id ? { ...p, ...updates } : p)),
     })),
   setCurrentPlan: (id) => set({ currentPlanId: id }),
+
+  // Iteration Tab State
+  activeIterationTab: 0,
+  setActiveIterationTab: (tab) => set({ activeIterationTab: tab }),
 
   // Discussion
   discussionMessages: [],
@@ -247,6 +255,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           } else {
             get().addPlan(planData);
           }
+          // 如果有新迭代轮次，自动切换到新轮次
+          const iterRound = data.iteration_round as number | undefined;
+          if (iterRound && iterRound > 0) {
+            get().setActiveIterationTab(iterRound);
+          }
         }
         // Also handle partial plan updates (status, task status)
         if (data.plan_id && !planData) {
@@ -262,6 +275,46 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             if (Object.keys(updates).length > 0) {
               get().updatePlan(data.plan_id as string, updates);
             }
+          }
+        }
+        break;
+
+      case 'iteration_discussion':
+        // 迭代讨论消息
+        const iterMsg = data.message as DiscussionMessage;
+        const iterRound = data.iteration_round as number;
+        if (iterMsg && data.plan_id && iterRound !== undefined) {
+          const plan = get().plans.find(p => p.id === data.plan_id);
+          if (plan && plan.iterations) {
+            const updatedIterations = plan.iterations.map(iter => {
+              if (iter.round_number === iterRound) {
+                return {
+                  ...iter,
+                  discussion: [...iter.discussion, iterMsg]
+                };
+              }
+              return iter;
+            });
+            get().updatePlan(data.plan_id as string, { iterations: updatedIterations });
+          }
+        }
+        break;
+
+      case 'iteration_task_update':
+        // 迭代任务状态更新
+        if (data.plan_id && data.iteration_round !== undefined && data.task_id) {
+          const plan = get().plans.find(p => p.id === data.plan_id);
+          if (plan && plan.iterations) {
+            const updatedIterations = plan.iterations.map(iter => {
+              if (iter.round_number === data.iteration_round) {
+                const updatedTasks = iter.tasks.map(t =>
+                  t.id === data.task_id ? { ...t, status: data.status as Plan['tasks'][0]['status'] } : t
+                );
+                return { ...iter, tasks: updatedTasks };
+              }
+              return iter;
+            });
+            get().updatePlan(data.plan_id as string, { iterations: updatedIterations });
           }
         }
         break;

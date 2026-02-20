@@ -429,7 +429,8 @@ async def get_task_status_endpoint(task_id: str):
 async def iterate_plan(plan_id: str, request: IterationRequest, background_tasks: BackgroundTasks):
     """对已完成的 plan 进行迭代
 
-    跳过讨论和计划阶段，直接基于现有代码进行增量修改。
+    完整流程：分析 -> 讨论 -> 计划 -> 执行
+    创建新的迭代轮次，生成针对迭代的任务列表。
     """
     from app.main import websocket_manager
 

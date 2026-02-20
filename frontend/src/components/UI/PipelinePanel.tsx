@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
-import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw } from 'lucide-react';
+import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers } from 'lucide-react';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
 
@@ -24,6 +24,8 @@ export function PipelinePanel() {
     agents,
     updatePlan,
     setPlans,
+    activeIterationTab,
+    setActiveIterationTab,
   } = useAgentStore();
 
   const [request, setRequest] = useState('');
@@ -99,13 +101,45 @@ export function PipelinePanel() {
   const currentPlan = plans.find((p) => p.id === currentPlanId);
   const currentStream = currentPlanId ? streamContent[currentPlanId] || '' : '';
 
-  // Get current running task info
-  const runningTask = currentPlan?.tasks.find(t => t.status === 'running');
-  const completedTasksCount = currentPlan?.tasks.filter(t => t.status === 'completed').length || 0;
-  const totalTasks = currentPlan?.tasks.length || 0;
-
   // Get discussion messages from current plan (they're stored in the plan itself)
-  const planDiscussions = currentPlan?.discussion || [];
+  // 根据 activeIterationTab 显示不同轮次的讨论
+  const getDisplayDiscussions = () => {
+    if (!currentPlan) return [];
+    if (activeIterationTab === 0) {
+      // 初始版本：显示主讨论
+      return currentPlan.discussion || [];
+    } else {
+      // 迭代轮次：显示对应迭代的讨论
+      const iteration = currentPlan.iterations?.find(i => i.round_number === activeIterationTab);
+      return iteration?.discussion || [];
+    }
+  };
+  const planDiscussions = getDisplayDiscussions();
+
+  // 获取当前显示的任务列表
+  const getDisplayTasks = () => {
+    if (!currentPlan) return [];
+    if (activeIterationTab === 0) {
+      // 初始版本：显示主任务
+      return currentPlan.tasks || [];
+    } else {
+      // 迭代轮次：显示对应迭代的任务
+      const iteration = currentPlan.iterations?.find(i => i.round_number === activeIterationTab);
+      return iteration?.tasks || [];
+    }
+  };
+  const displayTasks = getDisplayTasks();
+
+  // 获取当前迭代的运行任务
+  const getRunningTask = () => {
+    const tasks = getDisplayTasks();
+    return tasks.find(t => t.status === 'running');
+  };
+  const runningTask = getRunningTask();
+
+  // 获取当前迭代的任务进度
+  const completedTasksCount = displayTasks.filter(t => t.status === 'completed').length;
+  const totalTasks = displayTasks.length;
 
   // Fetch all plans
   const fetchPlans = async () => {
@@ -320,6 +354,17 @@ export function PipelinePanel() {
         setRequest(''); // 清空输入框
         // Poll for updates
         await fetchPlans();
+        // 切换到新的迭代轮次 tab（在 plans 更新后）
+        // 新轮次号 = 当前迭代数 + 1
+        const planRes = await fetch(`${API_BASE}/api/pipeline/plans/${currentPlanId}`);
+        if (planRes.ok) {
+          const updatedPlan = await planRes.json();
+          updatePlan(currentPlanId, updatedPlan);
+          // 设置新的迭代 tab
+          if (updatedPlan.current_iteration_round) {
+            setActiveIterationTab(updatedPlan.current_iteration_round);
+          }
+        }
         console.log('Iteration started:', data);
       } else {
         const msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || '迭代失败');
@@ -648,13 +693,52 @@ export function PipelinePanel() {
               )}
             </div>
 
+            {/* Iteration Tabs */}
+            {currentPlan && currentPlan.iterations && currentPlan.iterations.length > 0 && (
+              <div className="px-4 py-2 border-b border-gray-700 bg-gray-800/20 flex items-center gap-2 overflow-x-auto">
+                <Layers size={14} className="text-gray-400 flex-shrink-0" />
+                <button
+                  onClick={() => setActiveIterationTab(0)}
+                  className={`px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors ${
+                    activeIterationTab === 0
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  初始版本
+                </button>
+                {currentPlan.iterations.map((iteration) => {
+                  const isActive = activeIterationTab === iteration.round_number;
+                  const isCompleted = iteration.status === 'completed';
+                  const isExecuting = iteration.status === 'executing';
+                  return (
+                    <button
+                      key={iteration.round_number}
+                      onClick={() => setActiveIterationTab(iteration.round_number)}
+                      className={`px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
+                        isActive
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      {isCompleted && <CheckCircle size={10} className="text-green-400" />}
+                      {isExecuting && <Loader2 size={10} className="animate-spin text-yellow-400" />}
+                      迭代{iteration.round_number}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Main Content Area - Split View */}
             <div className="flex-1 flex min-h-0">
               {/* Left: Group Chat */}
               <div className="w-1/2 flex flex-col border-r border-gray-700 min-h-0">
                 <div className="p-3 border-b border-gray-700 bg-gray-800/50 flex items-center gap-2 flex-shrink-0">
                   <Users size={16} className="text-blue-400" />
-                  <span className="text-sm font-medium text-white">团队群聊</span>
+                  <span className="text-sm font-medium text-white">
+                    {activeIterationTab === 0 ? '团队群聊' : `迭代${activeIterationTab} 讨论`}
+                  </span>
                   <span className="text-xs text-gray-500">({planDiscussions.length} 条消息)</span>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
@@ -714,13 +798,15 @@ export function PipelinePanel() {
               <div className="w-1/2 flex flex-col min-h-0">
                 <div className="p-3 border-b border-gray-700 bg-gray-800/50 flex items-center gap-2 flex-shrink-0">
                   <CheckCircle size={16} className="text-green-400" />
-                  <span className="text-sm font-medium text-white">任务执行</span>
+                  <span className="text-sm font-medium text-white">
+                    {activeIterationTab === 0 ? '任务执行' : `迭代${activeIterationTab} 任务`}
+                  </span>
                 </div>
                 <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
                   {/* Task List */}
-                  {currentPlan.tasks.length > 0 ? (
+                  {displayTasks.length > 0 ? (
                     <div className="space-y-2">
-                      {currentPlan.tasks.map((task) => {
+                      {displayTasks.map((task) => {
                         const assignedAgent = agents.find((a) => a.id === task.assigned_agent_id);
                         const isRunning = task.status === 'running';
                         const taskStream = streamContent[task.id] || '';
@@ -789,7 +875,11 @@ export function PipelinePanel() {
                     <div className="flex flex-col items-center justify-center h-full text-gray-500">
                       <CheckCircle size={32} className="mb-2 opacity-30" />
                       <p className="text-sm">
-                        {currentPlan.status === 'discussing' ? '计划生成中...' : '等待计划生成...'}
+                        {activeIterationTab > 0
+                          ? '迭代计划生成中...'
+                          : currentPlan.status === 'discussing'
+                          ? '计划生成中...'
+                          : '等待计划生成...'}
                       </p>
                       <p className="text-xs mt-1 text-gray-600">通常 1～2 分钟内完成，超时将自动使用兜底计划</p>
                     </div>

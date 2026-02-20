@@ -71,6 +71,28 @@ export interface PlanTask {
   order: number;
 }
 
+export interface IterationTask {
+  id: string;
+  iteration_round: number;
+  title: string;
+  description?: string;
+  assigned_agent_id?: string;
+  assigned_agent_type?: string;
+  dependencies: string[];
+  status: TaskStatus;
+  order: number;
+}
+
+export interface IterationRound {
+  round_number: number;
+  iteration_request: string;
+  status: PlanStatus;
+  tasks: IterationTask[];
+  discussion: DiscussionMessage[];
+  created_at: string;
+  completed_at?: string;
+}
+
 export interface Plan {
   id: string;
   title: string;
@@ -82,6 +104,9 @@ export interface Plan {
   discussion: DiscussionMessage[];
   is_approved: boolean;
   created_by_agent_id?: string;
+  selected_agent_ids: string[];
+  iterations: IterationRound[];
+  current_iteration_round: number;
   created_at: string;
   updated_at: string;
   started_at?: string;
