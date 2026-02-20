@@ -10,7 +10,7 @@ from app.services.agent_manager import agent_manager
 from app.services.output_manager import output_manager
 from app.models.schemas import (
     AgentType, AgentStatus, TaskStatus, PlanStatus,
-    Plan, PlanTask, PlanCreate, DiscussionMessage
+    Plan, PlanTask, PlanCreate, DiscussionMessage, IterationTask, IterationRound
 )
 from app.llm.glm_client import glm_client
 
@@ -50,6 +50,30 @@ class CoordinatorService:
                     for msg_data in plan_data.get('discussion', []):
                         discussion.append(DiscussionMessage(**msg_data))
                     plan_data['discussion'] = discussion
+
+                    # Convert iterations back to IterationRound objects
+                    iterations = []
+                    for iter_data in plan_data.get('iterations', []):
+                        # Convert iteration tasks
+                        iter_tasks = []
+                        for task_data in iter_data.get('tasks', []):
+                            iter_tasks.append(IterationTask(**task_data))
+                        iter_data['tasks'] = iter_tasks
+
+                        # Convert iteration discussion
+                        iter_discussion = []
+                        for msg_data in iter_data.get('discussion', []):
+                            iter_discussion.append(DiscussionMessage(**msg_data))
+                        iter_data['discussion'] = iter_discussion
+
+                        # Parse datetime strings for iteration
+                        if iter_data.get('created_at'):
+                            iter_data['created_at'] = datetime.fromisoformat(iter_data['created_at'])
+                        if iter_data.get('completed_at'):
+                            iter_data['completed_at'] = datetime.fromisoformat(iter_data['completed_at'])
+
+                        iterations.append(IterationRound(**iter_data))
+                    plan_data['iterations'] = iterations
 
                     # Parse datetime strings
                     if plan_data.get('created_at'):
@@ -1190,16 +1214,15 @@ class CoordinatorService:
             return True
         return False
 
-    async def iterate_plan(self, plan_id: str, iteration_request: str) -> str:
-        """对已完成的 plan 进行迭代
+    async def start_iteration(self, plan_id: str, iteration_request: str) -> str:
+        """对已完成的 plan 进行迭代，走完整流程：分析 -> 讨论 -> 计划 -> 执行
 
         流程：
-        1. 验证 plan 存在且状态为 completed
-        2. 读取现有代码
-        3. 构建迭代 prompt（包含原始需求 + 现有代码 + 新需求）
-        4. 调用 CoderAgent 执行迭代任务
-        5. 保存输出并合并
-        6. 广播完成消息
+        1. 创建新的迭代轮次
+        2. 分析迭代需求
+        3. 组织迭代讨论
+        4. 生成迭代计划
+        5. 执行迭代任务
         """
         plan = self.plans.get(plan_id)
         if not plan:
@@ -1208,34 +1231,9 @@ class CoordinatorService:
         if plan.status != PlanStatus.COMPLETED:
             raise ValueError(f"Plan {plan_id} is not completed (status: {plan.status})")
 
-        # 更新状态为执行中
-        plan.status = PlanStatus.EXECUTING
-        self._save_plans()
-
-        # 广播状态更新
-        await self.broadcast({
-            "type": "plan_update",
-            "data": {
-                "plan_id": plan_id,
-                "status": "executing",
-            }
-        })
-
-        # 发送迭代开始消息
-        await self.add_discussion_message(
-            plan_id=plan_id,
-            agent_id="system",
-            agent_name="系统",
-            agent_type="assistant",
-            content=f"🔄 开始迭代：{iteration_request}",
-            message_type="comment",
-        )
-
-        # 读取现有代码
+        # 读取现有代码作为上下文
         existing_code = output_manager.read_existing_code(plan_id)
         if not existing_code:
-            plan.status = PlanStatus.COMPLETED
-            self._save_plans()
             error_msg = "无法读取现有代码，迭代失败"
             await self.add_discussion_message(
                 plan_id=plan_id,
@@ -1247,40 +1245,595 @@ class CoordinatorService:
             )
             return error_msg
 
-        # 找到 Coder Agent
-        all_agents = agent_manager.get_all_agents()
-        coder = next((a for a in all_agents if a.type == AgentType.CODER), None)
-        if not coder:
+        # 创建新的迭代轮次
+        round_number = len(plan.iterations) + 1
+        iteration_round = IterationRound(
+            round_number=round_number,
+            iteration_request=iteration_request,
+            status=PlanStatus.DRAFT,
+        )
+        plan.iterations.append(iteration_round)
+        plan.current_iteration_round = round_number
+        self._save_plans()
+
+        # 广播迭代开始
+        await self.broadcast({
+            "type": "plan_update",
+            "data": {
+                "plan_id": plan_id,
+                "status": "executing",
+                "iteration_round": round_number,
+            }
+        })
+
+        # 发送迭代开始消息
+        await self._add_iteration_discussion_message(
+            plan_id, round_number,
+            agent_id="system",
+            agent_name="系统",
+            agent_type="assistant",
+            content=f"🔄 开始迭代第 {round_number} 轮\n\n迭代需求：{iteration_request}",
+            message_type="comment",
+        )
+
+        # Phase 1: 分析迭代需求
+        try:
+            await self._analyze_iteration_request(plan_id, iteration_round, existing_code, iteration_request)
+        except Exception as e:
+            print(f"[Coordinator] Error in _analyze_iteration_request: {e}")
+            import traceback
+            traceback.print_exc()
+
+        # Phase 2: 组织迭代讨论
+        try:
+            await self._organize_iteration_discussion(plan_id, iteration_round, existing_code, iteration_request)
+        except Exception as e:
+            print(f"[Coordinator] Error in _organize_iteration_discussion: {e}")
+            import traceback
+            traceback.print_exc()
+
+        # Phase 3: 生成迭代计划
+        try:
+            await self._generate_iteration_plan(plan_id, iteration_round, existing_code, iteration_request)
+        except Exception as e:
+            print(f"[Coordinator] Error in _generate_iteration_plan: {e}")
+            import traceback
+            traceback.print_exc()
+            # 使用兜底任务
+            if not iteration_round.tasks:
+                all_agents = agent_manager.get_all_agents()
+                coder = next((a for a in all_agents if a.type == AgentType.CODER), None)
+                iteration_round.tasks = [
+                    IterationTask(
+                        id=str(uuid.uuid4()),
+                        iteration_round=iteration_round.round_number,
+                        title="实现迭代修改",
+                        description=iteration_request,
+                        assigned_agent_id=coder.id if coder else None,
+                        assigned_agent_type="coder",
+                        order=1,
+                    )
+                ]
+                iteration_round.status = PlanStatus.APPROVED
+                self._save_plans()
+
+        # Phase 4: 执行迭代计划
+        try:
+            await self._execute_iteration_plan(plan_id, iteration_round, existing_code)
+        except Exception as e:
+            print(f"[Coordinator] Error in _execute_iteration_plan: {e}")
+            import traceback
+            traceback.print_exc()
+            # 确保状态恢复为完成
+            iteration_round.status = PlanStatus.COMPLETED
             plan.status = PlanStatus.COMPLETED
             self._save_plans()
-            error_msg = "没有可用的 Coder Agent，迭代失败"
-            await self.add_discussion_message(
-                plan_id=plan_id,
-                agent_id="system",
-                agent_name="系统",
-                agent_type="assistant",
-                content=f"❌ {error_msg}",
+
+        return f"迭代第 {round_number} 轮完成"
+
+    async def _add_iteration_discussion_message(
+        self,
+        plan_id: str,
+        round_number: int,
+        agent_id: str,
+        agent_name: str,
+        agent_type: str,
+        content: str,
+        message_type: str = "comment",
+    ):
+        """添加迭代讨论消息"""
+        plan = self.plans.get(plan_id)
+        if not plan:
+            return
+
+        msg = DiscussionMessage(
+            id=str(uuid.uuid4()),
+            plan_id=plan_id,
+            agent_id=agent_id,
+            agent_name=agent_name,
+            agent_type=agent_type,
+            content=content,
+            message_type=message_type,
+        )
+
+        # 添加到对应迭代轮次的讨论
+        for iteration in plan.iterations:
+            if iteration.round_number == round_number:
+                iteration.discussion.append(msg)
+                break
+
+        plan.updated_at = datetime.utcnow()
+        self._save_plans()
+
+        await self.broadcast({
+            "type": "iteration_discussion",
+            "data": {
+                "plan_id": plan_id,
+                "iteration_round": round_number,
+                "message": msg.model_dump(),
+            }
+        })
+
+    async def _analyze_iteration_request(
+        self,
+        plan_id: str,
+        iteration_round: IterationRound,
+        existing_code: str,
+        iteration_request: str
+    ):
+        """Phase 1: 分析迭代需求"""
+        plan = self.plans.get(plan_id)
+        if not plan:
+            return
+
+        # 找到 Assistant Agent
+        all_agents = agent_manager.get_all_agents()
+        assistant = next((a for a in all_agents if a.type == AgentType.ASSISTANT), None)
+        if not assistant:
+            assistant = all_agents[0] if all_agents else None
+
+        if not assistant:
+            return
+
+        assistant.update_status(AgentStatus.WORKING)
+
+        await self._add_iteration_discussion_message(
+            plan_id, iteration_round.round_number,
+            agent_id=assistant.id,
+            agent_name=assistant.name,
+            agent_type="assistant",
+            content=f"我来分析一下迭代需求：{iteration_request}",
+            message_type="comment",
+        )
+
+        # 截取代码以避免上下文过长
+        code_preview = existing_code[:5000] if len(existing_code) > 5000 else existing_code
+
+        analysis_prompt = f"""请分析以下迭代需求：
+
+原始需求：{plan.original_request}
+
+迭代需求：{iteration_request}
+
+现有代码预览：
+```
+{code_preview}
+```
+
+请输出：
+1. 迭代需求分析（2-3句话概括需要修改什么）
+2. 影响范围（需要修改哪些模块）
+3. 技术建议
+
+保持简洁，不要输出代码。"""
+
+        full_response = ""
+        try:
+            async for chunk in glm_client.chat_stream(analysis_prompt, "assistant"):
+                full_response += chunk
+                await self.broadcast({
+                    "type": "stream",
+                    "data": {
+                        "plan_id": plan_id,
+                        "iteration_round": iteration_round.round_number,
+                        "agent_id": assistant.id,
+                        "content": chunk,
+                    }
+                })
+        except Exception as e:
+            print(f"[Coordinator] Error in _analyze_iteration_request: {e}")
+            full_response = f"分析出错: {str(e)}"
+
+        await self._add_iteration_discussion_message(
+            plan_id, iteration_round.round_number,
+            agent_id=assistant.id,
+            agent_name=assistant.name,
+            agent_type="assistant",
+            content=full_response,
+            message_type="proposal",
+        )
+
+        iteration_round.status = PlanStatus.DISCUSSING
+        self._save_plans()
+        assistant.update_status(AgentStatus.IDLE)
+
+    async def _organize_iteration_discussion(
+        self,
+        plan_id: str,
+        iteration_round: IterationRound,
+        existing_code: str,
+        iteration_request: str
+    ):
+        """Phase 2: 组织迭代讨论"""
+        plan = self.plans.get(plan_id)
+        if not plan:
+            return
+
+        # 获取选中的 agents
+        all_agents = agent_manager.get_all_agents()
+        if plan.selected_agent_ids:
+            selected_agents = [a for a in all_agents if a.id in plan.selected_agent_ids]
+        else:
+            selected_agents = all_agents
+
+        if not selected_agents:
+            return
+
+        # 找到 assistant
+        assistant = next((a for a in selected_agents if a.type == AgentType.ASSISTANT), None)
+        if not assistant:
+            assistant = selected_agents[0]
+
+        # Assistant 发起讨论
+        await self._add_iteration_discussion_message(
+            plan_id, iteration_round.round_number,
+            agent_id=assistant.id,
+            agent_name=assistant.name,
+            agent_type=assistant.type.value,
+            content=f"各位，针对这次迭代需求「{iteration_request}」，请发表你们的看法。",
+            message_type="question",
+        )
+
+        # Agent 类型的 prompt 模板
+        agent_prompts = {
+            AgentType.CODER: """作为代码开发专家，请针对以下迭代需求给出你的技术建议：
+
+迭代需求：{request}
+
+请简短说明：
+1. 推荐的修改方案
+2. 需要注意的风险点
+3. 实现步骤建议
+
+保持简洁，每项1-2句话。""",
+
+            AgentType.ANALYST: """作为数据分析师，请针对以下迭代需求给出你的分析：
+
+迭代需求：{request}
+
+请简短说明：
+1. 迭代可行性评估
+2. 潜在影响
+3. 建议
+
+保持简洁，每项1-2句话。""",
+
+            AgentType.TESTER: """作为测试工程师，请针对以下迭代需求给出你的测试建议：
+
+迭代需求：{request}
+
+请简短说明：
+1. 需要测试的变更点
+2. 测试场景建议
+3. 质量保证建议
+
+保持简洁，每项1-2句话。""",
+
+            AgentType.ASSISTANT: """作为项目助手，请针对以下迭代需求给出你的建议：
+
+迭代需求：{request}
+
+请简短说明你的专业观点和建议。保持简洁。""",
+        }
+
+        # 让每个 agent（除 assistant）参与讨论
+        for agent in selected_agents:
+            if agent.id == assistant.id:
+                continue
+
+            agent.update_status(AgentStatus.WORKING)
+
+            prompt_template = agent_prompts.get(agent.type)
+            if not prompt_template:
+                prompt_template = f"""作为{agent.name}，请针对以下迭代需求给出你的专业建议：
+
+迭代需求：{{request}}
+
+请简短说明你的专业观点和建议。保持简洁。"""
+
+            prompt = prompt_template.format(request=iteration_request)
+
+            if agent.custom_prompt:
+                prompt = f"{agent.custom_prompt}\n\n{prompt}"
+
+            response = ""
+            try:
+                async def _collect_response():
+                    nonlocal response
+                    async for chunk in glm_client.chat_stream(prompt, agent.type.value):
+                        response += chunk
+                await asyncio.wait_for(_collect_response(), timeout=60)
+            except asyncio.TimeoutError:
+                response = f"(该 Agent 回复超时，已跳过)"
+            except Exception as e:
+                response = f"(回复出错: {str(e)[:100]})"
+
+            await self._add_iteration_discussion_message(
+                plan_id, iteration_round.round_number,
+                agent_id=agent.id,
+                agent_name=agent.name,
+                agent_type=agent.type.value,
+                content=response,
+                message_type="proposal",
+            )
+            agent.update_status(AgentStatus.IDLE)
+
+        # Assistant 总结
+        await self._add_iteration_discussion_message(
+            plan_id, iteration_round.round_number,
+            agent_id=assistant.id,
+            agent_name=assistant.name,
+            agent_type=assistant.type.value,
+            content="感谢各位的建议。我来总结一下，形成迭代计划。",
+            message_type="comment",
+        )
+
+    async def _generate_iteration_plan(
+        self,
+        plan_id: str,
+        iteration_round: IterationRound,
+        existing_code: str,
+        iteration_request: str
+    ):
+        """Phase 3: 生成迭代计划"""
+        plan = self.plans.get(plan_id)
+        if not plan:
+            return
+
+        # 获取选中的 agents
+        all_agents = agent_manager.get_all_agents()
+        if plan.selected_agent_ids:
+            selected_agents = [a for a in all_agents if a.id in plan.selected_agent_ids]
+        else:
+            selected_agents = all_agents
+
+        # 找到 assistant
+        assistant = next((a for a in selected_agents if a.type == AgentType.ASSISTANT), None)
+        if not assistant and selected_agents:
+            assistant = selected_agents[0]
+
+        if not assistant:
+            return
+
+        # 构建 agent 类型映射
+        agents_by_type = {}
+        for agent in selected_agents:
+            agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
+            if agent_type not in agents_by_type:
+                agents_by_type[agent_type] = agent
+
+        assistant.update_status(AgentStatus.WORKING)
+
+        # 编译讨论摘要
+        discussion_summary = "\n".join([
+            f"[{msg.agent_name}]: {msg.content}"
+            for msg in iteration_round.discussion[-5:]
+        ])
+
+        available_agent_types = list(agents_by_type.keys())
+        agent_types_str = "/".join(available_agent_types)
+
+        # 截取代码
+        code_preview = existing_code[:3000] if len(existing_code) > 3000 else existing_code
+
+        plan_prompt = f"""基于以下信息，请生成迭代执行计划：
+
+原始需求：{plan.original_request}
+迭代需求：{iteration_request}
+
+现有代码预览：
+```
+{code_preview}
+```
+
+讨论摘要：
+{discussion_summary}
+
+可用的Agent类型：{agent_types_str}
+
+⚠️ 迭代任务要求：
+1. 任务数量控制在3-5个以内，聚焦于迭代需求
+2. 每个任务应该是一个具体的修改点
+3. 优先分配给 coder 类型 agent
+
+请以JSON格式输出执行计划：
+{{
+  "tasks": [
+    {{
+      "title": "任务标题",
+      "description": "任务描述",
+      "assigned_agent_type": "coder",
+      "order": 1
+    }}
+  ]
+}}"""
+
+        full_response = ""
+        try:
+            async def _stream_plan_response():
+                nonlocal full_response
+                async for chunk in glm_client.chat_stream(plan_prompt, "assistant"):
+                    full_response += chunk
+                return full_response
+
+            full_response = await asyncio.wait_for(_stream_plan_response(), timeout=60)
+        except asyncio.TimeoutError:
+            full_response = ""
+        except Exception as e:
+            full_response = ""
+
+        # 解析 JSON
+        try:
+            if full_response and "{" in full_response and "}" in full_response:
+                json_start = full_response.find("{")
+                json_end = full_response.rfind("}") + 1
+                json_str = full_response[json_start:json_end]
+                plan_data = json.loads(json_str)
+
+                for i, task_data in enumerate(plan_data.get("tasks", [])):
+                    agent_type_str = task_data.get("assigned_agent_type", "coder")
+                    assigned_agent = agents_by_type.get(agent_type_str)
+                    assigned_agent_id = assigned_agent.id if assigned_agent else None
+
+                    iteration_round.tasks.append(IterationTask(
+                        id=str(uuid.uuid4()),
+                        iteration_round=iteration_round.round_number,
+                        title=task_data.get("title", "未命名任务"),
+                        description=task_data.get("description", ""),
+                        assigned_agent_id=assigned_agent_id,
+                        assigned_agent_type=agent_type_str,
+                        order=i + 1,
+                    ))
+
+            # 如果没有解析到任务，使用兜底任务
+            if not iteration_round.tasks:
+                raise ValueError("No tasks parsed from response")
+
+        except Exception as e:
+            print(f"[Coordinator] _generate_iteration_plan parse error: {e}, using fallback")
+            # 使用兜底任务 - 确保总是有任务
+            fallback_agent = agents_by_type.get("coder") or agents_by_type.get("assistant") or (selected_agents[0] if selected_agents else None)
+
+            # 如果还是没有 agent，从所有 agent 中找一个
+            if not fallback_agent:
+                all_agents_list = agent_manager.get_all_agents()
+                fallback_agent = next((a for a in all_agents_list if a.type == AgentType.CODER), None)
+                if not fallback_agent:
+                    fallback_agent = all_agents_list[0] if all_agents_list else None
+
+            iteration_round.tasks = [
+                IterationTask(
+                    id=str(uuid.uuid4()),
+                    iteration_round=iteration_round.round_number,
+                    title="实现迭代修改",
+                    description=iteration_request,
+                    assigned_agent_id=fallback_agent.id if fallback_agent else None,
+                    assigned_agent_type=fallback_agent.type.value if fallback_agent else "coder",
+                    order=1,
+                )
+            ]
+            print(f"[Coordinator] Created fallback task with agent: {fallback_agent.name if fallback_agent else 'None'}")
+
+        iteration_round.status = PlanStatus.APPROVED
+        self._save_plans()
+
+        await self.broadcast({
+            "type": "plan_update",
+            "data": {
+                "plan_id": plan_id,
+                "plan": plan.model_dump(),
+            }
+        })
+
+        assistant.update_status(AgentStatus.IDLE)
+
+    async def _execute_iteration_plan(
+        self,
+        plan_id: str,
+        iteration_round: IterationRound,
+        existing_code: str
+    ):
+        """Phase 4: 执行迭代计划"""
+        plan = self.plans.get(plan_id)
+        if not plan:
+            return
+
+        iteration_round.status = PlanStatus.EXECUTING
+        self._save_plans()
+
+        await self._add_iteration_discussion_message(
+            plan_id, iteration_round.round_number,
+            agent_id="system",
+            agent_name="系统",
+            agent_type="assistant",
+            content=f"🚀 开始执行迭代计划，共 {len(iteration_round.tasks)} 个任务。",
+            message_type="comment",
+        )
+
+        await self.broadcast({
+            "type": "plan_update",
+            "data": {
+                "plan_id": plan_id,
+                "status": "executing",
+                "iteration_round": iteration_round.round_number,
+            }
+        })
+
+        # 按顺序执行任务
+        sorted_tasks = sorted(iteration_round.tasks, key=lambda t: t.order)
+        current_code = existing_code
+
+        for task in sorted_tasks:
+            if not task.assigned_agent_id:
+                continue
+
+            agent = agent_manager.get_agent(task.assigned_agent_id)
+            if not agent:
+                continue
+
+            agent.update_status(AgentStatus.WORKING)
+            task.status = TaskStatus.RUNNING
+
+            await self._add_iteration_discussion_message(
+                plan_id, iteration_round.round_number,
+                agent_id=agent.id,
+                agent_name=agent.name,
+                agent_type=agent.type.value,
+                content=f"📝 开始任务：{task.title}",
                 message_type="comment",
             )
-            return error_msg
 
-        # 构建迭代 prompt
-        iteration_prompt = f"""你是专业的游戏开发工程师。现在需要基于现有代码进行迭代修改。
+            await self.broadcast({
+                "type": "iteration_task_update",
+                "data": {
+                    "plan_id": plan_id,
+                    "iteration_round": iteration_round.round_number,
+                    "task_id": task.id,
+                    "status": "running",
+                }
+            })
+
+            # 构建迭代任务描述
+            iteration_prompt = f"""你是专业的开发工程师。现在需要基于现有代码进行迭代修改。
 
 ## 原始需求
 {plan.original_request}
 
+## 迭代需求
+{iteration_round.iteration_request}
+
+## 当前任务
+{task.title}
+{task.description or ''}
+
 ## 现有代码
 ```
-{existing_code}
+{current_code}
 ```
-
-## 新的迭代需求
-{iteration_request}
 
 ## 任务要求
 1. 保持现有代码的核心功能和结构
-2. 只修改必要的部分以满足新需求
+2. 只修改必要的部分以满足迭代需求中的当前任务
 3. 确保修改后的代码仍然是完整的单文件 HTML
 4. 所有 CSS 和 JS 必须内联
 5. 代码必须可以直接在浏览器中运行
@@ -1288,105 +1841,141 @@ class CoordinatorService:
 
 请输出完整的更新后的 HTML 代码。"""
 
-        # 执行迭代任务
-        coder.update_status(AgentStatus.WORKING)
-        full_response = ""
+            full_response = ""
+            task_timeout = 600  # 10 分钟超时
 
-        try:
-            async for update in coder.execute_task(iteration_prompt):
-                if update["type"] == "stream":
-                    full_response += update["content"]
-                    await self.broadcast({
-                        "type": "stream",
-                        "data": {
-                            "plan_id": plan_id,
-                            "agent_id": coder.id,
-                            "content": update["content"],
-                        }
-                    })
-        except Exception as e:
-            print(f"[Coordinator] Error in iterate_plan: {e}")
-            full_response = f"迭代出错: {str(e)}"
-        finally:
-            coder.update_status(AgentStatus.IDLE)
-
-        # 检查是否有错误
-        has_error = "错误" in full_response or "error" in full_response.lower() or "余额不足" in full_response
-
-        # 保存迭代后的代码
-        iteration_success = False
-        if full_response and '<html' in full_response.lower() and not has_error:
             try:
-                # 提取 HTML 代码
-                html_match = re.search(
-                    r'(<(!DOCTYPE\s+)?html.*?</html>)',
+                async def execute_with_timeout():
+                    nonlocal full_response
+                    async for update in agent.execute_task(iteration_prompt):
+                        if update["type"] == "stream":
+                            full_response += update["content"]
+                            await self.broadcast({
+                                "type": "stream",
+                                "data": {
+                                    "plan_id": plan_id,
+                                    "iteration_round": iteration_round.round_number,
+                                    "task_id": task.id,
+                                    "agent_id": agent.id,
+                                    "content": update["content"],
+                                }
+                            })
+
+                await asyncio.wait_for(execute_with_timeout(), timeout=task_timeout)
+
+            except asyncio.TimeoutError:
+                full_response = f"任务超时（{task_timeout}秒）"
+            except Exception as e:
+                full_response = f"任务执行出错：{str(e)}"
+            finally:
+                agent.update_status(AgentStatus.IDLE)
+
+            # 检查是否有有效代码
+            if full_response and '<html' in full_response.lower() and "错误" not in full_response[:100]:
+                # 先尝试从 markdown 代码块中提取
+                code_block_match = re.search(
+                    r'```(?:html)?\s*\n(.*?)```',
                     full_response,
                     re.IGNORECASE | re.DOTALL
                 )
+                extract_from = code_block_match.group(1) if code_block_match else full_response
+
+                # 提取 HTML 代码
+                html_match = re.search(
+                    r'(<(!DOCTYPE\s+)?html.*?</html>)',
+                    extract_from,
+                    re.IGNORECASE | re.DOTALL
+                )
                 if html_match:
-                    new_html = html_match.group(1)
+                    current_code = html_match.group(1)
+                elif code_block_match:
+                    # 如果代码块中没有完整的html标签，使用代码块内容
+                    current_code = code_block_match.group(1).strip()
                 else:
-                    new_html = full_response
+                    current_code = full_response
 
-                # 保存到输出目录
-                plan_dir = output_manager.get_output_path(plan_id)
-                index_path = os.path.join(plan_dir, "index.html")
+                # 只有当提取的内容是有效的 HTML 时才更新
+                is_valid_html = current_code.strip().lower().startswith('<!doctype') or \
+                               current_code.strip().lower().startswith('<html')
 
-                with open(index_path, 'w', encoding='utf-8') as f:
-                    f.write(new_html)
+                if is_valid_html:
+                    task.status = TaskStatus.COMPLETED
 
-                print(f"[Coordinator] Saved iterated code to {index_path}")
-                iteration_success = True
-            except Exception as e:
-                print(f"[Coordinator] Error saving iterated code: {e}")
+                    # 保存到输出目录
+                    try:
+                        plan_dir = output_manager.get_output_path(plan_id)
+                        index_path = os.path.join(plan_dir, "index.html")
+                        with open(index_path, 'w', encoding='utf-8') as f:
+                            f.write(current_code)
+                    except Exception as e:
+                        print(f"[Coordinator] Error saving iteration code: {e}")
+                else:
+                    # 测试报告等非代码输出，标记完成但不更新代码
+                    task.status = TaskStatus.COMPLETED
+                    print(f"[Coordinator] Task output is not valid HTML, skipping index.html update")
 
-        if not iteration_success:
-            print(f"[Coordinator] No valid HTML in response, saving as markdown")
-            # 保存为 markdown
-            plan_dir = output_manager.get_output_path(plan_id)
-            iter_path = os.path.join(plan_dir, f"iteration_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.md")
-            with open(iter_path, 'w', encoding='utf-8') as f:
-                f.write(f"# 迭代记录\n\n**需求**: {iteration_request}\n\n**响应**:\n\n{full_response}")
+                await self._add_iteration_discussion_message(
+                    plan_id, iteration_round.round_number,
+                    agent_id=agent.id,
+                    agent_name=agent.name,
+                    agent_type=agent.type.value,
+                    content=f"✅ 完成任务：{task.title}",
+                    message_type="comment",
+                )
+            else:
+                task.status = TaskStatus.FAILED
+                await self._add_iteration_discussion_message(
+                    plan_id, iteration_round.round_number,
+                    agent_id=agent.id,
+                    agent_name=agent.name,
+                    agent_type=agent.type.value,
+                    content=f"❌ 任务失败：{task.title}\n\n{full_response[:200]}",
+                    message_type="comment",
+                )
 
-        # 恢复状态为完成
+            self._save_plans()
+
+            await self.broadcast({
+                "type": "iteration_task_update",
+                "data": {
+                    "plan_id": plan_id,
+                    "iteration_round": iteration_round.round_number,
+                    "task_id": task.id,
+                    "status": task.status.value,
+                }
+            })
+
+        # 迭代完成
+        iteration_round.status = PlanStatus.COMPLETED
+        iteration_round.completed_at = datetime.utcnow()
         plan.status = PlanStatus.COMPLETED
         plan.updated_at = datetime.utcnow()
         self._save_plans()
 
-        # 发送结果消息
         preview_url = f"/api/pipeline/output/{plan_id}/files/index.html"
-        if iteration_success:
-            await self.add_discussion_message(
-                plan_id=plan_id,
-                agent_id=coder.id,
-                agent_name=coder.name,
-                agent_type=coder.type.value,
-                content=f"✅ 迭代完成！\n\n新的预览地址: http://localhost:8000{preview_url}",
-                message_type="comment",
-            )
-        else:
-            # 提取错误信息
-            error_summary = full_response[:200] if len(full_response) > 200 else full_response
-            await self.add_discussion_message(
-                plan_id=plan_id,
-                agent_id="system",
-                agent_name="系统",
-                agent_type="assistant",
-                content=f"❌ 迭代失败\n\n错误信息: {error_summary}\n\n请检查 API 配额或稍后重试。",
-                message_type="comment",
-            )
+        await self._add_iteration_discussion_message(
+            plan_id, iteration_round.round_number,
+            agent_id="system",
+            agent_name="系统",
+            agent_type="assistant",
+            content=f"🎉 迭代第 {iteration_round.round_number} 轮完成！\n\n🌐 预览地址: http://localhost:8000{preview_url}",
+            message_type="comment",
+        )
 
-        # 广播完成
         await self.broadcast({
             "type": "plan_update",
             "data": {
                 "plan_id": plan_id,
                 "status": "completed",
-                "output_url": preview_url if iteration_success else None,
+                "iteration_round": iteration_round.round_number,
+                "output_url": preview_url,
             }
         })
 
-        return "迭代完成"
+    # 保留旧方法作为兼容
+    async def iterate_plan(self, plan_id: str, iteration_request: str) -> str:
+        """对已完成的 plan 进行迭代（兼容旧接口）"""
+        return await self.start_iteration(plan_id, iteration_request)
 
 
 # Global instance
