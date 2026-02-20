@@ -5,8 +5,12 @@ from typing import Optional
 class Settings(BaseSettings):
     # GLM API Configuration
     glm_api_key: str = ""
-    glm_model: str = "glm-4"
-    glm_base_url: str = ""  # Coding Plan 端点: https://open.bigmodel.cn/api/coding/paas/v4
+    glm_model: str = "glm-4-flash"  # 用于分析、讨论、计划生成
+    glm_base_url: str = ""  # 可选的备用端点
+
+    # GLM Coding Model (用于代码生成，更强的能力)
+    glm_coding_model: str = "glm-5"  # 代码生成专用模型
+    glm_coding_base_url: str = "https://open.bigmodel.cn/api/coding/paas/v4"  # Coding Plan 端点
 
     # Server Configuration
     host: str = "0.0.0.0"

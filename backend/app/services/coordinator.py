@@ -12,7 +12,7 @@ from app.models.schemas import (
     AgentType, AgentStatus, TaskStatus, PlanStatus,
     Plan, PlanTask, PlanCreate, DiscussionMessage, IterationTask, IterationRound
 )
-from app.llm.glm_client import glm_client
+from app.llm.glm_client import glm_client, glm_coding_client
 
 # Storage path for plan persistence
 PLANS_STORAGE_FILE = Path(__file__).parent.parent.parent / "data" / "plans.json"
@@ -1874,19 +1874,19 @@ class CoordinatorService:
             try:
                 async def execute_with_timeout():
                     nonlocal full_response
-                    async for update in agent.execute_task(iteration_prompt):
-                        if update["type"] == "stream":
-                            full_response += update["content"]
-                            await self.broadcast({
-                                "type": "stream",
-                                "data": {
-                                    "plan_id": plan_id,
-                                    "iteration_round": iteration_round.round_number,
-                                    "task_id": task.id,
-                                    "agent_id": agent.id,
-                                    "content": update["content"],
-                                }
-                            })
+                    # 使用 glm_coding_client (GLM-5 + Coding Plan) 进行代码生成
+                    async for chunk in glm_coding_client.chat_stream(iteration_prompt, agent.type.value):
+                        full_response += chunk
+                        await self.broadcast({
+                            "type": "stream",
+                            "data": {
+                                "plan_id": plan_id,
+                                "iteration_round": iteration_round.round_number,
+                                "task_id": task.id,
+                                "agent_id": agent.id,
+                                "content": chunk,
+                            }
+                        })
 
                 await asyncio.wait_for(execute_with_timeout(), timeout=task_timeout)
 

@@ -10,10 +10,16 @@ from app.config import settings
 
 
 class GLMClient:
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, base_url: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, base_url: Optional[str] = None, is_coding: bool = False):
         self.api_key = api_key or settings.glm_api_key
-        self.model = model or settings.glm_model
-        self.base_url = base_url or settings.glm_base_url or None
+
+        # 根据用途选择模型和端点
+        if is_coding:
+            self.model = model or settings.glm_coding_model
+            self.base_url = base_url or settings.glm_coding_base_url or None
+        else:
+            self.model = model or settings.glm_model
+            self.base_url = base_url or settings.glm_base_url or None
 
         # 配置代理 - 优先使用 HTTP 代理，避免 SOCKS 依赖问题
         http_proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
@@ -205,5 +211,6 @@ class GLMClient:
         yield {"type": "complete", "content": full_response}
 
 
-# Global instance
-glm_client = GLMClient()
+# Global instances
+glm_client = GLMClient()  # 用于分析、讨论、计划生成 (glm-4-flash)
+glm_coding_client = GLMClient(is_coding=True)  # 用于代码生成 (glm-5 + coding plan)
