@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     # GLM API Configuration
     glm_api_key: str = ""
     glm_model: str = "glm-4"
+    glm_base_url: str = ""  # Coding Plan 端点: https://open.bigmodel.cn/api/coding/paas/v4
 
     # Server Configuration
     host: str = "0.0.0.0"

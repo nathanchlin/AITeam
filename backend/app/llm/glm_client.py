@@ -4,14 +4,45 @@ import json
 import asyncio
 import threading
 import time
+import os
+import httpx
 from app.config import settings
 
 
 class GLMClient:
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None):
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, base_url: Optional[str] = None):
         self.api_key = api_key or settings.glm_api_key
         self.model = model or settings.glm_model
-        self.client = ZhipuAI(api_key=self.api_key) if self.api_key else None
+        self.base_url = base_url or settings.glm_base_url or None
+
+        # 配置代理 - 优先使用 HTTP 代理，避免 SOCKS 依赖问题
+        http_proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
+        https_proxy = os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
+
+        # 如果有 HTTP 代理，使用它；否则尝试不使用代理
+        proxy_config = None
+        if https_proxy:
+            proxy_config = https_proxy
+        elif http_proxy:
+            proxy_config = http_proxy
+
+        try:
+            if proxy_config:
+                # 使用代理
+                http_client = httpx.Client(proxy=proxy_config)
+                print(f"[GLMClient] Using proxy: {proxy_config}")
+            else:
+                # 不使用代理
+                http_client = httpx.Client(trust_env=False)
+            self.client = ZhipuAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                http_client=http_client
+            ) if self.api_key else None
+        except Exception as e:
+            print(f"[GLMClient] Error creating http client: {e}")
+            # 回退到默认客户端
+            self.client = ZhipuAI(api_key=self.api_key, base_url=self.base_url) if self.api_key else None
 
     def _get_system_prompt(self, agent_type: str, custom_prompt: Optional[str] = None) -> str:
         base_prompts = {
