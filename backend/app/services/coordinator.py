@@ -1699,19 +1699,33 @@ class CoordinatorService:
                 json_str = full_response[json_start:json_end]
                 plan_data = json.loads(json_str)
 
-                for i, task_data in enumerate(plan_data.get("tasks", [])):
+                # 排除用户测试类型任务的关键词
+                user_test_keywords = ["用户测试", "用户反馈", "反馈调整", "测试与反馈", "收集反馈"]
+
+                task_order = 0
+                for task_data in plan_data.get("tasks", []):
+                    title = task_data.get("title", "")
+                    description = task_data.get("description", "")
+
+                    # 跳过用户测试类型任务（这类任务需要用户主动操作，不应自动执行）
+                    task_text = f"{title} {description}"
+                    if any(keyword in task_text for keyword in user_test_keywords):
+                        print(f"[Coordinator] Skipping user test task: {title}")
+                        continue
+
                     agent_type_str = task_data.get("assigned_agent_type", "coder")
                     assigned_agent = agents_by_type.get(agent_type_str)
                     assigned_agent_id = assigned_agent.id if assigned_agent else None
 
+                    task_order += 1
                     iteration_round.tasks.append(IterationTask(
                         id=str(uuid.uuid4()),
                         iteration_round=iteration_round.round_number,
-                        title=task_data.get("title", "未命名任务"),
-                        description=task_data.get("description", ""),
+                        title=title or "未命名任务",
+                        description=description,
                         assigned_agent_id=assigned_agent_id,
                         assigned_agent_type=agent_type_str,
-                        order=i + 1,
+                        order=task_order,
                     ))
 
             # 如果没有解析到任务，使用兜底任务
