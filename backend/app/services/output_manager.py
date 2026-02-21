@@ -1,9 +1,13 @@
 import os
 import json
+import hashlib
+import zipfile
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 import re
+import difflib
 
 
 def _default_output_dir() -> str:
@@ -498,12 +502,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     # ==================== Archive Management ====================
 
-    def save_iteration_archive(self, plan_id: str, round_number: int) -> Optional[str]:
+    def save_iteration_archive(self, plan_id: str, round_number: int, custom_name: Optional[str] = None, description: Optional[str] = None) -> Optional[str]:
         """保存当前 index.html 到存档目录
 
         Args:
             plan_id: 计划 ID
             round_number: 迭代轮次（0 表示初始版本）
+            custom_name: 自定义名称（可选）
+            description: 存档描述（可选）
 
         Returns:
             存档相对路径（如 "archive/initial" 或 "archive/iteration_1"），失败返回 None
@@ -529,6 +535,19 @@ document.addEventListener('DOMContentLoaded', function() {
         try:
             import shutil
             shutil.copy2(index_path, archive_path)
+
+            # Calculate checksum and save metadata
+            checksum = self._calculate_checksum(archive_path)
+            metadata = {
+                "round_number": round_number,
+                "archive_name": archive_name,
+                "created_at": datetime.now().isoformat(),
+                "checksum": checksum,
+                "custom_name": custom_name,
+                "description": description,
+            }
+            self._save_archive_metadata(archive_dir, metadata)
+
             print(f"[OutputManager] Archive saved: {archive_path}")
             return f"archive/{archive_name}"
         except Exception as e:
@@ -610,14 +629,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 stat = os.stat(index_path)
                 modified_time = datetime.fromtimestamp(stat.st_mtime).isoformat()
 
-                archives.append({
+                # 加载元数据
+                metadata = self._load_archive_metadata(archive_dir)
+
+                archive_info = {
                     "round_number": round_number,
                     "label": label,
                     "archive_name": name,
                     "archive_path": f"archive/{name}",
                     "size": stat.st_size,
                     "modified_at": modified_time,
-                })
+                    "custom_name": metadata.get("custom_name"),
+                    "description": metadata.get("description"),
+                    "checksum": metadata.get("checksum"),
+                }
+
+                archives.append(archive_info)
         except Exception as e:
             print(f"[OutputManager] List archives error: {e}")
 
@@ -652,7 +679,232 @@ document.addEventListener('DOMContentLoaded', function() {
             print(f"[OutputManager] Read archive error: {e}")
             return None
 
-    # ==================== End Archive Management ====================
+    def _calculate_checksum(self, file_path: str) -> str:
+        """计算文件的 MD5 校验和"""
+        hash_md5 = hashlib.md5()
+        try:
+            with open(file_path, 'rb') as f:
+                for chunk in iter(lambda: f.read(4096), b''):
+                    hash_md5.update(chunk)
+            return hash_md5.hexdigest()
+        except Exception as e:
+            print(f"[OutputManager] Checksum calculation error: {e}")
+            return ""
+
+    def _get_metadata_path(self, archive_dir: str) -> str:
+        """获取存档元数据文件路径"""
+        return os.path.join(archive_dir, "metadata.json")
+
+    def _save_archive_metadata(self, archive_dir: str, metadata: Dict[str, Any]) -> bool:
+        """保存存档元数据"""
+        try:
+            metadata_path = self._get_metadata_path(archive_dir)
+            with open(metadata_path, 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, ensure_ascii=False, indent=2)
+            return True
+        except Exception as e:
+            print(f"[OutputManager] Save metadata error: {e}")
+            return False
+
+    def _load_archive_metadata(self, archive_dir: str) -> Dict[str, Any]:
+        """加载存档元数据"""
+        metadata_path = self._get_metadata_path(archive_dir)
+        if os.path.exists(metadata_path):
+            try:
+                with open(metadata_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception as e:
+                print(f"[OutputManager] Load metadata error: {e}")
+        return {}
+
+    def validate_archive(self, plan_id: str, round_number: int) -> Dict[str, Any]:
+        """验证存档完整性
+
+        Args:
+            plan_id: 计划 ID
+            round_number: 迭代轮次
+
+        Returns:
+            验证结果字典
+        """
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+
+        if round_number == 0:
+            archive_name = "initial"
+        else:
+            archive_name = f"iteration_{round_number}"
+
+        archive_dir = os.path.join(plan_dir, "archive", archive_name)
+        archive_path = os.path.join(archive_dir, "index.html")
+
+        result = {
+            "round_number": round_number,
+            "valid": True,
+            "checksum_match": True,
+            "file_exists": True,
+            "errors": [],
+            "warnings": [],
+        }
+
+        # Check if archive file exists
+        if not os.path.exists(archive_path):
+            result["valid"] = False
+            result["file_exists"] = False
+            result["errors"].append(f"存档文件不存在: {archive_path}")
+            return result
+
+        # Load metadata and verify checksum
+        metadata = self._load_archive_metadata(archive_dir)
+        if metadata and "checksum" in metadata:
+            current_checksum = self._calculate_checksum(archive_path)
+            if current_checksum != metadata["checksum"]:
+                result["valid"] = False
+                result["checksum_match"] = False
+                result["warnings"].append("存档校验和不匹配，文件可能已被修改")
+        else:
+            result["warnings"].append("存档缺少校验和信息（可能是旧版本存档）")
+
+        # Check file is readable
+        try:
+            with open(archive_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            if len(content) < 100:
+                result["warnings"].append("存档文件内容过小，可能不完整")
+        except Exception as e:
+            result["valid"] = False
+            result["errors"].append(f"无法读取存档文件: {str(e)}")
+
+        return result
+
+    def delete_archive(self, plan_id: str, round_number: int) -> bool:
+        """删除存档
+
+        Args:
+            plan_id: 计划 ID
+            round_number: 迭代轮次
+
+        Returns:
+            是否删除成功
+        """
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+
+        if round_number == 0:
+            archive_name = "initial"
+        else:
+            archive_name = f"iteration_{round_number}"
+
+        archive_dir = os.path.join(plan_dir, "archive", archive_name)
+
+        if not os.path.exists(archive_dir):
+            print(f"[OutputManager] Delete failed: archive not found at {archive_dir}")
+            return False
+
+        try:
+            import shutil
+            shutil.rmtree(archive_dir)
+            print(f"[OutputManager] Archive deleted: {archive_dir}")
+            return True
+        except Exception as e:
+            print(f"[OutputManager] Delete archive error: {e}")
+            return False
+
+    def get_archive_as_zip(self, plan_id: str, round_number: int) -> Optional[str]:
+        """将存档打包为 zip 文件
+
+        Args:
+            plan_id: 计划 ID
+            round_number: 迭代轮次
+
+        Returns:
+            zip 文件路径，失败返回 None
+        """
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+
+        if round_number == 0:
+            archive_name = "initial"
+        else:
+            archive_name = f"iteration_{round_number}"
+
+        archive_dir = os.path.join(plan_dir, "archive", archive_name)
+
+        if not os.path.exists(archive_dir):
+            return None
+
+        try:
+            # Create temp zip file
+            temp_dir = tempfile.gettempdir()
+            zip_filename = f"archive_{plan_id[:8]}_{archive_name}.zip"
+            zip_path = os.path.join(temp_dir, zip_filename)
+
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for root, dirs, files in os.walk(archive_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        arcname = os.path.relpath(file_path, archive_dir)
+                        zipf.write(file_path, arcname)
+
+            return zip_path
+        except Exception as e:
+            print(f"[OutputManager] Create zip error: {e}")
+            return None
+
+    def get_archive_diff(self, plan_id: str, from_round: int, to_round: int) -> Dict[str, Any]:
+        """对比两个存档版本差异
+
+        Args:
+            plan_id: 计划 ID
+            from_round: 起始轮次
+            to_round: 目标轮次
+
+        Returns:
+            差异对比结果
+        """
+        from_content = self.get_archive_content(plan_id, from_round)
+        to_content = self.get_archive_content(plan_id, to_round)
+
+        result = {
+            "from_round": from_round,
+            "to_round": to_round,
+            "from_size": len(from_content) if from_content else 0,
+            "to_size": len(to_content) if to_content else 0,
+            "additions": 0,
+            "deletions": 0,
+            "diff_lines": [],
+        }
+
+        if not from_content or not to_content:
+            result["errors"] = []
+            if not from_content:
+                result["errors"].append(f"存档 round {from_round} 不存在或无法读取")
+            if not to_content:
+                result["errors"].append(f"存档 round {to_round} 不存在或无法读取")
+            return result
+
+        # Calculate diff
+        from_lines = from_content.splitlines(keepends=True)
+        to_lines = to_content.splitlines(keepends=True)
+
+        diff = list(difflib.unified_diff(
+            from_lines,
+            to_lines,
+            fromfile=f"round_{from_round}",
+            tofile=f"round_{to_round}",
+            lineterm=''
+        ))
+
+        # Count additions and deletions
+        for line in diff:
+            if line.startswith('+') and not line.startswith('+++'):
+                result["additions"] += 1
+            elif line.startswith('-') and not line.startswith('---'):
+                result["deletions"] += 1
+
+        # Limit diff output to 500 lines for display
+        result["diff_lines"] = diff[:500]
+        if len(diff) > 500:
+            result["diff_lines"].append(f"... ({len(diff) - 500} more lines)")
+
+        return result
 
     def pre_test_validation(self, plan_id: str) -> Dict[str, Any]:
         """Pre-test validation to ensure code is complete and error-free"""

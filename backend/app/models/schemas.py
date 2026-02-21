@@ -226,3 +226,44 @@ class PipelineRequest(BaseModel):
 class IterationRequest(BaseModel):
     """Request to iterate on a completed plan"""
     iteration_request: str = Field(..., min_length=1, max_length=2000)
+
+
+# Archive Management
+class ArchiveInfo(BaseModel):
+    """存档信息"""
+    round_number: int
+    label: str
+    archive_name: str
+    archive_path: str
+    size: int
+    modified_at: str
+    custom_name: Optional[str] = None
+    description: Optional[str] = None
+    checksum: Optional[str] = None
+
+
+class ArchiveDiffRequest(BaseModel):
+    """差异对比请求"""
+    from_round: int
+    to_round: int
+
+
+class ArchiveDiffResult(BaseModel):
+    """差异对比结果"""
+    from_round: int
+    to_round: int
+    from_size: int
+    to_size: int
+    additions: int
+    deletions: int
+    diff_lines: List[str] = Field(default_factory=list)
+
+
+class ArchiveValidationResult(BaseModel):
+    """存档验证结果"""
+    round_number: int
+    valid: bool
+    checksum_match: bool
+    file_exists: bool
+    errors: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)

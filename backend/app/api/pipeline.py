@@ -8,6 +8,7 @@ from app.models.schemas import (
     Plan, PlanCreate, PlanUpdate,
     DiscussionMessage, DiscussionMessageCreate,
     PlanStatus, TaskStatus,
+    ArchiveDiffRequest,
 )
 from app.services.coordinator import coordinator
 from app.services.output_manager import output_manager
@@ -565,4 +566,140 @@ async def restore_archive(plan_id: str, round_number: int):
         "plan_id": plan_id,
         "restored_round": round_number,
         "archive_info": target_archive,
+    }
+
+
+@router.delete("/archives/{plan_id}/{round_number}")
+async def delete_archive(plan_id: str, round_number: int):
+    """删除指定存档版本
+
+    Args:
+        plan_id: 计划 ID
+        round_number: 迭代轮次（0 表示初始版本）
+    """
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # 检查存档是否存在
+    archives = output_manager.list_archives(plan_id)
+    target_archive = next((a for a in archives if a["round_number"] == round_number), None)
+
+    if not target_archive:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Archive for round {round_number} not found"
+        )
+
+    # 执行删除
+    success = output_manager.delete_archive(plan_id, round_number)
+
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete archive for round {round_number}"
+        )
+
+    return {
+        "message": f"Successfully deleted {'initial version' if round_number == 0 else f'iteration {round_number}'} archive",
+        "plan_id": plan_id,
+        "deleted_round": round_number,
+    }
+
+
+@router.get("/archives/{plan_id}/download/{round_number}")
+async def download_archive(plan_id: str, round_number: int):
+    """下载存档为 zip 文件
+
+    Args:
+        plan_id: 计划 ID
+        round_number: 迭代轮次
+    """
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    zip_path = output_manager.get_archive_as_zip(plan_id, round_number)
+
+    if not zip_path or not os.path.exists(zip_path):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Archive for round {round_number} not found or failed to create zip"
+        )
+
+    # 确定下载文件名
+    if round_number == 0:
+        filename = f"archive_{plan_id[:8]}_initial.zip"
+    else:
+        filename = f"archive_{plan_id[:8]}_iteration_{round_number}.zip"
+
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=filename
+    )
+
+
+@router.post("/archives/{plan_id}/diff")
+async def get_archive_diff(plan_id: str, request: ArchiveDiffRequest):
+    """对比两个存档版本的差异
+
+    Args:
+        plan_id: 计划 ID
+        request: 包含 from_round 和 to_round 的请求体
+    """
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    diff_result = output_manager.get_archive_diff(plan_id, request.from_round, request.to_round)
+
+    if "errors" in diff_result:
+        raise HTTPException(status_code=400, detail=diff_result["errors"])
+
+    return diff_result
+
+
+@router.get("/archives/{plan_id}/validate/{round_number}")
+async def validate_archive(plan_id: str, round_number: int):
+    """验证存档完整性
+
+    Args:
+        plan_id: 计划 ID
+        round_number: 迭代轮次
+    """
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    validation_result = output_manager.validate_archive(plan_id, round_number)
+
+    return validation_result
+
+
+@router.get("/archives/{plan_id}/content/{round_number}")
+async def get_archive_content(plan_id: str, round_number: int):
+    """获取存档内容（用于预览）
+
+    Args:
+        plan_id: 计划 ID
+        round_number: 迭代轮次
+    """
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    content = output_manager.get_archive_content(plan_id, round_number)
+
+    if content is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Archive content for round {round_number} not found"
+        )
+
+    return {
+        "plan_id": plan_id,
+        "round_number": round_number,
+        "content": content,
+        "size": len(content),
     }

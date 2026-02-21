@@ -171,3 +171,35 @@ export function getAgentDisplayType(agent: { type: AgentType; display_type?: str
   }
   return AGENT_LABELS[agent.type] || agent.type;
 }
+
+// Archive Management Types
+export interface ArchiveInfo {
+  round_number: number;
+  label: string;
+  archive_name: string;
+  archive_path: string;
+  size: number;
+  modified_at: string;
+  custom_name?: string | null;
+  description?: string | null;
+  checksum?: string | null;
+}
+
+export interface ArchiveDiffResult {
+  from_round: number;
+  to_round: number;
+  from_size: number;
+  to_size: number;
+  additions: number;
+  deletions: number;
+  diff_lines: string[];
+}
+
+export interface ArchiveValidationResult {
+  round_number: number;
+  valid: boolean;
+  checksum_match: boolean;
+  file_exists: boolean;
+  errors: string[];
+  warnings: string[];
+}

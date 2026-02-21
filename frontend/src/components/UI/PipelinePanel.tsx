@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
 import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2 } from 'lucide-react';
+import { ArchivePanel } from './ArchivePanel';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
 
@@ -41,6 +42,7 @@ export function PipelinePanel() {
   const [archives, setArchives] = useState<Array<{ round_number: number; label: string; archive_path: string; modified_at: string }>>([]);
   const [restoring, setRestoring] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState('');
+  const [showArchivePanel, setShowArchivePanel] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -830,6 +832,16 @@ export function PipelinePanel() {
                     {restoreMessage}
                   </div>
                 )}
+                {/* Archive management button */}
+                {currentPlan?.status === 'completed' && archives.length > 0 && (
+                  <button
+                    onClick={() => setShowArchivePanel(true)}
+                    className="ml-auto px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1 bg-gray-700 text-gray-300 hover:bg-gray-600"
+                  >
+                    <Archive size={12} />
+                    存档管理
+                  </button>
+                )}
               </div>
             )}
 
@@ -1045,6 +1057,15 @@ export function PipelinePanel() {
                     </div>
                   </div>
                   <div className="flex gap-2">
+                    {archives.length > 0 && (
+                      <button
+                        onClick={() => setShowArchivePanel(true)}
+                        className="px-3 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
+                      >
+                        <Archive size={14} />
+                        存档管理
+                      </button>
+                    )}
                     <button
                       onClick={() => copyToClipboard(outputUrl)}
                       className="px-3 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
@@ -1114,6 +1135,18 @@ export function PipelinePanel() {
           <path d="M12 2L2 12M12 7L7 12M12 12L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
         </svg>
       </div>
+
+      {/* Archive Management Panel */}
+      {showArchivePanel && currentPlanId && (
+        <ArchivePanel
+          planId={currentPlanId}
+          onClose={() => setShowArchivePanel(false)}
+          onRestore={async (roundNumber: number) => {
+            await handleRestoreArchive(roundNumber);
+            setShowArchivePanel(false);
+          }}
+        />
+      )}
     </div>
   );
 }
