@@ -1699,18 +1699,26 @@ class CoordinatorService:
                 json_str = full_response[json_start:json_end]
                 plan_data = json.loads(json_str)
 
-                # 排除用户测试类型任务的关键词
-                user_test_keywords = ["用户测试", "用户反馈", "反馈调整", "测试与反馈", "收集反馈"]
+                # 排除无法自动执行的任务关键词
+                # 1. 用户测试类：需要用户主动操作
+                # 2. 外部资源类：需要外部图片、音频、视频等资源文件
+                excluded_task_keywords = [
+                    # 用户测试类
+                    "用户测试", "用户反馈", "反馈调整", "测试与反馈", "收集反馈",
+                    # 外部资源类
+                    "更新资源文件", "资源文件", "图片资源", "音频文件", "视频文件",
+                    "素材替换", "图片替换", "添加图片", "添加素材", "上传资源"
+                ]
 
                 task_order = 0
                 for task_data in plan_data.get("tasks", []):
                     title = task_data.get("title", "")
                     description = task_data.get("description", "")
 
-                    # 跳过用户测试类型任务（这类任务需要用户主动操作，不应自动执行）
+                    # 跳过无法自动执行的任务
                     task_text = f"{title} {description}"
-                    if any(keyword in task_text for keyword in user_test_keywords):
-                        print(f"[Coordinator] Skipping user test task: {title}")
+                    if any(keyword in task_text for keyword in excluded_task_keywords):
+                        print(f"[Coordinator] Skipping non-automatable task: {title}")
                         continue
 
                     agent_type_str = task_data.get("assigned_agent_type", "coder")
