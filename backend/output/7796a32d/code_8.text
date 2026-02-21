@@ -1,0 +1,13 @@
+game-100-floors/
+├── index.html          # 主HTML文件
+├── css/
+│   └── style.css       # 样式表
+├── js/
+│   ├── main.js         # 游戏主逻辑
+│   ├── game.js         # 游戏类定义
+│   ├── player.js       # 玩家类
+│   ├── platform.js     # 平台类
+│   └── utils.js        # 工具函数
+└── assets/             # 游戏资源目录
+    ├── images/         # 图片资源
+    └── sounds/         # 音频资源

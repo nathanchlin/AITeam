@@ -1,0 +1,11 @@
+PUT /api/v1/users/:userId
+Headers: Authorization: Bearer <token>
+Request Body:
+{
+    "avatar": "string",
+    "currentSkin": "string"
+}
+Response:
+{
+    "success": "boolean"
+}

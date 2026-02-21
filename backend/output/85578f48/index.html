@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>球球大作战</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+        }
+        #gameCanvas {
+            border: 3px solid #4a9eff;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(74, 158, 255, 0.3);
+        }
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 16px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        #ui div {
+            margin: 5px 0;
+            background: rgba(0,0,0,0.5);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+        #minimap {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            border: 2px solid #4a9eff;
+            border-radius: 5px;
+            opacity: 0.8;
+        }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+            display: none;
+            z-index: 100;
+        }
+        #gameOver h2 {
+            color: #ff6b6b;
+            margin-bottom: 20px;
+        }
+        #gameOver p {
+            margin: 10px 0;
+            font-size: 18px;
+        }
+        #restartBtn {
+            margin-top: 20px;
+            padding: 12px 30px;
+            font-size: 18px;
+            background: linear-gradient(135deg, #4a9eff, #6c5ce7);
+            border: none;
+            border-radius: 25px;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        #restartBtn:hover {
+            transform: scale(1.05);
+        }
+        #instructions {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            color: rgba(255,255,255,0.7);
+            font-size: 12px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="900" height="600"></canvas>
+        <canvas id="minimap" width="150" height="100"></canvas>
+        <div id="ui">
+            <div>🏆 分数: <span id="score">0</span></div>
+            <div>📏 大小: <span id="size">20</span></div>
+            <div>🎯 排名: <span id="rank">1</span>/10</div>
+        </div>
+        <div id="instructions">
+            鼠标控制移动 | 空格键分裂 | 尽量吃掉小球变大！
+        </div>
+        <div id="gameOver">
+            <h2>游戏结束!</h2>
+            <p>最终得分: <span id="finalScore">0</span></p>
+            <p>最大尺寸: <span id="finalSize">0</span></p>
+            <button id="restartBtn">重新开始</button>
+        </div>
+    </div>
+
+<script>
+// 游戏配置
+const CONFIG = {
+    MAP_WIDTH: 3000,
+    MAP_HEIGHT: 2000,
+    FOOD_COUNT: 300,
+    AI_COUNT: 9,
+    PLAYER_INITIAL_SIZE: 25,
+    AI_INITIAL_SIZE: 20,
+    MIN_SIZE: 10,
+    MAX_SPEED: 8,
+    MIN_SPEED: 2
+};
+
+// 工具函数
+function getRandomColor() {
+    const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7',
+                    '#DDA0DD', '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9'];
+    return colors[Math.floor(Math.random() * colors.length)];
+}
+
+function distance(x1, y1, x2, y2) {
+    return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+}
+
+function calculateSpeed(size) {
+    const speedFactor = Math.max(0.3, 1 - (size / 150) * 0.7);
+    return CONFIG.MAX_SPEED * speedFactor + CONFIG.MIN_SPEED;
+}
+
+// 球体类
+class Ball {
+    constructor(x, y, size, color, isPlayer = false, name = '') {
+        this.x = x;
+        this.y = y;
+        this.size = size;
+        this.color = color;
+        this.isPlayer = isPlayer;
+        this.name = name;
+        this.targetX = x;
+        this.targetY = y;
+        this.speed = calculateSpeed(size);
+        this.score = 0;
+        this.alive = true;
+    }
+
+    update() {
+        if (!this.alive) return;
+
+        const dx = this.targetX - this.x;
+        const dy = this.targetY - this.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 5) {
+            this.x += (dx / dist) * this.speed;
+            this.y += (dy / dist) * this.speed;
+        }
+
+        // 边界限制
+        this.x = Math.max(this.size, Math.min(CONFIG.MAP_WIDTH - this.size, this.x));
+        this.y = Math.max(this.size, Math.min(CONFIG.MAP_HEIGHT - this.size, this.y));
+    }
+
+    grow(amount) {
+        const oldMass = Math.PI * this.size * this.size;
+        const newMass = oldMass + Math.PI * amount * amount * 0.8;
+        this.size = Math.sqrt(newMass / Math.PI);
+        this.speed = calculateSpeed(this.size);
+        this.score += Math.floor(amount);
+    }
+
+    canEat(other) {
+        return this.size > other.size * 1.1 && distance(this.x, this.y, other.x, other.y) < this.size;
+    }
+}
+
+// 食物类
+class Food {
+    constructor() {
+        this.x = Math.random() * CONFIG.MAP_WIDTH;
+        this.y = Math.random() * CONFIG.MAP_HEIGHT;
+        this.size = Math.random() * 5 + 3;
+        this.color = getRandomColor();
+        this.value = this.size;
+    }
+}
+
+// AI控制器
+class AIController {
+    constructor(ball) {
+        this.ball = ball;
+        this.changeDirectionTimer = 0;
+        this.targetFood = null;
+    }
+
+    update(foods, balls) {
+        if (!this.ball.alive) return;
+
+        this.changeDirectionTimer--;
+
+        // 寻找最近的食物或比自己小的球
+        let nearestTarget = null;
+        let nearestDist = Infinity;
+
+        // 检查食物
+        for (const food of foods) {
+            const dist = distance(this.ball.x, this.ball.y, food.x, food.y);
+            if (dist < nearestDist && dist < 400) {
+                nearestDist = dist;
+                nearestTarget = food;
+            }
+        }
+
+        // 检查可以吃的球
+        for (const ball of balls) {
+            if (ball === this.ball || !ball.alive) continue;
+            const dist = distance(this.ball.x, this.ball.y, ball.x, ball.y);
+
+            // 如果能吃掉对方
+            if (this.ball.canEat(ball) && dist < nearestDist) {
+                nearestDist = dist;
+                nearestTarget = ball;
+            }
+
+            // 如果对方能吃掉自己，逃跑
+            if (ball.canEat(this.ball) && dist < 300) {
+                const fleeX = this.ball.x + (this.ball.x - ball.x) * 2;
+                const fleeY = this.ball.y + (this.ball.y - ball.y) * 2;
+                this.ball.targetX = Math.max(0, Math.min(CONFIG.MAP_WIDTH, fleeX));
+                this.ball.targetY = Math.max(0, Math.min(CONFIG.MAP_HEIGHT, fleeY));
+                return;
+            }
+        }
+
+        if (nearestTarget && this.changeDirectionTimer <= 0) {
+            this.ball.targetX = nearestTarget.x;
+            this.ball.targetY = nearestTarget.y;
+            this.changeDirectionTimer = 30;
+        } else if (this.changeDirectionTimer <= 0) {
+            // 随机移动
+            this.ball.targetX = Math.random() * CONFIG.MAP_WIDTH;
+            this.ball.targetY = Math.random() * CONFIG.MAP_HEIGHT;
+            this.changeDirectionTimer = 120;
+        }
+    }
+}
+
+// 游戏主类
+class Game {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.minimap = document.getElementById('minimap');
+        this.minimapCtx = this.minimap.getContext('2d');
+
+        this.player = null;
+        this.balls = [];
+        this.foods = [];
+        this.aiControllers = [];
+        this.camera = { x: 0, y: 0 };
+        this.gameRunning = true;
+        this.mouseX = 0;
+        this.mouseY = 0;
+
+        this.init();
+        this.setupEvents();
+        this.gameLoop();
+    }
+
+    init() {
+        // 创建玩家
+        this.player = new Ball(
+            CONFIG.MAP_WIDTH / 2,
+            CONFIG.MAP_HEIGHT / 2,
+            CONFIG.PLAYER_INITIAL_SIZE,
+            '#4a9eff',
+            true,
+            '玩家'
+        );
+        this.balls = [this.player];
+
+        // 创建AI
+        for (let i = 0; i < CONFIG.AI_COUNT; i++) {
+            const ai = new Ball(
+                Math.random() * CONFIG.MAP_WIDTH,
+                Math.random() * CONFIG.MAP_HEIGHT,
+                CONFIG.AI_INITIAL_SIZE + Math.random() * 30,
+                getRandomColor(),
+                false,
+                `AI${i + 1}`
+            );
+            this.balls.push(ai);
+            this.aiControllers.push(new AIController(ai));
+        }
+
+        // 创建食物
+        for (let i = 0; i < CONFIG.FOOD_COUNT; i++) {
+            this.foods.push(new Food());
+        }
+
+        this.updateUI();
+    }
+
+    setupEvents() {
+        // 鼠标移动
+        this.canvas.addEventListener('mousemove', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            this.mouseX = e.clientX - rect.left;
+            this.mouseY = e.clientY - rect.top;
+        });
+
+        // 空格键分裂
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && this.gameRunning) {
+                this.split();
+            }
+        });
+
+        // 重新开始
+        document.getElementById('restartBtn').addEventListener('click', () => {
+            this.restart();
+        });
+    }
+
+    split() {
+        if (this.player.size > 30) {
+            const newSize = this.player.size * 0.6;
+            const angle = Math.atan2(
+                this.mouseY - this.canvas.height / 2,
+                this.mouseX - this.canvas.width / 2
+            );
+
+            // 创建分身
+            const splitBall = new Ball(
+                this.player.x + Math.cos(angle) * this.player.size,
+                this.player.y + Math.sin(angle) * this.player.size,
+                newSize,
+                this.player.color,
+                true
+            );
+            splitBall.targetX = splitBall.x + Math.cos(angle) * 200;
+            splitBall.targetY = splitBall.y + Math.sin(angle) * 200;
+
+            this.balls.push(splitBall);
+            this.player.size = newSize;
+            this.player.speed = calculateSpeed(newSize);
+
+            // 分身会在一段时间后合并回玩家
+            setTimeout(() => {
+                if (splitBall.alive && this.player.alive) {
+                    this.player.grow(splitBall.size * 0.8);
+                    splitBall.alive = false;
+                }
+            }, 5000);
+        }
+    }
+
+    update() {
+        if (!this.gameRunning) return;
+
+        // 更新玩家目标位置
+        const worldMouseX = this.mouseX + this.camera.x;
+        const worldMouseY = this.mouseY + this.camera.y;
+        this.player.targetX = worldMouseX;
+        this.player.targetY = worldMouseY;
+
+        // 更新所有球
+        for (const ball of this.balls) {
+            ball.update();
+        }
+
+        // 更新AI
+        for (const ai of this.aiControllers) {
+            ai.update(this.foods, this.balls);
+        }
+
+        // 碰撞检测 - 玩家/分身吃食物
+        for (const ball of this.balls.filter(b => b.isPlayer && b.alive)) {
+            for (let i = this.foods.length - 1; i >= 0; i--) {
+                const food = this.foods[i];
+                if (distance(ball.x, ball.y, food.x, food.y) < ball.size + food.size) {
+                    ball.grow(food.value);
+                    this.foods.splice(i, 1);
+                    this.foods.push(new Food());
+                }
+            }
+        }
+
+        // 碰撞检测 - AI吃食物
+        for (const ball of this.balls.filter(b => !b.isPlayer && b.alive)) {
+            for (let i = this.foods.length - 1; i >= 0; i--) {
+                const food = this.foods[i];
+                if (distance(ball.x, ball.y, food.x, food.y) < ball.size + food.size) {
+                    ball.grow(food.value);
+                    this.foods.splice(i, 1);
+                    this.foods.push(new Food());
+                }
+            }
+        }
+
+        // 碰撞检测 - 球吃球
+        for (let i = 0; i < this.balls.length; i++) {
+            for (let j = 0; j < this.balls.length; j++) {
+                if (i === j) continue;
+                const a = this.balls[i];
+                const b = this.balls[j];
+
+                if (!a.alive || !b.alive) continue;
+
+                if (a.canEat(b)) {
+                    a.grow(b.size);
+                    b.alive = false;
+
+                    // 如果玩家被吃掉
+                    if (b.isPlayer && b === this.player) {
+                        this.gameOver();
+                    }
+                }
+            }
+        }
+
+        // 重生AI
+        const aliveAI = this.balls.filter(b => !b.isPlayer && b.alive).length;
+        if (aliveAI < CONFIG.AI_COUNT) {
+            const ai = new Ball(
+                Math.random() * CONFIG.MAP_WIDTH,
+                Math.random() * CONFIG.MAP_HEIGHT,
+                CONFIG.AI_INITIAL_SIZE + Math.random() * 20,
+                getRandomColor(),
+                false,
+                `AI${Math.floor(Math.random() * 100)}`
+            );
+            this.balls.push(ai);
+            this.aiControllers.push(new AIController(ai));
+        }
+
+        // 更新相机位置（跟随玩家）
+        this.camera.x = this.player.x - this.canvas.width / 2;
+        this.camera.y = this.player.y - this.canvas.height / 2;
+
+        this.updateUI();
+    }
+
+    render() {
+        // 清空画布
+        this.ctx.fillStyle = '#1a1a2e';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // 绘制网格背景
+        this.ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+        this.ctx.lineWidth = 1;
+        const gridSize = 50;
+        const startX = -this.camera.x % gridSize;
+        const startY = -this.camera.y % gridSize;
+
+        for (let x = startX; x < this.canvas.width; x += gridSize) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x, 0);
+            this.ctx.lineTo(x, this.canvas.height);
+            this.ctx.stroke();
+        }
+        for (let y = startY; y < this.canvas.height; y += gridSize) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, y);
+            this.ctx.lineTo(this.canvas.width, y);
+            this.ctx.stroke();
+        }
+
+        // 绘制边界
+        this.ctx.strokeStyle = '#ff6b6b';
+        this.ctx.lineWidth = 5;
+        this.ctx.strokeRect(-this.camera.x, -this.camera.y, CONFIG.MAP_WIDTH, CONFIG.MAP_HEIGHT);
+
+        // 绘制食物
+        for (const food of this.foods) {
+            const screenX = food.x - this.camera.x;
+            const screenY = food.y - this.camera.y;
+
+            if (screenX > -20 && screenX < this.canvas.width + 20 &&
+                screenY > -20 && screenY < this.canvas.height + 20) {
+                this.ctx.beginPath();
+                this.ctx.arc(screenX, screenY, food.size, 0, Math.PI * 2);
+                this.ctx.fillStyle = food.color;
+                this.ctx.fill();
+            }
+        }
+
+        // 绘制球体（按大小排序，大的在后面）
+        const sortedBalls = [...this.balls].filter(b => b.alive).sort((a, b) => a.size - b.size);
+
+        for (const ball of sortedBalls) {
+            const screenX = ball.x - this.camera.x;
+            const screenY = ball.y - this.camera.y;
+
+            // 绘制阴影
+            this.ctx.beginPath();
+            this.ctx.arc(screenX + 3, screenY + 3, ball.size, 0, Math.PI * 2);
+            this.ctx.fillStyle = 'rgba(0,0,0,0.2)';
+            this.ctx.fill();
+
+            // 绘制球体
+            const gradient = this.ctx.createRadialGradient(
+                screenX - ball.size * 0.3, screenY - ball.size * 0.3, 0,
+                screenX, screenY, ball.size
+            );
+            gradient.addColorStop(0, this.lightenColor(ball.color, 30));
+            gradient.addColorStop(1, ball.color);
+
+            this.ctx.beginPath();
+            this.ctx.arc(screenX, screenY, ball.size, 0, Math.PI * 2);
+            this.ctx.fillStyle = gradient;
+            this.ctx.fill();
+
+            // 绘制边框
+            this.ctx.strokeStyle = ball.isPlayer ? '#fff' : 'rgba(255,255,255,0.3)';
+            this.ctx.lineWidth = ball.isPlayer ? 3 : 1;
+            this.ctx.stroke();
+
+            // 绘制名字
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = `${Math.max(12, ball.size / 3)}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(ball.name, screenX, screenY + 5);
+        }
+
+        // 绘制小地图
+        this.renderMinimap();
+    }
+
+    renderMinimap() {
+        const scaleX = this.minimap.width / CONFIG.MAP_WIDTH;
+        const scaleY = this.minimap.height / CONFIG.MAP_HEIGHT;
+
+        this.minimapCtx.fillStyle = 'rgba(0,0,0,0.7)';
+        this.minimapCtx.fillRect(0, 0, this.minimap.width, this.minimap.height);
+
+        // 绘制边界
+        this.minimapCtx.strokeStyle = '#4a9eff';
+        this.minimapCtx.lineWidth = 1;
+        this.minimapCtx.strokeRect(0, 0, this.minimap.width, this.minimap.height);
+
+        // 绘制球体
+        for (const ball of this.balls.filter(b => b.alive)) {
+            this.minimapCtx.beginPath();
+            this.minimapCtx.arc(
+                ball.x * scaleX,
+                ball.y * scaleY,
+                Math.max(2, ball.size * scaleX),
+                0, Math.PI * 2
+            );
+            this.minimapCtx.fillStyle = ball.isPlayer ? '#4a9eff' : ball.color;
+            this.minimapCtx.fill();
+        }
+
+        // 绘制视野框
+        this.minimapCtx.strokeStyle = '#fff';
+        this.minimapCtx.strokeRect(
+            this.camera.x * scaleX,
+            this.camera.y * scaleY,
+            this.canvas.width * scaleX,
+            this.canvas.height * scaleY
+        );
+    }
+
+    lightenColor(color, percent) {
+        const num = parseInt(color.replace('#', ''), 16);
+        const amt = Math.round(2.55 * percent);
+        const R = (num >> 16) + amt;
+        const G = (num >> 8 & 0x00FF) + amt;
+        const B = (num & 0x0000FF) + amt;
+        return '#' + (0x1000000 +
+            (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+            (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+            (B < 255 ? B < 1 ? 0 : B : 255)
+        ).toString(16).slice(1);
+    }
+
+    updateUI() {
+        document.getElementById('score').textContent = this.player.score;
+        document.getElementById('size').textContent = Math.floor(this.player.size);
+
+        // 计算排名
+        const sortedBalls = [...this.balls].filter(b => b.alive).sort((a, b) => b.size - a.size);
+        const rank = sortedBalls.findIndex(b => b === this.player) + 1;
+        document.getElementById('rank').textContent = rank;
+    }
+
+    gameOver() {
+        this.gameRunning = false;
+        document.getElementById('finalScore').textContent = this.player.score;
+        document.getElementById('finalSize').textContent = Math.floor(this.player.size);
+        document.getElementById('gameOver').style.display = 'block';
+    }
+
+    restart() {
+        document.getElementById('gameOver').style.display = 'none';
+        this.balls = [];
+        this.foods = [];
+        this.aiControllers = [];
+        this.gameRunning = true;
+        this.init();
+    }
+
+    gameLoop() {
+        this.update();
+        this.render();
+        requestAnimationFrame(() => this.gameLoop());
+    }
+}
+
+// 启动游戏
+window.onload = () => {
+    new Game();
+};
+</script>
+</body>
+</html>

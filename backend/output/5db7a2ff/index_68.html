@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2046游戏</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>2046</h1>
+            <div class="score-container">
+                <div class="score-box">
+                    <div class="score-label">分数</div>
+                    <div id="score" class="score">0</div>
+                </div>
+                <div class="score-box">
+                    <div class="score-label">最高分</div>
+                    <div id="best-score" class="score">0</div>
+                </div>
+            </div>
+        </header>
+        
+        <main>
+            <div class="game-controls">
+                <button id="new-game-btn" class="btn">新游戏</button>
+                <button id="undo-btn" class="btn">撤销</button>
+                <div class="difficulty-selector">
+                    <label for="difficulty">难度:</label>
+                    <select id="difficulty">
+                        <option value="3">3x3</option>
+                        <option value="4" selected>4x4</option>
+                        <option value="5">5x5</option>
+                        <option value="6">6x6</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="game-board" class="game-board">
+                <!-- 游戏格子将通过JavaScript动态生成 -->
+            </div>
+            
+            <div class="game-info">
+                <div class="game-stats">
+                    <div class="stat">
+                        <span class="stat-label">移动次数:</span>
+                        <span id="moves" class="stat-value">0</span>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-label">游戏时间:</span>
+                        <span id="timer" class="stat-value">00:00</span>
+                    </div>
+                </div>
+                
+                <div class="game-instructions">
+                    <h3>游戏说明</h3>
+                    <p>使用方向键或滑动来移动方块。相同数字的方块碰撞时会合并成为它们的和。当无法移动时，游戏结束。</p>
+                </div>
+            </div>
+        </main>
+        
+        <footer>
+            <div id="game-message" class="game-message"></div>
+            <button id="show-instructions-btn" class="btn">显示说明</button>
+        </footer>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>

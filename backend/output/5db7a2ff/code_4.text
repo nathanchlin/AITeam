@@ -1,0 +1,19 @@
+src/
+├── components/          # React组件
+│   ├── GameBoard.tsx
+│   ├── Tile.tsx
+│   └── ScoreDisplay.tsx
+├── core/               # 游戏核心逻辑
+│   ├── GameState.ts
+│   ├── Game2046.ts
+│   └── utils.ts
+├── rendering/          # 渲染相关代码
+│   ├── GameRenderer.ts
+│   ├── shaders/
+│   └── textures/
+├── assets/             # 游戏资源
+│   ├── images/
+│   └── sounds/
+├── styles/             # CSS样式
+│   └── game.css
+└── index.tsx           # 应用入口

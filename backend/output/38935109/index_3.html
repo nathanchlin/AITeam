@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backpack War Game UI with Animation</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #backpack, #skillMenu {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px;
+    border-radius: 5px;
+    pointer-events: none;
+  }
+  #skillMenu {
+    display: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="backpack">Backpack</div>
+<div id="skillMenu">Skills</div>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 800;
+  canvas.height = 600;
+
+  let backpackOpen = false;
+  let skillMenuOpen = false;
+  const backpackAnimationDuration = 300; // milliseconds
+  let backpackAnimationStartTime;
+  let backpackAnimationProgress = 0;
+
+  const backpack = {
+    x: 50,
+    y: 50,
+    width: 200,
+    height: 100,
+    openWidth: 400,
+    openHeight: 150,
+    color: 'green'
+  };
+
+  const skillMenu = {
+    x: 300,
+    y: 50,
+    width: 200,
+    height: 100,
+    color: 'blue'
+  };
+
+  function drawRect(x, y, width, height, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  function drawBackpack() {
+    const { x, y, width, height, openWidth, openHeight, color } = backpack;
+    drawRect(x, y, width, height, color);
+    if (backpackOpen) {
+      drawRect(x + width / 2 - openWidth / 4, y + height / 2 - openHeight / 4, openWidth, openHeight, color);
+    }
+  }
+
+  function drawSkillMenu() {
+    const { x, y, width, height, color } = skillMenu;
+    drawRect(x, y, width, height, color);
+  }
+
+  function toggleBackpack() {
+    backpackOpen = !backpackOpen;
+    backpackAnimationStartTime = Date.now();
+    backpackAnimationProgress = 0;
+  }
+
+  function toggleSkillMenu() {
+    skillMenuOpen = !skillMenuOpen;
+    skillMenuAnimationStartTime = Date.now();
+    skillMenuAnimationProgress = 0;
+  }
+
+  function animate() {
+    const now = Date.now();
+    if (backpackOpen && backpackAnimationProgress < 1) {
+      backpackAnimationProgress = (now - backpackAnimationStartTime) / backpackAnimationDuration;
+      if (backpackAnimationProgress > 1) backpackAnimationProgress = 1;
+    } else if (!backpackOpen && backpackAnimationProgress > 0) {
+      backpackAnimationProgress = 1 - (now - backpackAnimationStartTime) / backpackAnimationDuration;
+      if (backpackAnimationProgress < 0) backpackAnimationProgress = 0;
+    }
+
+    if (skillMenuOpen && skillMenuAnimationProgress < 1) {
+      skillMenuAnimationProgress = (now - skillMenuAnimationStartTime) / backpackAnimationDuration;
+      if (skillMenuAnimationProgress > 1) skillMenuAnimationProgress = 1;
+    } else if (!skillMenuOpen && skillMenuAnimationProgress > 0) {
+      skillMenuAnimationProgress = 1 - (now - skillMenuAnimationStartTime) / backpackAnimationDuration;
+      if (skillMenuAnimationProgress < 0) skillMenuAnimationProgress = 0;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawRect(0, 0, canvas.width, canvas.height, 'grey'); // Draw map background
+    drawBackpack();
+    drawSkillMenu();
+    requestAnimationFrame(animate);
+  }
+
+  // Event listeners
+  document.getElementById('backpack').addEventListener('click', toggleBackpack);
+  document.getElementById('skillMenu').addEventListener('click', toggleSkillMenu);
+
+  // Initialization
+  animate();
+</script>
+</body>
+</html>

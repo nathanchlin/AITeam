@@ -1,0 +1,250 @@
+using UnityEngine;
+
+public class NinjaController : MonoBehaviour
+{
+    [Header("Movement Settings")]
+    public float moveSpeed = 5f;
+    public float jumpForce = 10f;
+    public float slideSpeed = 8f;
+    public float gravity = 20f;
+    
+    [Header("Ground Check")]
+    public Transform groundCheck;
+    public float groundRadius = 0.2f;
+    public LayerMask groundLayer;
+    
+    [Header("Animation")]
+    public Animator animator;
+    
+    // 私有变量
+    private Rigidbody2D rb;
+    private bool isGrounded;
+    private bool isSliding = false;
+    private bool facingRight = true;
+    private float horizontalInput;
+    private float verticalInput;
+    
+    // 控制状态
+    private enum State { Idle, Running, Jumping, Sliding }
+    private State currentState = State.Idle;
+    
+    // 触摸控制相关
+    private Touch touch;
+    private Vector2 touchStartPos;
+    private bool touchStarted = false;
+    
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody2D>();
+        
+        // 确保角色初始朝向正确
+        if (transform.localScale.x < 0)
+        {
+            facingRight = false;
+        }
+    }
+    
+    private void Update()
+    {
+        // 处理输入
+        HandleInput();
+        
+        // 更新地面检测
+        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundRadius, groundLayer);
+        
+        // 更新状态
+        UpdateState();
+        
+        // 处理触摸输入
+        HandleTouchInput();
+    }
+    
+    private void FixedUpdate()
+    {
+        // 应用物理
+        ApplyPhysics();
+    }
+    
+    private void HandleInput()
+    {
+        // 键盘输入
+        horizontalInput = Input.GetAxisRaw("Horizontal");
+        verticalInput = Input.GetAxisRaw("Vertical");
+        
+        // 跳跃输入
+        if (Input.GetButtonDown("Jump") && isGrounded && !isSliding)
+        {
+            Jump();
+        }
+        
+        // 滑行输入
+        if (Input.GetButtonDown("Fire1") && isGrounded && !isSliding)
+        {
+            StartSlide();
+        }
+        
+        if (Input.GetButtonUp("Fire1"))
+        {
+            StopSlide();
+        }
+    }
+    
+    private void HandleTouchInput()
+    {
+        if (Input.touchCount > 0)
+        {
+            touch = Input.GetTouch(0);
+            
+            switch (touch.phase)
+            {
+                case TouchPhase.Began:
+                    touchStartPos = touch.position;
+                    touchStarted = true;
+                    break;
+                    
+                case TouchPhase.Ended:
+                    if (touchStarted)
+                    {
+                        Vector2 touchEndPos = touch.position;
+                        Vector2 swipeDirection = touchEndPos - touchStartPos;
+                        
+                        // 检测滑动方向
+                        if (swipeDirection.magnitude > 50f) // 最小滑动距离
+                        {
+                            if (Mathf.Abs(swipeDirection.x) > Mathf.Abs(swipeDirection.y))
+                            {
+                                // 水平滑动 - 移动
+                                horizontalInput = swipeDirection.x > 0 ? 1 : -1;
+                            }
+                            else
+                            {
+                                // 垂直滑动 - 跳跃或滑行
+                                if (swipeDirection.y > 0 && isGrounded && !isSliding)
+                                {
+                                    Jump();
+                                }
+                                else if (swipeDirection.y < 0 && isGrounded && !isSliding)
+                                {
+                                    StartSlide();
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // 轻触 - 跳跃
+                            if (isGrounded && !isSliding)
+                            {
+                                Jump();
+                            }
+                        }
+                    }
+                    touchStarted = false;
+                    break;
+            }
+        }
+    }
+    
+    private void ApplyPhysics()
+    {
+        // 应用水平移动
+        float moveHorizontal = horizontalInput * moveSpeed;
+        rb.velocity = new Vector2(moveHorizontal, rb.velocity.y);
+        
+        // 应用重力
+        if (!isGrounded)
+        {
+            rb.velocity -= new Vector2(0, gravity * Time.fixedDeltaTime);
+        }
+        
+        // 处理滑行
+        if (isSliding)
+        {
+            rb.velocity = new Vector2(slideSpeed * (facingRight ? 1 : -1), rb.velocity.y);
+        }
+        
+        // 处理转向
+        if (horizontalInput > 0 && !facingRight)
+        {
+            Flip();
+        }
+        else if (horizontalInput < 0 && facingRight)
+        {
+            Flip();
+        }
+    }
+    
+    private void Jump()
+    {
+        rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+        currentState = State.Jumping;
+        UpdateAnimation();
+    }
+    
+    private void StartSlide()
+    {
+        isSliding = true;
+        currentState = State.Sliding;
+        UpdateAnimation();
+        
+        // 可以在这里添加滑行特效或碰撞体调整
+    }
+    
+    private void StopSlide()
+    {
+        isSliding = false;
+        if (isGrounded)
+        {
+            currentState = State.Running;
+        }
+        UpdateAnimation();
+    }
+    
+    private void Flip()
+    {
+        facingRight = !facingRight;
+        Vector3 scale = transform.localScale;
+        scale.x *= -1;
+        transform.localScale = scale;
+    }
+    
+    private void UpdateState()
+    {
+        // 确定当前状态
+        if (isSliding)
+        {
+            currentState = State.Sliding;
+        }
+        else if (!isGrounded)
+        {
+            currentState = State.Jumping;
+        }
+        else if (Mathf.Abs(horizontalInput) > 0.1f)
+        {
+            currentState = State.Running;
+        }
+        else
+        {
+            currentState = State.Idle;
+        }
+        
+        UpdateAnimation();
+    }
+    
+    private void UpdateAnimation()
+    {
+        if (animator != null)
+        {
+            animator.SetInteger("State", (int)currentState);
+            animator.SetBool("IsGrounded", isGrounded);
+            animator.SetBool("IsSliding", isSliding);
+            animator.SetFloat("Speed", Mathf.Abs(horizontalInput));
+        }
+    }
+    
+    private void OnDrawGizmos()
+    {
+        // 绘制地面检测范围
+        Gizmos.color = Color.green;
+        Gizmos.DrawWireSphere(groundCheck.position, groundRadius);
+    }
+}

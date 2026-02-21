@@ -1,0 +1,14 @@
+{
+  "title": "FlappyBird Web应用开发计划",
+  "original_request": "我需要做一个FlappyBird游戏",
+  "discussion": [
+    {
+      "id": "f7f014f5-90d3-4422-9844-332f4af3d2c2",
+      "plan_id": "bb3754b0-dd03-4b94-8740-fa0e1d7827db",
+      "agent_id": "1b9489b0-1468-45dc-ad33-b9f41e85e620",
+      "agent_name": "Coordinator",
+      "agent_type": "assistant",
+      "content": "我来分析一下需求：我需要做一个FlappyBird游戏",
+      "message_type": "comment",
+      "reply_to": null,
+      "timestamp": 

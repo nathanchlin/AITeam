@@ -1,0 +1,5 @@
+{
+    "easy": {"reaction_time": 800, "lookahead": 1},
+    "medium": {"reaction_time": 500, "lookahead": 2},
+    "hard": {"reaction_time": 200, "lookahead": 3}
+  }

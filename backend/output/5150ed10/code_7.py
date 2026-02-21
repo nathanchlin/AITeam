@@ -1,0 +1,216 @@
+import pygame
+import time
+
+class GameTimer:
+    def __init__(self, duration=100):
+        """
+        初始化计时器
+        :param duration: 游戏持续时间(秒)
+        """
+        self.duration = duration
+        self.start_time = None
+        self.elapsed_time = 0
+        self.is_running = False
+        self.is_paused = False
+        self.pause_start_time = None
+        self.total_pause_duration = 0
+    
+    def start(self):
+        """启动计时器"""
+        if not self.is_running:
+            self.start_time = time.time()
+            self.is_running = True
+            self.is_paused = False
+    
+    def pause(self):
+        """暂停计时器"""
+        if self.is_running and not self.is_paused:
+            self.is_paused = True
+            self.pause_start_time = time.time()
+    
+    def resume(self):
+        """恢复计时器"""
+        if self.is_running and self.is_paused:
+            self.total_pause_duration += time.time() - self.pause_start_time
+            self.is_paused = False
+    
+    def get_remaining_time(self):
+        """获取剩余时间"""
+        if not self.is_running:
+            return self.duration
+        
+        if self.is_paused:
+            return max(0, self.duration - (self.pause_start_time - self.start_time - self.total_pause_duration))
+        
+        elapsed = time.time() - self.start_time - self.total_pause_duration
+        return max(0, self.duration - elapsed)
+    
+    def is_time_up(self):
+        """检查是否时间已到"""
+        return self.get_remaining_time() <= 0
+    
+    def stop(self):
+        """停止计时器"""
+        self.is_running = False
+        self.is_paused = False
+
+class ScoreSystem:
+    def __init__(self):
+        """初始化得分系统"""
+        self.score = 0
+        self.base_score_per_second = 10  # 每秒基础得分
+        self.bonus_multiplier = 1.0  # 得分倍数
+        self.last_score_time = 0
+    
+    def add_score(self, points):
+        """添加得分"""
+        self.score += int(points * self.bonus_multiplier)
+    
+    def update_score_by_time(self, current_time):
+        """根据时间更新得分"""
+        if current_time - self.last_score_time >= 1.0:  # 每秒增加一次得分
+            self.add_score(self.base_score_per_second)
+            self.last_score_time = current_time
+    
+    def set_bonus_multiplier(self, multiplier):
+        """设置得分倍数"""
+        self.bonus_multiplier = max(0.1, multiplier)  # 确保倍数不为负
+    
+    def get_score(self):
+        """获取当前得分"""
+        return self.score
+
+class GameState:
+    """游戏状态管理"""
+    MENU = "menu"
+    PLAYING = "playing"
+    PAUSED = "paused"
+    GAME_OVER = "game_over"
+
+class GameTimerScoreSystem:
+    def __init__(self):
+        """初始化计时与得分系统"""
+        self.timer = GameTimer(100)  # 100秒游戏时长
+        self.score_system = ScoreSystem()
+        self.state = GameState.MENU
+        self.game_start_time = None
+    
+    def start_game(self):
+        """开始游戏"""
+        self.timer.start()
+        self.score_system = ScoreSystem()
+        self.state = GameState.PLAYING
+        self.game_start_time = time.time()
+    
+    def pause_game(self):
+        """暂停游戏"""
+        if self.state == GameState.PLAYING:
+            self.timer.pause()
+            self.state = GameState.PAUSED
+    
+    def resume_game(self):
+        """恢复游戏"""
+        if self.state == GameState.PAUSED:
+            self.timer.resume()
+            self.state = GameState.PLAYING
+    
+    def update(self):
+        """更新游戏状态"""
+        if self.state == GameState.PLAYING:
+            current_time = time.time() - self.game_start_time
+            
+            # 更新得分
+            self.score_system.update_score_by_time(current_time)
+            
+            # 检查游戏是否结束
+            if self.timer.is_time_up():
+                self.end_game()
+    
+    def end_game(self):
+        """结束游戏"""
+        self.timer.stop()
+        self.state = GameState.GAME_OVER
+    
+    def get_remaining_time(self):
+        """获取剩余时间"""
+        return self.timer.get_remaining_time()
+    
+    def get_score(self):
+        """获取当前得分"""
+        return self.score_system.get_score()
+    
+    def get_state(self):
+        """获取游戏状态"""
+        return self.state
+    
+    def add_bonus_score(self, points):
+        """添加额外得分（例如躲避障碍物奖励）"""
+        if self.state == GameState.PLAYING:
+            self.score_system.add_score(points)
+
+# 示例使用
+if __name__ == "__main__":
+    # 初始化Pygame
+    pygame.init()
+    screen = pygame.display.set_mode((800, 600))
+    pygame.display.set_caption("男人就要撑过100秒")
+    clock = pygame.time.Clock()
+    font = pygame.font.SysFont(None, 36)
+    
+    # 创建计时与得分系统
+    game_system = GameTimerScoreSystem()
+    
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    if game_system.get_state() == GameState.MENU:
+                        game_system.start_game()
+                    elif game_system.get_state() == GameState.PLAYING:
+                        game_system.pause_game()
+                    elif game_system.get_state() == GameState.PAUSED:
+                        game_system.resume_game()
+                    elif game_system.get_state() == GameState.GAME_OVER:
+                        game_system = GameTimerScoreSystem()
+        
+        # 更新游戏系统
+        game_system.update()
+        
+        # 清空屏幕
+        screen.fill((0, 0, 0))
+        
+        # 显示游戏信息
+        if game_system.get_state() == GameState.MENU:
+            text = font.render("按空格键开始游戏", True, (255, 255, 255))
+            screen.blit(text, (250, 250))
+        elif game_system.get_state() == GameState.PLAYING:
+            time_text = font.render(f"剩余时间: {game_system.get_remaining_time():.1f}秒", True, (255, 255, 255))
+            score_text = font.render(f"得分: {game_system.get_score()}", True, (255, 255, 255))
+            pause_text = font.render("按空格键暂停", True, (255, 255, 255))
+            screen.blit(time_text, (50, 50))
+            screen.blit(score_text, (50, 100))
+            screen.blit(pause_text, (50, 150))
+        elif game_system.get_state() == GameState.PAUSED:
+            time_text = font.render(f"剩余时间: {game_system.get_remaining_time():.1f}秒", True, (255, 255, 255))
+            score_text = font.render(f"得分: {game_system.get_score()}", True, (255, 255, 255))
+            pause_text = font.render("游戏已暂停", True, (255, 255, 255))
+            resume_text = font.render("按空格键继续", True, (255, 255, 255))
+            screen.blit(time_text, (50, 50))
+            screen.blit(score_text, (50, 100))
+            screen.blit(pause_text, (300, 250))
+            screen.blit(resume_text, (280, 300))
+        elif game_system.get_state() == GameState.GAME_OVER:
+            time_text = font.render("时间到！", True, (255, 255, 255))
+            score_text = font.render(f"最终得分: {game_system.get_score()}", True, (255, 255, 255))
+            restart_text = font.render("按空格键重新开始", True, (255, 255, 255))
+            screen.blit(time_text, (350, 200))
+            screen.blit(score_text, (300, 250))
+            screen.blit(restart_text, (250, 300))
+        
+        pygame.display.flip()
+        clock.tick(60)
+    
+    pygame.quit()

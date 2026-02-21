@@ -1,0 +1,8 @@
+{
+    "status": "success",
+    "data": {
+        "id": "uuid",
+        "status": "string",
+        "updated_at": "timestamp"
+    }
+}

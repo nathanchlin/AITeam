@@ -1,0 +1,13 @@
+Client -> Server: {
+    "event": "split",
+    "data": {
+        "direction": "string" // split direction
+    }
+}
+Server -> All Clients in Room: {
+    "event": "playerSplit",
+    "data": {
+        "playerId": "string",
+        "newBalls": [ball objects]
+    }
+}

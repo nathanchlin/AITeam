@@ -1,0 +1,5 @@
+public interface IComponent {
+    void Initialize(GameEntity entity);
+    void Update(float deltaTime);
+    void Dispose();
+}

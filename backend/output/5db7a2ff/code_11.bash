@@ -1,0 +1,1 @@
+npm install --save-dev jest @testing-library/jest-dom @testing-library/user-event jest-environment-jsdom

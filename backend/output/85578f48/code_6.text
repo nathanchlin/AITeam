@@ -1,0 +1,10 @@
+Key: room:{roomId}
+Value: {
+  status: String, // waiting, playing, ended
+  players: [playerId],
+  maxPlayers: Number,
+  mode: String,
+  map: String,
+  startTime: Timestamp
+}
+TTL: 86400 // 24小时

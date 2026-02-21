@@ -1,0 +1,17 @@
+public class ShootingUpgrade : MonoBehaviour
+   {
+       public void UpgradeFireRate(float newRate)
+       {
+           shootingManager.FireRate = newRate;
+       }
+       
+       public void IncreaseMaxBullets(int additionalBullets)
+       {
+           shootingManager.MaxBullets += additionalBullets;
+       }
+       
+       public void UnlockSpreadShot()
+       {
+           // 解锁散弹射击功能
+       }
+   }

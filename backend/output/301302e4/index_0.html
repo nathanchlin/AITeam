@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>愤怒的小鸟</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <!-- 主菜单 -->
+        <div id="main-menu" class="screen active">
+            <h1>愤怒的小鸟</h1>
+            <button id="start-btn" class="menu-btn">开始游戏</button>
+            <button id="levels-btn" class="menu-btn">选择关卡</button>
+            <button id="settings-btn" class="menu-btn">设置</button>
+        </div>
+
+        <!-- 关卡选择 -->
+        <div id="level-select" class="screen">
+            <h2>选择关卡</h2>
+            <div id="levels-grid" class="levels-grid">
+                <!-- 关卡将通过JavaScript动态生成 -->
+            </div>
+            <button id="back-to-menu" class="back-btn">返回主菜单</button>
+        </div>
+
+        <!-- 游戏界面 -->
+        <div id="game-screen" class="screen">
+            <div id="game-header">
+                <div class="game-info">
+                    <span id="score">得分: 0</span>
+                    <span id="birds-left">剩余小鸟: 3</span>
+                </div>
+                <div class="game-controls">
+                    <button id="pause-btn" class="control-btn">暂停</button>
+                    <button id="restart-btn" class="control-btn">重新开始</button>
+                </div>
+            </div>
+            <div id="game-canvas">
+                <canvas id="game"></canvas>
+                <div id="slingshot" class="slingshot"></div>
+                <div id="bird" class="bird"></div>
+            </div>
+        </div>
+
+        <!-- 暂停菜单 -->
+        <div id="pause-menu" class="screen">
+            <h2>游戏暂停</h2>
+            <button id="resume-btn" class="menu-btn">继续游戏</button>
+            <button id="restart-pause-btn" class="menu-btn">重新开始</button>
+            <button id="main-menu-pause-btn" class="menu-btn">返回主菜单</button>
+        </div>
+
+        <!-- 游戏结束 -->
+        <div id="game-over" class="screen">
+            <h2 id="game-over-title">游戏结束</h2>
+            <p id="final-score">最终得分: 0</p>
+            <button id="play-again-btn" class="menu-btn">再玩一次</button>
+            <button id="main-menu-game-over-btn" class="menu-btn">返回主菜单</button>
+        </div>
+
+        <!-- 设置菜单 -->
+        <div id="settings" class="screen">
+            <h2>设置</h2>
+            <div class="settings-options">
+                <div class="setting-item">
+                    <label>音效</label>
+                    <input type="checkbox" id="sound-toggle" checked>
+                </div>
+                <div class="setting-item">
+                    <label>音乐</label>
+                    <input type="checkbox" id="music-toggle" checked>
+                </div>
+            </div>
+            <button id="back-to-menu-settings" class="back-btn">返回主菜单</button>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>忍者必须死</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #111;
+            color: #fff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .game-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            height: 400px;
+            background: linear-gradient(to bottom, #1a1a2e, #16213e);
+            border: 2px solid #0f3460;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(15, 52, 96, 0.5);
+        }
+
+        .game-area {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .ninja {
+            position: absolute;
+            width: 40px;
+            height: 60px;
+            background: #4CAF50; /* 绿色忍者 */
+            border-radius: 10px 10px 5px 5px;
+            bottom: 60px;
+            left: 100px;
+            transition: bottom 0.1s;
+            z-index: 10;
+            box-shadow: 0 0 10px rgba(76, 175, 80, 0.7);
+        }
+
+        .ninja::before {
+            content: '';
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: #388E3C;
+            border-radius: 50%;
+            top: 10px;
+            left: 10px;
+        }
+
+        .ninja::after {
+            content: '';
+            position: absolute;
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 15px solid #388E3C;
+            bottom: 0;
+            left: 10px;
+        }
+
+        .obstacle {
+            position: absolute;
+            background: #E53935;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(229, 57, 53, 0.5);
+        }
+
+        .ground {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            height: 60px;
+            background: #37474F;
+            border-top: 3px solid #263238;
+        }
+
+        .ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 20;
+        }
+
+        .score {
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+            z-index: 30;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 10px;
+            border: 2px solid #E53935;
+        }
+
+        .game-over h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #E53935;
+        }
+
+        .game-over p {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            background: #388E3C;
+            transform: scale(1.05);
+        }
+
+        .btn:active {
+            transform: scale(0.95);
+        }
+
+        .controls {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            z-index: 20;
+        }
+
+        .pause-menu {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+            z-index: 30;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 10px;
+            border: 2px solid #FFC107;
+        }
+
+        .pause-menu h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #FFC107;
+        }
+
+        .settings {
+            margin-top: 20px;
+            text-align: left;
+        }
+
+        .settings label {
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .slider {
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 600px) {
+            .game-container {
+                height: 300px;
+            }
+            
+            .ninja {
+                width: 30px;
+                height: 45px;
+                left: 50px;
+            }
+            
+            .obstacle {
+                width: 20px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-area" id="gameArea">
+            <div class="ninja" id="ninja"></div>
+            <div class="ground"></div>
+            
+            <div class="ui">
+                <div class="score">得分: <span id="score">0</span></div>
+                <div class="score">最高分: <span id="highScore">0</span></div>
+            </div>
+            
+            <div class="game-over" id="gameOver">
+                <h2>游戏结束</h2>
+                <p>最终得分: <span id="finalScore">0</span></p>
+                <button class="btn" id="restartBtn">重新开始</button>
+            </div>
+            
+            <div class="pause-menu" id="pauseMenu">
+                <h2>游戏暂停</h2>
+                <button class="btn" id="resumeBtn">继续游戏</button>
+                <button class="btn" id="restartBtn2">重新开始</button>
+                
+                <div class="settings">
+                    <label>游戏难度:
+                        <input type="range" class="slider" id="difficultySlider" min="1" max="3" value="1">
+                        <span id="difficultyValue">简单</span>
+                    </label>
+                    <label>音量:
+                        <input type="range" class="slider" id="volumeSlider" min="0" max="100" value="50">
+                        <span id="volumeValue">50%</span>
+                    </label>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button class="btn" id="pauseBtn">暂停</button>
+                <button class="btn" id="jumpBtn">跳跃</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 游戏状态
+        const gameState = {
+            isRunning: false,
+            isPaused: false,
+            score: 0,
+            highScore: localStorage.getItem('ninjaHighScore') || 0,
+            difficulty: 1,
+            volume: 0.5,
+            ninjaPosition: { x: 100, y: 60 },
+            ninjaVelocity: { x: 0, y: 0 },
+            obstacles: [],
+            gameSpeed: 5,
+            gravity: 0.5,
+            jumpPower: -12,
+            isJumping: false,
+            obstacleSpawnTimer: 0,
+            obstacleSpawnInterval: 100,
+            lastTime: 0
+        };
+
+        // DOM元素
+        const gameArea = document.getElementById('gameArea');
+        const ninja = document.getElementById('ninja');
+        const scoreElement = document.getElementById('score');
+        const highScoreElement = document.getElementById('highScore');
+        const gameOverElement = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        const pauseMenuElement = document.getElementById('pauseMenu');
+        const difficultySlider = document.getElementById('difficultySlider');
+        const difficultyValue = document.getElementById('difficultyValue');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const volumeValue = document.getElementById('volumeValue');
+
+        // 初始化高分显示
+        highScoreElement.textContent = gameState.highScore;
+
+        // 音效系统
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound(frequency, duration) {
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+            
+            oscillator.type = 'square';
+            oscillator.frequency.value = frequency;
+            gainNode.gain.value = gameState.volume;
+            
+            oscillator.start();
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        // 碰撞检测系统
+        function checkCollision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        // 创建障碍物
+        function createObstacle() {
+            const obstacle = document.createElement('div');
+            obstacle.className = 'obstacle';
+            
+            const height = Math.random() * 40 + 20;
+            const width = Math.random() * 30 + 20;
+            
+            obstacle.style.width = `${width}px`;
+            obstacle.style.height = `${height}px`;
+            obstacle.style.bottom = '60px';
+            obstacle.style.right = '0px';
+            
+            gameArea.appendChild(obstacle);
+            
+            gameState.obstacles.push({
+                element: obstacle,
+                x: gameArea.offsetWidth,
+                y: 60,
+                width: width,
+                height: height,
+                passed: false
+            });
+        }
+
+        // 更新游戏状态
+        function updateGame(currentTime) {
+            if (!gameState.isRunning || gameState.isPaused) return;
+            
+            const deltaTime = currentTime - gameState.lastTime;
+            gameState.lastTime = currentTime;
+            
+            // 更新忍者位置
+            gameState.ninjaVelocity.y += gameState.gravity;
+            gameState.ninjaPosition.y += gameState.ninjaVelocity.y;
+            
+            // 地面碰撞检测
+            if (gameState.ninjaPosition.y > 60) {
+                gameState.ninjaPosition.y = 60;
+                gameState.ninjaVelocity.y = 0;
+                gameState.isJumping = false;
+            }
+            
+            // 更新忍者位置
+            ninja.style.bottom = `${gameState.ninjaPosition.y}px`;
+            
+            // 生成障碍物
+            gameState.obstacleSpawnTimer += deltaTime;
+            if (gameState.obstacleSpawnTimer > gameState.obstacleSpawnInterval) {
+                createObstacle();
+                gameState.obstacleSpawnTimer = 0;
+                // 随着难度增加，障碍物生成间隔减少
+                gameState.obstacleSpawnInterval = 100 - (gameState.difficulty * 20);
+            }
+            
+            // 更新障碍物位置
+            for (let i = gameState.obstacles.length - 1; i >= 0; i--) {
+                const obstacle = gameState.obstacles[i];
+                obstacle.x -= gameState.gameSpeed + (gameState.difficulty * 2);
+                obstacle.element.style.right = `${gameArea.offsetWidth - obstacle.x}px`;
+                
+                // 碰撞检测
+                const ninjaRect = {
+                    x: gameState.ninjaPosition.x,
+                    y: gameState.ninjaPosition.y,
+                    width: 40,
+                    height: 60
+                };
+                
+                const obstacleRect = {
+                    x: obstacle.x,
+                    y: obstacle.y,
+                    width: obstacle.width,
+                    height: obstacle.height
+                };
+                
+                if (checkCollision(ninjaRect, obstacleRect)) {
+                    gameOver();
+                    return;
+                }
+                
+                // 计分
+                if (!obstacle.passed && obstacle.x + obstacle.width < gameState.ninjaPosition.x) {
+                    obstacle.passed = true;
+                    gameState.score += 10 * gameState.difficulty;
+                    scoreElement.textContent = gameState.score;
+                    playSound(523.25, 0.1); // C5音符
+                }
+                
+                // 移除屏幕外的障碍物
+                if (obstacle.x + obstacle.width < 0) {
+                    obstacle.element.remove();
+                    gameState.obstacles.splice(i, 1);
+                }
+            }
+            
+            // 增加游戏难度
+            if (gameState.score > 0 && gameState.score % 100 === 0) {
+                gameState.difficulty = Math.min(3, Math.floor(gameState.score / 100) + 1);
+            }
+            
+            requestAnimationFrame(updateGame);
+        }
+
+        // 跳跃功能
+        function jump() {
+            if (!gameState.isJumping && gameState.isRunning && !gameState.isPaused) {
+                gameState.ninjaVelocity.y = gameState.jumpPower;
+                gameState.isJumping = true;
+                playSound(261.63, 0.1); // C4音符
+            }
+        }
+
+        // 游戏结束
+        function gameOver() {
+            gameState.isRunning = false;
+            finalScoreElement.textContent = gameState.score;
+            gameOverElement.style.display = 'block';
+            
+            // 更新最高分
+            if (gameState.score > gameState.highScore) {
+                gameState.highScore = gameState.score;
+                highScoreElement.textContent = gameState.highScore;
+                localStorage.setItem('ninjaHighScore', gameState.highScore);
+            }
+            
+            playSound(130.81, 0.5); // C3音符
+        }
+
+        // 开始游戏
+        function startGame() {
+            // 重置游戏状态
+            gameState.isRunning = true;
+            gameState.isPaused = false;
+            gameState.score = 0;
+            gameState.difficulty = parseInt(difficultySlider.value);
+            gameState.obstacleSpawnTimer = 0;
+            gameState.obstacleSpawnInterval = 100;
+            gameState.ninjaPosition.y = 60;
+            gameState.ninjaVelocity.y = 0;
+            
+            // 清除所有障碍物
+            gameState.obstacles.forEach(obstacle => obstacle.element.remove());
+            gameState.obstacles = [];
+            
+            // 更新UI
+            scoreElement.textContent = '0';
+            gameOverElement.style.display = 'none';
+            pauseMenuElement.style.display = 'none';
+            
+            // 开始游戏循环
+            gameState.lastTime = performance.now();
+            requestAnimationFrame(updateGame);
+        }
+
+        // 暂停游戏
+        function pauseGame() {
+            if (gameState.isRunning && !gameState.isPaused) {
+                gameState.isPaused = true;
+                pauseMenuElement.style.display = 'block';
+            }
+        }
+
+        // 继续游戏
+        function resumeGame() {
+            if (gameState.isRunning && gameState.isPaused) {
+                gameState.isPaused = false;
+                pauseMenuElement.style.display = 'none';
+                gameState.lastTime = performance.now();
+                requestAnimationFrame(updateGame);
+            }
+        }
+
+        // 事件监听器
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                jump();
+            }
+        });
+
+        document.getElementById('jumpBtn').addEventListener('click', jump);
+        document.getElementById('pauseBtn').addEventListener('click', pauseGame);
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+        document.getElementById('restartBtn2').addEventListener('click', startGame);
+        document.getElementById('resumeBtn').addEventListener('click', resumeGame);
+
+        // 设置滑块事件
+        difficultySlider.addEventListener('input', (e) => {
+            gameState.difficulty = parseInt(e.target.value);
+            const difficultyTexts = ['简单', '中等', '困难'];
+            difficultyValue.textContent = difficultyTexts[gameState.difficulty - 1];
+        });
+
+        volumeSlider.addEventListener('input', (e) => {
+            gameState.volume = e.target.value / 100;
+            volumeValue.textContent = `${e.target.value}%`;
+        });
+
+        // 触摸控制（移动设备）
+        let touchStartY = 0;
+        gameArea.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        });
+
+        gameArea.addEventListener('touchend', (e) => {
+            const touchEndY = e.changedTouches[0].clientY;
+            if (touchStartY - touchEndY > 30) { // 向上滑动
+                jump();
+            }
+        });
+
+        // 初始化游戏
+        startGame();
+    </script>
+</body>
+</html>

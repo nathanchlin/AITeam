@@ -1,0 +1,12 @@
+GET /api/v1/friends
+Headers: Authorization: Bearer <token>
+Response:
+[
+    {
+        "friendId": "string",
+        "username": "string",
+        "avatar": "string",
+        "status": "online | offline | ingame",
+        "lastSeen": "timestamp"
+    }
+]

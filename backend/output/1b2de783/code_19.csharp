@@ -1,0 +1,63 @@
+public class Bullet
+{
+    public Vector2 Position { get; private set; }
+    public Vector2 Velocity { get; private set; }
+    public float Damage { get; private set; }
+    public float Lifetime { get; private set; }
+    public float CurrentLife { get; private set; }
+    public bool IsActive { get; private set; }
+    public GameObject GameObject { get; private set; }
+    
+    public Bullet(Vector2 position, Vector2 velocity, float damage, float lifetime, GameObject bulletPrefab)
+    {
+        Position = position;
+        Velocity = velocity;
+        Damage = damage;
+        Lifetime = lifetime;
+        CurrentLife = 0f;
+        IsActive = true;
+        
+        // 实例化子弹游戏对象
+        GameObject = GameObject.Instantiate(bulletPrefab, position, Quaternion.identity);
+    }
+    
+    public void Update(float deltaTime)
+    {
+        if (!IsActive) return;
+        
+        // 更新位置
+        Position += Velocity * deltaTime;
+        
+        // 更新生命周期
+        CurrentLife += deltaTime;
+        if (CurrentLife >= Lifetime)
+        {
+            Deactivate();
+            return;
+        }
+        
+        // 更新游戏对象位置
+        if (GameObject != null)
+        {
+            GameObject.transform.position = Position;
+        }
+    }
+    
+    public void Deactivate()
+    {
+        IsActive = false;
+        if (GameObject != null)
+        {
+            GameObject.SetActive(false);
+        }
+    }
+    
+    public void Destroy()
+    {
+        if (GameObject != null)
+        {
+            GameObject.Destroy(GameObject);
+            GameObject = null;
+        }
+    }
+}

@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>是男人就下100层</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Arial', sans-serif;
+            color: white;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        #game-ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: space-between;
+            z-index: 10;
+        }
+        
+        #score, #high-score, #floor, #lives {
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.8);
+        }
+        
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            z-index: 20;
+        }
+        
+        #game-over h2 {
+            margin-top: 0;
+            color: #ff5555;
+        }
+        
+        #game-over button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #0ff;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        #game-over button:hover {
+            background: #0aa;
+            transform: scale(1.05);
+        }
+        
+        #start-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 30;
+        }
+        
+        #start-screen h1 {
+            font-size: 32px;
+            margin-bottom: 20px;
+            color: #0ff;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+        }
+        
+        #start-screen button {
+            padding: 15px 30px;
+            font-size: 20px;
+            background: #0ff;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        #start-screen button:hover {
+            background: #0aa;
+            transform: scale(1.05);
+        }
+        
+        .power-up-indicator {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            font-size: 16px;
+            color: #ff0;
+            text-shadow: 0 0 5px rgba(255, 255, 0, 0.8);
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="game-ui">
+            <div>分数: <span id="score">0</span></div>
+            <div>最高分: <span id="high-score">0</span></div>
+            <div>楼层: <span id="floor">1</span></div>
+            <div>生命: <span id="lives">3</span></div>
+        </div>
+        
+        <div id="game-over">
+            <h2>游戏结束</h2>
+            <p>你的得分: <span id="final-score">0</span></p>
+            <p>到达楼层: <span id="final-floor">1</span></p>
+            <button id="restart-btn">重新开始</button>
+        </div>
+        
+        <div id="start-screen">
+            <h1>是男人就下100层</h1>
+            <p>使用左右箭头键移动，空格键跳跃</p>
+            <p>尽可能下到更深的楼层！</p>
+            <button id="start-btn">开始游戏</button>
+        </div>
+        
+        <div class="power-up-indicator" id="power-up-indicator">能力激活!</div>
+    </div>
+
+    <script>
+        // 游戏配置
+        const config = {
+            type: Phaser.AUTO,
+            width: 400,
+            height: 600,
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 500 },
+                    debug: false
+                }
+            },
+            scene: {
+                preload: preload,
+                create: create,
+                update: update
+            }
+        };
+
+        // 游戏变量
+        let player;
+        let platforms;
+        let cursors;
+        let score = 0;
+        let highScore = localStorage.getItem('highScore') || 0;
+        let currentFloor = 1;
+        let lives = 3;
+        let gameSpeed = 2;
+        let isGameOver = false;
+        let powerUpActive = false;
+        let powerUpTimer = 0;
+        let camera;
+        let highestPlatformY = 0;
+        let platformGenerationCounter = 0;
+        let scoreMultiplier = 1;
+        let scoreMultiplierTimer = 0;
+        
+        // 游戏常量
+        const PLAYER_SPEED = 200;
+        const JUMP_FORCE = 350;
+        const PLATFORM_WIDTH = 80;
+        const PLATFORM_HEIGHT = 20;
+        const MIN_PLATFORM_GAP = 100;
+        const MAX_PLATFORM_GAP = 150;
+        const PLATFORM_SPAWN_RATE = 60; // 每60帧生成一个新平台
+        const POWER_UP_CHANCE = 0.1; // 10%的几率生成能力道具
+        const FLOORS_PER_SPEED_INCREASE = 10; // 每10层增加一次速度
+        
+        // 更新UI
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('high-score').textContent = highScore;
+            document.getElementById('floor').textContent = currentFloor;
+            document.getElementById('lives').textContent = lives;
+        }
+        
+        // 预加载资源
+        function preload() {
+            // 创建简单的矩形作为玩家和平台
+            this.add.graphics()
+                .fillStyle(0x0ff)
+                .fillRect(0, 0, 30, 30)
+                .generateTexture('player', 30, 30);
+                
+            this.add.graphics()
+                .fillStyle(0x888)
+                .fillRect(0, 0, PLATFORM_WIDTH, PLATFORM_HEIGHT)
+                .generateTexture('platform', PLATFORM_WIDTH, PLATFORM_HEIGHT);
+                
+            this.add.graphics()
+                .fillStyle(0xff0)
+                .fillRect(0, 0, 20, 20)
+                .generateTexture('powerUp', 20, 20);
+        }
+        
+        // 创建游戏场景
+        function create() {
+            // 设置背景
+            this.cameras.main.setBackgroundColor(0x222);
+            camera = this.cameras.main;
+            camera.setBounds(0, 0, 400, 2000); // 设置相机边界
+            
+            // 创建玩家
+            player = this.physics.add.sprite(200, 500, 'player');
+            player.setBounce(0.2);
+            player.setCollideWorldBounds(true);
+            player.body.setGravityY(500);
+            
+            // 创建平台组
+            platforms = this.physics.add.staticGroup();
+            
+            // 生成初始平台
+            for (let i = 0; i < 10; i++) {
+                generatePlatform(this, 600 - i * 80);
+            }
+            
+            // 设置碰撞检测
+            this.physics.add.collider(player, platforms, onPlatformCollision, null, this);
+            
+            // 设置键盘控制
+            cursors = this.input.keyboard.createCursorKeys();
+            
+            // 添加空格键跳跃
+            this.input.keyboard.on('keydown-SPACE', function(event) {
+                if (player.body.touching.down && !isGameOver) {
+                    player.setVelocityY(-JUMP_FORCE);
+                }
+            });
+            
+            // 添加重新开始按钮事件
+            document.getElementById('restart-btn').addEventListener('click', restartGame);
+            
+            // 添加开始按钮事件
+            document.getElementById('start-btn').addEventListener('click', startGame);
+            
+            // 初始化UI
+            updateUI();
+        }
+        
+        // 生成平台
+        function generatePlatform(scene, y) {
+            const x = Phaser.Math.Between(PLATFORM_WIDTH / 2, 400 - PLATFORM_WIDTH / 2);
+            const platform = platforms.create(x, y, 'platform');
+            platform.setScale(1, 1);
+            
+            // 有几率生成能力道具
+            if (Math.random() < POWER_UP_CHANCE) {
+                const powerUp = scene.physics.add.sprite(x, y - 30, 'powerUp');
+                powerUp.setBounce(1);
+                powerUp.setCollideWorldBounds(true);
+                powerUp.body.setGravityY(200);
+                scene.physics.add.collider(powerUp, platforms);
+                scene.physics.add.overlap(player, powerUp, onPowerUpCollect, null, scene);
+                platform.powerUp = powerUp;
+            }
+            
+            // 更新最高平台Y坐标
+            if (y < highestPlatformY) {
+                highestPlatformY = y;
+            }
+        }
+        
+        // 平台碰撞处理
+        function onPlatformCollision(player, platform) {
+            // 如果玩家从上方落在平台上
+            if (player.body.velocity.y > 0 && player.y < platform.y) {
+                // 计算分数
+                const floorScore = Math.floor((600 - platform.y) / 80) + 1;
+                score += floorScore * scoreMultiplier;
+                
+                // 更新当前楼层
+                const newFloor = Math.floor((600 - platform.y) / 80) + 1;
+                if (newFloor > currentFloor) {
+                    currentFloor = newFloor;
+                    
+                    // 每10层增加一次游戏速度
+                    if (currentFloor % FLOORS_PER_SPEED_INCREASE === 0) {
+                        gameSpeed += 0.5;
+                    }
+                }
+                
+                updateUI();
+            }
+        }
+        
+        // 能力道具收集处理
+        function onPowerUpCollect(player, powerUp) {
+            // 激活能力
+            powerUpActive = true;
+            powerUpTimer = 300; // 5秒持续时间 (60fps * 5)
+            
+            // 随机选择一种能力
+            const abilityType = Math.floor(Math.random() * 3);
+            
+            switch(abilityType) {
+                case 0: // 跳跃力增强
+                    player.setVelocityY(-JUMP_FORCE * 1.5);
+                    document.getElementById('power-up-indicator').textContent = '超级跳跃!';
+                    break;
+                case 1: // 分数倍增
+                    scoreMultiplier = 2;
+                    scoreMultiplierTimer = 600; // 10秒持续时间
+                    document.getElementById('power-up-indicator').textContent = '双倍分数!';
+                    break;
+                case 2: // 额外生命
+                    lives++;
+                    document.getElementById('power-up-indicator').textContent = '额外生命!';
+                    break;
+            }
+            
+            // 显示能力指示器
+            document.getElementById('power-up-indicator').style.display = 'block';
+            
+            // 移除能力道具
+            powerUp.destroy();
+            
+            // 更新UI
+            updateUI();
+        }
+        
+        // 游戏更新循环
+        function update(time, delta) {
+            if (isGameOver) return;
+            
+            // 玩家控制
+            if (cursors.left.isDown) {
+                player.setVelocityX(-PLAYER_SPEED);
+            } else if (cursors.right.isDown) {
+                player.setVelocityX(PLAYER_SPEED);
+            } else {
+                player.setVelocityX(0);
+            }
+            
+            // 更新相机位置，跟随玩家
+            if (player.y < camera.scrollY + 150) {
+                camera.setScroll(0, player.y - 150);
+            }
+            
+            // 生成新平台
+            platformGenerationCounter++;
+            if (platformGenerationCounter >= PLATFORM_SPAWN_RATE) {
+                platformGenerationCounter = 0;
+                generatePlatform(this, highestPlatformY - MIN_PLATFORM_GAP);
+            }
+            
+            // 移除屏幕外的平台
+            platforms.children.entries.forEach(platform => {
+                if (platform.y > camera.scrollY + 650) {
+                    platform.destroy();
+                    
+                    // 如果平台上有能力道具，也移除
+                    if (platform.powerUp) {
+                        platform.powerUp.destroy();
+                    }
+                }
+            });
+            
+            // 检查玩家是否掉落
+            if (player.y > camera.scrollY + 650) {
+                loseLife();
+            }
+            
+            // 更新能力计时器
+            if (powerUpActive) {
+                powerUpTimer--;
+                if (powerUpTimer <= 0) {
+                    powerUpActive = false;
+                    document.getElementById('power-up-indicator').style.display = 'none';
+                }
+            }
+            
+            // 更新分数倍增计时器
+            if (scoreMultiplier > 1) {
+                scoreMultiplierTimer--;
+                if (scoreMultiplierTimer <= 0) {
+                    scoreMultiplier = 1;
+                }
+            }
+        }
+        
+        // 失去生命
+        function loseLife() {
+            lives--;
+            updateUI();
+            
+            if (lives <= 0) {
+                gameOver();
+            } else {
+                // 重置玩家位置
+                player.setPosition(200, 500);
+                player.setVelocity(0, 0);
+                
+                // 重置相机位置
+                camera.setScroll(0, 350);
+                
+                // 重置最高平台Y坐标
+                highestPlatformY = 500;
+            }
+        }
+        
+        // 游戏结束
+        function gameOver() {
+            isGameOver = true;
+            
+            // 更新最高分
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('highScore', highScore);
+            }
+            
+            // 显示游戏结束界面
+            document.getElementById('final-score').textContent = score;
+            document.getElementById('final-floor').textContent = currentFloor;
+            document.getElementById('game-over').style.display = 'block';
+            
+            updateUI();
+        }
+        
+        // 重新开始游戏
+        function restartGame() {
+            // 重置游戏变量
+            score = 0;
+            currentFloor = 1;
+            lives = 3;
+            gameSpeed = 2;
+            isGameOver = false;
+            powerUpActive = false;
+            powerUpTimer = 0;
+            highestPlatformY = 500;
+            platformGenerationCounter = 0;
+            scoreMultiplier = 1;
+            scoreMultiplierTimer = 0;
+            
+            // 清除所有平台
+            platforms.clear(true, true);
+            
+            // 重置玩家位置
+            player.setPosition(200, 500);
+            player.setVelocity(0, 0);
+            
+            // 重置相机位置
+            camera.setScroll(0, 350);
+            
+            // 重新生成初始平台
+            for (let i = 0; i < 10; i++) {
+                generatePlatform(this, 600 - i * 80);
+            }
+            
+            // 隐藏游戏结束界面
+            document.getElementById('game-over').style.display = 'none';
+            
+            // 更新UI
+            updateUI();
+        }
+        
+        // 开始游戏
+        function startGame() {
+            document.getElementById('start-screen').style.display = 'none';
+            updateUI();
+        }
+    </script>
+</body>
+</html>

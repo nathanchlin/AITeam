@@ -1,0 +1,14 @@
+GET /api/v1/leaderboard
+Query Parameters:
+- type: global | friends | local
+- limit: number (default: 10)
+Response:
+[
+    {
+        "rank": "number",
+        "userId": "string",
+        "username": "string",
+        "score": "number",
+        "avatar": "string"
+    }
+]

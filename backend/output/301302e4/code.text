@@ -1,0 +1,9 @@
+/angry-birds/
+├── public/          # 静态资源
+│   ├── images/
+│   ├── sounds/
+│   └── css/
+├── src/             # 源代码
+├── server/          # 服务器端代码
+├── build/           # 构建输出
+└── config/          # 配置文件

@@ -1,0 +1,5 @@
+Leaderboard/
+├── Leaderboard.jsx      # 主组件
+├── LeaderboardList.jsx  # 排行榜列表
+├── Pagination.jsx       # 分页组件
+└── UserScore.jsx        # 用户分数展示

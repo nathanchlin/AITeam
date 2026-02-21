@@ -1,0 +1,7 @@
+Server -> Client: {
+    "event": "friendStatusUpdate",
+    "data": {
+        "friendId": "string",
+        "status": "online | offline | ingame"
+    }
+}

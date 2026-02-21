@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>俄罗斯方块</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-info">
+            <h1>俄罗斯方块</h1>
+            <div class="score-board">
+                <div class="score-item">
+                    <span>得分:</span>
+                    <span id="score">0</span>
+                </div>
+                <div class="score-item">
+                    <span>等级:</span>
+                    <span id="level">1</span>
+                </div>
+                <div class="score-item">
+                    <span>行数:</span>
+                    <span id="lines">0</span>
+                </div>
+                <div class="score-item">
+                    <span>最高分:</span>
+                    <span id="highScore">0</span>
+                </div>
+            </div>
+            <div class="next-piece">
+                <h3>下一个方块</h3>
+                <canvas id="nextCanvas" width="80" height="80"></canvas>
+            </div>
+            <button id="startBtn">开始游戏</button>
+            <button id="pauseBtn">暂停</button>
+        </div>
+        <div class="game-board">
+            <canvas id="gameCanvas" width="300" height="600"></canvas>
+        </div>
+        <div class="touch-controls">
+            <button id="leftBtn">左</button>
+            <button id="rotateBtn">旋转</button>
+            <button id="rightBtn">右</button>
+            <button id="downBtn">下</button>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

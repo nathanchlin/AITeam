@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backpack War Game</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #inventory {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 5px;
+    border-radius: 5px;
+    pointer-events: none;
+    display: none;
+  }
+  .item {
+    margin: 5px;
+    padding: 5px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .item.selected {
+    background-color: rgba(255, 255, 0, 0.5);
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="inventory"></div>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 800;
+  canvas.height = 600;
+
+  let inventory = [];
+  let selectedItemIndex = -1;
+  let player = {
+    x: 50,
+    y: 50,
+    width: 30,
+    height: 30,
+    color: 'blue'
+  };
+
+  const backpack = {
+    x: 50,
+    y: 100,
+    width: 100,
+    height: 50,
+    color: 'green'
+  };
+
+  const ground = {
+    x: 0,
+    y: canvas.height - 20,
+    width: canvas.width,
+    height: 20,
+    color: 'grey'
+  };
+
+  // Draw functions
+  function drawRect(x, y, width, height, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  function drawPlayer() {
+    drawRect(player.x, player.y, player.width, player.height, player.color);
+  }
+
+  function drawBackpack() {
+    drawRect(backpack.x, backpack.y, backpack.width, backpack.height, backpack.color);
+  }
+
+  function drawGround() {
+    drawRect(ground.x, ground.y, ground.width, ground.height, ground.color);
+  }
+
+  function drawInventory() {
+    const inventoryDiv = document.getElementById('inventory');
+    inventoryDiv.innerHTML = ''; // Clear inventory display
+    inventory.forEach((item, index) => {
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'item';
+      itemDiv.style.backgroundColor = item.color;
+      itemDiv.innerText = item.name;
+      itemDiv.dataset.index = index;
+      itemDiv.addEventListener('click', () => {
+        selectedItemIndex = index;
+        inventory.forEach((i, idx) => {
+          itemDiv.classList.toggle('selected', idx === selectedItemIndex);
+        });
+      });
+      inventoryDiv.appendChild(itemDiv);
+    });
+    inventoryDiv.style.display = 'block';
+  }
+
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawGround();
+    drawPlayer();
+    drawBackpack();
+    drawInventory();
+  }
+
+  // Event listeners
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'i') {
+      inventory = [{ name: 'Sword', color: 'red' }, { name: 'Shield', color: 'blue' }]; // Example items
+      drawInventory();
+    }
+    if (e.key === 'e') {
+      if (selectedItemIndex !== -1) {
+        // Use the selected item
+        console.log(`Using item: ${inventory[selectedItemIndex].name}`);
+        inventory.splice(selectedItemIndex, 1);
+        selectedItemIndex = -1; // Deselect item
+      } else {
+        // Clear inventory
+        inventory = [];
+      }
+      drawInventory();
+    }
+  });
+
+  window.onload = () => {
+    gameLoop();
+    requestAnimationFrame(gameLoop);
+  };
+</script>
+</body>
+</html>

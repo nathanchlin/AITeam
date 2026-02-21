@@ -1,0 +1,3357 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>斗地主游戏</title>
+<style>
+/* UI/UX Pro 设计规范 - 设计系统变量 */
+:root {
+  --primary-color: #1a5f2a;
+  --secondary-color: #2d8a3e;
+  --accent-color: #ffd700;
+  --background-dark: #0d3d1a;
+  --text-light: #ffffff;
+  --text-dark: #333333;
+  --card-bg: #ffffff;
+  --danger-color: #e74c3c;
+  --success-color: #27ae60;
+  --shadow-soft: 0 4px 15px rgba(0, 0, 0, 0.2);
+  --shadow-strong: 0 8px 30px rgba(0, 0, 0, 0.3);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 20px;
+  --transition-fast: 0.2s ease;
+  --transition-normal: 0.3s ease;
+  --highlight-glow: 0 0 20px rgba(255, 215, 0, 0.8);
+  --guide-color: #00e5ff;
+  --guide-glow: 0 0 20px rgba(0, 229, 255, 0.6);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  background: linear-gradient(135deg, #0a2e12 0%, #1a5f2a 50%, #0d3d1a 100%);
+  user-select: none;
+}
+
+/* 游戏容器 */
+.game-container {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  background: 
+    radial-gradient(ellipse at 50% 30%, rgba(45, 138, 62, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 70%, rgba(26, 95, 42, 0.3) 0%, transparent 50%);
+}
+
+/* 牌桌 */
+.table {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 75%;
+  height: 55%;
+  background: radial-gradient(ellipse at center, rgba(34, 139, 34, 0.6) 0%, rgba(0, 50, 0, 0.8) 100%);
+  border-radius: 50%;
+  border: 12px solid #5D3A1A;
+  box-shadow: 
+    inset 0 0 80px rgba(0, 0, 0, 0.4),
+    0 0 0 4px #3D2510,
+    0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+/* ==================== 视觉引导系统样式 ==================== */
+
+/* 回合指示箭头 */
+.turn-arrow {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  filter: drop-shadow(0 0 10px rgba(0, 229, 255, 0.8));
+}
+
+.turn-arrow.visible {
+  opacity: 1;
+}
+
+.turn-arrow svg {
+  width: 100%;
+  height: 100%;
+}
+
+.turn-arrow.left {
+  left: 130px;
+  top: 50%;
+  transform: translateY(-50%) rotate(0deg);
+}
+
+.turn-arrow.right {
+  right: 130px;
+  top: 50%;
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.turn-arrow.bottom {
+  left: 50%;
+  bottom: 145px;
+  transform: translateX(-50%) rotate(-90deg);
+}
+
+.turn-arrow.animate {
+  animation: arrowBounce 1s ease-in-out infinite;
+}
+
+@keyframes arrowBounce {
+  0%, 100% { transform: translateY(-50%) translateX(0); }
+  50% { transform: translateY(-50%) translateX(10px); }
+}
+
+.turn-arrow.bottom.animate {
+  animation: arrowBounceBottom 1s ease-in-out infinite;
+}
+
+@keyframes arrowBounceBottom {
+  0%, 100% { transform: translateX(-50%) translateY(0) rotate(-90deg); }
+  50% { transform: translateX(-50%) translateY(-10px) rotate(-90deg); }
+}
+
+/* 引导提示框 */
+.guide-tooltip {
+  position: absolute;
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.95), rgba(0, 188, 212, 0.95));
+  color: #000;
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: var(--guide-glow), 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 200;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  max-width: 250px;
+  text-align: center;
+}
+
+.guide-tooltip.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.guide-tooltip::after {
+  content: '';
+  position: absolute;
+  border: 8px solid transparent;
+}
+
+.guide-tooltip.top::after {
+  bottom: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-top-color: rgba(0, 188, 212, 0.95);
+}
+
+.guide-tooltip.bottom::after {
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-bottom-color: rgba(0, 229, 255, 0.95);
+}
+
+.guide-tooltip.left::after {
+  right: -16px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-left-color: rgba(0, 188, 212, 0.95);
+}
+
+.guide-tooltip.right::after {
+  left: -16px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-right-color: rgba(0, 229, 255, 0.95);
+}
+
+/* 引导提示位置 */
+.guide-tooltip.tooltip-cards {
+  bottom: 135px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.guide-tooltip.tooltip-cards.visible {
+  transform: translateX(-50%) translateY(0);
+}
+
+.guide-tooltip.tooltip-buttons {
+  bottom: 210px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.guide-tooltip.tooltip-buttons.visible {
+  transform: translateX(-50%) translateY(0);
+}
+
+.guide-tooltip.tooltip-left-player {
+  left: 130px;
+  top: calc(50% - 80px);
+}
+
+.guide-tooltip.tooltip-right-player {
+  right: 130px;
+  top: calc(50% - 80px);
+}
+
+/* 步骤指示器 */
+.step-indicator {
+  position: absolute;
+  top: 70px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  padding: 15px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(0, 229, 255, 0.3);
+  z-index: 50;
+}
+
+.step-indicator h4 {
+  color: var(--guide-color);
+  font-size: 14px;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.3s ease;
+}
+
+.step-item.active {
+  color: var(--guide-color);
+  font-weight: 600;
+}
+
+.step-item.completed {
+  color: var(--success-color);
+}
+
+.step-item .step-number {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  transition: all 0.3s ease;
+}
+
+.step-item.active .step-number {
+  background: var(--guide-color);
+  color: #000;
+  box-shadow: var(--guide-glow);
+}
+
+.step-item.completed .step-number {
+  background: var(--success-color);
+  color: #fff;
+}
+
+.step-item .step-icon {
+  font-size: 16px;
+}
+
+/* 操作流程路径 */
+.action-path {
+  position: absolute;
+  pointer-events: none;
+  z-index: 90;
+}
+
+.action-path svg {
+  overflow: visible;
+}
+
+.path-line {
+  stroke: var(--guide-color);
+  stroke-width: 3;
+  stroke-dasharray: 10, 5;
+  fill: none;
+  filter: drop-shadow(0 0 5px rgba(0, 229, 255, 0.6));
+  animation: pathDash 1s linear infinite;
+}
+
+@keyframes pathDash {
+  to {
+    stroke-dashoffset: -15;
+  }
+}
+
+.path-arrow {
+  fill: var(--guide-color);
+  filter: drop-shadow(0 0 5px rgba(0, 229, 255, 0.8));
+}
+
+/* 高亮框 */
+.highlight-box {
+  position: absolute;
+  border: 3px solid var(--guide-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--guide-glow), inset 0 0 20px rgba(0, 229, 255, 0.2);
+  pointer-events: none;
+  z-index: 150;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  animation: highlightPulse 1.5s ease-in-out infinite;
+}
+
+.highlight-box.visible {
+  opacity: 1;
+}
+
+@keyframes highlightPulse {
+  0%, 100% { 
+    box-shadow: var(--guide-glow), inset 0 0 20px rgba(0, 229, 255, 0.2);
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(0, 229, 255, 1), inset 0 0 30px rgba(0, 229, 255, 0.3);
+  }
+}
+
+/* 新手引导覆盖层 */
+.tutorial-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+}
+
+.tutorial-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tutorial-card {
+  background: linear-gradient(135deg, #1a1a2e, #16213e);
+  border-radius: var(--radius-lg);
+  padding: 40px;
+  max-width: 500px;
+  text-align: center;
+  border: 2px solid var(--guide-color);
+  box-shadow: var(--guide-glow), 0 20px 60px rgba(0, 0, 0, 0.5);
+  transform: scale(0.9);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.tutorial-overlay.visible .tutorial-card {
+  transform: scale(1);
+}
+
+.tutorial-card h2 {
+  color: var(--guide-color);
+  font-size: 28px;
+  margin-bottom: 20px;
+  text-shadow: 0 0 20px rgba(0, 229, 255, 0.5);
+}
+
+.tutorial-card p {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 16px;
+  line-height: 1.8;
+  margin-bottom: 30px;
+}
+
+.tutorial-steps {
+  text-align: left;
+  margin-bottom: 30px;
+}
+
+.tutorial-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  margin-bottom: 15px;
+  padding: 12px;
+  background: rgba(0, 229, 255, 0.1);
+  border-radius: var(--radius-md);
+  transition: all 0.3s ease;
+}
+
+.tutorial-step:hover {
+  background: rgba(0, 229, 255, 0.2);
+  transform: translateX(5px);
+}
+
+.tutorial-step .step-num {
+  width: 30px;
+  height: 30px;
+  background: var(--guide-color);
+  color: #000;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.tutorial-step .step-content {
+  flex: 1;
+}
+
+.tutorial-step .step-title {
+  color: var(--guide-color);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.tutorial-step .step-desc {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+}
+
+.tutorial-btn {
+  padding: 15px 40px;
+  background: linear-gradient(135deg, var(--guide-color), #00bcd4);
+  color: #000;
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 20px rgba(0, 229, 255, 0.4);
+}
+
+.tutorial-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 30px rgba(0, 229, 255, 0.6);
+}
+
+.tutorial-skip {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.6);
+  padding: 10px 25px;
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  cursor: pointer;
+  margin-top: 15px;
+  transition: all 0.3s ease;
+}
+
+.tutorial-skip:hover {
+  border-color: rgba(255, 255, 255, 0.6);
+  color: white;
+}
+
+/* 操作提示条 */
+.action-hint-bar {
+  position: absolute;
+  bottom: 200px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, rgba(0, 229, 255, 0.9), rgba(0, 188, 212, 0.9));
+  color: #000;
+  padding: 10px 25px;
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  font-weight: 600;
+  z-index: 80;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--guide-glow);
+}
+
+.action-hint-bar.visible {
+  opacity: 1;
+}
+
+.action-hint-bar .hint-icon {
+  font-size: 18px;
+  animation: hintIconPulse 1s ease-in-out infinite;
+}
+
+@keyframes hintIconPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+/* 出牌路径指示 */
+.play-path-indicator {
+  position: absolute;
+  pointer-events: none;
+  z-index: 85;
+}
+
+.play-path-indicator svg {
+  overflow: visible;
+}
+
+.play-path-line {
+  stroke: var(--accent-color);
+  stroke-width: 2;
+  stroke-dasharray: 8, 4;
+  fill: none;
+  opacity: 0.8;
+  animation: playPathDash 0.8s linear infinite;
+}
+
+@keyframes playPathDash {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+
+/* 玩家区域通用样式 */
+.player {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+  transition: all var(--transition-normal);
+}
+
+/* 当前回合玩家高亮 */
+.player.active-turn {
+  z-index: 15;
+}
+
+.player.active-turn .player-avatar {
+  box-shadow: var(--highlight-glow), var(--shadow-strong);
+  animation: pulseGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes pulseGlow {
+  0%, 100% { 
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.6), var(--shadow-strong);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(255, 215, 0, 1), var(--shadow-strong);
+    transform: scale(1.05);
+  }
+}
+
+.player-avatar {
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #4a90a4, #2c5f6e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  border: 4px solid var(--accent-color);
+  box-shadow: var(--shadow-strong);
+  position: relative;
+  transition: all var(--transition-normal);
+}
+
+.player-name {
+  color: var(--text-light);
+  font-weight: 600;
+  margin-top: 8px;
+  font-size: 14px;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+/* 优化：增强牌数显示 */
+.player-card-count {
+  background: linear-gradient(135deg, var(--accent-color), #ffaa00);
+  color: var(--text-dark);
+  padding: 6px 16px;
+  border-radius: var(--radius-lg);
+  font-size: 15px;
+  font-weight: bold;
+  margin-top: 8px;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4);
+  min-width: 60px;
+  text-align: center;
+}
+
+/* 优化：玩家角色标识 */
+.player-role {
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.player-role.farmer {
+  background: linear-gradient(135deg, #4caf50, #2e7d32);
+  color: white;
+}
+
+.player-role.landlord {
+  background: linear-gradient(135deg, #ff5722, #e64a19);
+  color: white;
+}
+
+/* 左边玩家 */
+.player-left {
+  left: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* 右边玩家 */
+.player-right {
+  right: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* 底部玩家 */
+.player-bottom {
+  bottom: 25px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+/* 手牌区域 - 优化：更突出 */
+.hand-cards {
+  display: flex;
+  justify-content: center;
+  margin-top: 15px;
+  min-height: 100px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(5px);
+}
+
+/* 扑克牌样式 - UI/UX Pro 组件 */
+.card {
+  width: 70px;
+  height: 100px;
+  background: linear-gradient(145deg, #ffffff 0%, #f5f5f5 100%);
+  border-radius: var(--radius-sm);
+  border: 1px solid #ddd;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 6px;
+  margin-left: -35px;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), 
+              box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 0.15s ease;
+  box-shadow: 2px 3px 8px rgba(0, 0, 0, 0.25);
+  position: relative;
+}
+
+.card:first-child {
+  margin-left: 0;
+}
+
+.card:hover {
+  transform: translateY(-15px);
+  box-shadow: 5px 10px 25px rgba(0, 0, 0, 0.35);
+  z-index: 100;
+}
+
+/* 增强选中效果 */
+.card.selected {
+  transform: translateY(-25px);
+  box-shadow: 
+    0 15px 35px rgba(255, 215, 0, 0.5),
+    0 0 20px rgba(255, 215, 0, 0.6),
+    inset 0 0 10px rgba(255, 215, 0, 0.1);
+  border: 2px solid var(--accent-color);
+  animation: cardSelectedPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes cardSelectedPulse {
+  0%, 100% { 
+    box-shadow: 
+      0 15px 35px rgba(255, 215, 0, 0.5),
+      0 0 20px rgba(255, 215, 0, 0.6),
+      inset 0 0 10px rgba(255, 215, 0, 0.1);
+  }
+  50% { 
+    box-shadow: 
+      0 18px 40px rgba(255, 215, 0, 0.7),
+      0 0 30px rgba(255, 215, 0, 0.8),
+      inset 0 0 15px rgba(255, 215, 0, 0.2);
+  }
+}
+
+/* 卡牌点击反馈动画 */
+.card.card-click {
+  animation: cardClickBounce 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes cardClickBounce {
+  0% { transform: scale(1); }
+  30% { transform: scale(0.95); }
+  60% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.card.selected.card-click {
+  animation: cardSelectedClick 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes cardSelectedClick {
+  0% { transform: translateY(-25px) scale(1); }
+  30% { transform: translateY(-25px) scale(0.95); }
+  60% { transform: translateY(-25px) scale(1.03); }
+  100% { transform: translateY(-25px) scale(1); }
+}
+
+/* 卡牌飞入动画 */
+.card-fly-in {
+  animation: cardFlyIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes cardFlyIn {
+  0% {
+    opacity: 0;
+    transform: translateY(50px) scale(0.8) rotateX(30deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotateX(0deg);
+  }
+}
+
+/* 出牌飞入动画 */
+.played-card {
+  width: 70px;
+  height: 100px;
+  background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 100%);
+  border-radius: var(--radius-sm);
+  border: 1px solid #ccc;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 6px;
+  margin-left: -25px;
+  box-shadow: 3px 4px 10px rgba(0, 0, 0, 0.25);
+  position: relative;
+  animation: playedCardFlyIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes playedCardFlyIn {
+  0% {
+    opacity: 0;
+    transform: translateY(80px) scale(0.7) rotate(-5deg);
+  }
+  60% {
+    transform: translateY(-10px) scale(1.05) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+.played-card:first-child {
+  margin-left: 0;
+}
+
+.played-card .card-corner {
+  font-size: 14px;
+}
+
+.played-card .card-center {
+  font-size: 28px;
+}
+
+.card-corner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  font-size: 14px;
+  line-height: 1.1;
+  font-weight: bold;
+}
+
+.card-corner .value {
+  font-size: 16px;
+}
+
+.card-corner .suit {
+  font-size: 14px;
+}
+
+.card-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 32px;
+}
+
+.card-corner-bottom {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  transform: rotate(180deg);
+  align-items: flex-start;
+}
+
+.red { color: #d32f2f; }
+.black { color: #212121; }
+
+/* 电脑玩家手牌 */
+.computer-cards {
+  display: flex;
+  margin-top: 12px;
+}
+
+.computer-card {
+  width: 45px;
+  height: 65px;
+  background: linear-gradient(145deg, #b71c1c 0%, #7f0000 100%);
+  border-radius: 4px;
+  margin-left: -28px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 2px 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.computer-card:first-child {
+  margin-left: 0;
+}
+
+/* 电脑出牌时的动画 */
+.computer-card.card-play-out {
+  animation: computerCardPlayOut 0.3s ease-out forwards;
+}
+
+@keyframes computerCardPlayOut {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.5) translateY(-20px); opacity: 0; }
+}
+
+/* 底牌区域 - 优化：更醒目 */
+.deck-area {
+  position: absolute;
+  top: 70px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 12px;
+  padding: 10px 15px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(5px);
+}
+
+.deck-label {
+  position: absolute;
+  top: -25px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--accent-color);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.deck-card {
+  width: 70px;
+  height: 100px;
+  background: linear-gradient(145deg, #b71c1c 0%, #880e4f 100%);
+  border-radius: var(--radius-sm);
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  box-shadow: var(--shadow-strong);
+  transition: transform 0.3s ease;
+}
+
+.deck-card:hover {
+  transform: translateY(-5px);
+}
+
+.deck-card.revealed {
+  background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 100%);
+  border-color: #ddd;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 6px;
+  font-size: 14px;
+  animation: deckCardReveal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes deckCardReveal {
+  0% {
+    transform: rotateY(180deg) scale(0.8);
+    background: linear-gradient(145deg, #b71c1c 0%, #880e4f 100%);
+  }
+  50% {
+    transform: rotateY(90deg) scale(0.9);
+  }
+  100% {
+    transform: rotateY(0deg) scale(1);
+    background: linear-gradient(145deg, #ffffff 0%, #f0f0f0 100%);
+  }
+}
+
+.deck-card.revealed .card-corner {
+  font-size: 14px;
+}
+
+.deck-card.revealed .card-center {
+  font-size: 28px;
+}
+
+/* 出牌区域 - 优化：更清晰的视觉层次 */
+.play-area {
+  position: absolute;
+  top: 42%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: 8px;
+  min-height: 110px;
+  align-items: center;
+  justify-content: center;
+  min-width: 300px;
+  padding: 15px 20px;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(3px);
+}
+
+/* 优化：出牌区域玩家名称标签 */
+.play-area-header {
+  position: absolute;
+  top: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.play-area-player {
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--accent-color);
+  padding: 4px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  animation: playerNameFadeIn 0.3s ease;
+}
+
+@keyframes playerNameFadeIn {
+  0% { opacity: 0; transform: translateY(-10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.hint-text {
+  color: var(--accent-color);
+  font-size: 20px;
+  font-weight: 600;
+  text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.6);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.98); }
+}
+
+/* 控制按钮 - UI/UX Pro 按钮组件 */
+.controls {
+  position: absolute;
+  bottom: 160px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 15px;
+  z-index: 20;
+}
+
+.btn {
+  padding: 14px 35px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.btn:hover::before {
+  left: 100%;
+}
+
+/* 按钮点击波纹效果 */
+.btn .ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: scale(0);
+  animation: rippleEffect 0.6s linear;
+  pointer-events: none;
+}
+
+@keyframes rippleEffect {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* 按钮按下效果 */
+.btn:active {
+  transform: scale(0.95);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #ffd700 0%, #ff8c00 100%);
+  color: #333;
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.5);
+}
+
+.btn-primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(255, 215, 0, 0.6);
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, #78909c 0%, #546e7a 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+}
+
+.btn-secondary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #ef5350 0%, #c62828 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(239, 83, 80, 0.4);
+}
+
+.btn-danger:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(239, 83, 80, 0.5);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.btn:disabled::before {
+  display: none;
+}
+
+/* 按钮引导高亮 */
+.btn.guide-highlight {
+  animation: btnGuidePulse 1s ease-in-out infinite;
+  position: relative;
+}
+
+@keyframes btnGuidePulse {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(0, 229, 255, 0.8);
+  }
+  50% { 
+    box-shadow: 0 0 40px rgba(0, 229, 255, 1), 0 0 60px rgba(0, 229, 255, 0.5);
+  }
+}
+
+/* 震动动画 */
+.shake {
+  animation: shake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+/* 浮动提示文字 */
+.floating-text {
+  position: fixed;
+  pointer-events: none;
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--accent-color);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  animation: floatingTextUp 1s ease-out forwards;
+}
+
+@keyframes floatingTextUp {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-50px) scale(1.2);
+  }
+}
+
+/* 成功/失败闪烁效果 */
+.flash-success {
+  animation: flashSuccess 0.5s ease;
+}
+
+@keyframes flashSuccess {
+  0%, 100% { box-shadow: var(--shadow-strong); }
+  50% { box-shadow: 0 0 30px 10px rgba(76, 175, 80, 0.8); }
+}
+
+.flash-danger {
+  animation: flashDanger 0.5s ease;
+}
+
+@keyframes flashDanger {
+  0%, 100% { box-shadow: var(--shadow-strong); }
+  50% { box-shadow: 0 0 30px 10px rgba(244, 67, 54, 0.8); }
+}
+
+/* 地主标识 - 优化：更醒目 */
+.landlord-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background: linear-gradient(135deg, var(--accent-color), #ff8c00);
+  color: var(--text-dark);
+  padding: 4px 10px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: bold;
+  box-shadow: 0 2px 8px rgba(255, 215, 0, 0.5);
+  z-index: 10;
+  animation: landlordPulse 2s ease-in-out infinite;
+}
+
+@keyframes landlordPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* 游戏信息面板 - 优化：增强视觉层次 */
+.game-info {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  padding: 18px 25px;
+  border-radius: var(--radius-md);
+  color: var(--text-light);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  box-shadow: var(--shadow-strong);
+  min-width: 180px;
+}
+
+.game-info h3 {
+  color: var(--accent-color);
+  margin-bottom: 15px;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+/* 优化：关键信息项增强 */
+.info-item {
+  font-size: 14px;
+  margin: 10px 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.info-item span {
+  color: var(--accent-color);
+  font-weight: 700;
+  font-size: 16px;
+}
+
+/* 优化：高亮数字样式 */
+.info-item .highlight-number {
+  font-size: 20px;
+  color: #ff6b6b;
+  text-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
+}
+
+.info-item .multiplier {
+  font-size: 18px;
+  color: #4caf50;
+  text-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+  transition: all 0.3s ease;
+}
+
+.info-item .multiplier.multiplier-updated {
+  animation: multiplierFlash 0.5s ease;
+}
+
+@keyframes multiplierFlash {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.5); color: #ffeb3b; }
+  100% { transform: scale(1); }
+}
+
+/* 优化：当前玩家状态 */
+.current-turn-indicator {
+  margin-top: 12px;
+  padding: 10px;
+  background: rgba(255, 215, 0, 0.15);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.current-turn-indicator .label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 5px;
+}
+
+.current-turn-indicator .player-name-display {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent-color);
+}
+
+/* 优化：游戏阶段指示器 */
+.game-phase {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 600;
+  margin-top: 5px;
+}
+
+.game-phase.waiting {
+  background: #607d8b;
+  color: white;
+}
+
+.game-phase.calling {
+  background: linear-gradient(135deg, #ff9800, #f57c00);
+  color: white;
+  animation: phasePulse 1s ease-in-out infinite;
+}
+
+.game-phase.playing {
+  background: linear-gradient(135deg, #4caf50, #388e3c);
+  color: white;
+}
+
+@keyframes phasePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* 优化：得分面板 */
+.score-panel {
+  position: absolute;
+  top: 20px;
+  right: 340px;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(10px);
+  padding: 15px 20px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  box-shadow: var(--shadow-strong);
+}
+
+.score-panel h4 {
+  color: var(--accent-color);
+  font-size: 14px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.score-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 6px 0;
+  font-size: 13px;
+}
+
+.score-item .name {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.score-item .value {
+  font-weight: 700;
+  min-width: 50px;
+  text-align: right;
+  transition: all 0.3s ease;
+}
+
+.score-item .value.positive {
+  color: #4caf50;
+}
+
+.score-item .value.negative {
+  color: #f44336;
+}
+
+.score-item .value.zero {
+  color: #9e9e9e;
+}
+
+.score-item .value.score-updated {
+  animation: scoreUpdate 0.5s ease;
+}
+
+@keyframes scoreUpdate {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+/* 聊天窗口 - UI/UX Pro 卡片组件 */
+.chat-window {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  width: 300px;
+  height: 220px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(10px);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: var(--shadow-strong);
+  z-index: 30;
+}
+
+.chat-header {
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 140, 0, 0.1));
+  padding: 12px 18px;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  color: var(--accent-color);
+  font-weight: 600;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  color: var(--text-light);
+  font-size: 13px;
+}
+
+.chat-messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(255, 215, 0, 0.3);
+  border-radius: 3px;
+}
+
+.chat-message {
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-sm);
+  line-height: 1.4;
+  animation: messageFadeIn 0.3s ease;
+}
+
+@keyframes messageFadeIn {
+  0% { opacity: 0; transform: translateX(-10px); }
+  100% { opacity: 1; transform: translateX(0); }
+}
+
+.chat-message .sender {
+  color: var(--accent-color);
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+.chat-message .sender.system {
+  color: #4caf50;
+}
+
+.chat-input-area {
+  display: flex;
+  padding: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 8px;
+}
+
+.chat-input {
+  flex: 1;
+  padding: 10px 15px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 13px;
+  outline: none;
+  transition: background var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.chat-input:focus {
+  background: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.chat-input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.chat-send {
+  padding: 10px 18px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--accent-color), #ff8c00);
+  color: var(--text-dark);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.chat-send:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
+}
+
+.chat-send:active {
+  transform: scale(0.95);
+}
+
+/* 快捷聊天 */
+.quick-chat {
+  position: absolute;
+  left: 20px;
+  bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 25;
+}
+
+.quick-chat-btn {
+  padding: 10px 18px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(5px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-lg);
+  color: white;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+
+.quick-chat-btn:hover {
+  background: rgba(255, 215, 0, 0.25);
+  border-color: var(--accent-color);
+  transform: translateX(5px);
+}
+
+.quick-chat-btn:active {
+  transform: translateX(5px) scale(0.95);
+}
+
+/* 响应式设计 */
+@media (max-width: 1024px) {
+  .card {
+    width: 55px;
+    height: 80px;
+    margin-left: -28px;
+  }
+  
+  .computer-card {
+    width: 35px;
+    height: 50px;
+    margin-left: -22px;
+  }
+  
+  .chat-window {
+    width: 240px;
+    height: 180px;
+  }
+  
+  .quick-chat {
+    display: none;
+  }
+  
+  .score-panel {
+    display: none;
+  }
+  
+  .step-indicator {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .card {
+    width: 45px;
+    height: 65px;
+    margin-left: -22px;
+    padding: 4px;
+  }
+  
+  .card-corner {
+    font-size: 11px;
+  }
+  
+  .card-center {
+    font-size: 20px;
+  }
+  
+  .player-avatar {
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+  }
+  
+  .chat-window {
+    width: 200px;
+    height: 150px;
+    right: 10px;
+    bottom: 10px;
+  }
+  
+  .game-info {
+    left: 10px;
+    top: 10px;
+    padding: 12px 15px;
+  }
+  
+  .score-panel {
+    display: none;
+  }
+  
+  .step-indicator {
+    display: none;
+  }
+  
+  .tutorial-card {
+    padding: 25px;
+    margin: 15px;
+  }
+  
+  .tutorial-card h2 {
+    font-size: 22px;
+  }
+}
+</style>
+</head>
+<body>
+<div class="game-container">
+  <!-- 牌桌背景 -->
+  <div class="table"></div>
+  
+  <!-- ==================== 视觉引导元素 ==================== -->
+  
+  <!-- 回合指示箭头 -->
+  <div class="turn-arrow left" id="turnArrowLeft">
+    <svg viewBox="0 0 60 60">
+      <defs>
+        <linearGradient id="arrowGradientLeft" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" style="stop-color:#00e5ff;stop-opacity:1" />
+          <stop offset="100%" style="stop-color:#00bcd4;stop-opacity:1" />
+        </linearGradient>
+      </defs>
+      <path d="M5,30 L40,30 L40,20 L55,30 L40,40 L40,30" fill="url(#arrowGradientLeft)" />
+    </svg>
+  </div>
+  
+  <div class="turn-arrow right" id="turnArrowRight">
+    <svg viewBox="0 0 60 60">
+      <path d="M5,30 L40,30 L40,20 L55,30 L40,40 L40,30" fill="url(#arrowGradientLeft)" />
+    </svg>
+  </div>
+  
+  <div class="turn-arrow bottom" id="turnArrowBottom">
+    <svg viewBox="0 0 60 60">
+      <path d="M5,30 L40,30 L40,20 L55,30 L40,40 L40,30" fill="url(#arrowGradientLeft)" />
+    </svg>
+  </div>
+  
+  <!-- 引导提示框 -->
+  <div class="guide-tooltip tooltip-cards" id="tooltipCards">
+    👆 点击选择要出的牌
+  </div>
+  
+  <div class="guide-tooltip tooltip-buttons" id="tooltipButtons">
+    ✅ 选好牌后点击出牌
+  </div>
+  
+  <!-- 操作提示条 -->
+  <div class="action-hint-bar" id="actionHintBar">
+    <span class="hint-icon">💡</span>
+    <span id="actionHintText">等待游戏开始...</span>
+  </div>
+  
+  <!-- 高亮框 -->
+  <div class="highlight-box" id="highlightBox"></div>
+  
+  <!-- 步骤指示器 -->
+  <div class="step-indicator" id="stepIndicator">
+    <h4>📋 游戏流程</h4>
+    <div class="step-list">
+      <div class="step-item" id="step1">
+        <span class="step-number">1</span>
+        <span class="step-icon">🎮</span>
+        <span>开始游戏</span>
+      </div>
+      <div class="step-item" id="step2">
+        <span class="step-number">2</span>
+        <span class="step-icon">👑</span>
+        <span>叫地主阶段</span>
+      </div>
+      <div class="step-item" id="step3">
+        <span class="step-number">3</span>
+        <span class="step-icon">🃏</span>
+        <span>选择手牌</span>
+      </div>
+      <div class="step-item" id="step4">
+        <span class="step-number">4</span>
+        <span class="step-icon">✨</span>
+        <span>确认出牌</span>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 新手引导覆盖层 -->
+  <div class="tutorial-overlay" id="tutorialOverlay">
+    <div class="tutorial-card">
+      <h2>🃏 欢迎来到斗地主</h2>
+      <p>斗地主是一款经典的扑克牌游戏，让我们一起了解游戏规则！</p>
+      <div class="tutorial-steps">
+        <div class="tutorial-step">
+          <span class="step-num">1</span>
+          <div class="step-content">
+            <div class="step-title">叫地主</div>
+            <div class="step-desc">游戏开始后，可以选择叫地主或放弃</div>
+          </div>
+        </div>
+        <div class="tutorial-step">
+          <span class="step-num">2</span>
+          <div class="step-content">
+            <div class="step-title">选牌出牌</div>
+            <div class="step-desc">点击手牌选中，再点击"出牌"按钮</div>
+          </div>
+        </div>
+        <div class="tutorial-step">
+          <span class="step-num">3</span>
+          <div class="step-content">
+            <div class="step-title">获胜条件</div>
+            <div class="step-desc">先出完所有牌的一方获胜！</div>
+          </div>
+        </div>
+      </div>
+      <button class="tutorial-btn" onclick="closeTutorial()">开始游戏</button>
+      <button class="tutorial-skip" onclick="skipTutorial()">不再显示</button>
+    </div>
+  </div>
+  
+  <!-- 游戏信息面板 -->
+  <div class="game-info">
+    <h3>🃏 斗地主</h3>
+    <div class="info-item">底分 <span class="highlight-number">3</span></div>
+    <div class="info-item">倍数 <span id="multiplier" class="multiplier">1</span></div>
+    <div class="info-item">游戏阶段 <span id="gamePhaseDisplay" class="game-phase waiting">等待中</span></div>
+    
+    <div class="current-turn-indicator">
+      <div class="label">当前回合</div>
+      <div class="player-name-display" id="currentPlayerDisplay">等待开始</div>
+    </div>
+  </div>
+  
+  <!-- 得分面板 -->
+  <div class="score-panel">
+    <h4>📊 本局得分</h4>
+    <div class="score-item">
+      <span class="name">我</span>
+      <span class="value zero" id="playerScore">0</span>
+    </div>
+    <div class="score-item">
+      <span class="name">电脑A</span>
+      <span class="value zero" id="leftScore">0</span>
+    </div>
+    <div class="score-item">
+      <span class="name">电脑B</span>
+      <span class="value zero" id="rightScore">0</span>
+    </div>
+  </div>
+  
+  <!-- 底牌区域 -->
+  <div class="deck-area" id="deckArea">
+    <div class="deck-label">📦 底牌</div>
+    <div class="deck-card">🂠</div>
+    <div class="deck-card">🂠</div>
+    <div class="deck-card">🂠</div>
+  </div>
+  
+  <!-- 左边玩家（电脑） -->
+  <div class="player player-left" id="playerLeft">
+    <div class="player-avatar">
+      🤖
+      <div class="landlord-badge" id="leftLandlord" style="display: none;">地主</div>
+    </div>
+    <div class="player-name">电脑A</div>
+    <div class="player-card-count" id="leftCardCount">17张</div>
+    <div class="player-role farmer" id="leftRole" style="display: none;">农民</div>
+    <div class="computer-cards" id="leftCards"></div>
+  </div>
+  
+  <!-- 右边玩家（电脑） -->
+  <div class="player player-right" id="playerRight">
+    <div class="player-avatar">
+      🤖
+      <div class="landlord-badge" id="rightLandlord" style="display: none;">地主</div>
+    </div>
+    <div class="player-name">电脑B</div>
+    <div class="player-card-count" id="rightCardCount">17张</div>
+    <div class="player-role farmer" id="rightRole" style="display: none;">农民</div>
+    <div class="computer-cards" id="rightCards"></div>
+  </div>
+  
+  <!-- 出牌区域 -->
+  <div class="play-area" id="playArea">
+    <div class="play-area-header">
+      <div class="play-area-player" id="lastPlayPlayer" style="display: none;"></div>
+    </div>
+    <div class="hint-text" id="playHint">点击「开始游戏」</div>
+  </div>
+  
+  <!-- 控制按钮 -->
+  <div class="controls" id="controls">
+    <button class="btn btn-primary" id="btnStart" onclick="handleButtonClick(startGame)">开始游戏</button>
+    <button class="btn btn-primary" id="btnCall" onclick="handleButtonClick(callLandlord)" style="display: none;">叫地主</button>
+    <button class="btn btn-secondary" id="btnNoCall" onclick="handleButtonClick(notCallLandlord)" style="display: none;">不叫</button>
+    <button class="btn btn-primary" id="btnPlay" onclick="handleButtonClick(playCards)" style="display: none;">出牌</button>
+    <button class="btn btn-secondary" id="btnPass" onclick="handleButtonClick(passPlay)" style="display: none;">不出</button>
+    <button class="btn btn-secondary" id="btnHint" onclick="handleButtonClick(showHint)" style="display: none;">提示</button>
+  </div>
+  
+  <!-- 底部玩家（自己） -->
+  <div class="player player-bottom" id="playerBottom">
+    <div class="player-avatar">
+      😊
+      <div class="landlord-badge" id="playerLandlord" style="display: none;">地主</div>
+    </div>
+    <div class="player-name">我</div>
+    <div class="player-role farmer" id="playerRole" style="display: none;">农民</div>
+    <div class="hand-cards" id="playerHand"></div>
+  </div>
+  
+  <!-- 快捷聊天 -->
+  <div class="quick-chat">
+    <button class="quick-chat-btn" onclick="handleQuickChat('大家好！')">👋 大家好！</button>
+    <button class="quick-chat-btn" onclick="handleQuickChat('快点吧，我等得花儿都谢了')">⏰ 快点吧</button>
+    <button class="quick-chat-btn" onclick="handleQuickChat('不要走，决战到天亮')">🛑 不要走</button>
+    <button class="quick-chat-btn" onclick="handleQuickChat('你的牌打得也太好了！')">👏 打得好！</button>
+  </div>
+  
+  <!-- 聊天窗口 -->
+  <div class="chat-window">
+    <div class="chat-header">💬 聊天室</div>
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-message"><span class="sender system">系统:</span>欢迎来到斗地主！点击开始游戏</div>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" id="chatInput" placeholder="输入消息..." onkeypress="handleChatKey(event)">
+      <button class="chat-send" onclick="handleButtonClick(sendChat)">发送</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ==================== 音效管理系统 ====================
+const SoundManager = {
+  audioContext: null,
+  enabled: true,
+  
+  init: function() {
+    try {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {
+      console.log('Web Audio API not supported');
+      this.enabled = false;
+    }
+  },
+  
+  resume: function() {
+    if (this.audioContext && this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+  },
+  
+  playTone: function(frequency, duration, type, volume) {
+    if (!this.enabled || !this.audioContext) return;
+    this.resume();
+    
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    oscillator.frequency.value = frequency;
+    oscillator.type = type || 'sine';
+    
+    const vol = volume !== undefined ? volume : 0.3;
+    gainNode.gain.setValueAtTime(vol, this.audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration);
+    
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + duration);
+  },
+  
+  playSelect: function() {
+    this.playTone(880, 0.08, 'sine', 0.2);
+    setTimeout(function() {
+      SoundManager.playTone(1100, 0.06, 'sine', 0.15);
+    }, 30);
+  },
+  
+  playDeselect: function() {
+    this.playTone(600, 0.1, 'sine', 0.15);
+  },
+  
+  playCardPlay: function() {
+    this.playTone(200, 0.05, 'square', 0.2);
+    setTimeout(function() {
+      SoundManager.playTone(150, 0.08, 'triangle', 0.15);
+    }, 20);
+  },
+  
+  playPass: function() {
+    this.playTone(200, 0.15, 'triangle', 0.2);
+  },
+  
+  playButtonClick: function() {
+    this.playTone(600, 0.05, 'sine', 0.15);
+    setTimeout(function() {
+      SoundManager.playTone(800, 0.05, 'sine', 0.1);
+    }, 40);
+  },
+  
+  playWin: function() {
+    const notes = [523, 659, 784, 1047];
+    notes.forEach(function(note, index) {
+      setTimeout(function() {
+        SoundManager.playTone(note, 0.2, 'sine', 0.25);
+      }, index * 100);
+    });
+  },
+  
+  playLose: function() {
+    const notes = [400, 350, 300, 250];
+    notes.forEach(function(note, index) {
+      setTimeout(function() {
+        SoundManager.playTone(note, 0.15, 'triangle', 0.2);
+      }, index * 120);
+    });
+  },
+  
+  playBomb: function() {
+    this.playTone(100, 0.1, 'sawtooth', 0.4);
+    setTimeout(function() {
+      SoundManager.playTone(80, 0.15, 'sawtooth', 0.3);
+    }, 50);
+    setTimeout(function() {
+      SoundManager.playTone(60, 0.2, 'triangle', 0.2);
+    }, 100);
+  },
+  
+  playCallLandlord: function() {
+    this.playTone(523, 0.1, 'sine', 0.2);
+    setTimeout(function() {
+      SoundManager.playTone(659, 0.1, 'sine', 0.2);
+    }, 80);
+    setTimeout(function() {
+      SoundManager.playTone(784, 0.15, 'sine', 0.25);
+    }, 160);
+  },
+  
+  playDeal: function() {
+    this.playTone(1000, 0.03, 'sine', 0.1);
+  },
+  
+  playError: function() {
+    this.playTone(200, 0.15, 'square', 0.2);
+    setTimeout(function() {
+      SoundManager.playTone(200, 0.15, 'square', 0.15);
+    }, 100);
+  }
+};
+
+SoundManager.init();
+
+document.addEventListener('click', function() {
+  SoundManager.resume();
+}, { once: true });
+
+// ==================== 视觉引导管理系统 ====================
+const GuideManager = {
+  tutorialShown: false,
+  currentStep: 0,
+  
+  init: function() {
+    const skipTutorial = localStorage.getItem('doudizhu_skip_tutorial');
+    if (!skipTutorial) {
+      this.showTutorial();
+    }
+  },
+  
+  showTutorial: function() {
+    const overlay = document.getElementById('tutorialOverlay');
+    if (overlay) {
+      overlay.classList.add('visible');
+      this.tutorialShown = true;
+    }
+  },
+  
+  hideTutorial: function() {
+    const overlay = document.getElementById('tutorialOverlay');
+    if (overlay) {
+      overlay.classList.remove('visible');
+      this.tutorialShown = false;
+    }
+  },
+  
+  skipTutorial: function() {
+    localStorage.setItem('doudizhu_skip_tutorial', 'true');
+    this.hideTutorial();
+  },
+  
+  // 显示回合箭头
+  showTurnArrow: function(player) {
+    this.hideAllArrows();
+    
+    let arrowId = '';
+    if (player === 0) {
+      arrowId = 'turnArrowBottom';
+    } else if (player === 1) {
+      arrowId = 'turnArrowLeft';
+    } else if (player === 2) {
+      arrowId = 'turnArrowRight';
+    }
+    
+    const arrow = document.getElementById(arrowId);
+    if (arrow) {
+      arrow.classList.add('visible', 'animate');
+    }
+  },
+  
+  hideAllArrows: function() {
+    const arrows = ['turnArrowLeft', 'turnArrowRight', 'turnArrowBottom'];
+    arrows.forEach(function(id) {
+      const arrow = document.getElementById(id);
+      if (arrow) {
+        arrow.classList.remove('visible', 'animate');
+      }
+    });
+  },
+  
+  // 显示引导提示
+  showTooltip: function(tooltipId) {
+    const tooltips = ['tooltipCards', 'tooltipButtons'];
+    tooltips.forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.remove('visible');
+      }
+    });
+    
+    if (tooltipId) {
+      const tooltip = document.getElementById(tooltipId);
+      if (tooltip) {
+        tooltip.classList.add('visible');
+      }
+    }
+  },
+  
+  hideAllTooltips: function() {
+    const tooltips = ['tooltipCards', 'tooltipButtons'];
+    tooltips.forEach(function(id) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.remove('visible');
+      }
+    });
+  },
+  
+  // 显示操作提示
+  showActionHint: function(text) {
+    const hintBar = document.getElementById('actionHintBar');
+    const hintText = document.getElementById('actionHintText');
+    if (hintBar && hintText) {
+      hintText.textContent = text;
+      hintBar.classList.add('visible');
+    }
+  },
+  
+  hideActionHint: function() {
+    const hintBar = document.getElementById('actionHintBar');
+    if (hintBar) {
+      hintBar.classList.remove('visible');
+    }
+  },
+  
+  // 更新步骤指示器
+  updateStepIndicator: function(step) {
+    const steps = ['step1', 'step2', 'step3', 'step4'];
+    steps.forEach(function(id, index) {
+      const el = document.getElementById(id);
+      if (el) {
+        el.classList.remove('active', 'completed');
+        if (index < step - 1) {
+          el.classList.add('completed');
+        } else if (index === step - 1) {
+          el.classList.add('active');
+        }
+      }
+    });
+  },
+  
+  // 高亮按钮
+  highlightButton: function(buttonId) {
+    this.clearButtonHighlights();
+    const btn = document.getElementById(buttonId);
+    if (btn) {
+      btn.classList.add('guide-highlight');
+    }
+  },
+  
+  clearButtonHighlights: function() {
+    const buttons = ['btnStart', 'btnCall', 'btnNoCall', 'btnPlay', 'btnPass', 'btnHint'];
+    buttons.forEach(function(id) {
+      const btn = document.getElementById(id);
+      if (btn) {
+        btn.classList.remove('guide-highlight');
+      }
+    });
+  },
+  
+  // 显示高亮框
+  showHighlightBox: function(elementId) {
+    const el = document.getElementById(elementId);
+    const box = document.getElementById('highlightBox');
+    if (el && box) {
+      const rect = el.getBoundingClientRect();
+      box.style.left = (rect.left - 5) + 'px';
+      box.style.top = (rect.top - 5) + 'px';
+      box.style.width = (rect.width + 10) + 'px';
+      box.style.height = (rect.height + 10) + 'px';
+      box.classList.add('visible');
+    }
+  },
+  
+  hideHighlightBox: function() {
+    const box = document.getElementById('highlightBox');
+    if (box) {
+      box.classList.remove('visible');
+    }
+  },
+  
+  // 根据游戏状态更新引导
+  updateGuide: function(gamePhase, currentPlayer, isPlayerTurn) {
+    switch (gamePhase) {
+      case 'waiting':
+        this.hideAllArrows();
+        this.hideAllTooltips();
+        this.hideActionHint();
+        this.updateStepIndicator(1);
+        this.highlightButton('btnStart');
+        break;
+        
+      case 'calling':
+        this.updateStepIndicator(2);
+        if (currentPlayer === 0) {
+          this.showTurnArrow(0);
+          this.showActionHint('轮到你叫地主，选择"叫地主"或"不叫"');
+          this.highlightButton('btnCall');
+        } else {
+          this.showTurnArrow(currentPlayer);
+          this.showActionHint('等待 ' + (currentPlayer === 1 ? '电脑A' : '电脑B') + ' 叫地主...');
+          this.clearButtonHighlights();
+        }
+        break;
+        
+      case 'playing':
+        if (currentPlayer === 0) {
+          this.updateStepIndicator(3);
+          this.showTurnArrow(0);
+          this.showTooltip('tooltipCards');
+          
+          const hasLastPlay = gameState.lastPlay && gameState.lastPlay.length > 0;
+          const isMyLastPlay = gameState.lastPlayer === 0;
+          
+          if (hasLastPlay && !isMyLastPlay) {
+            this.showActionHint('需要出比上家大的牌，或选择"不出"');
+          } else {
+            this.showActionHint('请选择要出的牌，然后点击"出牌"');
+          }
+          
+          if (gameState.selectedCards && gameState.selectedCards.length > 0) {
+            this.showTooltip('tooltipButtons');
+            this.updateStepIndicator(4);
+            this.highlightButton('btnPlay');
+          } else {
+            this.highlightButton('btnHint');
+          }
+        } else {
+          this.updateStepIndicator(2);
+          this.showTurnArrow(currentPlayer);
+          this.showActionHint('等待 ' + (currentPlayer === 1 ? '电脑A' : '电脑B') + ' 出牌...');
+          this.hideAllTooltips();
+          this.clearButtonHighlights();
+        }
+        break;
+        
+      case 'ended':
+        this.hideAllArrows();
+        this.hideAllTooltips();
+        this.hideActionHint();
+        this.updateStepIndicator(4);
+        this.highlightButton('btnStart');
+        break;
+    }
+  }
+};
+
+// 关闭新手引导
+function closeTutorial() {
+  GuideManager.hideTutorial();
+}
+
+function skipTutorial() {
+  GuideManager.skipTutorial();
+}
+
+// ==================== 视觉反馈函数 ====================
+function triggerShake(element) {
+  if (!element) return;
+  element.classList.remove('shake');
+  void element.offsetWidth;
+  element.classList.add('shake');
+}
+
+function showFloatingText(text, x, y, color) {
+  const el = document.createElement('div');
+  el.className = 'floating-text';
+  el.textContent = text;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  if (color) {
+    el.style.color = color;
+  }
+  document.body.appendChild(el);
+  
+  setTimeout(function() {
+    el.remove();
+  }, 1000);
+}
+
+function flashElement(element, type) {
+  if (!element) return;
+  element.classList.remove('flash-success', 'flash-danger');
+  void element.offsetWidth;
+  if (type === 'success') {
+    element.classList.add('flash-success');
+  } else if (type === 'danger') {
+    element.classList.add('flash-danger');
+  }
+}
+
+// ==================== 按钮波纹效果 ====================
+function createRipple(event, button) {
+  const ripple = document.createElement('span');
+  ripple.className = 'ripple';
+  
+  const rect = button.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  
+  ripple.style.width = ripple.style.height = size + 'px';
+  ripple.style.left = (event.clientX - rect.left - size / 2) + 'px';
+  ripple.style.top = (event.clientY - rect.top - size / 2) + 'px';
+  
+  button.appendChild(ripple);
+  
+  setTimeout(function() {
+    ripple.remove();
+  }, 600);
+}
+
+function handleButtonClick(callback) {
+  const event = window.event;
+  if (event && event.currentTarget) {
+    createRipple(event, event.currentTarget);
+    SoundManager.playButtonClick();
+  }
+  if (typeof callback === 'function') {
+    callback();
+  }
+}
+
+// ==================== 游戏状态管理 ====================
+let gameState = {
+  deck: [],
+  playerHand: [],
+  leftHand: [],
+  rightHand: [],
+  bottomCards: [],
+  currentPlayer: 0,
+  landlord: -1,
+  gamePhase: 'waiting',
+  lastPlay: [],
+  lastPlayer: -1,
+  selectedCards: [],
+  passCount: 0,
+  scores: { player: 0, left: 0, right: 0 }
+};
+
+// ==================== 常量定义 ====================
+const SUITS = ['♠', '♥', '♦', '♣'];
+const VALUES = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
+const CARD_ORDER = {
+  '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+  '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14, '2': 15,
+  '小王': 16, '大王': 17
+};
+
+// ==================== 牌组初始化 ====================
+function initDeck() {
+  let deck = [];
+  for (let suit of SUITS) {
+    for (let value of VALUES) {
+      deck.push({ suit: suit, value: value, id: suit + value });
+    }
+  }
+  deck.push({ suit: '🃏', value: '小王', id: 'jokerSmall' });
+  deck.push({ suit: '🃏', value: '大王', id: 'jokerBig' });
+  return deck;
+}
+
+function shuffleDeck(deck) {
+  let shuffled = [...deck];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+// ==================== 发牌逻辑 ====================
+function dealCards() {
+  gameState.deck = shuffleDeck(initDeck());
+  gameState.playerHand = gameState.deck.slice(0, 17);
+  gameState.leftHand = gameState.deck.slice(17, 34);
+  gameState.rightHand = gameState.deck.slice(34, 51);
+  gameState.bottomCards = gameState.deck.slice(51, 54);
+  
+  sortCards(gameState.playerHand);
+  sortCards(gameState.leftHand);
+  sortCards(gameState.rightHand);
+}
+
+function sortCards(cards) {
+  cards.sort(function(a, b) {
+    return CARD_ORDER[b.value] - CARD_ORDER[a.value];
+  });
+}
+
+// ==================== 辅助函数 ====================
+function isRed(card) {
+  return card.suit === '♥' || card.suit === '♦' || card.value === '大王';
+}
+
+function getCardDisplay(card) {
+  if (card.value === '小王') return '🃏';
+  if (card.value === '大王') return '🃏';
+  return card.suit;
+}
+
+// ==================== 优化：玩家高亮更新 ====================
+function updatePlayerHighlight() {
+  document.getElementById('playerLeft').classList.remove('active-turn');
+  document.getElementById('playerRight').classList.remove('active-turn');
+  document.getElementById('playerBottom').classList.remove('active-turn');
+  
+  if (gameState.gamePhase === 'playing' || gameState.gamePhase === 'calling') {
+    if (gameState.currentPlayer === 0) {
+      document.getElementById('playerBottom').classList.add('active-turn');
+    } else if (gameState.currentPlayer === 1) {
+      document.getElementById('playerLeft').classList.add('active-turn');
+    } else if (gameState.currentPlayer === 2) {
+      document.getElementById('playerRight').classList.add('active-turn');
+    }
+  }
+  
+  // 更新视觉引导
+  GuideManager.updateGuide(gameState.gamePhase, gameState.currentPlayer, gameState.currentPlayer === 0);
+}
+
+// ==================== 优化：游戏阶段显示更新 ====================
+function updateGamePhaseDisplay() {
+  const phaseEl = document.getElementById('gamePhaseDisplay');
+  phaseEl.classList.remove('waiting', 'calling', 'playing');
+  
+  if (gameState.gamePhase === 'waiting') {
+    phaseEl.textContent = '等待中';
+    phaseEl.classList.add('waiting');
+  } else if (gameState.gamePhase === 'calling') {
+    phaseEl.textContent = '叫地主';
+    phaseEl.classList.add('calling');
+  } else if (gameState.gamePhase === 'playing') {
+    phaseEl.textContent = '出牌中';
+    phaseEl.classList.add('playing');
+  } else if (gameState.gamePhase === 'ended') {
+    phaseEl.textContent = '已结束';
+    phaseEl.classList.add('waiting');
+  }
+}
+
+// ==================== 优化：角色显示更新 ====================
+function updateRoleDisplay() {
+  const playerRoleEl = document.getElementById('playerRole');
+  const leftRoleEl = document.getElementById('leftRole');
+  const rightRoleEl = document.getElementById('rightRole');
+  
+  playerRoleEl.style.display = 'block';
+  leftRoleEl.style.display = 'block';
+  rightRoleEl.style.display = 'block';
+  
+  if (gameState.landlord === 0) {
+    playerRoleEl.textContent = '地主';
+    playerRoleEl.className = 'player-role landlord';
+    leftRoleEl.textContent = '农民';
+    leftRoleEl.className = 'player-role farmer';
+    rightRoleEl.textContent = '农民';
+    rightRoleEl.className = 'player-role farmer';
+  } else if (gameState.landlord === 1) {
+    playerRoleEl.textContent = '农民';
+    playerRoleEl.className = 'player-role farmer';
+    leftRoleEl.textContent = '地主';
+    leftRoleEl.className = 'player-role landlord';
+    rightRoleEl.textContent = '农民';
+    rightRoleEl.className = 'player-role farmer';
+  } else if (gameState.landlord === 2) {
+    playerRoleEl.textContent = '农民';
+    playerRoleEl.className = 'player-role farmer';
+    leftRoleEl.textContent = '农民';
+    leftRoleEl.className = 'player-role farmer';
+    rightRoleEl.textContent = '地主';
+    rightRoleEl.className = 'player-role landlord';
+  }
+}
+
+// ==================== 优化：得分显示更新 ====================
+function updateScoreDisplay() {
+  const playerScoreEl = document.getElementById('playerScore');
+  const leftScoreEl = document.getElementById('leftScore');
+  const rightScoreEl = document.getElementById('rightScore');
+  
+  updateSingleScore(playerScoreEl, gameState.scores.player);
+  updateSingleScore(leftScoreEl, gameState.scores.left);
+  updateSingleScore(rightScoreEl, gameState.scores.right);
+}
+
+function updateSingleScore(el, score) {
+  el.textContent = score > 0 ? '+' + score : score;
+  el.classList.remove('positive', 'negative', 'zero');
+  if (score > 0) {
+    el.classList.add('positive');
+  } else if (score < 0) {
+    el.classList.add('negative');
+  } else {
+    el.classList.add('zero');
+  }
+}
+
+// ==================== 渲染函数 ====================
+function renderPlayerHand() {
+  const container = document.getElementById('playerHand');
+  container.innerHTML = '';
+  
+  for (let i = 0; i < gameState.playerHand.length; i++) {
+    const card = gameState.playerHand[i];
+    const isSelected = gameState.selectedCards.indexOf(i) !== -1;
+    const colorClass = isRed(card) ? 'red' : 'black';
+    const selectedClass = isSelected ? 'selected' : '';
+    
+    const cardEl = document.createElement('div');
+    cardEl.className = 'card ' + colorClass + ' ' + selectedClass;
+    cardEl.dataset.index = i;
+    
+    if (card.value === '小王' || card.value === '大王') {
+      cardEl.innerHTML = 
+        '<div class="card-corner">' +
+          '<span class="value">' + (card.value === '大王' ? '大' : '小') + '</span>' +
+          '<span class="suit">王</span>' +
+        '</div>' +
+        '<div class="card-center">🃏</div>' +
+        '<div class="card-corner card-corner-bottom">' +
+          '<span class="value">' + (card.value === '大王' ? '大' : '小') + '</span>' +
+          '<span class="suit">王</span>' +
+        '</div>';
+    } else {
+      cardEl.innerHTML = 
+        '<div class="card-corner">' +
+          '<span class="value">' + card.value + '</span>' +
+          '<span class="suit">' + card.suit + '</span>' +
+        '</div>' +
+        '<div class="card-center">' + card.suit + '</div>' +
+        '<div class="card-corner card-corner-bottom">' +
+          '<span class="value">' + card.value + '</span>' +
+          '<span class="suit">' + card.suit + '</span>' +
+        '</div>';
+    }
+    
+    cardEl.onclick = (function(index, element) {
+      return function() { toggleCardSelection(index, element); };
+    })(i, cardEl);
+    
+    container.appendChild(cardEl);
+  }
+  
+  // 更新引导提示
+  if (gameState.gamePhase === 'playing' && gameState.currentPlayer === 0) {
+    if (gameState.selectedCards.length > 0) {
+      GuideManager.showTooltip('tooltipButtons');
+      GuideManager.updateStepIndicator(4);
+      GuideManager.highlightButton('btnPlay');
+    } else {
+      GuideManager.showTooltip('tooltipCards');
+      GuideManager.updateStepIndicator(3);
+    }
+  }
+}
+
+function renderComputerHands() {
+  const leftContainer = document.getElementById('leftCards');
+  const rightContainer = document.getElementById('rightCards');
+  
+  leftContainer.innerHTML = '';
+  rightContainer.innerHTML = '';
+  
+  for (let i = 0; i < gameState.leftHand.length; i++) {
+    const card = document.createElement('div');
+    card.className = 'computer-card';
+    leftContainer.appendChild(card);
+  }
+  
+  for (let i = 0; i < gameState.rightHand.length; i++) {
+    const card = document.createElement('div');
+    card.className = 'computer-card';
+    rightContainer.appendChild(card);
+  }
+  
+  document.getElementById('leftCardCount').textContent = gameState.leftHand.length + '张';
+  document.getElementById('rightCardCount').textContent = gameState.rightHand.length + '张';
+}
+
+function renderBottomCards(revealed) {
+  const container = document.getElementById('deckArea');
+  container.innerHTML = '<div class="deck-label">📦 底牌</div>';
+  
+  for (let i = 0; i < gameState.bottomCards.length; i++) {
+    const card = gameState.bottomCards[i];
+    const cardEl = document.createElement('div');
+    
+    if (revealed) {
+      const colorClass = isRed(card) ? 'red' : 'black';
+      cardEl.className = 'deck-card revealed ' + colorClass;
+      
+      if (card.value === '小王' || card.value === '大王') {
+        cardEl.innerHTML = 
+          '<div class="card-corner">' +
+            '<span class="value">' + (card.value === '大王' ? '大' : '小') + '</span>' +
+            '<span class="suit">王</span>' +
+          '</div>' +
+          '<div class="card-center">🃏</div>';
+      } else {
+        cardEl.innerHTML = 
+          '<div class="card-corner">' +
+            '<span class="value">' + card.value + '</span>' +
+            '<span class="suit">' + card.suit + '</span>' +
+          '</div>' +
+          '<div class="card-center">' + card.suit + '</div>';
+      }
+    } else {
+      cardEl.className = 'deck-card';
+      cardEl.textContent = '🂠';
+    }
+    
+    container.appendChild(cardEl);
+  }
+}
+
+function renderPlayedCards(cards, playerName) {
+  const container = document.getElementById('playArea');
+  const lastPlayPlayerEl = document.getElementById('lastPlayPlayer');
+  
+  container.innerHTML = '<div class="play-area-header"><div class="play-area-player" id="lastPlayPlayer"></div></div>';
+  
+  if (cards.length === 0) {
+    const hintEl = document.createElement('div');
+    hintEl.className = 'hint-text';
+    hintEl.textContent = playerName + ' 不出';
+    container.appendChild(hintEl);
+    
+    lastPlayPlayerEl.textContent = playerName;
+    lastPlayPlayerEl.style.display = 'block';
+    return;
+  }
+  
+  lastPlayPlayerEl.textContent = playerName + ' 出牌';
+  lastPlayPlayerEl.style.display = 'block';
+  
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    const colorClass = isRed(card) ? 'red' : 'black';
+    const cardEl = document.createElement('div');
+    cardEl.className = 'played-card ' + colorClass;
+    cardEl.style.animationDelay = (i * 0.05) + 's';
+    
+    if (card.value === '小王' || card.value === '大王') {
+      cardEl.innerHTML = 
+        '<div class="card-corner">' +
+          '<span class="value">' + (card.value === '大王' ? '大' : '小') + '</span>' +
+          '<span class="suit">王</span>' +
+        '</div>' +
+        '<div class="card-center">🃏</div>';
+    } else {
+      cardEl.innerHTML = 
+        '<div class="card-corner">' +
+          '<span class="value">' + card.value + '</span>' +
+          '<span class="suit">' + card.suit + '</span>' +
+        '</div>' +
+        '<div class="card-center">' + card.suit + '</div>';
+    }
+    
+    container.appendChild(cardEl);
+  }
+}
+
+// ==================== 游戏流程控制 ====================
+function toggleCardSelection(index, element) {
+  if (gameState.gamePhase !== 'playing' || gameState.currentPlayer !== 0) {
+    return;
+  }
+  
+  const idx = gameState.selectedCards.indexOf(index);
+  
+  element.classList.remove('card-click');
+  void element.offsetWidth;
+  element.classList.add('card-click');
+  
+  if (idx > -1) {
+    gameState.selectedCards.splice(idx, 1);
+    SoundManager.playDeselect();
+  } else {
+    gameState.selectedCards.push(index);
+    SoundManager.playSelect();
+  }
+  
+  renderPlayerHand();
+}
+
+function startGame() {
+  gameState.selectedCards = [];
+  gameState.lastPlay = [];
+  gameState.lastPlayer = -1;
+  gameState.landlord = -1;
+  gameState.passCount = 0;
+  document.getElementById('multiplier').textContent = '1';
+  
+  document.getElementById('playerRole').style.display = 'none';
+  document.getElementById('leftRole').style.display = 'none';
+  document.getElementById('rightRole').style.display = 'none';
+  
+  document.getElementById('playerLandlord').style.display = 'none';
+  document.getElementById('leftLandlord').style.display = 'none';
+  document.getElementById('rightLandlord').style.display = 'none';
+  
+  dealCards();
+  renderPlayerHand();
+  renderComputerHands();
+  renderBottomCards(false);
+  
+  document.getElementById('btnStart').style.display = 'none';
+  document.getElementById('btnCall').style.display = 'inline-block';
+  document.getElementById('btnNoCall').style.display = 'inline-block';
+  
+  gameState.gamePhase = 'calling';
+  gameState.currentPlayer = Math.floor(Math.random() * 3);
+  
+  updateCurrentPlayerDisplay();
+  updateGamePhaseDisplay();
+  updatePlayerHighlight();
+  addChatMessage('系统', '游戏开始！发牌完成');
+  
+  if (gameState.currentPlayer !== 0) {
+    setTimeout(computerCall, 1500);
+  } else {
+    addChatMessage('系统', '轮到你叫地主');
+  }
+}
+
+function callLandlord() {
+  if (gameState.gamePhase !== 'calling' || gameState.currentPlayer !== 0) {
+    return;
+  }
+  
+  SoundManager.playCallLandlord();
+  addChatMessage('我', '叫地主！');
+  gameState.landlord = 0;
+  becomeLandlord(0);
+}
+
+function notCallLandlord() {
+  if (gameState.gamePhase !== 'calling' || gameState.currentPlayer !== 0) {
+    return;
+  }
+  
+  SoundManager.playPass();
+  addChatMessage('我', '不叫');
+  nextCaller();
+}
+
+function computerCall() {
+  if (gameState.gamePhase !== 'calling') {
+    return;
+  }
+  
+  const player = gameState.currentPlayer;
+  const hand = player === 1 ? gameState.leftHand : gameState.rightHand;
+  const name = player === 1 ? '电脑A' : '电脑B';
+  
+  let strength = 0;
+  for (let i = 0; i < hand.length; i++) {
+    if (CARD_ORDER[hand[i].value] >= 15) {
+      strength += 3;
+    } else if (CARD_ORDER[hand[i].value] >= 13) {
+      strength += 1;
+    }
+  }
+  
+  const willCall = strength >= 4 && Math.random() > 0.3;
+  
+  if (willCall) {
+    SoundManager.playCallLandlord();
+    addChatMessage(name, '叫地主！');
+    gameState.landlord = player;
+    becomeLandlord(player);
+  } else {
+    SoundManager.playPass();
+    addChatMessage(name, '不叫');
+    nextCaller();
+  }
+}
+
+function nextCaller() {
+  gameState.currentPlayer = (gameState.currentPlayer + 1) % 3;
+  updateCurrentPlayerDisplay();
+  updatePlayerHighlight();
+  
+  if (gameState.landlord !== -1) {
+    return;
+  }
+  
+  if (gameState.currentPlayer === Math.floor(Math.random() * 3)) {
+    gameState.landlord = Math.floor(Math.random() * 3);
+    const names = ['我', '电脑A', '电脑B'];
+    addChatMessage('系统', '无人叫地主，随机指定 ' + names[gameState.landlord] + ' 为地主');
+    becomeLandlord(gameState.landlord);
+  } else if (gameState.currentPlayer !== 0) {
+    setTimeout(computerCall, 1500);
+  } else {
+    addChatMessage('系统', '轮到你叫地主');
+  }
+}
+
+function becomeLandlord(player) {
+  if (player === 0) {
+    for (let i = 0; i < gameState.bottomCards.length; i++) {
+      gameState.playerHand.push(gameState.bottomCards[i]);
+    }
+    sortCards(gameState.playerHand);
+    renderPlayerHand();
+    document.getElementById('playerLandlord').style.display = 'block';
+  } else if (player === 1) {
+    for (let i = 0; i < gameState.bottomCards.length; i++) {
+      gameState.leftHand.push(gameState.bottomCards[i]);
+    }
+    sortCards(gameState.leftHand);
+    document.getElementById('leftLandlord').style.display = 'block';
+  } else {
+    for (let i = 0; i < gameState.bottomCards.length; i++) {
+      gameState.rightHand.push(gameState.bottomCards[i]);
+    }
+    sortCards(gameState.rightHand);
+    document.getElementById('rightLandlord').style.display = 'block';
+  }
+  
+  renderBottomCards(true);
+  renderComputerHands();
+  
+  updateRoleDisplay();
+  
+  gameState.gamePhase = 'playing';
+  gameState.currentPlayer = player;
+  gameState.lastPlayer = -1;
+  gameState.lastPlay = [];
+  gameState.passCount = 0;
+  
+  document.getElementById('btnCall').style.display = 'none';
+  document.getElementById('btnNoCall').style.display = 'none';
+  
+  const names = ['你', '电脑A', '电脑B'];
+  addChatMessage('系统', names[player] + ' 成为地主，底牌已亮出');
+  
+  updateCurrentPlayerDisplay();
+  updateGamePhaseDisplay();
+  updatePlayerHighlight();
+  updatePlayButtons();
+  
+  if (player !== 0) {
+    setTimeout(computerPlay, 1500);
+  }
+}
+
+function updateCurrentPlayerDisplay() {
+  const names = ['我', '电脑A', '电脑B'];
+  document.getElementById('currentPlayerDisplay').textContent = names[gameState.currentPlayer];
+  
+  const hintEl = document.getElementById('playHint');
+  const playArea = document.getElementById('playArea');
+  const hasPlayedCards = playArea.querySelectorAll('.played-card').length > 0;
+  
+  if (!hasPlayedCards) {
+    if (gameState.gamePhase === 'calling') {
+      if (gameState.currentPlayer === 0) {
+        hintEl.textContent = '请选择是否叫地主';
+      } else {
+        hintEl.textContent = names[gameState.currentPlayer] + ' 正在考虑...';
+      }
+    } else if (gameState.gamePhase === 'playing') {
+      if (gameState.currentPlayer === 0) {
+        hintEl.textContent = '请出牌';
+      } else {
+        hintEl.textContent = names[gameState.currentPlayer] + ' 正在思考...';
+      }
+    }
+  }
+}
+
+function updatePlayButtons() {
+  const isMyTurn = gameState.currentPlayer === 0 && gameState.gamePhase === 'playing';
+  const canPass = isMyTurn && gameState.lastPlayer !== -1 && gameState.lastPlayer !== 0;
+  
+  document.getElementById('btnPlay').style.display = isMyTurn ? 'inline-block' : 'none';
+  document.getElementById('btnPass').style.display = canPass ? 'inline-block' : 'none';
+  document.getElementById('btnHint').style.display = isMyTurn ? 'inline-block' : 'none';
+}
+
+// ==================== 牌型判断 ====================
+function getPlayType(cards) {
+  if (cards.length === 0) {
+    return null;
+  }
+  
+  const values = [];
+  for (let i = 0; i < cards.length; i++) {
+    values.push(CARD_ORDER[cards[i].value]);
+  }
+  values.sort(function(a, b) { return a - b; });
+  
+  if (cards.length === 1) {
+    return { type: 'single', main: values[0] };
+  }
+  
+  if (cards.length === 2 && values[0] === values[1]) {
+    return { type: 'pair', main: values[0] };
+  }
+  
+  if (cards.length === 2 && values[0] === 16 && values[1] === 17) {
+    return { type: 'rocket', main: 17 };
+  }
+  
+  if (cards.length === 3 && values[0] === values[1] && values[1] === values[2]) {
+    return { type: 'triple', main: values[0] };
+  }
+  
+  if (cards.length === 4 && values[0] === values[1] && values[1] === values[2] && values[2] === values[3]) {
+    return { type: 'bomb', main: values[0] };
+  }
+  
+  if (cards.length === 4) {
+    const counts = {};
+    for (let i = 0; i < values.length; i++) {
+      counts[values[i]] = (counts[values[i]] || 0) + 1;
+    }
+    const keys = Object.keys(counts);
+    if (keys.length === 2) {
+      for (let i = 0; i < keys.length; i++) {
+        if (counts[keys[i]] === 3) {
+          return { type: 'triple_one', main: parseInt(keys[i]) };
+        }
+      }
+    }
+  }
+  
+  if (cards.length === 5) {
+    const counts = {};
+    for (let i = 0; i < values.length; i++) {
+      counts[values[i]] = (counts[values[i]] || 0) + 1;
+    }
+    const keys = Object.keys(counts);
+    if (keys.length === 2) {
+      let hasThree = false;
+      let hasTwo = false;
+      let mainValue = 0;
+      for (let i = 0; i < keys.length; i++) {
+        if (counts[keys[i]] === 3) {
+          hasThree = true;
+          mainValue = parseInt(keys[i]);
+        }
+        if (counts[keys[i]] === 2) {
+          hasTwo = true;
+        }
+      }
+      if (hasThree && hasTwo) {
+        return { type: 'triple_two', main: mainValue };
+      }
+    }
+  }
+  
+  if (cards.length >= 5) {
+    let isSequence = true;
+    for (let i = 1; i < values.length; i++) {
+      if (values[i] !== values[i-1] + 1 || values[i] > 14) {
+        isSequence = false;
+        break;
+      }
+    }
+    if (isSequence && values[values.length - 1] <= 14) {
+      return { type: 'straight', main: values[values.length - 1], length: cards.length };
+    }
+  }
+  
+  return null;
+}
+
+function canBeat(newCards, lastCards) {
+  const newType = getPlayType(newCards);
+  const lastType = getPlayType(lastCards);
+  
+  if (!newType) {
+    return false;
+  }
+  
+  if (newType.type === 'rocket') {
+    return true;
+  }
+  
+  if (newType.type === 'bomb' && lastType.type !== 'bomb' && lastType.type !== 'rocket') {
+    return true;
+  }
+  
+  if (newType.type === lastType.type) {
+    if (newType.type === 'straight') {
+      return newType.length === lastType.length && newType.main > lastType.main;
+    }
+    return newType.main > lastType.main;
+  }
+  
+  return false;
+}
+
+// ==================== 出牌逻辑 ====================
+function playCards() {
+  if (gameState.selectedCards.length === 0) {
+    addChatMessage('系统', '请选择要出的牌');
+    SoundManager.playError();
+    triggerShake(document.getElementById('controls'));
+    return;
+  }
+  
+  const selectedCards = [];
+  for (let i = 0; i < gameState.selectedCards.length; i++) {
+    selectedCards.push(gameState.playerHand[gameState.selectedCards[i]]);
+  }
+  
+  const playType = getPlayType(selectedCards);
+  
+  if (!playType) {
+    addChatMessage('系统', '无效的牌型');
+    SoundManager.playError();
+    triggerShake(document.getElementById('controls'));
+    return;
+  }
+  
+  if (gameState.lastPlay.length > 0 && gameState.lastPlayer !== 0) {
+    if (!canBeat(selectedCards, gameState.lastPlay)) {
+      addChatMessage('系统', '出的牌必须大于上家');
+      SoundManager.playError();
+      triggerShake(document.getElementById('controls'));
+      return;
+    }
+  }
+  
+  const sortedIndices = gameState.selectedCards.slice().sort(function(a, b) { return b - a; });
+  for (let i = 0; i < sortedIndices.length; i++) {
+    gameState.playerHand.splice(sortedIndices[i], 1);
+  }
+  
+  gameState.lastPlay = selectedCards;
+  gameState.lastPlayer = 0;
+  gameState.selectedCards = [];
+  gameState.passCount = 0;
+  
+  SoundManager.playCardPlay();
+  
+  if (playType.type === 'bomb' || playType.type === 'rocket') {
+    const currentMultiplier = parseInt(document.getElementById('multiplier').textContent);
+    const multiplierEl = document.getElementById('multiplier');
+    multiplierEl.textContent = currentMultiplier * 2;
+    multiplierEl.classList.remove('multiplier-updated');
+    void multiplierEl.offsetWidth;
+    multiplierEl.classList.add('multiplier-updated');
+    
+    SoundManager.playBomb();
+    triggerShake(document.querySelector('.game-container'));
+    showFloatingText('💣 炸弹！x2', window.innerWidth / 2, window.innerHeight / 2, '#ff6b6b');
+  }
+  
+  renderPlayedCards(selectedCards, '我');
+  renderPlayerHand();
+  
+  if (gameState.playerHand.length === 0) {
+    endGame(0);
+    return;
+  }
+  
+  nextPlayer();
+}
+
+function passPlay() {
+  if (gameState.lastPlayer === 0) {
+    addChatMessage('系统', '你必须出牌');
+    SoundManager.playError();
+    triggerShake(document.getElementById('controls'));
+    return;
+  }
+  
+  SoundManager.playPass();
+  addChatMessage('我', '不出');
+  renderPlayedCards([], '我');
+  gameState.passCount++;
+  nextPlayer();
+}
+
+function computerPlay() {
+  if (gameState.gamePhase !== 'playing') {
+    return;
+  }
+  
+  const player = gameState.currentPlayer;
+  const hand = player === 1 ? gameState.leftHand : gameState.rightHand;
+  const name = player === 1 ? '电脑A' : '电脑B';
+  
+  let playedCards = [];
+  
+  if (gameState.lastPlay.length === 0 || gameState.lastPlayer === player) {
+    playedCards = [hand[hand.length - 1]];
+    gameState.lastPlay = playedCards;
+    gameState.lastPlayer = player;
+    gameState.passCount = 0;
+  } else {
+    const result = findPlayableCards(hand, gameState.lastPlay);
+    if (result) {
+      playedCards = result;
+      gameState.lastPlay = playedCards;
+      gameState.lastPlayer = player;
+      gameState.passCount = 0;
+    } else {
+      SoundManager.playPass();
+      addChatMessage(name, '不出');
+      renderPlayedCards([], name);
+      gameState.passCount++;
+      nextPlayer();
+      return;
+    }
+  }
+  
+  for (let i = 0; i < playedCards.length; i++) {
+    const idx = hand.findIndex(function(c) { return c.id === playedCards[i].id; });
+    if (idx > -1) {
+      hand.splice(idx, 1);
+    }
+  }
+  
+  SoundManager.playCardPlay();
+  
+  const playType = getPlayType(playedCards);
+  if (playType && (playType.type === 'bomb' || playType.type === 'rocket')) {
+    const currentMultiplier = parseInt(document.getElementById('multiplier').textContent);
+    const multiplierEl = document.getElementById('multiplier');
+    multiplierEl.textContent = currentMultiplier * 2;
+    multiplierEl.classList.remove('multiplier-updated');
+    void multiplierEl.offsetWidth;
+    multiplierEl.classList.add('multiplier-updated');
+    
+    SoundManager.playBomb();
+    triggerShake(document.querySelector('.game-container'));
+    showFloatingText('💣 炸弹！x2', window.innerWidth / 2, window.innerHeight / 2, '#ff6b6b');
+  }
+  
+  renderPlayedCards(playedCards, name);
+  renderComputerHands();
+  
+  if (hand.length === 0) {
+    endGame(player);
+    return;
+  }
+  
+  nextPlayer();
+}
+
+function findPlayableCards(hand, lastPlay) {
+  const lastType = getPlayType(lastPlay);
+  if (!lastType) {
+    return null;
+  }
+  
+  if (lastType.type === 'single') {
+    for (let i = hand.length - 1; i >= 0; i--) {
+      if (CARD_ORDER[hand[i].value] > lastType.main) {
+        return [hand[i]];
+      }
+    }
+  }
+  
+  if (lastType.type === 'pair') {
+    for (let i = hand.length - 1; i >= 1; i--) {
+      if (hand[i].value === hand[i-1].value && CARD_ORDER[hand[i].value] > lastType.main) {
+        return [hand[i], hand[i-1]];
+      }
+    }
+  }
+  
+  const valueCounts = {};
+  for (let i = 0; i < hand.length; i++) {
+    const v = hand[i].value;
+    if (!valueCounts[v]) {
+      valueCounts[v] = [];
+    }
+    valueCounts[v].push(hand[i]);
+  }
+  
+  for (const value in valueCounts) {
+    if (valueCounts[value].length === 4) {
+      if (lastType.type !== 'bomb' || CARD_ORDER[value] > lastType.main) {
+        return valueCounts[value];
+      }
+    }
+  }
+  
+  const hasSmallJoker = hand.some(function(c) { return c.value === '小王'; });
+  const hasBigJoker = hand.some(function(c) { return c.value === '大王'; });
+  if (hasSmallJoker && hasBigJoker && lastType.type !== 'rocket') {
+    const result = [];
+    for (let i = 0; i < hand.length; i++) {
+      if (hand[i].value === '小王' || hand[i].value === '大王') {
+        result.push(hand[i]);
+      }
+    }
+    return result;
+  }
+  
+  return null;
+}
+
+function nextPlayer() {
+  if (gameState.passCount >= 2) {
+    gameState.lastPlay = [];
+    gameState.passCount = 0;
+  }
+  
+  gameState.currentPlayer = (gameState.currentPlayer + 1) % 3;
+  updateCurrentPlayerDisplay();
+  updatePlayerHighlight();
+  updatePlayButtons();
+  
+  if (gameState.currentPlayer !== 0) {
+    setTimeout(computerPlay, 1500);
+  }
+}
+
+function showHint() {
+  gameState.selectedCards = [];
+  
+  if (gameState.lastPlay.length === 0 || gameState.lastPlayer === 0) {
+    gameState.selectedCards = [gameState.playerHand.length - 1];
+  } else {
+    const result = findPlayableCards(gameState.playerHand, gameState.lastPlay);
+    if (result) {
+      for (let i = 0; i < result.length; i++) {
+        const idx = gameState.playerHand.findIndex(function(c) { return c.id === result[i].id; });
+        if (idx > -1) {
+          gameState.selectedCards.push(idx);
+        }
+      }
+    } else {
+      addChatMessage('系统', '没有能出的牌，请选择「不出」');
+      SoundManager.playError();
+    }
+  }
+  
+  if (gameState.selectedCards.length > 0) {
+    SoundManager.playSelect();
+  }
+  
+  renderPlayerHand();
+}
+
+function endGame(winner) {
+  gameState.gamePhase = 'ended';
+  
+  const names = ['我', '电脑A', '电脑B'];
+  const isLandlordWin = winner === gameState.landlord;
+  
+  const baseScore = 3;
+  const multiplier = parseInt(document.getElementById('multiplier').textContent);
+  const totalScore = baseScore * multiplier;
+  
+  if (isLandlordWin) {
+    if (gameState.landlord === 0) {
+      gameState.scores.player += totalScore * 2;
+      gameState.scores.left -= totalScore;
+      gameState.scores.right -= totalScore;
+    } else if (gameState.landlord === 1) {
+      gameState.scores.player -= totalScore;
+      gameState.scores.left += totalScore * 2;
+      gameState.scores.right -= totalScore;
+    } else {
+      gameState.scores.player -= totalScore;
+      gameState.scores.left -= totalScore;
+      gameState.scores.right += totalScore * 2;
+    }
+  } else {
+    if (gameState.landlord === 0) {
+      gameState.scores.player -= totalScore * 2;
+      gameState.scores.left += totalScore;
+      gameState.scores.right += totalScore;
+    } else if (gameState.landlord === 1) {
+      gameState.scores.player += totalScore;
+      gameState.scores.left -= totalScore * 2;
+      gameState.scores.right += totalScore;
+    } else {
+      gameState.scores.player += totalScore;
+      gameState.scores.left += totalScore;
+      gameState.scores.right -= totalScore * 2;
+    }
+  }
+  
+  updateScoreDisplay();
+  
+  const scoreElements = document.querySelectorAll('.score-item .value');
+  scoreElements.forEach(function(el) {
+    el.classList.add('score-updated');
+    setTimeout(function() {
+      el.classList.remove('score-updated');
+    }, 500);
+  });
+  
+  let message;
+  let isPlayerWin = false;
+  
+  if (isLandlordWin) {
+    if (gameState.landlord === 0) {
+      isPlayerWin = true;
+    }
+    message = '🎉 地主 ' + names[winner] + ' 获胜！';
+  } else {
+    if (gameState.landlord !== 0) {
+      isPlayerWin = true;
+    }
+    message = '🎉 农民获胜！地主 ' + names[gameState.landlord] + ' 失败！';
+  }
+  
+  if (isPlayerWin) {
+    SoundManager.playWin();
+    flashElement(document.querySelector('.player-bottom'), 'success');
+  } else {
+    SoundManager.playLose();
+    flashElement(document.querySelector('.player-bottom'), 'danger');
+  }
+  
+  addChatMessage('系统', message + ' (得分: ' + totalScore + ')');
+  document.getElementById('playHint').textContent = message;
+  
+  showFloatingText(
+    isPlayerWin ? '🏆 胜利！' : '😢 失败',
+    window.innerWidth / 2,
+    window.innerHeight / 2 - 50,
+    isPlayerWin ? '#4caf50' : '#f44336'
+  );
+  
+  updateGamePhaseDisplay();
+  updatePlayerHighlight();
+  
+  document.getElementById('btnPlay').style.display = 'none';
+  document.getElementById('btnPass').style.display = 'none';
+  document.getElementById('btnHint').style.display = 'none';
+  document.getElementById('btnStart').style.display = 'inline-block';
+  document.getElementById('btnStart').textContent = '再来一局';
+}
+
+// ==================== 聊天功能 ====================
+function addChatMessage(sender, message) {
+  const container = document.getElementById('chatMessages');
+  const msgEl = document.createElement('div');
+  msgEl.className = 'chat-message';
+  
+  const isSystem = sender === '系统';
+  msgEl.innerHTML = '<span class="sender' + (isSystem ? ' system' : '') + '">' + sender + ':</span>' + message;
+  
+  container.appendChild(msgEl);
+  container.scrollTop = container.scrollHeight;
+}
+
+function sendChat() {
+  const input = document.getElementById('chatInput');
+  const message = input.value.trim();
+  if (message) {
+    addChatMessage('我', message);
+    input.value = '';
+    
+    setTimeout(function() {
+      const replies = ['哈哈', '好的', '继续！', '没问题'];
+      const reply = replies[Math.floor(Math.random() * replies.length)];
+      const names = ['电脑A', '电脑B'];
+      addChatMessage(names[Math.floor(Math.random() * 2)], reply);
+    }, 1000);
+  }
+}
+
+function handleChatKey(event) {
+  if (event.key === 'Enter') {
+    handleButtonClick(sendChat);
+  }
+}
+
+function quickChat(message) {
+  addChatMessage('我', message);
+}
+
+function handleQuickChat(message) {
+  SoundManager.playButtonClick();
+  quickChat(message);
+}
+
+// ==================== 初始化 ====================
+function init() {
+  const leftContainer = document.getElementById('leftCards');
+  const rightContainer = document.getElementById('rightCards');
+  
+  for (let i = 0; i < 17; i++) {
+    const cardLeft = document.createElement('div');
+    cardLeft.className = 'computer-card';
+    leftContainer.appendChild(cardLeft);
+    
+    const cardRight = document.createElement('div');
+    cardRight.className = 'computer-card';
+    rightContainer.appendChild(cardRight);
+  }
+  
+  updateGamePhaseDisplay();
+  
+  // 初始化视觉引导
+  GuideManager.init();
+  GuideManager.updateGuide('waiting', 0, false);
+}
+
+window.onload = init;
+
+window.addEventListener('resize', function() {
+  // 响应式处理已通过 CSS 完成
+});
+</script>
+</body>
+</html>

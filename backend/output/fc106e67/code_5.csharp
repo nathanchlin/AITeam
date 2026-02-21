@@ -1,0 +1,34 @@
+// 添加粒子效果
+public ParticleSystem jumpParticles;
+public ParticleSystem slideParticles;
+public ParticleSystem attackParticles;
+
+void PlayEffect(ParticleSystem effect)
+{
+    if (effect != null)
+    {
+        effect.Play();
+    }
+}
+
+// 在状态变化时播放效果
+void ChangeState(NinjaState newState)
+{
+    // ... 原有代码 ...
+    
+    // 添加效果播放
+    switch (newState)
+    {
+        case NinjaState.Jumping:
+            PlayEffect(jumpParticles);
+            break;
+            
+        case NinjaState.Sliding:
+            PlayEffect(slideParticles);
+            break;
+            
+        case NinjaState.Attacking:
+            PlayEffect(attackParticles);
+            break;
+    }
+}

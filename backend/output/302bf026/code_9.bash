@@ -1,0 +1,1 @@
+./GameServer --config Config/server.json

@@ -1,0 +1,21 @@
+server {
+       listen 80;
+       server_name yourdomain.com;
+       root /var/www/html;
+       index index.html;
+       
+       # 启用gzip压缩
+       gzip on;
+       gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+       
+       # 缓存静态资源
+       location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg)$ {
+           expires 1y;
+           add_header Cache-Control "public, immutable";
+       }
+       
+       # 处理HTML文件不缓存
+       location ~* \.html$ {
+           add_header Cache-Control "no-cache, must-revalidate";
+       }
+   }

@@ -1,0 +1,24 @@
+public enum BulletType { Normal, Piercing, Explosive }
+   
+   public class Bullet
+   {
+       public BulletType Type { get; private set; }
+       public int PiercingCount { get; private set; } // 穿透型子弹的穿透次数
+       
+       // 根据类型调整行为
+       public void HandleCollision(Collider2D hit)
+       {
+           switch (Type)
+           {
+               case BulletType.Piercing:
+                   PiercingCount--;
+                   if (PiercingCount <= 0) Deactivate();
+                   break;
+               case BulletType.Explosive:
+                   // 创建爆炸效果
+                   CreateExplosion();
+                   Deactivate();
+                   break;
+           }
+       }
+   }

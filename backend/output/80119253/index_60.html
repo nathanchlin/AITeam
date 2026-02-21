@@ -1,0 +1,23 @@
+<!-- 悔棋按钮 -->
+<button id="undoBtn" onclick="game.undoMove()">悔棋</button>
+
+<!-- 音效开关 -->
+<button id="soundToggle" onclick="game.soundManager.toggleSound()">
+  音效: <span id="soundStatus">开启</span>
+</button>
+
+<!-- 历史记录查看按钮 -->
+<button id="historyBtn" onclick="showGameHistory()">查看历史</button>
+
+<!-- 历史记录显示区域 -->
+<div id="historyPanel" style="display: none;">
+  <h3>游戏历史</h3>
+  <div id="historyList"></div>
+  <button onclick="showGameStatistics()">查看统计</button>
+</div>
+
+<!-- 统计数据显示区域 -->
+<div id="statsPanel" style="display: none;">
+  <h3>游戏统计</h3>
+  <div id="statsContent"></div>
+</div>

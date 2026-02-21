@@ -1,0 +1,15 @@
+Frontend
+├── Game Canvas (渲染层)
+│   ├── 游戏板渲染
+│   ├── 方块渲染
+│   └── UI元素渲染
+├── Game Engine (逻辑层)
+│   ├── 游戏状态管理
+│   ├── 输入处理
+│   └── 碰撞检测
+├── Network Manager (通信层)
+│   ├── Socket.io客户端
+│   └── 消息序列化/反序列化
+└── AI Controller (AI层)
+    ├── 决策算法
+    └── 难度控制

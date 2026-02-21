@@ -1,0 +1,6 @@
+NODE_ENV=production
+   PORT=3000
+   DB_HOST=localhost
+   DB_USER=game_user
+   DB_PASSWORD=secure_password
+   DB_NAME=match_game

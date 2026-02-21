@@ -1,0 +1,47 @@
+/* 响应式设计 */
+@media screen and (max-width: 520px) {
+    .container {
+        padding: 10px;
+    }
+    
+    header h1 {
+        font-size: 60px;
+    }
+    
+    .grid-cell {
+        width: 70px;
+        height: 70px;
+        margin-right: 7px;
+    }
+    
+    .tile {
+        width: 70px;
+        height: 70px;
+        line-height: 70px;
+        font-size: 35px;
+    }
+    
+    .tile.tile-128, .tile.tile-256, .tile.tile-512 {
+        font-size: 30px;
+    }
+    
+    .tile.tile-1024, .tile.tile-2048, .tile.tile-2046 {
+        font-size: 25px;
+    }
+    
+    .game-message p {
+        font-size: 40px;
+    }
+    
+    .score-box {
+        padding: 8px 15px;
+    }
+    
+    .score-label {
+        font-size: 11px;
+    }
+    
+    .score {
+        font-size: 20px;
+    }
+}

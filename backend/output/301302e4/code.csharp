@@ -1,0 +1,42 @@
+using UnityEngine;
+
+public class Slingshot : MonoBehaviour
+{
+    [Header("Slingshot Settings")]
+    public Transform leftArm; // 弹弓左臂
+    public Transform rightArm; // 弹弓右臂
+    public Transform restPosition; // 鸟类静止位置
+    public float maxStretch = 2f; // 最大拉伸距离
+    public float launchPower = 15f; // 发射力度系数
+    
+    private Transform bird; // 当前装载的鸟类
+    private Vector2 startPos; // 拖拽起始位置
+    private bool isDragging = false;
+    private LineRenderer leftLine; // 左侧弹力线
+    private LineRenderer rightLine; // 右侧弹力线
+    
+    void Start()
+    {
+        // 初始化弹力线
+        SetupLines();
+    }
+    
+    void SetupLines()
+    {
+        // 创建左侧弹力线
+        leftLine = gameObject.AddComponent<LineRenderer>();
+        leftLine.positionCount = 2;
+        leftLine.startWidth = 0.05f;
+        leftLine.endWidth = 0.05f;
+        leftLine.material = new Material(Shader.Find("Unlit/Color"));
+        leftLine.material.color = Color.black;
+        
+        // 创建右侧弹力线
+        rightLine = gameObject.AddComponent<LineRenderer>();
+        rightLine.positionCount = 2;
+        rightLine.startWidth = 0.05f;
+        rightLine.endWidth = 0.05f;
+        rightLine.material = new Material(Shader.Find("Unlit/Color"));
+        rightLine.material.color = Color.black;
+    }
+}

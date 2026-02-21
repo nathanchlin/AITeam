@@ -1,0 +1,1854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backpack War Game</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: #0a0a12;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+  }
+  #gameContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    position: relative;
+  }
+  canvas {
+    display: block;
+    border: 4px solid #00d4ff;
+    border-radius: 12px;
+    box-shadow: 0 0 30px rgba(0, 212, 255, 0.4), 
+                0 0 60px rgba(0, 212, 255, 0.2),
+                inset 0 0 50px rgba(0, 0, 0, 0.3);
+  }
+  
+  #gameTitle {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #00d4ff;
+    font-size: 28px;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.8),
+                 0 0 20px rgba(0, 212, 255, 0.5),
+                 2px 2px 4px rgba(0, 0, 0, 0.5);
+    letter-spacing: 3px;
+    z-index: 100;
+  }
+  
+  #inventory {
+    position: absolute;
+    top: 70px;
+    left: 20px;
+    background: linear-gradient(180deg, rgba(15, 25, 45, 0.97) 0%, rgba(10, 18, 35, 0.99) 100%);
+    color: white;
+    padding: 18px;
+    border-radius: 16px;
+    border: 3px solid rgba(0, 212, 255, 0.7);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7),
+                0 0 30px rgba(0, 212, 255, 0.2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    min-width: 280px;
+    pointer-events: auto;
+    display: none;
+    z-index: 200;
+  }
+  #inventoryTitle {
+    margin: 0 0 15px 0;
+    padding-bottom: 12px;
+    border-bottom: 2px solid rgba(0, 212, 255, 0.4);
+    color: #00d4ff;
+    font-size: 18px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  #inventoryTitle::before,
+  #inventoryTitle::after {
+    content: '◆';
+    font-size: 10px;
+    color: rgba(0, 212, 255, 0.5);
+  }
+  
+  #inventoryGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 5px;
+  }
+  
+  #inventoryGrid::-webkit-scrollbar {
+    width: 6px;
+  }
+  #inventoryGrid::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 3px;
+  }
+  #inventoryGrid::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.5);
+    border-radius: 3px;
+  }
+  
+  .item-slot {
+    aspect-ratio: 1;
+    background: linear-gradient(145deg, rgba(30, 40, 60, 0.9) 0%, rgba(20, 30, 50, 0.95) 100%);
+    border-radius: 10px;
+    border: 2px solid rgba(255, 255, 255, 0.15);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+  }
+  .item-slot::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  }
+  .item-slot:hover {
+    transform: translateY(-4px) scale(1.05);
+    border-color: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+  }
+  
+  .item-slot.empty {
+    background: linear-gradient(145deg, rgba(20, 25, 35, 0.8) 0%, rgba(15, 20, 30, 0.9) 100%);
+    border: 2px dashed rgba(255, 255, 255, 0.1);
+    cursor: default;
+  }
+  .item-slot.empty:hover {
+    transform: none;
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: none;
+  }
+  .item-slot.empty .empty-icon {
+    color: rgba(255, 255, 255, 0.15);
+    font-size: 24px;
+  }
+  
+  .item-slot .item-icon {
+    font-size: 28px;
+    margin-bottom: 4px;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.5));
+    transition: transform 0.3s ease;
+  }
+  .item-slot:hover .item-icon {
+    transform: scale(1.15) rotate(5deg);
+  }
+  .item-slot .item-name {
+    font-size: 10px;
+    font-weight: 600;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.9);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    line-height: 1.2;
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  .item-slot.rarity-common {
+    border-color: rgba(150, 150, 150, 0.6);
+  }
+  .item-slot.rarity-common:hover {
+    box-shadow: 0 0 15px rgba(150, 150, 150, 0.4);
+  }
+  
+  .item-slot.rarity-rare {
+    border-color: rgba(0, 150, 255, 0.7);
+    background: linear-gradient(145deg, rgba(20, 40, 80, 0.9) 0%, rgba(15, 30, 60, 0.95) 100%);
+  }
+  .item-slot.rarity-rare:hover {
+    box-shadow: 0 0 20px rgba(0, 150, 255, 0.5),
+                inset 0 0 15px rgba(0, 150, 255, 0.1);
+  }
+  
+  .item-slot.rarity-epic {
+    border-color: rgba(180, 0, 255, 0.7);
+    background: linear-gradient(145deg, rgba(50, 20, 70, 0.9) 0%, rgba(35, 15, 55, 0.95) 100%);
+  }
+  .item-slot.rarity-epic:hover {
+    box-shadow: 0 0 25px rgba(180, 0, 255, 0.5),
+                inset 0 0 20px rgba(180, 0, 255, 0.15);
+    animation: epicPulse 1.5s ease-in-out infinite;
+  }
+  
+  .item-slot.rarity-legendary {
+    border-color: rgba(255, 180, 0, 0.8);
+    background: linear-gradient(145deg, rgba(70, 50, 20, 0.9) 0%, rgba(55, 40, 15, 0.95) 100%);
+  }
+  .item-slot.rarity-legendary:hover {
+    box-shadow: 0 0 30px rgba(255, 180, 0, 0.6),
+                0 0 60px rgba(255, 180, 0, 0.3),
+                inset 0 0 25px rgba(255, 180, 0, 0.2);
+    animation: legendaryPulse 1s ease-in-out infinite;
+  }
+  
+  @keyframes epicPulse {
+    0%, 100% { box-shadow: 0 0 20px rgba(180, 0, 255, 0.5), inset 0 0 15px rgba(180, 0, 255, 0.1); }
+    50% { box-shadow: 0 0 30px rgba(180, 0, 255, 0.7), inset 0 0 20px rgba(180, 0, 255, 0.2); }
+  }
+  
+  @keyframes legendaryPulse {
+    0%, 100% { box-shadow: 0 0 25px rgba(255, 180, 0, 0.5), 0 0 50px rgba(255, 180, 0, 0.2), inset 0 0 20px rgba(255, 180, 0, 0.15); }
+    50% { box-shadow: 0 0 35px rgba(255, 180, 0, 0.8), 0 0 70px rgba(255, 180, 0, 0.4), inset 0 0 25px rgba(255, 180, 0, 0.25); }
+  }
+  
+  .item-slot.selected {
+    transform: scale(1.08);
+    border-width: 3px;
+  }
+  .item-slot.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    background: rgba(0, 0, 0, 0.7);
+    color: #00ff88;
+    font-size: 12px;
+    font-weight: bold;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+  }
+  .item-slot.selected.rarity-common { border-color: #00ff88; }
+  .item-slot.selected.rarity-rare { border-color: #00ff88; }
+  .item-slot.selected.rarity-epic { border-color: #00ff88; }
+  .item-slot.selected.rarity-legendary { border-color: #00ff88; }
+  
+  .item-tooltip {
+    position: absolute;
+    left: calc(100% + 15px);
+    top: 0;
+    background: linear-gradient(180deg, rgba(10, 15, 30, 0.98) 0%, rgba(5, 10, 20, 0.99) 100%);
+    border-radius: 12px;
+    padding: 15px;
+    min-width: 200px;
+    z-index: 300;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateX(-10px);
+    transition: all 0.3s ease;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+  }
+  .item-slot:hover .item-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+  }
+  
+  .tooltip-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  .tooltip-icon {
+    font-size: 32px;
+  }
+  .tooltip-title {
+    flex: 1;
+  }
+  .tooltip-name {
+    font-size: 16px;
+    font-weight: bold;
+    color: #fff;
+    margin-bottom: 3px;
+  }
+  .tooltip-rarity {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .tooltip-rarity.common { color: #999; }
+  .tooltip-rarity.rare { color: #00aaff; }
+  .tooltip-rarity.epic { color: #b400ff; }
+  .tooltip-rarity.legendary { color: #ffb400; }
+  
+  .tooltip-stats {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .tooltip-stat {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: rgba(255, 255, 255, 0.85);
+  }
+  .tooltip-stat-icon {
+    width: 16px;
+    text-align: center;
+  }
+  .tooltip-stat-value {
+    color: #00ff88;
+    font-weight: bold;
+  }
+  .tooltip-stat-value.negative {
+    color: #ff6666;
+  }
+  
+  .tooltip-desc {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+    font-style: italic;
+    line-height: 1.5;
+  }
+  
+  #inventoryFooter {
+    margin-top: 15px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+  }
+  #inventoryFooter .capacity {
+    color: #00d4ff;
+    font-weight: bold;
+  }
+  
+  #statusPanel {
+    position: absolute;
+    top: 70px;
+    right: 20px;
+    background: linear-gradient(180deg, rgba(40, 20, 50, 0.95) 0%, rgba(30, 15, 40, 0.98) 100%);
+    color: white;
+    padding: 18px 22px;
+    border-radius: 14px;
+    border: 3px solid rgba(255, 107, 157, 0.7);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6),
+                0 0 20px rgba(255, 107, 157, 0.3);
+    min-width: 180px;
+    z-index: 200;
+  }
+  #statusPanel h4 {
+    margin: 0 0 15px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid rgba(255, 107, 157, 0.4);
+    color: #ff6b9d;
+    font-size: 14px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+  .status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 10px 0;
+    font-size: 13px;
+  }
+  .status-label {
+    color: rgba(255, 255, 255, 0.65);
+  }
+  .status-value {
+    color: #00ff88;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+  }
+  .status-value.highlight {
+    color: #ffcc00;
+    text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+    animation: highlightPulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes highlightPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+  
+  #instructions {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(180deg, rgba(20, 30, 50, 0.95) 0%, rgba(10, 20, 40, 0.98) 100%);
+    color: white;
+    padding: 15px 35px;
+    border-radius: 30px;
+    border: 2px solid rgba(0, 212, 255, 0.5);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5),
+                0 0 15px rgba(0, 212, 255, 0.2);
+    display: flex;
+    gap: 30px;
+    font-size: 14px;
+    z-index: 200;
+  }
+  .instruction-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .key {
+    background: linear-gradient(180deg, #00d4ff 0%, #0099cc 100%);
+    color: white;
+    padding: 5px 14px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 13px;
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: transform 0.2s ease;
+  }
+  .key:hover {
+    transform: scale(1.1);
+  }
+  .instruction-text {
+    color: rgba(255, 255, 255, 0.8);
+  }
+  
+  .empty-inventory {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    font-style: italic;
+    padding: 30px 10px;
+    font-size: 14px;
+    grid-column: 1 / -1;
+  }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="gameTitle">⚔️ BACKPACK WAR ⚔️</div>
+  <canvas id="gameCanvas"></canvas>
+  
+  <div id="inventory">
+    <div id="inventoryTitle">🎒 背包</div>
+    <div id="inventoryGrid"></div>
+    <div id="inventoryFooter">
+      <span>按 <strong style="color:#00d4ff">E</strong> 使用选中物品</span>
+      <span class="capacity" id="capacityDisplay">0/12</span>
+    </div>
+  </div>
+  
+  <div id="statusPanel">
+    <h4>📊 状态面板</h4>
+    <div class="status-row">
+      <span class="status-label">物品数量:</span>
+      <span class="status-value" id="itemCount">0</span>
+    </div>
+    <div class="status-row">
+      <span class="status-label">已选择:</span>
+      <span class="status-value highlight" id="selectedItem">无</span>
+    </div>
+  </div>
+  
+  <div id="instructions">
+    <div class="instruction-item">
+      <span class="key">I</span>
+      <span class="instruction-text">打开背包</span>
+    </div>
+    <div class="instruction-item">
+      <span class="key">E</span>
+      <span class="instruction-text">使用/清空</span>
+    </div>
+    <div class="instruction-item">
+      <span class="key">↑↓←→</span>
+      <span class="instruction-text">移动玩家</span>
+    </div>
+    <div class="instruction-item">
+      <span class="key">Space</span>
+      <span class="instruction-text">跳跃</span>
+    </div>
+  </div>
+</div>
+
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 800;
+  canvas.height = 600;
+
+  const MAX_INVENTORY_SLOTS = 12;
+  
+  let inventory = [];
+  let selectedItemIndex = -1;
+
+  // ============ 动画系统核心 ============
+  const AnimationSystem = {
+    // 时间管理
+    lastTime: 0,
+    deltaTime: 0,
+    totalTime: 0,
+    
+    // 缓动函数库
+    easing: {
+      // 线性
+      linear: t => t,
+      // 平滑
+      easeInOut: t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
+      easeOut: t => 1 - Math.pow(1 - t, 3),
+      easeIn: t => t * t * t,
+      // 弹性
+      easeOutElastic: t => {
+        const c4 = (2 * Math.PI) / 3;
+        return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+      },
+      // 回弹
+      easeOutBack: t => {
+        const c1 = 1.70158;
+        const c3 = c1 + 1;
+        return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+      },
+      // 弹跳
+      easeOutBounce: t => {
+        const n1 = 7.5625;
+        const d1 = 2.75;
+        if (t < 1 / d1) return n1 * t * t;
+        if (t < 2 / d1) return n1 * (t -= 1.5 / d1) * t + 0.75;
+        if (t < 2.5 / d1) return n1 * (t -= 2.25 / d1) * t + 0.9375;
+        return n1 * (t -= 2.625 / d1) * t + 0.984375;
+      }
+    },
+    
+    // 线性插值
+    lerp: (start, end, t) => start + (end - start) * t,
+    
+    // 平滑插值（帧率无关）
+    smoothDamp: (current, target, velocity, smoothTime, maxSpeed, deltaTime) => {
+      smoothTime = Math.max(0.0001, smoothTime);
+      const omega = 2 / smoothTime;
+      const x = omega * deltaTime;
+      const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+      let change = current - target;
+      const originalTo = target;
+      const maxChange = maxSpeed * smoothTime;
+      change = Math.max(-maxChange, Math.min(maxChange, change));
+      target = current - change;
+      const temp = (velocity + omega * change) * deltaTime;
+      velocity = (velocity - omega * temp) * exp;
+      let output = target + (change + temp) * exp;
+      if (originalTo - current > 0 === output > originalTo) {
+        output = originalTo;
+        velocity = (output - originalTo) / deltaTime;
+      }
+      return { value: output, velocity: velocity };
+    },
+    
+    // 更新时间
+    updateTime(currentTime) {
+      this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.1);
+      this.lastTime = currentTime;
+      this.totalTime += this.deltaTime;
+    }
+  };
+
+  // ============ 动画状态机 ============
+  class AnimationStateMachine {
+    constructor() {
+      this.currentState = 'idle';
+      this.previousState = 'idle';
+      this.transitionProgress = 1;
+      this.transitionDuration = 0.15;
+      this.stateTime = 0;
+    }
+    
+    setState(newState) {
+      if (this.currentState !== newState) {
+        this.previousState = this.currentState;
+        this.currentState = newState;
+        this.transitionProgress = 0;
+        this.stateTime = 0;
+      }
+    }
+    
+    update(deltaTime) {
+      this.stateTime += deltaTime;
+      if (this.transitionProgress < 1) {
+        this.transitionProgress += deltaTime / this.transitionDuration;
+        this.transitionProgress = Math.min(1, this.transitionProgress);
+      }
+    }
+    
+    getTransitionBlend() {
+      return AnimationSystem.easing.easeInOut(this.transitionProgress);
+    }
+  }
+
+  // ============ 动画片段定义 ============
+  const AnimationClips = {
+    idle: {
+      getBreathOffset: (time) => Math.sin(time * 2) * 1.5,
+      getBodyBob: (time) => Math.sin(time * 4) * 0.3,
+      getHeadTilt: (time) => Math.sin(time * 1.5) * 0.02,
+      getArmSwing: (time) => Math.sin(time * 2.5) * 2,
+      getEyeBlink: (time) => {
+        const cycle = time % 4;
+        return cycle > 3.9 ? 1 : 0;
+      }
+    },
+    walk: {
+      getLegSwing: (time) => Math.sin(time * 10) * 15,
+      getArmSwing: (time) => Math.sin(time * 10 + Math.PI) * 12,
+      getBodyBob: (time) => Math.abs(Math.sin(time * 10)) * -3,
+      getBodyLean: (time) => Math.sin(time * 10) * 2,
+      getHeadBob: (time) => Math.sin(time * 20) * 1
+    },
+    jump: {
+      getSquash: (phase) => {
+        if (phase === 'takeoff') return 0.85;
+        if (phase === 'airborne') return 1.1;
+        if (phase === 'landing') return 0.75;
+        return 1;
+      },
+      getStretch: (phase) => {
+        if (phase === 'takeoff') return 1.15;
+        if (phase === 'airborne') return 0.95;
+        if (phase === 'landing') return 1.2;
+        return 1;
+      },
+      getArmRaise: (phase) => {
+        if (phase === 'airborne') return 30;
+        return 0;
+      }
+    }
+  };
+
+  // ============ 玩家对象 - 增强的动画属性 ============
+  let player = {
+    x: 100,
+    y: 400,
+    width: 48,
+    height: 64,
+    velocityX: 0,
+    velocityY: 0,
+    direction: 1,
+    isMoving: false,
+    isJumping: false,
+    isGrounded: true,
+    animState: new AnimationStateMachine(),
+    // 平滑移动
+    smoothX: 100,
+    smoothY: 400,
+    velocitySmoothX: 0,
+    velocitySmoothY: 0,
+    // 跳跃物理
+    jumpForce: -450,
+    gravity: 1200,
+    groundY: 400,
+    // 动画参数
+    breathOffset: 0,
+    squashStretch: { x: 1, y: 1 },
+    targetSquashStretch: { x: 1, y: 1 },
+    // 角色部位颜色
+    colors: {
+      skin: '#ffcc99',
+      skinShadow: '#e6b380',
+      hair: '#4a3728',
+      eyes: '#2d5016',
+      shirt: '#00d4ff',
+      shirtShadow: '#0099cc',
+      pants: '#2c3e50',
+      pantsShadow: '#1a252f',
+      shoes: '#8b4513',
+      outline: '#1a1a2e'
+    }
+  };
+
+  const backpack = {
+    x: 50,
+    y: 150,
+    width: 130,
+    height: 70,
+    color: '#2ecc71',
+    borderColor: '#1e8449',
+    label: '🎒 背包',
+    bounceOffset: 0,
+    targetBounce: 0
+  };
+
+  const ground = {
+    x: 0,
+    y: canvas.height - 40,
+    width: canvas.width,
+    height: 40,
+    color: '#4a3728',
+    borderColor: '#2d2016',
+    grassColor: '#3d5c3d'
+  };
+
+  // 光照系统
+  const lightingSystem = {
+    ambientLight: 0.4,
+    lights: [
+      { x: 400, y: 100, radius: 300, intensity: 0.6, color: { r: 100, g: 150, b: 255 } },
+      { x: 650, y: 200, radius: 200, intensity: 0.5, color: { r: 255, g: 200, b: 100 } }
+    ]
+  };
+
+  // 粒子系统
+  const particles = [];
+  const MAX_PARTICLES = 50;
+
+  // 星星系统
+  const stars = [];
+  for (let i = 0; i < 100; i++) {
+    stars.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * (ground.y - 50),
+      size: Math.random() * 2 + 0.5,
+      twinkle: Math.random() * Math.PI * 2,
+      speed: Math.random() * 2 + 1
+    });
+  }
+
+  // 云朵系统
+  const clouds = [];
+  for (let i = 0; i < 5; i++) {
+    clouds.push({
+      x: Math.random() * canvas.width,
+      y: 30 + Math.random() * 100,
+      width: 80 + Math.random() * 60,
+      speed: 30 + Math.random() * 20,
+      opacity: 0.1 + Math.random() * 0.15
+    });
+  }
+
+  // 物品数据定义
+  const itemDatabase = [
+    { 
+      id: 1, name: '铁剑', icon: '⚔️', rarity: 'common',
+      stats: { attack: 5 }, 
+      desc: '一把普通的铁剑，锋利但并不出众。'
+    },
+    { 
+      id: 2, name: '钢盾', icon: '🛡️', rarity: 'common',
+      stats: { defense: 8 }, 
+      desc: '坚固的钢制盾牌，能有效格挡攻击。'
+    },
+    { 
+      id: 3, name: '药水', icon: '💊', rarity: 'common',
+      stats: { heal: 20 }, 
+      desc: '回复少量生命值的红色药水。'
+    },
+    { 
+      id: 4, name: '精钢弓', icon: '🏹', rarity: 'rare',
+      stats: { attack: 12, speed: 3 }, 
+      desc: '精工打造的弓箭，射程远且精准。'
+    },
+    { 
+      id: 5, name: '魔法法杖', icon: '🔮', rarity: 'rare',
+      stats: { magic: 15, mana: 10 }, 
+      desc: '蕴含魔力的法杖，提升法术威力。'
+    },
+    { 
+      id: 6, name: '暗影匕首', icon: '🗡️', rarity: 'epic',
+      stats: { attack: 18, speed: 10, critRate: 15 }, 
+      desc: '来自暗影界的匕首，攻击附带致命一击几率。'
+    },
+    { 
+      id: 7, name: '龙鳞铠甲', icon: '🛡️', rarity: 'epic',
+      stats: { defense: 25, hp: 50 }, 
+      desc: '由龙鳞打造的铠甲，防御力惊人。'
+    },
+    { 
+      id: 8, name: '神圣圣剑', icon: '⚔️', rarity: 'legendary',
+      stats: { attack: 35, holyDamage: 20 }, 
+      desc: '传说中的神圣之剑，对邪恶生物造成额外伤害。'
+    },
+    { 
+      id: 9, name: '治愈戒指', icon: '💍', rarity: 'rare',
+      stats: { healBonus: 25, manaRegen: 5 }, 
+      desc: '镶嵌着治愈宝石的戒指，增强治疗效果。'
+    },
+    { 
+      id: 10, name: '火焰护符', icon: '🔥', rarity: 'epic',
+      stats: { fireDamage: 22, burnChance: 10 }, 
+      desc: '附有火焰魔力的护符，攻击时有几率灼烧敌人。'
+    },
+    { 
+      id: 11, name: '时空之靴', icon: '👟', rarity: 'legendary',
+      stats: { speed: 25, dodge: 15 }, 
+      desc: '能扭曲时空的神奇靴子，大幅提升闪避和移动速度。'
+    },
+    { 
+      id: 12, name: '生命宝石', icon: '💎', rarity: 'legendary',
+      stats: { hp: 100, regen: 5 }, 
+      desc: '传说中的生命宝石，持续恢复生命值并大幅提升生命上限。'
+    }
+  ];
+
+  // 获取稀有度对应的颜色
+  function getRarityColor(rarity) {
+    const colors = {
+      common: { border: 'rgba(150, 150, 150, 0.6)', glow: 'rgba(150, 150, 150, 0.4)', text: '#999' },
+      rare: { border: 'rgba(0, 150, 255, 0.7)', glow: 'rgba(0, 150, 255, 0.5)', text: '#00aaff' },
+      epic: { border: 'rgba(180, 0, 255, 0.7)', glow: 'rgba(180, 0, 255, 0.5)', text: '#b400ff' },
+      legendary: { border: 'rgba(255, 180, 0, 0.8)', glow: 'rgba(255, 180, 0, 0.6)', text: '#ffb400' }
+    };
+    return colors[rarity] || colors.common;
+  }
+
+  // 获取稀有度中文名
+  function getRarityName(rarity) {
+    const names = {
+      common: '普通',
+      rare: '稀有',
+      epic: '史诗',
+      legendary: '传说'
+    };
+    return names[rarity] || '普通';
+  }
+
+  // 格式化属性名
+  function formatStatName(stat) {
+    const names = {
+      attack: '攻击力',
+      defense: '防御力',
+      heal: '治疗量',
+      speed: '速度',
+      magic: '魔法',
+      mana: '法力',
+      critRate: '暴击率',
+      hp: '生命值',
+      holyDamage: '神圣伤害',
+      healBonus: '治疗加成',
+      manaRegen: '法力回复',
+      fireDamage: '火焰伤害',
+      burnChance: '灼烧几率',
+      dodge: '闪避',
+      regen: '生命回复'
+    };
+    return names[stat] || stat;
+  }
+
+  // 格式化属性值
+  function formatStatValue(stat, value) {
+    if (stat.includes('Rate') || stat.includes('Chance') || stat.includes('Bonus') || stat === 'dodge') {
+      return `+${value}%`;
+    }
+    return `+${value}`;
+  }
+
+  // 获取属性图标
+  function getStatIcon(stat) {
+    const icons = {
+      attack: '⚔️',
+      defense: '🛡️',
+      heal: '💊',
+      speed: '💨',
+      magic: '✨',
+      mana: '💙',
+      critRate: '💥',
+      hp: '❤️',
+      holyDamage: '⚜️',
+      healBonus: '💚',
+      manaRegen: '🔷',
+      fireDamage: '🔥',
+      burnChance: '♨️',
+      dodge: '🌀',
+      regen: '💖'
+    };
+    return icons[stat] || '📊';
+  }
+
+  // ============ 增强的绘制函数 ============
+
+  // 绘制带光照的矩形
+  function drawLitRect(x, y, width, height, baseColor) {
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(x, y, width, height);
+    
+    lightingSystem.lights.forEach(light => {
+      const dist = Math.sqrt(Math.pow(x + width/2 - light.x, 2) + Math.pow(y + height/2 - light.y, 2));
+      if (dist < light.radius) {
+        const intensity = (1 - dist / light.radius) * light.intensity;
+        ctx.fillStyle = `rgba(${light.color.r}, ${light.color.g}, ${light.color.b}, ${intensity * 0.3})`;
+        ctx.fillRect(x, y, width, height);
+      }
+    });
+  }
+
+  // 绘制阴影
+  function drawShadow(x, y, width, height, offsetY, scaleX = 0.6) {
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.fillStyle = '#000000';
+    ctx.beginPath();
+    ctx.ellipse(x + width / 2, y + height + offsetY + 5, width * scaleX, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ============ 优化的玩家绘制 ============
+  function drawPlayer() {
+    const p = player;
+    const c = p.colors;
+    const dt = AnimationSystem.deltaTime;
+    const totalTime = AnimationSystem.totalTime;
+    
+    // 更新动画状态机
+    if (p.isJumping) {
+      p.animState.setState('jump');
+    } else if (p.isMoving) {
+      p.animState.setState('walk');
+    } else {
+      p.animState.setState('idle');
+    }
+    p.animState.update(dt);
+    
+    // 平滑位置插值
+    const smoothResult = AnimationSystem.smoothDamp(p.smoothX, p.x, p.velocitySmoothX, 0.08, 2000, dt);
+    p.smoothX = smoothResult.value;
+    p.velocitySmoothX = smoothResult.velocity;
+    
+    const smoothResultY = AnimationSystem.smoothDamp(p.smoothY, p.y, p.velocitySmoothY, 0.05, 2000, dt);
+    p.smoothY = smoothResultY.value;
+    p.velocitySmoothY = smoothResultY.velocity;
+    
+    // 平滑挤压拉伸
+    p.squashStretch.x = AnimationSystem.lerp(p.squashStretch.x, p.targetSquashStretch.x, dt * 15);
+    p.squashStretch.y = AnimationSystem.lerp(p.squashStretch.y, p.targetSquashStretch.y, dt * 15);
+    
+    // 获取当前动画参数
+    const state = p.animState.currentState;
+    const stateTime = p.animState.stateTime;
+    const blend = p.animState.getTransitionBlend();
+    
+    // 根据状态计算动画值
+    let breathOffset = 0;
+    let legOffset = 0;
+    let armOffset = 0;
+    let bodyBob = 0;
+    let headTilt = 0;
+    let eyeBlink = 0;
+    
+    if (state === 'idle' || (p.animState.previousState === 'idle' && blend < 1)) {
+      const idleClip = AnimationClips.idle;
+      const idleWeight = state === 'idle' ? 1 : 1 - blend;
+      
+      breathOffset = idleClip.getBreathOffset(stateTime) * idleWeight;
+      bodyBob = idleClip.getBodyBob(stateTime) * idleWeight;
+      headTilt = idleClip.getHeadTilt(stateTime) * idleWeight;
+      armOffset = idleClip.getArmSwing(stateTime) * idleWeight;
+      eyeBlink = idleClip.getEyeBlink(stateTime);
+    }
+    
+    if (state === 'walk' || (p.animState.previousState === 'walk' && blend < 1)) {
+      const walkClip = AnimationClips.walk;
+      const walkWeight = state === 'walk' ? 1 : 1 - blend;
+      
+      const walkLeg = walkClip.getLegSwing(stateTime) * walkWeight;
+      const walkArm = walkClip.getArmSwing(stateTime) * walkWeight;
+      const walkBob = walkClip.getBodyBob(stateTime) * walkWeight;
+      
+      legOffset = AnimationSystem.lerp(legOffset, walkLeg, walkWeight);
+      armOffset = AnimationSystem.lerp(armOffset, walkArm, walkWeight);
+      bodyBob = AnimationSystem.lerp(bodyBob, walkBob, walkWeight);
+    }
+    
+    if (state === 'jump') {
+      const jumpClip = AnimationClips.jump;
+      let jumpPhase = 'airborne';
+      if (p.velocityY < -200) jumpPhase = 'takeoff';
+      else if (p.velocityY > 200 && !p.isGrounded) jumpPhase = 'landing';
+      
+      p.targetSquashStretch.x = jumpClip.getSquash(jumpPhase);
+      p.targetSquashStretch.y = jumpClip.getStretch(jumpPhase);
+      armOffset = jumpClip.getArmRaise(jumpPhase);
+    } else {
+      p.targetSquashStretch.x = 1;
+      p.targetSquashStretch.y = 1;
+    }
+    
+    const drawX = p.smoothX;
+    const drawY = p.smoothY;
+    const centerX = drawX + p.width / 2;
+    const baseY = drawY + breathOffset + bodyBob;
+    
+    // 应用挤压拉伸变换
+    ctx.save();
+    ctx.translate(centerX, baseY + p.height);
+    ctx.scale(p.squashStretch.x, p.squashStretch.y);
+    ctx.translate(-centerX, -baseY - p.height);
+    
+    // 绘制动态阴影
+    const shadowScale = p.isJumping ? 0.3 + (1 - (p.y - p.groundY) / -200) * 0.4 : 0.6;
+    drawShadow(drawX, baseY, p.width, p.height, 0, shadowScale);
+    
+    ctx.save();
+    
+    // 根据方向翻转
+    if (p.direction < 0) {
+      ctx.translate(drawX + p.width, 0);
+      ctx.scale(-1, 1);
+      ctx.translate(-drawX, 0);
+    }
+    
+    // ===== 腿部 - 使用帧率无关的动画 =====
+    const legY = baseY + 40;
+    const legSwingRad = legOffset * Math.PI / 180;
+    
+    // 左腿
+    ctx.save();
+    ctx.translate(drawX + 17, legY);
+    ctx.rotate(legSwingRad);
+    ctx.fillStyle = c.pants;
+    ctx.beginPath();
+    ctx.roundRect(-5, 0, 10, 20, 3);
+    ctx.fill();
+    ctx.fillStyle = c.pantsShadow;
+    ctx.fillRect(-5, 15, 10, 5);
+    ctx.fillStyle = c.shoes;
+    ctx.beginPath();
+    ctx.roundRect(-7, 18, 14, 6, 2);
+    ctx.fill();
+    ctx.restore();
+    
+    // 右腿
+    ctx.save();
+    ctx.translate(drawX + 31, legY);
+    ctx.rotate(-legSwingRad);
+    ctx.fillStyle = c.pants;
+    ctx.beginPath();
+    ctx.roundRect(-5, 0, 10, 20, 3);
+    ctx.fill();
+    ctx.fillStyle = c.pantsShadow;
+    ctx.fillRect(-5, 15, 10, 5);
+    ctx.fillStyle = c.shoes;
+    ctx.beginPath();
+    ctx.roundRect(-7, 18, 14, 6, 2);
+    ctx.fill();
+    ctx.restore();
+    
+    // ===== 身体 =====
+    const bodyY = baseY + 16;
+    
+    // 身体主体
+    ctx.fillStyle = c.shirt;
+    ctx.beginPath();
+    ctx.roundRect(drawX + 10, bodyY, 28, 28, 5);
+    ctx.fill();
+    
+    // 身体阴影/褶皱
+    ctx.fillStyle = c.shirtShadow;
+    ctx.fillRect(drawX + 10, bodyY + 20, 28, 8);
+    
+    // 衣领高光
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.beginPath();
+    ctx.roundRect(drawX + 18, bodyY + 2, 12, 4, 2);
+    ctx.fill();
+    
+    // ===== 手臂 - 使用帧率无关的动画 =====
+    const armY = baseY + 20;
+    const armSwingRad = armOffset * Math.PI / 180;
+    
+    // 左臂
+    ctx.save();
+    ctx.translate(drawX + 8, armY);
+    ctx.rotate(armSwingRad);
+    ctx.fillStyle = c.shirt;
+    ctx.beginPath();
+    ctx.roundRect(-4, 0, 8, 16, 3);
+    ctx.fill();
+    ctx.fillStyle = c.skin;
+    ctx.beginPath();
+    ctx.arc(0, 18, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    
+    // 右臂
+    ctx.save();
+    ctx.translate(drawX + 40, armY);
+    ctx.rotate(-armSwingRad);
+    ctx.fillStyle = c.shirt;
+    ctx.beginPath();
+    ctx.roundRect(-4, 0, 8, 16, 3);
+    ctx.fill();
+    ctx.fillStyle = c.skin;
+    ctx.beginPath();
+    ctx.arc(0, 18, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    
+    // ===== 头部 =====
+    const headY = baseY;
+    
+    // 头部轮廓
+    ctx.fillStyle = c.skin;
+    ctx.beginPath();
+    ctx.roundRect(drawX + 12, headY, 24, 20, 8);
+    ctx.fill();
+    
+    // 头部阴影（脸部轮廓）
+    ctx.fillStyle = c.skinShadow;
+    ctx.beginPath();
+    ctx.roundRect(drawX + 12, headY + 12, 24, 8, 4);
+    ctx.fill();
+    
+    // 头发
+    ctx.fillStyle = c.hair;
+    ctx.beginPath();
+    ctx.roundRect(drawX + 10, headY - 2, 28, 10, 5);
+    ctx.fill();
+    
+    // 头发高光
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.beginPath();
+    ctx.roundRect(drawX + 14, headY - 1, 12, 4, 2);
+    ctx.fill();
+    
+    // 眼睛 - 带眨眼效果
+    const eyeScale = eyeBlink > 0.5 ? 0.1 : 1;
+    
+    ctx.fillStyle = '#ffffff';
+    ctx.save();
+    ctx.translate(drawX + 19, headY + 10);
+    ctx.scale(1, eyeScale);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 4, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    
+    ctx.save();
+    ctx.translate(drawX + 29, headY + 10);
+    ctx.scale(1, eyeScale);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 4, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    
+    // 瞳孔
+    if (eyeScale > 0.5) {
+      ctx.fillStyle = c.eyes;
+      ctx.beginPath();
+      ctx.arc(drawX + 20, headY + 10, 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(drawX + 30, headY + 10, 2, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 眼睛高光
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(drawX + 21, headY + 9, 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(drawX + 31, headY + 9, 1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // 腮红
+    ctx.fillStyle = 'rgba(255, 150, 150, 0.3)';
+    ctx.beginPath();
+    ctx.ellipse(drawX + 15, headY + 14, 3, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(drawX + 33, headY + 14, 3, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 嘴巴
+    ctx.strokeStyle = '#cc8888';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(drawX + 24, headY + 15, 2, 0, Math.PI);
+    ctx.stroke();
+    
+    ctx.restore();
+    ctx.restore();
+    
+    // ===== 玩家光晕效果 =====
+    const gradient = ctx.createRadialGradient(centerX, baseY + 32, 0, centerX, baseY + 32, 50);
+    gradient.addColorStop(0, 'rgba(0, 212, 255, 0.15)');
+    gradient.addColorStop(1, 'rgba(0, 212, 255, 0)');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(centerX, baseY + 32, 50, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 玩家名称标签
+    drawText('玩家', centerX, drawY + p.height + 20, '#00d4ff', 14, true);
+  }
+
+  // 绘制背包 - 增强版动画
+  function drawBackpack() {
+    const b = backpack;
+    const dt = AnimationSystem.deltaTime;
+    const totalTime = AnimationSystem.totalTime;
+    
+    // 平滑弹跳动画
+    b.bounceOffset = AnimationSystem.lerp(b.bounceOffset, b.targetBounce, dt * 8);
+    b.targetBounce *= 0.95;
+    
+    // 呼吸动画
+    const breathOffset = Math.sin(totalTime * 2) * 2;
+    const drawY = b.y + breathOffset + b.bounceOffset;
+    
+    // 阴影
+    drawShadow(b.x, drawY, b.width, b.height, 5);
+    
+    // 背包主体
+    ctx.fillStyle = '#27ae60';
+    ctx.beginPath();
+    ctx.roundRect(b.x, drawY, b.width, b.height, 10);
+    ctx.fill();
+    
+    // 背包高光
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.beginPath();
+    ctx.roundRect(b.x + 5, drawY + 5, b.width - 10, 15, 5);
+    ctx.fill();
+    
+    // 背包阴影
+    ctx.fillStyle = '#1e8449';
+    ctx.fillRect(b.x + 5, drawY + b.height - 15, b.width - 10, 10);
+    
+    // 背包口袋
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath();
+    ctx.roundRect(b.x + 15, drawY + 25, b.width - 30, 30, 5);
+    ctx.fill();
+    
+    // 口袋拉链
+    ctx.strokeStyle = '#f1c40f';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(b.x + 20, drawY + 40);
+    ctx.lineTo(b.x + b.width - 20, drawY + 40);
+    ctx.stroke();
+    
+    // 拉链头 - 轻微晃动
+    const zipperWobble = Math.sin(totalTime * 5) * 1;
+    ctx.fillStyle = '#f1c40f';
+    ctx.beginPath();
+    ctx.roundRect(b.x + b.width - 25 + zipperWobble, drawY + 36, 8, 8, 2);
+    ctx.fill();
+    
+    // 背包带
+    ctx.strokeStyle = '#1e8449';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(b.x + 25, drawY);
+    ctx.lineTo(b.x + 25, drawY - 25);
+    ctx.moveTo(b.x + b.width - 25, drawY);
+    ctx.lineTo(b.x + b.width - 25, drawY - 25);
+    ctx.stroke();
+    
+    // 背包发光效果
+    const glowGradient = ctx.createRadialGradient(b.x + b.width/2, drawY + b.height/2, 0, b.x + b.width/2, drawY + b.height/2, 80);
+    glowGradient.addColorStop(0, 'rgba(46, 204, 113, 0.2)');
+    glowGradient.addColorStop(1, 'rgba(46, 204, 113, 0)');
+    ctx.fillStyle = glowGradient;
+    ctx.beginPath();
+    ctx.arc(b.x + b.width/2, drawY + b.height/2, 80, 0, Math.PI * 2);
+    ctx.fill();
+    
+    drawText(b.label, b.x + b.width / 2, drawY + b.height / 2, '#ffffff', 16, true);
+  }
+
+  // 绘制地面 - 增强版动画
+  function drawGround() {
+    const dt = AnimationSystem.deltaTime;
+    const totalTime = AnimationSystem.totalTime;
+    
+    // 地面基础
+    const groundGradient = ctx.createLinearGradient(0, ground.y, 0, canvas.height);
+    groundGradient.addColorStop(0, '#5d4e37');
+    groundGradient.addColorStop(0.3, '#4a3728');
+    groundGradient.addColorStop(1, '#2d2016');
+    ctx.fillStyle = groundGradient;
+    ctx.fillRect(ground.x, ground.y, ground.width, ground.height);
+    
+    // 草地层
+    ctx.fillStyle = '#4a7c4a';
+    ctx.fillRect(ground.x, ground.y, ground.width, 6);
+    
+    // 草地高光
+    ctx.fillStyle = '#5a9a5a';
+    for (let i = 0; i < ground.width; i += 12) {
+      const h = 3 + Math.sin(i * 0.5) * 2;
+      ctx.fillRect(ground.x + i, ground.y - h, 4, h + 3);
+    }
+    
+    // 草叶细节 - 帧率无关的风吹动画
+    ctx.strokeStyle = '#3d6b3d';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < ground.width; i += 20) {
+      const offset = Math.sin(totalTime * 2 + i * 0.1) * 2;
+      ctx.beginPath();
+      ctx.moveTo(ground.x + i, ground.y);
+      ctx.quadraticCurveTo(ground.x + i + offset, ground.y - 12, ground.x + i + 3 + offset, ground.y - 15);
+      ctx.stroke();
+    }
+    
+    // 地面纹理
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < ground.width; i += 25) {
+      ctx.beginPath();
+      ctx.moveTo(ground.x + i, ground.y + 5);
+      ctx.lineTo(ground.x + i + 10, ground.y + ground.height);
+      ctx.stroke();
+    }
+    
+    // 小石头
+    ctx.fillStyle = '#6b5b4f';
+    for (let i = 0; i < 8; i++) {
+      const stoneX = 50 + i * 100 + Math.sin(i * 3) * 20;
+      const stoneY = ground.y + 15 + Math.cos(i * 2) * 10;
+      ctx.beginPath();
+      ctx.ellipse(stoneX, stoneY, 6 + i % 3, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // 绘制背景 - 增强版帧率无关动画
+  function drawBackground() {
+    const dt = AnimationSystem.deltaTime;
+    const totalTime = AnimationSystem.totalTime;
+    
+    // 渐变夜空
+    const skyGradient = ctx.createLinearGradient(0, 0, 0, ground.y);
+    skyGradient.addColorStop(0, '#0a0a1a');
+    skyGradient.addColorStop(0.3, '#1a1a3a');
+    skyGradient.addColorStop(0.6, '#2a2a5a');
+    skyGradient.addColorStop(1, '#3a3a6a');
+    ctx.fillStyle = skyGradient;
+    ctx.fillRect(0, 0, canvas.width, ground.y);
+    
+    // 星星 - 帧率无关闪烁
+    stars.forEach(star => {
+      star.twinkle += star.speed * dt;
+      const brightness = 0.5 + Math.sin(star.twinkle) * 0.5;
+      ctx.fillStyle = `rgba(255, 255, 255, ${brightness * 0.8})`;
+      ctx.beginPath();
+      ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 星星光晕
+      if (star.size > 1.5) {
+        ctx.fillStyle = `rgba(200, 220, 255, ${brightness * 0.2})`;
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+    
+    // 云朵 - 帧率无关移动
+    clouds.forEach(cloud => {
+      cloud.x += cloud.speed * dt;
+      if (cloud.x > canvas.width + 100) {
+        cloud.x = -cloud.width;
+      }
+      
+      ctx.fillStyle = `rgba(100, 120, 150, ${cloud.opacity})`;
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.arc(cloud.x + i * 25, cloud.y + Math.sin(i) * 5, 20 + i % 2 * 10, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+    
+    // 极光效果 - 帧率无关
+    ctx.save();
+    ctx.globalAlpha = 0.15;
+    for (let i = 0; i < 3; i++) {
+      const auroraGradient = ctx.createLinearGradient(0, 50 + i * 30, 0, 150 + i * 30);
+      auroraGradient.addColorStop(0, 'rgba(0, 255, 150, 0)');
+      auroraGradient.addColorStop(0.5, i % 2 === 0 ? 'rgba(0, 200, 255, 0.5)' : 'rgba(150, 100, 255, 0.5)');
+      auroraGradient.addColorStop(1, 'rgba(0, 255, 150, 0)');
+      
+      ctx.fillStyle = auroraGradient;
+      ctx.beginPath();
+      ctx.moveTo(0, 80 + i * 20);
+      for (let x = 0; x < canvas.width; x += 20) {
+        const y = 80 + i * 20 + Math.sin(x * 0.01 + totalTime + i) * 20;
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(canvas.width, 150 + i * 30);
+      ctx.lineTo(0, 150 + i * 30);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+    
+    // 远山剪影
+    ctx.fillStyle = '#1a1a2e';
+    ctx.beginPath();
+    ctx.moveTo(0, ground.y);
+    for (let x = 0; x < canvas.width; x += 50) {
+      const y = ground.y - 50 - Math.sin(x * 0.01) * 30 - Math.cos(x * 0.02) * 20;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(canvas.width, ground.y);
+    ctx.closePath();
+    ctx.fill();
+    
+    // 中景山
+    ctx.fillStyle = '#252540';
+    ctx.beginPath();
+    ctx.moveTo(0, ground.y);
+    for (let x = 0; x < canvas.width; x += 40) {
+      const y = ground.y - 30 - Math.sin(x * 0.015 + 1) * 20 - Math.cos(x * 0.03) * 15;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(canvas.width, ground.y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 绘制光照效果
+  function drawLighting() {
+    lightingSystem.lights.forEach(light => {
+      const gradient = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, light.radius);
+      gradient.addColorStop(0, `rgba(${light.color.r}, ${light.color.g}, ${light.color.b}, ${light.intensity * 0.3})`);
+      gradient.addColorStop(0.5, `rgba(${light.color.r}, ${light.color.g}, ${light.color.b}, ${light.intensity * 0.15})`);
+      gradient.addColorStop(1, `rgba(${light.color.r}, ${light.color.g}, ${light.color.b}, 0)`);
+      
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(light.x, light.y, light.radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // 粒子更新和绘制 - 帧率无关
+  function updateAndDrawParticles() {
+    const dt = AnimationSystem.deltaTime;
+    
+    // 添加新粒子
+    if (particles.length < MAX_PARTICLES && Math.random() < 0.3) {
+      particles.push({
+        x: player.x + Math.random() * player.width,
+        y: player.y + player.height,
+        vx: (Math.random() - 0.5) * 40,
+        vy: -Math.random() * 40 - 20,
+        size: Math.random() * 4 + 2,
+        life: 1,
+        decay: Math.random() * 0.5 + 0.5,
+        color: Math.random() < 0.5 ? '#00d4ff' : '#00ff88'
+      });
+    }
+    
+    // 更新和绘制粒子
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 50 * dt; // 轻微重力
+      p.life -= p.decay * dt;
+      
+      if (p.life <= 0) {
+        particles.splice(i, 1);
+        continue;
+      }
+      
+      ctx.save();
+      ctx.globalAlpha = p.life * 0.6;
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 粒子光晕
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.life * 0.2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size * p.life * 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  // 更新玩家物理
+  function updatePlayerPhysics() {
+    const dt = AnimationSystem.deltaTime;
+    const p = player;
+    
+    // 应用重力
+    if (!p.isGrounded) {
+      p.velocityY += p.gravity * dt;
+      p.y += p.velocityY * dt;
+      
+      // 检测着陆
+      if (p.y >= p.groundY) {
+        p.y = p.groundY;
+        p.velocityY = 0;
+        p.isGrounded = true;
+        p.isJumping = false;
+        
+        // 着陆时的挤压效果
+        p.targetSquashStretch.x = 1.3;
+        p.targetSquashStretch.y = 0.7;
+        
+        // 触发背包弹跳
+        backpack.targetBounce = 10;
+      }
+    }
+  }
+
+  function drawText(text, x, y, color, fontSize, shadow) {
+    ctx.font = `bold ${fontSize}px Arial`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    if (shadow) {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillText(text, x + 2, y + 2);
+    }
+    
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+  }
+
+  function drawInventory() {
+    const inventoryDiv = document.getElementById('inventory');
+    const gridDiv = document.getElementById('inventoryGrid');
+    gridDiv.innerHTML = '';
+    
+    if (inventory.length === 0) {
+      inventoryDiv.style.display = 'none';
+      updateStatus();
+      updateCapacity();
+      return;
+    }
+    
+    for (let i = 0; i < MAX_INVENTORY_SLOTS; i++) {
+      const slotDiv = document.createElement('div');
+      slotDiv.className = 'item-slot';
+      
+      if (i < inventory.length) {
+        const item = inventory[i];
+        const itemData = itemDatabase.find(db => db.id === item.id) || itemDatabase[0];
+        
+        slotDiv.classList.add(`rarity-${itemData.rarity}`);
+        if (i === selectedItemIndex) {
+          slotDiv.classList.add('selected');
+        }
+        
+        const iconSpan = document.createElement('span');
+        iconSpan.className = 'item-icon';
+        iconSpan.textContent = itemData.icon;
+        slotDiv.appendChild(iconSpan);
+        
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'item-name';
+        nameSpan.textContent = itemData.name;
+        slotDiv.appendChild(nameSpan);
+        
+        slotDiv.addEventListener('click', () => {
+          if (selectedItemIndex === i) {
+            selectedItemIndex = -1;
+          } else {
+            selectedItemIndex = i;
+          }
+          drawInventory();
+        });
+        
+        const tooltip = createTooltip(itemData);
+        slotDiv.appendChild(tooltip);
+        
+      } else {
+        slotDiv.classList.add('empty');
+        const emptyIcon = document.createElement('span');
+        emptyIcon.className = 'empty-icon';
+        emptyIcon.textContent = '+';
+        slotDiv.appendChild(emptyIcon);
+      }
+      
+      gridDiv.appendChild(slotDiv);
+    }
+    
+    inventoryDiv.style.display = 'block';
+    updateStatus();
+    updateCapacity();
+  }
+
+  function createTooltip(itemData) {
+    const tooltip = document.createElement('div');
+    tooltip.className = 'item-tooltip';
+    
+    const header = document.createElement('div');
+    header.className = 'tooltip-header';
+    
+    const iconEl = document.createElement('span');
+    iconEl.className = 'tooltip-icon';
+    iconEl.textContent = itemData.icon;
+    
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'tooltip-title';
+    
+    const nameEl = document.createElement('div');
+    nameEl.className = 'tooltip-name';
+    nameEl.textContent = itemData.name;
+    
+    const rarityEl = document.createElement('div');
+    rarityEl.className = `tooltip-rarity ${itemData.rarity}`;
+    rarityEl.textContent = getRarityName(itemData.rarity);
+    
+    titleDiv.appendChild(nameEl);
+    titleDiv.appendChild(rarityEl);
+    header.appendChild(iconEl);
+    header.appendChild(titleDiv);
+    tooltip.appendChild(header);
+    
+    if (itemData.stats && Object.keys(itemData.stats).length > 0) {
+      const statsDiv = document.createElement('div');
+      statsDiv.className = 'tooltip-stats';
+      
+      Object.entries(itemData.stats).forEach(([stat, value]) => {
+        const statRow = document.createElement('div');
+        statRow.className = 'tooltip-stat';
+        
+        const statIcon = document.createElement('span');
+        statIcon.className = 'tooltip-stat-icon';
+        statIcon.textContent = getStatIcon(stat);
+        
+        const statName = document.createElement('span');
+        statName.textContent = formatStatName(stat);
+        statName.style.flex = '1';
+        
+        const statValue = document.createElement('span');
+        statValue.className = 'tooltip-stat-value';
+        statValue.textContent = formatStatValue(stat, value);
+        
+        statRow.appendChild(statIcon);
+        statRow.appendChild(statName);
+        statRow.appendChild(statValue);
+        statsDiv.appendChild(statRow);
+      });
+      
+      tooltip.appendChild(statsDiv);
+    }
+    
+    if (itemData.desc) {
+      const descDiv = document.createElement('div');
+      descDiv.className = 'tooltip-desc';
+      descDiv.textContent = `"${itemData.desc}"`;
+      tooltip.appendChild(descDiv);
+    }
+    
+    return tooltip;
+  }
+
+  function updateStatus() {
+    document.getElementById('itemCount').textContent = inventory.length;
+    const selectedItemSpan = document.getElementById('selectedItem');
+    if (selectedItemIndex >= 0 && inventory[selectedItemIndex]) {
+      const item = inventory[selectedItemIndex];
+      const itemData = itemDatabase.find(db => db.id === item.id);
+      selectedItemSpan.textContent = itemData ? `${itemData.icon} ${itemData.name}` : '已选择';
+      selectedItemSpan.classList.add('highlight');
+    } else {
+      selectedItemSpan.textContent = '无';
+      selectedItemSpan.classList.remove('highlight');
+    }
+  }
+
+  function updateCapacity() {
+    document.getElementById('capacityDisplay').textContent = `${inventory.length}/${MAX_INVENTORY_SLOTS}`;
+  }
+
+  // 主游戏循环 - 使用高精度时间
+  function gameLoop(currentTime) {
+    // 更新动画系统时间
+    AnimationSystem.updateTime(currentTime);
+    
+    // 清空画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 更新物理
+    updatePlayerPhysics();
+    
+    // 绘制层次
+    drawBackground();
+    drawLighting();
+    drawGround();
+    drawBackpack();
+    updateAndDrawParticles();
+    drawPlayer();
+    
+    requestAnimationFrame(gameLoop);
+  }
+
+  // 生成随机物品
+  function generateRandomItems() {
+    const newItems = [];
+    const numItems = Math.floor(Math.random() * 4) + 4;
+    
+    const rarityWeights = { common: 50, rare: 30, epic: 15, legendary: 5 };
+    const weightedItems = [];
+    
+    itemDatabase.forEach(item => {
+      weightedItems.push({ ...item, weight: rarityWeights[item.rarity] });
+    });
+    
+    for (let i = 0; i < numItems; i++) {
+      const totalWeight = weightedItems.reduce((sum, item) => sum + item.weight, 0);
+      let random = Math.random() * totalWeight;
+      
+      for (const item of weightedItems) {
+        random -= item.weight;
+        if (random <= 0) {
+          newItems.push({ id: item.id });
+          break;
+        }
+      }
+    }
+    
+    return newItems;
+  }
+
+  // 输入状态追踪
+  const keysPressed = {
+    left: false,
+    right: false,
+    up: false,
+    down: false
+  };
+
+  // 事件监听
+  window.addEventListener('keydown', (e) => {
+    const key = e.key.toLowerCase();
+    
+    if (key === 'i') {
+      inventory = generateRandomItems();
+      selectedItemIndex = -1;
+      drawInventory();
+      console.log('Inventory opened with items:', inventory.length);
+    }
+    
+    if (key === 'e') {
+      if (selectedItemIndex !== -1 && inventory.length > selectedItemIndex) {
+        const item = inventory[selectedItemIndex];
+        const itemData = itemDatabase.find(db => db.id === item.id);
+        console.log(`Using item: ${itemData ? itemData.name : 'Unknown'}`);
+        inventory.splice(selectedItemIndex, 1);
+        selectedItemIndex = -1;
+      } else if (inventory.length > 0) {
+        inventory = [];
+        selectedItemIndex = -1;
+        console.log('Inventory cleared');
+      }
+      drawInventory();
+    }
+    
+    // 跳跃
+    if (key === ' ' || key === 'space') {
+      e.preventDefault();
+      if (player.isGrounded) {
+        player.velocityY = player.jumpForce;
+        player.isGrounded = false;
+        player.isJumping = true;
+        
+        // 起跳时的拉伸效果
+        player.targetSquashStretch.x = 0.85;
+        player.targetSquashStretch.y = 1.15;
+      }
+    }
+    
+    // 移动
+    if (e.key === 'ArrowLeft' || key === 'a') {
+      keysPressed.left = true;
+      player.direction = -1;
+    }
+    if (e.key === 'ArrowRight' || key === 'd') {
+      keysPressed.right = true;
+      player.direction = 1;
+    }
+    if (e.key === 'ArrowUp' || key === 'w') {
+      keysPressed.up = true;
+    }
+    if (e.key === 'ArrowDown' || key === 's') {
+      keysPressed.down = true;
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    const key = e.key.toLowerCase();
+    
+    if (e.key === 'ArrowLeft' || key === 'a') {
+      keysPressed.left = false;
+    }
+    if (e.key === 'ArrowRight' || key === 'd') {
+      keysPressed.right = false;
+    }
+    if (e.key === 'ArrowUp' || key === 'w') {
+      keysPressed.up = false;
+    }
+    if (e.key === 'ArrowDown' || key === 's') {
+      keysPressed.down = false;
+    }
+  });
+
+  // 持续移动更新
+  function updateMovement() {
+    const speed = 200 * AnimationSystem.deltaTime;
+    let moved = false;
+    
+    if (keysPressed.left) {
+      player.x = Math.max(0, player.x - speed);
+      player.direction = -1;
+      moved = true;
+    }
+    if (keysPressed.right) {
+      player.x = Math.min(canvas.width - player.width, player.x + speed);
+      player.direction = 1;
+      moved = true;
+    }
+    if (keysPressed.up) {
+      player.y = Math.max(0, player.y - speed);
+      moved = true;
+    }
+    if (keysPressed.down) {
+      player.y = Math.min(ground.y - player.height, player.y + speed);
+      moved = true;
+    }
+    
+    player.isMoving = moved;
+    
+    requestAnimationFrame(updateMovement);
+  }
+
+  window.onload = () => {
+    updateStatus();
+    updateCapacity();
+    requestAnimationFrame(gameLoop);
+    updateMovement();
+  };
+</script>
+</body>
+</html>

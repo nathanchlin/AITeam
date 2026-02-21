@@ -1,0 +1,27 @@
+# ai-service-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tetris-ai
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tetris-ai
+  template:
+    metadata:
+      labels:
+        app: tetris-ai
+    spec:
+      containers:
+      - name: ai-service
+        image: your-registry/tetris-ai:latest
+        ports:
+        - containerPort: 5000
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"

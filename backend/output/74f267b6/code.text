@@ -1,0 +1,7 @@
+ai_stock_analysis/
+│── data/                # 数据存储目录
+│── notebooks/           # Jupyter notebooks
+│── scripts/             # Python脚本
+│── utils/               # 工具函数
+│── requirements.txt     # 依赖列表
+│── README.md            # 项目说明

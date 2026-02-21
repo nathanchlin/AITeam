@@ -1,0 +1,12 @@
+POST /api/v1/shop/purchase
+Headers: Authorization: Bearer <token>
+Request Body:
+{
+    "itemId": "string",
+    "paymentMethod": "coins | gems"
+}
+Response:
+{
+    "success": "boolean",
+    "transactionId": "string"
+}

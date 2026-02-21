@@ -1,0 +1,8 @@
+project/
+├── src/
+│   └── your_module.py
+├── tests/
+│   ├── __init__.py
+│   ├── test_unittest.py
+│   └── test_pytest.py
+└── requirements.txt

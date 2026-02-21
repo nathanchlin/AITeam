@@ -1,0 +1,11 @@
+gomoku-game/
+├── index.html          # 主页面
+├── css/
+│   └── style.css      # 样式文件
+├── js/
+│   ├── main.js        # 主逻辑
+│   ├── board.js       # 棋盘逻辑
+│   ├── game.js        # 游戏控制
+│   └── ai.js          # AI逻辑（可选）
+├── assets/            # 图片、音频等资源
+└── README.md          # 项目说明

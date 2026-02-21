@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>愤怒的小鸟</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #87CEEB 0%, #98D8E8 70%, #B0E0E6 100%);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #gameContainer {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #gameCanvas {
+            border: 3px solid #5D4037;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            cursor: crosshair;
+            background: transparent;
+        }
+
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            padding: 10px 15px;
+            background-color: rgba(255, 255, 255, 0.85);
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+        }
+
+        .score, .birds-left, .level-display {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        }
+
+        button:hover {
+            background-color: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        #resetBtn {
+            background-color: #f44336;
+        }
+
+        #resetBtn:hover {
+            background-color: #d32f2f;
+        }
+
+        #nextLevelBtn {
+            background-color: #2196F3;
+        }
+
+        #nextLevelBtn:hover {
+            background-color: #1976D2;
+        }
+
+        #gameMessage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 20;
+            display: none;
+        }
+
+        #levelComplete, #gameOver {
+            background-color: rgba(0, 0, 0, 0.85);
+            color: white;
+            padding: 30px 50px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        #levelComplete h2 {
+            color: #4CAF50;
+            font-size: 32px;
+            margin-bottom: 15px;
+        }
+
+        #gameOver h2 {
+            color: #f44336;
+            font-size: 32px;
+            margin-bottom: 15px;
+        }
+
+        #gameMessage p {
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+
+        #gameMessage .stars {
+            font-size: 40px;
+            margin: 15px 0;
+        }
+
+        .message-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        #powerIndicator {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px solid #fff;
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+            z-index: 10;
+        }
+
+        #powerBar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(to right, #4CAF50, #FFC107, #F44336);
+            border-radius: 8px;
+            transition: width 0.05s;
+        }
+
+        /* 游戏提示 */
+        .hint {
+            position: absolute;
+            bottom: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            z-index: 5;
+            pointer-events: none;
+        }
+
+        @media (max-width: 850px) {
+            #gameCanvas {
+                width: 100%;
+                max-width: 800px;
+            }
+
+            #ui {
+                flex-direction: column;
+                gap: 8px;
+                padding: 8px 12px;
+            }
+
+            .score, .birds-left, .level-display {
+                font-size: 14px;
+            }
+
+            button {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+
+        <div id="ui">
+            <div class="level-display">关卡: <span id="levelValue">1</span></div>
+            <div class="score">得分: <span id="scoreValue">0</span></div>
+            <div class="controls">
+                <button id="resetBtn">重置关卡</button>
+                <button id="nextLevelBtn" style="display: none;">下一关</button>
+            </div>
+            <div class="birds-left">小鸟: <span id="birdsValue">3</span></div>
+        </div>
+
+        <div id="powerIndicator">
+            <div id="powerBar"></div>
+        </div>
+
+        <div id="gameMessage">
+            <div id="levelComplete" style="display: none;">
+                <h2>关卡完成!</h2>
+                <div class="stars" id="starsDisplay"></div>
+                <p>得分: <span id="finalScore">0</span></p>
+                <div class="message-buttons">
+                    <button id="retryBtn">重玩</button>
+                    <button id="nextBtn">下一关</button>
+                </div>
+            </div>
+            <div id="gameOver" style="display: none;">
+                <h2>游戏结束</h2>
+                <p>很遗憾，小鸟用完了!</p>
+                <p>得分: <span id="gameOverScore">0</span></p>
+                <div class="message-buttons">
+                    <button id="retryBtn2">重试</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="hint" id="hint">拖拽小鸟向后拉，松开发射!</div>
+    </div>
+
+    <script src="game.js"></script>
+    <script>
+        // 额外的UI控制
+        document.addEventListener('DOMContentLoaded', function() {
+            // 隐藏提示
+            setTimeout(function() {
+                const hint = document.getElementById('hint');
+                if (hint) {
+                    hint.style.opacity = '0';
+                    hint.style.transition = 'opacity 1s';
+                    setTimeout(() => hint.style.display = 'none', 1000);
+                }
+            }, 5000);
+
+            // 重试按钮
+            const retryBtn = document.getElementById('retryBtn');
+            if (retryBtn) {
+                retryBtn.addEventListener('click', function() {
+                    if (window.game) {
+                        window.game.restartLevel();
+                    }
+                });
+            }
+
+            const retryBtn2 = document.getElementById('retryBtn2');
+            if (retryBtn2) {
+                retryBtn2.addEventListener('click', function() {
+                    if (window.game) {
+                        window.game.restartLevel();
+                    }
+                });
+            }
+
+            // 下一关按钮
+            const nextBtn = document.getElementById('nextBtn');
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function() {
+                    if (window.game) {
+                        window.game.nextLevel();
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

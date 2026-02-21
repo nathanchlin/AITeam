@@ -60,7 +60,6 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
-backend/output/
 
 # Plan persistence data
 backend/data/

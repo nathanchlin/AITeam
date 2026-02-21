@@ -1,0 +1,37 @@
+// 虚拟按钮管理器
+public class VirtualButtons : MonoBehaviour
+{
+    public GameObject jumpButton;
+    public GameObject slideButton;
+    
+    private NinjaController ninjaController;
+    
+    private void Start()
+    {
+        ninjaController = FindObjectOfType<NinjaController>();
+    }
+    
+    public void OnJumpButtonPressed()
+    {
+        if (ninjaController != null)
+        {
+            ninjaController.Jump();
+        }
+    }
+    
+    public void OnSlideButtonPressed()
+    {
+        if (ninjaController != null)
+        {
+            ninjaController.StartSlide();
+        }
+    }
+    
+    public void OnSlideButtonReleased()
+    {
+        if (ninjaController != null)
+        {
+            ninjaController.StopSlide();
+        }
+    }
+}

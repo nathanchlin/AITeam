@@ -1,0 +1,16 @@
+// server/package.json
+{
+  "name": "tetris-battle-server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.17.0",
+    "socket.io": "^4.0.0",
+    "pm2": "^4.5.0"
+  }
+}

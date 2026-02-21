@@ -1,0 +1,67 @@
+public class CollisionSystem : MonoBehaviour
+{
+    private ShootingManager shootingManager;
+    
+    private void Awake()
+    {
+        shootingManager = GetComponent<ShootingManager>();
+    }
+    
+    private void Update()
+    {
+        // 这里可以添加更高效的碰撞检测方法
+        // 例如使用空间分区或四叉树来优化性能
+        
+        // 简单的碰撞检测示例
+        CheckBulletCollisions();
+    }
+    
+    private void CheckBulletCollisions()
+    {
+        foreach (var bullet in shootingManager.ActiveBullets)
+        {
+            if (!bullet.IsActive) continue;
+            
+            // 获取子弹周围的碰撞体
+            Collider2D[] hitColliders = Physics2D.OverlapCircleAll(bullet.Position, 0.5f);
+            
+            foreach (var collider in hitColliders)
+            {
+                // 跳过子弹自身的碰撞体
+                if (collider.gameObject == bullet.GameObject) continue;
+                
+                // 检查是否击中敌人
+                Enemy enemy = collider.GetComponent<Enemy>();
+                if (enemy != null)
+                {
+                    // 应用伤害
+                    enemy.TakeDamage(bullet.Damage);
+                    
+                    // 标记子弹为不活跃
+                    bullet.Deactivate();
+                    
+                    // 可以在这里添加击中效果
+                    PlayHitEffect(bullet.Position);
+                    
+                    break; // 一颗子弹只能击中一个目标
+                }
+                
+                // 检查是否击中陨石
+                Asteroid asteroid = collider.GetComponent<Asteroid>();
+                if (asteroid != null)
+                {
+                    asteroid.TakeDamage(bullet.Damage);
+                    bullet.Deactivate();
+                    PlayHitEffect(bullet.Position);
+                    break;
+                }
+            }
+        }
+    }
+    
+    private void PlayHitEffect(Vector2 position)
+    {
+        // 实现击中特效
+        // 例如实例化粒子效果或播放音效
+    }
+}

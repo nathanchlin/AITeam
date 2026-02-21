@@ -1,0 +1,12 @@
+POST /api/v1/users/register
+Request Body:
+{
+    "username": "string",
+    "email": "string",
+    "password": "string"
+}
+Response:
+{
+    "userId": "string",
+    "token": "string"
+}

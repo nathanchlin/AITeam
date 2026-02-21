@@ -1,0 +1,25 @@
+mario-game/
+├── assets/                 # 游戏资源
+│   ├── sprites/           # 角色和物品精灵图
+│   ├── tilemaps/          # 关卡瓦片图
+│   ├── audio/             # 音效和背景音乐
+│   └── fonts/             # 字体资源
+├── src/                   # 源代码
+│   ├── core/              # 核心游戏逻辑
+│   │   ├── GameScene.js   # 主游戏场景
+│   │   ├── Player.js      # 玩家角色
+│   │   ├── Enemies.js     # 敌人类
+│   │   ├── Platforms.js   # 平台类
+│   │   └── Items.js       # 可收集物品类
+│   ├── managers/          # 游戏管理器
+│   │   ├── AudioManager.js
+│   │   ├── ScoreManager.js
+│   │   └── LevelManager.js
+│   ├── physics/           # 物理系统
+│   │   └── CustomPhysics.js # 自定义物理行为
+│   ├── utils/             # 工具函数
+│   └── index.js           # 游戏入口
+├── config/                # 配置文件
+│   ├── gameConfig.js      # 游戏全局配置
+│   └── levelConfig.js     # 关卡配置
+└── index.html             # 主HTML文件

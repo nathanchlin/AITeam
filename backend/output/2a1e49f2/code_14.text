@@ -1,0 +1,29 @@
+tetris-battle/
+├── .github/                 # GitHub工作流配置
+│   └── workflows/
+│       └── ci.yml          # 持续集成配置
+├── src/                     # 源代码
+│   ├── client/             # 客户端代码
+│   │   ├── assets/         # 游戏资源
+│   │   ├── components/     # UI组件
+│   │   ├── utils/          # 工具函数
+│   │   └── index.js        # 入口文件
+│   ├── server/             # 服务器代码
+│   │   ├── api/            # API路由
+│   │   ├── models/         # 数据模型
+│   │   └── index.js        # 入口文件
+│   ├── shared/             # 共享代码
+│   │   ├── constants.js    # 常量定义
+│   │   └── utils.js        # 通用工具
+│   └── ai/                 # AI对手代码
+│       ├── strategies/     # AI策略
+│       └── index.js        # AI入口
+├── tests/                  # 测试文件
+│   ├── client/
+│   ├── server/
+│   └── ai/
+├── docs/                   # 文档
+├── package.json            # 项目配置
+├── webpack.config.js       # 构建配置
+├── .gitignore              # Git忽略规则
+└── README.md               # 项目说明

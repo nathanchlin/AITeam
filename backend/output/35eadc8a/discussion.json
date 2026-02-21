@@ -1,0 +1,14 @@
+{
+  "title": "贪吃蛇游戏开发计划",
+  "original_request": "创建一个简单的贪吃蛇游戏，使用Canvas渲染。蛇可以上下左右移动，吃到食物后变长，碰到墙壁或自己游戏结束，显示分数。所有代码必须是单个完整的HTML文件。",
+  "discussion": [
+    {
+      "id": "5030ecaa-2a30-414e-817f-83a8fae5765c",
+      "plan_id": "35eadc8a-ca91-4325-99ef-473a26d074b4",
+      "agent_id": "83baf20f-ee60-4f1d-a5c0-ec50ff145e22",
+      "agent_name": "Coordinator",
+      "agent_type": "assistant",
+      "content": "我来分析一下需求：创建一个简单的贪吃蛇游戏，使用Canvas渲染。蛇可以上下左右移动，吃到食物后变长，碰到墙壁或自己游戏结束，显示分数。所有代码必须是单个完整的HTML文件。",
+      "message_type": "comment",
+      "reply_to": null,
+      "timestamp": 

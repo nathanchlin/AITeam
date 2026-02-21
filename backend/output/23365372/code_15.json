@@ -1,0 +1,12 @@
+{
+    "required_capabilities": [
+        {
+            "type": "string",
+            "details": {}
+        }
+    ],
+    "preferred_tags": ["string"],
+    "location": "string",
+    "max_response_time": 1000,
+    "exclude_busy": true
+}

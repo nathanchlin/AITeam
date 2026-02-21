@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flappy Bird</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #3498db;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+        }
+        
+        .game-container {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            background: linear-gradient(to bottom, #87CEEB 0%, #98D8E8 100%);
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .game-info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+        
+        .start-screen, .game-over {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            z-index: 20;
+        }
+        
+        .start-screen h1, .game-over h2 {
+            margin: 0 0 20px 0;
+            font-size: 36px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        .start-screen p, .game-over p {
+            margin: 10px 0;
+            font-size: 18px;
+        }
+        
+        .start-btn, .restart-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background: #f1c40f;
+            color: #333;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .start-btn:hover, .restart-btn:hover {
+            background: #e67e22;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .bird-animation {
+            animation: flap 0.5s infinite alternate;
+        }
+        
+        @keyframes flap {
+            from {
+                transform: rotate(0deg);
+            }
+            to {
+                transform: rotate(-20deg);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div class="game-info">
+            <div id="score">Score: 0</div>
+        </div>
+        <div class="start-screen" id="startScreen">
+            <h1>Flappy Bird</h1>
+            <p>Press Space or Tap to Start</p>
+            <button class="start-btn" onclick="startGame()">Start Game</button>
+        </div>
+        <div class="game-over" id="gameOver" style="display: none;">
+            <h2>Game Over</h2>
+            <p>Your Score: <span id="finalScore">0</span></p>
+            <button class="restart-btn" onclick="restartGame()">Restart</button>
+        </div>
+    </div>
+
+    <script>
+        // 游戏变量
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOver');
+        const finalScoreElement = document.getElementById('finalScore');
+        
+        let bird, pipes, score, gameState, animationFrameId;
+        let lastPipeTime = 0;
+        const pipeInterval = 1500; // 1.5秒生成一个管道
+        
+        // 小鸟对象
+        class Bird {
+            constructor() {
+                this.x = 50;
+                this.y = 250;
+                this.width = 30;
+                this.height = 30;
+                this.velocity = 0;
+                this.gravity = 0.5;
+                this.jump = -8;
+                this.rotation = 0;
+                this.color = '#f1c40f';
+                this.wingFlap = 0;
+            }
+            
+            update() {
+                this.velocity += this.gravity;
+                this.y += this.velocity;
+                
+                // 根据速度计算旋转角度
+                this.rotation = Math.min(Math.max(this.velocity * 3, -30), 90);
+                
+                // 翅膀扇动动画
+                this.wingFlap = (this.wingFlap + 0.2) % (Math.PI * 2);
+            }
+            
+            draw() {
+                ctx.save();
+                ctx.translate(this.x + this.width/2, this.y + this.height/2);
+                ctx.rotate(this.rotation * Math.PI / 180);
+                
+                // 绘制小鸟身体
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.ellipse(0, 0, this.width/2, this.height/2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 绘制小鸟眼睛
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(5, -5, 5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = 'black';
+                ctx.beginPath();
+                ctx.arc(7, -5, 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 绘制小鸟嘴巴
+                ctx.fillStyle = '#e67e22';
+                ctx.beginPath();
+                ctx.moveTo(this.width/2 - 5, 0);
+                ctx.lineTo(this.width/2 + 5, 0);
+                ctx.lineTo(this.width/2, 8);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 绘制翅膀
+                ctx.fillStyle = '#f39c12';
+                ctx.beginPath();
+                const wingOffset = Math.sin(this.wingFlap) * 5;
+                ctx.ellipse(-5, wingOffset, 10, 15, -0.2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+            
+            jump() {
+                this.velocity = this.jump;
+            }
+            
+            checkBounds() {
+                if (this.y < 0 || this.y + this.height > canvas.height) {
+                    return true;
+                }
+                return false;
+            }
+        }
+        
+        // 管道对象
+        class Pipe {
+            constructor(x) {
+                this.x = x;
+                this.width = 60;
+                this.gap = 150;
+                this.minHeight = 50;
+                this.maxHeight = canvas.height - this.gap - this.minHeight;
+                this.height = Math.random() * (this.maxHeight - this.minHeight) + this.minHeight;
+                this.color = '#27ae60';
+                this.passed = false;
+            }
+            
+            update() {
+                this.x -= 2;
+            }
+            
+            draw() {
+                // 绘制上管道
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, 0, this.width, this.height);
+                
+                // 绘制管道边缘
+                ctx.fillStyle = '#229954';
+                ctx.fillRect(this.x - 5, this.height - 30, this.width + 10, 30);
+                
+                // 绘制下管道
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.height + this.gap, this.width, canvas.height - this.height - this.gap);
+                
+                // 绘下管道边缘
+                ctx.fillStyle = '#229954';
+                ctx.fillRect(this.x - 5, this.height + this.gap, this.width + 10, 30);
+            }
+            
+            isOffScreen() {
+                return this.x + this.width < 0;
+            }
+            
+            collidesWith(bird) {
+                // 检查小鸟是否与管道碰撞
+                if (bird.x < this.x + this.width &&
+                    bird.x + bird.width > this.x &&
+                    (bird.y < this.height || bird.y + bird.height > this.height + this.gap)) {
+                    return true;
+                }
+                return false;
+            }
+        }
+        
+        // 初始化游戏
+        function init() {
+            bird = new Bird();
+            pipes = [];
+            score = 0;
+            gameState = 'start'; // 'start', 'playing', 'gameOver'
+            lastPipeTime = Date.now();
+            scoreElement.textContent = `Score: ${score}`;
+            startScreen.style.display = 'flex';
+            gameOverScreen.style.display = 'none';
+        }
+        
+        // 开始游戏
+        function startGame() {
+            gameState = 'playing';
+            startScreen.style.display = 'none';
+            gameLoop();
+        }
+        
+        // 重新开始游戏
+        function restartGame() {
+            cancelAnimationFrame(animationFrameId);
+            init();
+            startGame();
+        }
+        
+        // 游戏主循环
+        function gameLoop() {
+            if (gameState !== 'playing') return;
+            
+            update();
+            draw();
+            
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+        
+        // 更新游戏状态
+        function update() {
+            // 更新小鸟
+            bird.update();
+            
+            // 检查小鸟是否碰到边界
+            if (bird.checkBounds()) {
+                gameOver();
+                return;
+            }
+            
+            // 生成新管道
+            const currentTime = Date.now();
+            if (currentTime - lastPipeTime > pipeInterval) {
+                pipes.push(new Pipe(canvas.width));
+                lastPipeTime = currentTime;
+            }
+            
+            // 更新管道
+            pipes.forEach(pipe => {
+                pipe.update();
+                
+                // 检查碰撞
+                if (pipe.collidesWith(bird)) {
+                    gameOver();
+                    return;
+                }
+                
+                // 计分
+                if (!pipe.passed && bird.x > pipe.x + pipe.width) {
+                    pipe.passed = true;
+                    score++;
+                    scoreElement.textContent = `Score: ${score}`;
+                }
+            });
+            
+            // 移除屏幕外的管道
+            pipes = pipes.filter(pipe => !pipe.isOffScreen());
+        }
+        
+        // 绘制游戏画面
+        function draw() {
+            // 绘制背景
+            drawBackground();
+            
+            // 绘制管道
+            pipes.forEach(pipe => pipe.draw());
+            
+            // 绘制小鸟
+            bird.draw();
+        }
+        
+        // 绘制背景
+        function drawBackground() {
+            // 天空渐变
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87CEEB');
+            gradient.addColorStop(1, '#98D8E8');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制云朵
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            drawCloud(50, 50, 40);
+            drawCloud(200, 100, 30);
+            drawCloud(320, 70, 35);
+            
+            // 绘制地面
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(0, canvas.height - 20, canvas.width, 20);
+            
+            // 绘制草地
+            ctx.fillStyle = '#2ECC71';
+            ctx.fillRect(0, canvas.height - 20, canvas.width, 5);
+        }
+        
+        // 绘制云朵
+        function drawCloud(x, y, size) {
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.arc(x + size, y, size * 0.8, 0, Math.PI * 2);
+            ctx.arc(x - size, y, size * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // 游戏结束
+        function gameOver() {
+            gameState = 'gameOver';
+            finalScoreElement.textContent = score;
+            gameOverScreen.style.display = 'flex';
+            cancelAnimationFrame(animationFrameId);
+        }
+        
+        // 事件监听
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (gameState === 'start') {
+                    startGame();
+                } else if (gameState === 'playing') {
+                    bird.jump();
+                } else if (gameState === 'gameOver') {
+                    restartGame();
+                }
+            }
+        });
+        
+        // 触摸事件
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (gameState === 'start') {
+                startGame();
+            } else if (gameState === 'playing') {
+                bird.jump();
+            } else if (gameState === 'gameOver') {
+                restartGame();
+            }
+        });
+        
+        // 点击事件（用于桌面端）
+        canvas.addEventListener('click', () => {
+            if (gameState === 'playing') {
+                bird.jump();
+            }
+        });
+        
+        // 初始化游戏
+        window.onload = () => {
+            init();
+        };
+    </script>
+</body>
+</html>

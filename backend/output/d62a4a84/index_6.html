@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>球球大作战 - 社交功能集成</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #menu {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(255, 255, 255, 0.7);
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+  }
+  #score {
+    font-size: 20px;
+    font-weight: bold;
+  }
+  #leaderboard {
+    margin-top: 20px;
+  }
+  #leaderboard h3 {
+    font-size: 18px;
+  }
+  #leaderboard ul {
+    list-style: none;
+    padding: 0;
+  }
+  #leaderboard li {
+    margin-bottom: 5px;
+  }
+  #friends {
+    margin-top: 20px;
+  }
+  #friends h3 {
+    font-size: 18px;
+  }
+  #friends ul {
+    list-style: none;
+    padding: 0;
+  }
+  #friends li {
+    margin-bottom: 5px;
+  }
+  #tutorial {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 20px;
+    border-radius: 5px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="menu">
+  <div id="score">Score: 0</div>
+  <button id="startButton">Start Game</button>
+  <div id="leaderboard">
+    <h3>Leaderboard</h3>
+    <ul id="leaderboardList"></ul>
+  </div>
+  <div id="friends">
+    <h3>Friends</h3>
+    <ul id="friendsList"></ul>
+  </div>
+</div>
+<div id="tutorial">
+  <h2>游戏教程</h2>
+  <p>使用箭头键控制角色移动。</p>
+  <p>尝试吃掉其他角色来增加你的体积。</p>
+  <p>点击“Start Game”开始游戏。</p>
+  <button id="closeTutorial">关闭教程</button>
+</div>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const menu = document.getElementById('menu');
+  const tutorial = document.getElementById('tutorial');
+  const closeTutorial = document.getElementById('closeTutorial');
+  const startButton = document.getElementById('startButton');
+  const leaderboardList = document.getElementById('leaderboardList');
+  const friendsList = document.getElementById('friendsList');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  // 游戏地图
+  const map = {
+    width: canvas.width,
+    height: canvas.height
+  };
+
+  // 玩家角色
+  class Player {
+    constructor(id, color) {
+      this.id = id;
+      this.x = Math.random() * (map.width - 20) + 10;
+      this.y = Math.random() * (map.height - 20) + 10;
+      this.size = 20;
+      this.color = color;
+      this.speed = 5;
+      this.score = 0;
+    }
+
+    draw() {
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    move(dx, dy) {
+      this.x += dx;
+      this.y += dy;
+      this.checkBounds();
+    }
+
+    checkBounds() {
+      if (this.x - this.size < 0) this.x = this.size;
+      if (this.x + this.size > map.width) this.x = map.width - this.size;
+      if (this.y - this.size < 0) this.y = this.size;
+      if (this.y + this.size > map.height) this.y = map.height - this.size;
+    }
+  }
+
+  // 碰撞检测
+  function checkCollision(player1, player2) {
+    const dx = player2.x - player1.x;
+    const dy = player2.y - player1.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    return distance < (player1.size + player2.size) / 2;
+  }
+
+  // 得分系统
+  function increaseScore(player) {
+    player.score += 10;
+    updateLeaderboard();
+  }
+
+  // 更新排行榜
+  function updateLeaderboard() {
+    players.sort((a, b) => b.score - a.score);
+    leaderboardList.innerHTML = '';
+    players.forEach(player => {
+      const listItem = document.createElement('li');
+      listItem.textContent = `Player ${player.id}: ${player.score}`;
+      leaderboardList.appendChild(listItem);
+    });
+  }
+
+  // 初始化玩家
+  let players = [];
+  let gameStarted = false;
+
+  function startGame() {
+    gameStarted = true;
+    for (let i = 0; i < 5; i++) {
+      players.push(new Player(i, `rgb(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255})`));
+    }
+    document.getElementById('startButton').style.display = 'none';
+    document.getElementById('tutorial').style.display = 'none';
+    updateLeaderboard();
+  }
+
+  function gameLoop() {
+    if (!gameStarted) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    players.forEach(player => {
+      player.draw();
+      player.move(Math.random() * -10 + 5, Math.random() * -10 + 5);
+    });
+
+    // 玩家之间的碰撞检测
+    for (let i = 0; i < players.length; i++) {
+      for (let j = i + 1; j < players.length; j++) {
+        if (checkCollision(players[i], players[j])) {
+          // 碰撞后交换颜色
+          const tempColor = players[i].color;
+          players[i].color = players[j].color;
+          players[j].color = tempColor;
+          increaseScore(players[i]);
+        }
+      }
+    }
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  window.onload = function() {
+    startGame();
+    gameLoop();
+  };
+
+  document.addEventListener('keydown', function(event) {
+    const dx = event.key === 'ArrowRight' ? players[0].speed : event.key === 'ArrowLeft' ? -players[0].speed : 0;
+    const dy = event.key === 'ArrowUp' ? -players[0].speed : event.key === 'ArrowDown' ? players[0].speed : 0;
+    players[0].move(dx, dy);
+  });
+
+  closeTutorial.addEventListener('click', function() {
+    tutorial.style.display = 'none';
+  });
+
+  startButton.addEventListener('click', function() {
+    tutorial.style.display = 'none';
+  });
+</script>
+</body>
+</html>

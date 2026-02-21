@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>球球大作战 - 基础版本</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  // 游戏地图
+  const map = {
+    width: 800,
+    height: 600
+  };
+
+  // 玩家角色
+  class Player {
+    constructor() {
+      this.x = canvas.width / 2;
+      this.y = canvas.height / 2;
+      this.size = 20;
+      this.color = 'blue';
+    }
+
+    draw() {
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    move(dx, dy) {
+      this.x += dx;
+      this.y += dy;
+      this.checkBounds();
+    }
+
+    checkBounds() {
+      if (this.x - this.size < 0) this.x = this.size;
+      if (this.x + this.size > canvas.width) this.x = canvas.width - this.size;
+      if (this.y - this.size < 0) this.y = this.size;
+      if (this.y + this.size > canvas.height) this.y = canvas.height - this.size;
+    }
+  }
+
+  let player = new Player();
+
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    player.draw();
+    requestAnimationFrame(gameLoop);
+  }
+
+  window.onload = gameLoop;
+
+  document.addEventListener('keydown', function(event) {
+    const dx = event.key === 'ArrowRight' ? 5 : event.key === 'ArrowLeft' ? -5 : 0;
+    const dy = event.key === 'ArrowUp' ? -5 : event.key === 'ArrowDown' ? 5 : 0;
+    player.move(dx, dy);
+  });
+</script>
+</body>
+</html>

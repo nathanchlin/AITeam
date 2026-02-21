@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>羊了羊 - 卡片匹配游戏</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <header class="game-header">
+            <h1>羊了羊</h1>
+            <div class="game-info">
+                <div class="level">关卡: <span id="level">1</span></div>
+                <div class="score">得分: <span id="score">0</span></div>
+                <div class="moves">步数: <span id="moves">0</span></div>
+                <div class="timer">时间: <span id="timer">00:00</span></div>
+            </div>
+            <div class="game-controls">
+                <button id="start-btn" class="btn">开始游戏</button>
+                <button id="reset-btn" class="btn">重置游戏</button>
+                <button id="sound-btn" class="btn">音效: 开</button>
+            </div>
+        </header>
+
+        <main class="game-board">
+            <div class="card-deck" id="card-deck"></div>
+        </main>
+
+        <footer class="game-footer">
+            <div class="game-message" id="game-message"></div>
+            <div class="game-stats">
+                <div class="combo">连击: <span id="combo">0</span></div>
+                <div class="best-score">最高分: <span id="best-score">0</span></div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>

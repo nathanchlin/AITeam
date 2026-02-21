@@ -1,0 +1,10 @@
+Calculator/
+├── index.html          # 主页面
+├── css/
+│   └── style.css      # 自定义样式（可选）
+├── js/
+│   ├── calculator.js   # 计算器核心逻辑
+│   ├── ui.js          # UI交互控制
+│   └── utils.js       # 工具函数
+└── assets/
+    └── icons/         # 图标资源（可选）

@@ -1,0 +1,51 @@
+@media screen and (max-width: 520px) {
+    .container {
+        width: 100%;
+        padding: 10px;
+    }
+    
+    .header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .game-container {
+        width: 100%;
+        height: 100%;
+        max-width: 500px;
+        max-height: 500px;
+        margin: 0 auto;
+    }
+    
+    .grid-cell {
+        width: calc(25% - 11.25px);
+        height: calc(25% - 11.25px);
+        margin-right: 15px;
+    }
+    
+    .grid-row {
+        margin-bottom: 15px;
+    }
+    
+    .tile {
+        width: calc(25% - 11.25px);
+        height: calc(25% - 11.25px);
+        font-size: 35px;
+    }
+    
+    .tile.tile-128, .tile.tile-256, .tile.tile-512 {
+        font-size: 30px;
+    }
+    
+    .tile.tile-1024, .tile.tile-2048, .tile.tile-super {
+        font-size: 25px;
+    }
+    
+    .game-message p {
+        font-size: 40px;
+        height: 40px;
+        line-height: 40px;
+        margin-top: 150px;
+    }
+}

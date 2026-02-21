@@ -1,0 +1,38 @@
+public class GameStateManager {
+    private GameState currentState = GameState.MENU;
+    private Dictionary<GameState, IGameStateHandler> stateHandlers;
+    
+    public GameStateManager() {
+        stateHandlers = new Dictionary<GameState, IGameStateHandler>();
+        RegisterStateHandlers();
+    }
+    
+    private void RegisterStateHandlers() {
+        stateHandlers[GameState.MENU] = new MenuStateHandler();
+        stateHandlers[GameState.PLAYING] = new PlayingStateHandler();
+        stateHandlers[GameState.PAUSED] = new PausedStateHandler();
+        stateHandlers[GameState.GAME_OVER] = new GameOverStateHandler();
+        stateHandlers[GameState.SETTINGS] = new SettingsStateHandler();
+        stateHandlers[GameState.CREDITS] = new CreditsStateHandler();
+    }
+    
+    public void ChangeState(GameState newState) {
+        if (currentState == newState) return;
+        
+        stateHandlers[currentState].Exit();
+        currentState = newState;
+        stateHandlers[currentState].Enter();
+    }
+    
+    public void Update(float deltaTime) {
+        stateHandlers[currentState].Update(deltaTime);
+    }
+    
+    // 其他状态管理方法...
+}
+
+public interface IGameStateHandler {
+    void Enter();
+    void Exit();
+    void Update(float deltaTime);
+}

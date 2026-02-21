@@ -1,0 +1,15 @@
+src/
+├── components/          # 可复用UI组件
+│   ├── Game/
+│   ├── Tetromino/
+│   └── UI/
+├── hooks/              # 自定义React hooks
+├── services/           # API和外部服务
+├── store/              # Redux状态管理
+│   ├── actions/
+│   ├── reducers/
+│   └── middleware/
+├── utils/              # 工具函数
+├── ai/                 # AI对手逻辑
+├── styles/             # 全局样式
+└── types/              # TypeScript类型定义

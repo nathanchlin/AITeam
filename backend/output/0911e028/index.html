@@ -1,0 +1,3720 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>背包战争</title>
+<style>
+:root {
+  /* 主题色彩系统 - 背包战争风格 */
+  --primary-color: #2c1810;
+  --secondary-color: #5c3a21;
+  --accent-color: #f4a460;
+  --accent-glow: rgba(244, 164, 96, 0.6);
+  --background-dark: #1a0f0a;
+  --text-light: #f5e6d3;
+  --text-dark: #2c1810;
+  --card-bg: #3d2817;
+  --danger-color: #e74c3c;
+  --success-color: #27ae60;
+  --gold-color: #ffd700;
+  --health-color: #e74c3c;
+  --attack-color: #ff6b35;
+  --armor-color: #3498db;
+  --magic-color: #9b59b6;
+  
+  /* 阴影系统 */
+  --shadow-soft: 0 4px 15px rgba(0, 0, 0, 0.4);
+  --shadow-strong: 0 8px 30px rgba(0, 0, 0, 0.5);
+  --shadow-item: 
+    0 2px 4px rgba(0,0,0,0.3),
+    0 4px 8px rgba(0,0,0,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.1);
+  --shadow-item-hover:
+    0 4px 8px rgba(0,0,0,0.4),
+    0 8px 16px rgba(0,0,0,0.3),
+    0 0 20px rgba(244, 164, 96, 0.3);
+  --shadow-glow-gold: 0 0 20px rgba(255, 215, 0, 0.5), 0 0 40px rgba(255, 215, 0, 0.3);
+  
+  /* 圆角系统 */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  
+  /* 过渡动画 */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition-bounce: 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  
+  /* 格子尺寸 */
+  --cell-size: 64px;
+  --cell-gap: 4px;
+  
+  /* 物品品质颜色 */
+  --quality-common: #9d9d9d;
+  --quality-uncommon: #1eff00;
+  --quality-rare: #0070dd;
+  --quality-epic: #a335ee;
+  --quality-legendary: #ff8000;
+  
+  /* 玻璃态效果 */
+  --glass-bg: rgba(44, 24, 16, 0.8);
+  --glass-border: rgba(244, 164, 96, 0.3);
+  --glass-blur: blur(8px);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  background: 
+    radial-gradient(ellipse at 30% 20%, rgba(92, 58, 33, 0.4) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 80%, rgba(44, 24, 16, 0.5) 0%, transparent 50%),
+    linear-gradient(180deg, #1a0f0a 0%, #2c1810 50%, #1a0f0a 100%);
+  user-select: none;
+  color: var(--text-light);
+}
+
+/* 背景装饰 */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(1px 1px at 20% 30%, rgba(244, 164, 96, 0.2) 1px, transparent 1px),
+    radial-gradient(1px 1px at 40% 70%, rgba(255, 215, 0, 0.15) 1px, transparent 1px),
+    radial-gradient(1px 1px at 60% 20%, rgba(244, 164, 96, 0.15) 1px, transparent 1px);
+  background-size: 150px 150px;
+  animation: sparkle 10s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform, opacity;
+}
+
+@keyframes sparkle {
+  0% { transform: translateY(0); opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { transform: translateY(-150px); opacity: 1; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+@keyframes attack-flash {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(2); }
+  100% { filter: brightness(1); }
+}
+
+@keyframes damage {
+  0% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(0.95); filter: brightness(2) hue-rotate(180deg); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+@keyframes heal {
+  0% { filter: brightness(1); }
+  50% { filter: brightness(1.5) drop-shadow(0 0 10px #27ae60); }
+  100% { filter: brightness(1); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes victory {
+  0% { transform: scale(1) rotate(0deg); }
+  25% { transform: scale(1.2) rotate(-5deg); }
+  50% { transform: scale(1.1) rotate(5deg); }
+  75% { transform: scale(1.15) rotate(-3deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes itemUse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.8; }
+  100% { transform: scale(0); opacity: 0; }
+}
+
+@keyframes healEffect {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-30px) scale(1.5); opacity: 0; }
+}
+
+@keyframes criticalHit {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); filter: brightness(2); }
+  100% { transform: scale(1); }
+}
+
+@keyframes doubleStrike {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(20px); }
+  50% { transform: translateX(0); }
+  75% { transform: translateX(20px); }
+  100% { transform: translateX(0); }
+}
+
+@keyframes damageFloatUp {
+  0% { 
+    transform: translateY(0) scale(1); 
+    opacity: 1; 
+  }
+  50% { 
+    transform: translateY(-30px) scale(1.2); 
+    opacity: 0.8; 
+  }
+  100% { 
+    transform: translateY(-60px) scale(0.8); 
+    opacity: 0; 
+  }
+}
+
+.game-container {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 320px 1fr 280px;
+  grid-template-rows: 60px 1fr 180px;
+  gap: 10px;
+  padding: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+/* 顶部信息栏 */
+.header {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 20px;
+  background: var(--glass-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+}
+
+.header-left, .header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.round-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.round-info h2 {
+  font-size: 18px;
+  color: var(--accent-color);
+}
+
+.round-info .stage {
+  padding: 4px 12px;
+  background: rgba(244, 164, 96, 0.2);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--accent-color);
+}
+
+.gold-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, rgba(255, 215, 0, 0.2), rgba(255, 165, 0, 0.1));
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+}
+
+.gold-display .icon {
+  font-size: 24px;
+}
+
+.gold-display .amount {
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--gold-color);
+}
+
+.settings-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid var(--glass-border);
+  background: var(--glass-bg);
+  color: var(--text-light);
+  font-size: 20px;
+  cursor: pointer;
+  transition: var(--transition-normal);
+}
+
+.settings-btn:hover {
+  background: var(--accent-color);
+  color: var(--text-dark);
+  transform: rotate(90deg);
+}
+
+/* 性能监控面板 */
+.performance-monitor {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 5px 15px;
+  font-size: 12px;
+  color: var(--text-light);
+  z-index: 9999;
+  display: flex;
+  gap: 15px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.performance-monitor.show {
+  opacity: 1;
+}
+
+.performance-monitor .stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.performance-monitor .stat-value {
+  color: var(--success-color);
+  font-weight: bold;
+}
+
+.performance-monitor .stat-value.warning {
+  color: var(--gold-color);
+}
+
+.performance-monitor .stat-value.danger {
+  color: var(--danger-color);
+}
+
+/* 左侧背包区域 */
+.inventory-panel {
+  grid-row: 2 / 4;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 15px;
+  background: var(--glass-bg);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--accent-color);
+}
+
+.panel-title .title-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panel-title .icon {
+  font-size: 20px;
+}
+
+.panel-title .organize-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  background: rgba(39, 174, 96, 0.2);
+  border: 1px solid rgba(39, 174, 96, 0.5);
+  color: var(--success-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.panel-title .organize-btn:hover {
+  background: rgba(39, 174, 96, 0.4);
+  transform: scale(1.05);
+}
+
+/* 背包网格 */
+.inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(4, var(--cell-size));
+  grid-template-rows: repeat(5, var(--cell-size));
+  gap: var(--cell-gap);
+  padding: 15px;
+  background: var(--glass-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+}
+
+.inventory-cell {
+  width: var(--cell-size);
+  height: var(--cell-size);
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid rgba(92, 58, 33, 0.5);
+  border-radius: var(--radius-sm);
+  position: relative;
+  transition: var(--transition-fast);
+}
+
+.inventory-cell:hover {
+  border-color: var(--accent-color);
+  background: rgba(244, 164, 96, 0.1);
+}
+
+.inventory-cell.drag-over {
+  border-color: var(--success-color);
+  background: rgba(39, 174, 96, 0.2);
+  box-shadow: inset 0 0 10px rgba(39, 174, 96, 0.3);
+}
+
+.inventory-cell.invalid {
+  border-color: var(--danger-color);
+  background: rgba(231, 76, 60, 0.2);
+}
+
+/* 物品样式 */
+.item {
+  width: 100%;
+  height: 100%;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  position: relative;
+  transition: var(--transition-fast);
+  box-shadow: var(--shadow-item);
+}
+
+.item:active {
+  cursor: grabbing;
+}
+
+.item:hover {
+  transform: scale(1.05);
+  box-shadow: var(--shadow-item-hover);
+  z-index: 10;
+}
+
+.item.common { background: linear-gradient(135deg, #4a4a4a, #2d2d2d); border: 2px solid var(--quality-common); }
+.item.uncommon { background: linear-gradient(135deg, #2d5a2d, #1a3d1a); border: 2px solid var(--quality-uncommon); }
+.item.rare { background: linear-gradient(135deg, #1a3d5a, #0d1f2d); border: 2px solid var(--quality-rare); }
+.item.epic { background: linear-gradient(135deg, #4a2d5a, #2d1a3d); border: 2px solid var(--quality-epic); }
+.item.legendary { background: linear-gradient(135deg, #5a3d1a, #3d2d0d); border: 2px solid var(--quality-legendary); }
+
+.item .item-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.item .item-name {
+  font-size: 8px;
+  text-align: center;
+  margin-top: 2px;
+  color: var(--text-light);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  max-width: 90%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.item .item-tier {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--gold-color);
+  text-shadow: 0 0 5px rgba(0,0,0,0.8);
+}
+
+.item.consumable-indicator::after {
+  content: '●';
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 8px;
+  color: var(--success-color);
+}
+
+/* 右键菜单 */
+.context-menu {
+  position: fixed;
+  background: rgba(20, 10, 5, 0.95);
+  border: 2px solid var(--accent-color);
+  border-radius: var(--radius-md);
+  padding: 8px 0;
+  min-width: 140px;
+  z-index: 2000;
+  box-shadow: var(--shadow-strong);
+  display: none;
+}
+
+.context-menu.show {
+  display: block;
+  animation: fadeIn 0.15s ease;
+}
+
+.context-menu-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-light);
+  transition: var(--transition-fast);
+}
+
+.context-menu-item:hover {
+  background: rgba(244, 164, 96, 0.2);
+  color: var(--accent-color);
+}
+
+.context-menu-item .menu-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.context-menu-item.use { color: var(--success-color); }
+.context-menu-item.sell { color: var(--gold-color); }
+.context-menu-item.delete { color: var(--danger-color); }
+
+.context-menu-divider {
+  height: 1px;
+  background: rgba(244, 164, 96, 0.3);
+  margin: 5px 0;
+}
+
+/* 物品tooltip */
+.item-tooltip {
+  position: fixed;
+  background: rgba(20, 10, 5, 0.95);
+  border: 2px solid var(--accent-color);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  min-width: 200px;
+  max-width: 280px;
+  z-index: 1000;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  box-shadow: var(--shadow-strong);
+}
+
+.item-tooltip.show {
+  opacity: 1;
+}
+
+.item-tooltip .tooltip-name {
+  font-size: 16px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.item-tooltip .tooltip-name.common { color: var(--quality-common); }
+.item-tooltip .tooltip-name.uncommon { color: var(--quality-uncommon); }
+.item-tooltip .tooltip-name.rare { color: var(--quality-rare); }
+.item-tooltip .tooltip-name.epic { color: var(--quality-epic); }
+.item-tooltip .tooltip-name.legendary { color: var(--quality-legendary); }
+
+.item-tooltip .tooltip-type {
+  font-size: 12px;
+  color: #888;
+  margin-bottom: 8px;
+}
+
+.item-tooltip .tooltip-stats {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-light);
+}
+
+.item-tooltip .tooltip-stats .stat-attack { color: var(--attack-color); }
+.item-tooltip .tooltip-stats .stat-armor { color: var(--armor-color); }
+.item-tooltip .tooltip-stats .stat-health { color: var(--health-color); }
+.item-tooltip .tooltip-stats .stat-magic { color: var(--magic-color); }
+.item-tooltip .tooltip-stats .stat-crit { color: #ff6b6b; }
+.item-tooltip .tooltip-stats .stat-lifesteal { color: #2ecc71; }
+.item-tooltip .tooltip-stats .stat-double { color: #f39c12; }
+
+.item-tooltip .tooltip-desc {
+  font-size: 12px;
+  color: #aaa;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  font-style: italic;
+}
+
+.item-tooltip .tooltip-price {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+  font-size: 14px;
+  color: var(--gold-color);
+}
+
+.item-tooltip .tooltip-hint {
+  font-size: 11px;
+  color: #666;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+/* 角色属性面板 */
+.character-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.character-card {
+  padding: 20px;
+  background: var(--glass-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+}
+
+.character-avatar {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.avatar-icon {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #5c3a21, #3d2510);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32px;
+  border: 3px solid var(--accent-color);
+  box-shadow: var(--shadow-soft);
+}
+
+.character-info h3 {
+  font-size: 18px;
+  color: var(--accent-color);
+  margin-bottom: 5px;
+}
+
+.character-info .level {
+  font-size: 14px;
+  color: #888;
+}
+
+.character-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stat-row .stat-icon {
+  font-size: 20px;
+  width: 24px;
+  text-align: center;
+}
+
+.stat-row .stat-bar {
+  flex: 1;
+  height: 20px;
+  background: rgba(0,0,0,0.3);
+  border-radius: 10px;
+  overflow: hidden;
+  position: relative;
+}
+
+.stat-row .stat-fill {
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.5s ease;
+}
+
+.stat-row .stat-fill.health { background: linear-gradient(90deg, #c0392b, #e74c3c); }
+.stat-row .stat-fill.attack { background: linear-gradient(90deg, #d35400, #ff6b35); }
+.stat-row .stat-fill.armor { background: linear-gradient(90deg, #2980b9, #3498db); }
+
+.stat-row .stat-value {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: bold;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+
+.stat-row .stat-total {
+  font-size: 14px;
+  font-weight: bold;
+  min-width: 45px;
+  text-align: right;
+}
+
+/* 中间战斗区域 */
+.battle-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.battle-field {
+  flex: 1;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 20px;
+  background: var(--glass-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  position: relative;
+  overflow: hidden;
+}
+
+.battle-field::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(244, 164, 96, 0.1) 0%, transparent 70%);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.fighter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 1;
+}
+
+.fighter .fighter-avatar {
+  width: 100px;
+  height: 100px;
+  background: linear-gradient(135deg, #5c3a21, #3d2510);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 50px;
+  border: 3px solid var(--accent-color);
+  box-shadow: var(--shadow-strong);
+  position: relative;
+  will-change: transform, filter;
+}
+
+.fighter .fighter-avatar.attacking {
+  animation: attack-flash 0.3s ease;
+}
+
+.fighter .fighter-avatar.damaged {
+  animation: damage 0.3s ease;
+}
+
+.fighter .fighter-avatar.healed {
+  animation: heal 0.5s ease;
+}
+
+.fighter .fighter-avatar.critical {
+  animation: criticalHit 0.4s ease;
+}
+
+.fighter .fighter-avatar.double-strike {
+  animation: doubleStrike 0.5s ease;
+}
+
+.fighter .fighter-name {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.fighter .health-bar {
+  width: 100px;
+  height: 12px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.fighter .health-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c0392b, #e74c3c);
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.fighter .health-text {
+  font-size: 12px;
+  color: #aaa;
+}
+
+.vs-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 36px;
+  font-weight: bold;
+  color: var(--accent-color);
+  text-shadow: 0 0 20px var(--accent-glow);
+  z-index: 2;
+}
+
+/* 战斗控制按钮 */
+.battle-controls {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  padding: 15px;
+  background: var(--glass-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+}
+
+.btn {
+  padding: 12px 30px;
+  border-radius: var(--radius-md);
+  border: none;
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: var(--transition-normal);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #f4a460, #cd853f);
+  color: var(--text-dark);
+  box-shadow: 0 4px 15px rgba(244, 164, 96, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(244, 164, 96, 0.4);
+}
+
+.btn-secondary {
+  background: rgba(255,255,255,0.1);
+  color: var(--text-light);
+  border: 1px solid var(--glass-border);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(255,255,255,0.2);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: white;
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #27ae60, #1e8449);
+  color: white;
+}
+
+/* 右侧敌人信息 */
+.enemy-panel {
+  grid-row: 2 / 4;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.enemy-card {
+  padding: 15px;
+  background: var(--glass-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(231, 76, 60, 0.3);
+  backdrop-filter: var(--glass-blur);
+}
+
+.enemy-card .enemy-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.enemy-card .enemy-icon {
+  font-size: 28px;
+}
+
+.enemy-card .enemy-name {
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--danger-color);
+}
+
+.enemy-card .enemy-tier {
+  font-size: 12px;
+  color: #888;
+}
+
+.enemy-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.enemy-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.enemy-stat .stat-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  color: #aaa;
+}
+
+.enemy-stat .stat-value {
+  font-weight: bold;
+  color: var(--text-light);
+}
+
+/* 底部商店区域 */
+.shop-panel {
+  grid-column: 2 / 4;
+  display: flex;
+  flex-direction: column;
+  background: var(--glass-bg);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: var(--glass-blur);
+  overflow: hidden;
+}
+
+.shop-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: rgba(0,0,0,0.2);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.shop-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--accent-color);
+}
+
+.shop-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.shop-items {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px 20px;
+  overflow-x: auto;
+}
+
+.shop-slot {
+  flex-shrink: 0;
+  width: 80px;
+  height: 80px;
+  background: rgba(0,0,0,0.3);
+  border: 2px solid rgba(92, 58, 33, 0.5);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-normal);
+  position: relative;
+}
+
+.shop-slot:hover {
+  border-color: var(--accent-color);
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-item-hover);
+}
+
+.shop-slot.empty {
+  opacity: 0.5;
+}
+
+.shop-slot .price-tag {
+  position: absolute;
+  bottom: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, #ffd700, #ff8c00);
+  color: var(--text-dark);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+/* 战斗日志 */
+.battle-log {
+  position: fixed;
+  bottom: 200px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.log-entry {
+  padding: 8px 16px;
+  background: rgba(0,0,0,0.7);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  animation: fadeIn 0.3s ease;
+  white-space: nowrap;
+}
+
+.log-entry.damage { color: var(--danger-color); }
+.log-entry.heal { color: var(--success-color); }
+.log-entry.info { color: var(--accent-color); }
+.log-entry.critical { color: #ff6b6b; font-weight: bold; }
+.log-entry.double { color: #f39c12; font-weight: bold; }
+.log-entry.lifesteal { color: #2ecc71; }
+
+/* 伤害飘字 */
+.damage-float {
+  position: fixed;
+  font-size: 28px;
+  font-weight: bold;
+  pointer-events: none;
+  z-index: 1000;
+  animation: damageFloatUp 1s ease forwards;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+  will-change: transform, opacity;
+}
+
+.damage-float.normal {
+  color: #fff;
+}
+
+.damage-float.critical {
+  color: #ff6b6b;
+  font-size: 36px;
+  text-shadow: 0 0 10px #ff6b6b;
+}
+
+.damage-float.heal {
+  color: #2ecc71;
+  text-shadow: 0 0 10px rgba(46, 204, 113, 0.8);
+}
+
+.damage-float.enemy {
+  color: #ff6b35;
+}
+
+/* 治疗飘字 */
+.heal-float {
+  position: fixed;
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--success-color);
+  text-shadow: 0 0 10px rgba(39, 174, 96, 0.8);
+  pointer-events: none;
+  z-index: 1000;
+  animation: healEffect 1s ease forwards;
+  will-change: transform, opacity;
+}
+
+/* 回合结果弹窗 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+
+.modal-overlay.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal {
+  background: var(--glass-bg);
+  border: 2px solid var(--accent-color);
+  border-radius: var(--radius-xl);
+  padding: 30px 50px;
+  text-align: center;
+  transform: scale(0.8);
+  transition: transform 0.3s;
+}
+
+.modal-overlay.show .modal {
+  transform: scale(1);
+}
+
+.modal h2 {
+  font-size: 28px;
+  margin-bottom: 15px;
+}
+
+.modal.victory h2 { color: var(--success-color); }
+.modal.defeat h2 { color: var(--danger-color); }
+
+.modal .rewards {
+  margin: 20px 0;
+}
+
+.modal .reward-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 18px;
+  margin: 10px 0;
+}
+
+.modal .btn {
+  margin-top: 20px;
+}
+
+/* 音量设置面板 */
+.settings-panel {
+  position: fixed;
+  top: 70px;
+  right: 20px;
+  width: 300px;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  z-index: 1000;
+  transform: translateY(-10px);
+  opacity: 0;
+  pointer-events: none;
+  transition: var(--transition-normal);
+}
+
+.settings-panel.show {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.settings-panel h3 {
+  color: var(--accent-color);
+  margin-bottom: 15px;
+  font-size: 16px;
+}
+
+.volume-control {
+  margin-bottom: 20px;
+}
+
+.volume-control label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.volume-slider {
+  width: 100%;
+  height: 8px;
+  -webkit-appearance: none;
+  background: rgba(0,0,0,0.3);
+  border-radius: 4px;
+  outline: none;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  background: var(--accent-color);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.volume-presets {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.volume-presets .btn {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+/* 拖拽时的幽灵图像 */
+.drag-ghost {
+  position: fixed;
+  pointer-events: none;
+  z-index: 10000;
+  opacity: 0.8;
+}
+
+/* 响应式设计 */
+@media (max-width: 1200px) {
+  :root {
+    --cell-size: 56px;
+  }
+  
+  .game-container {
+    grid-template-columns: 280px 1fr 240px;
+  }
+}
+
+@media (max-width: 900px) {
+  .game-container {
+    grid-template-columns: 1fr;
+    grid-template-rows: 50px auto 1fr 150px;
+  }
+  
+  .inventory-panel {
+    grid-row: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  
+  .enemy-panel {
+    display: none;
+  }
+  
+  .shop-panel {
+    grid-column: 1;
+  }
+}
+</style>
+</head>
+<body>
+
+<!-- 性能监控面板 -->
+<div class="performance-monitor" id="performanceMonitor">
+  <div class="stat">
+    <span>FPS:</span>
+    <span class="stat-value" id="fpsValue">60</span>
+  </div>
+  <div class="stat">
+    <span>内存:</span>
+    <span class="stat-value" id="memoryValue">--</span>
+  </div>
+  <div class="stat">
+    <span>DOM:</span>
+    <span class="stat-value" id="domCount">--</span>
+  </div>
+</div>
+
+<div class="game-container">
+  <!-- 顶部信息栏 -->
+  <header class="header">
+    <div class="header-left">
+      <div class="round-info">
+        <h2>背包战争</h2>
+        <span class="stage" id="stageInfo">准备阶段</span>
+      </div>
+      <div class="round-info">
+        <span>回合: <strong id="roundNumber">1</strong></span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="gold-display">
+        <span class="icon">💰</span>
+        <span class="amount" id="goldAmount">10</span>
+      </div>
+      <button class="settings-btn" id="settingsBtn" onclick="toggleSettingsPanel()">⚙️</button>
+    </div>
+  </header>
+
+  <!-- 左侧背包区域 -->
+  <aside class="inventory-panel">
+    <div class="panel-title">
+      <div class="title-left">
+        <span class="icon">🎒</span>
+        <span>我的背包</span>
+      </div>
+      <button class="organize-btn" onclick="organizeInventory()" title="整理背包">📦 整理</button>
+    </div>
+    <div class="inventory-grid" id="inventoryGrid">
+      <!-- 背包格子由JS生成 -->
+    </div>
+    
+    <!-- 角色属性 -->
+    <div class="character-panel">
+      <div class="character-card">
+        <div class="character-avatar">
+          <div class="avatar-icon">🧙</div>
+          <div class="character-info">
+            <h3>冒险者</h3>
+            <div class="level">Lv.<span id="playerLevel">1</span></div>
+          </div>
+        </div>
+        <div class="character-stats">
+          <div class="stat-row">
+            <span class="stat-icon">❤️</span>
+            <div class="stat-bar">
+              <div class="stat-fill health" id="healthFill" style="width: 100%"></div>
+              <span class="stat-value" id="healthText">100/100</span>
+            </div>
+          </div>
+          <div class="stat-row">
+            <span class="stat-icon">⚔️</span>
+            <div class="stat-bar">
+              <div class="stat-fill attack" id="attackFill" style="width: 50%"></div>
+            </div>
+            <span class="stat-total" id="attackTotal">+10</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-icon">🛡️</span>
+            <div class="stat-bar">
+              <div class="stat-fill armor" id="armorFill" style="width: 30%"></div>
+            </div>
+            <span class="stat-total" id="armorTotal">+5</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 中间战斗区域 -->
+  <main class="battle-area">
+    <div class="battle-field" id="battleField">
+      <div class="fighter" id="playerFighter">
+        <div class="fighter-avatar" id="playerAvatar">🧙</div>
+        <div class="fighter-name">你</div>
+        <div class="health-bar">
+          <div class="health-fill" id="playerHealthBar" style="width: 100%"></div>
+        </div>
+        <div class="health-text" id="playerHealthText">100/100</div>
+      </div>
+      <div class="vs-indicator">VS</div>
+      <div class="fighter" id="enemyFighter">
+        <div class="fighter-avatar" id="enemyAvatar">👹</div>
+        <div class="fighter-name" id="enemyName">哥布林</div>
+        <div class="health-bar">
+          <div class="health-fill" id="enemyHealthBar" style="width: 100%"></div>
+        </div>
+        <div class="health-text" id="enemyHealthText">50/50</div>
+      </div>
+    </div>
+    
+    <div class="battle-controls">
+      <button class="btn btn-primary" id="battleBtn" onclick="startBattle()">
+        <span>⚔️</span> 开始战斗
+      </button>
+      <button class="btn btn-secondary" id="nextRoundBtn" onclick="nextRound()" disabled>
+        <span>➡️</span> 下一回合
+      </button>
+    </div>
+  </main>
+
+  <!-- 右侧敌人信息 -->
+  <aside class="enemy-panel">
+    <div class="panel-title">
+      <span class="icon">👹</span>
+      <span>当前敌人</span>
+    </div>
+    <div class="enemy-card" id="enemyCard">
+      <div class="enemy-header">
+        <span class="enemy-icon" id="enemyIcon">👹</span>
+        <div>
+          <div class="enemy-name" id="enemyDisplayName">哥布林</div>
+          <div class="enemy-tier" id="enemyTier">普通怪物</div>
+        </div>
+      </div>
+      <div class="enemy-stats">
+        <div class="enemy-stat">
+          <span class="stat-label">❤️ 生命值</span>
+          <span class="stat-value" id="enemyMaxHealth">50</span>
+        </div>
+        <div class="enemy-stat">
+          <span class="stat-label">⚔️ 攻击力</span>
+          <span class="stat-value" id="enemyAttack">8</span>
+        </div>
+        <div class="enemy-stat">
+          <span class="stat-label">🛡️ 护甲</span>
+          <span class="stat-value" id="enemyArmor">2</span>
+        </div>
+      </div>
+    </div>
+    
+    <div class="panel-title" style="margin-top: 15px;">
+      <span class="icon">🏆</span>
+      <span>战斗记录</span>
+    </div>
+    <div class="enemy-card">
+      <div class="enemy-stat">
+        <span class="stat-label">胜利</span>
+        <span class="stat-value" id="winsCount">0</span>
+      </div>
+      <div class="enemy-stat">
+        <span class="stat-label">连胜</span>
+        <span class="stat-value" id="streakCount">0</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 底部商店区域 -->
+  <section class="shop-panel">
+    <div class="shop-header">
+      <div class="shop-title">
+        <span>🏪</span>
+        <span>商店</span>
+        <span style="color: #888; font-size: 12px;">(点击购买，拖拽到背包)</span>
+      </div>
+      <div class="shop-actions">
+        <button class="btn btn-secondary" onclick="refreshShop()" id="refreshBtn">
+          <span>🔄</span> 刷新 (2💰)
+        </button>
+      </div>
+    </div>
+    <div class="shop-items" id="shopItems">
+      <!-- 商店物品由JS生成 -->
+    </div>
+  </section>
+</div>
+
+<!-- 物品Tooltip -->
+<div class="item-tooltip" id="itemTooltip">
+  <div class="tooltip-name" id="tooltipName"></div>
+  <div class="tooltip-type" id="tooltipType"></div>
+  <div class="tooltip-stats" id="tooltipStats"></div>
+  <div class="tooltip-desc" id="tooltipDesc"></div>
+  <div class="tooltip-price" id="tooltipPrice"></div>
+  <div class="tooltip-hint" id="tooltipHint"></div>
+</div>
+
+<!-- 右键菜单 -->
+<div class="context-menu" id="contextMenu">
+  <div class="context-menu-item use" id="contextMenuUse" onclick="contextMenuAction('use')">
+    <span class="menu-icon">💊</span>
+    <span>使用</span>
+  </div>
+  <div class="context-menu-item sell" id="contextMenuSell" onclick="contextMenuAction('sell')">
+    <span class="menu-icon">💰</span>
+    <span>出售</span>
+  </div>
+  <div class="context-menu-divider"></div>
+  <div class="context-menu-item delete" onclick="contextMenuAction('delete')">
+    <span class="menu-icon">🗑️</span>
+    <span>丢弃</span>
+  </div>
+</div>
+
+<!-- 战斗日志 -->
+<div class="battle-log" id="battleLog"></div>
+
+<!-- 回合结果弹窗 -->
+<div class="modal-overlay" id="resultModal">
+  <div class="modal" id="resultContent">
+    <h2 id="resultTitle">胜利!</h2>
+    <div class="rewards" id="rewards">
+      <div class="reward-item">
+        <span>💰</span>
+        <span>+<span id="goldReward">5</span> 金币</span>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="closeResultModal()">继续</button>
+  </div>
+</div>
+
+<!-- 音量设置面板 -->
+<div class="settings-panel" id="volumePanel">
+  <h3>⚙️ 游戏设置</h3>
+  <div class="volume-control">
+    <label>
+      <span>音效音量</span>
+      <span id="sfxVolumeValue">70%</span>
+    </label>
+    <input type="range" class="volume-slider" id="sfxVolumeSlider" min="0" max="100" value="70" oninput="setSfxVolume(this.value)">
+  </div>
+  <div class="volume-control">
+    <label>
+      <span>音乐音量</span>
+      <span id="musicVolumeValue">50%</span>
+    </label>
+    <input type="range" class="volume-slider" id="musicVolumeSlider" min="0" max="100" value="50" oninput="setMusicVolume(this.value)">
+  </div>
+  <div class="volume-presets">
+    <button class="btn btn-secondary" onclick="setVolumePreset('mute')">静音</button>
+    <button class="btn btn-secondary" onclick="setVolumePreset('low')">低</button>
+    <button class="btn btn-secondary" onclick="setVolumePreset('normal')">中</button>
+    <button class="btn btn-secondary" onclick="setVolumePreset('high')">高</button>
+  </div>
+  <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--glass-border);">
+    <label style="display: flex; justify-content: space-between; align-items: center; font-size: 14px; cursor: pointer;">
+      <span>显示性能监控</span>
+      <input type="checkbox" id="showPerfMonitor" onchange="togglePerformanceMonitor(this.checked)">
+    </label>
+  </div>
+</div>
+
+<script>
+// ==================== 性能管理器 ====================
+const PerformanceManager = {
+  fps: 60,
+  frameCount: 0,
+  lastTime: performance.now(),
+  fpsUpdateInterval: 500,
+  lastFpsUpdate: 0,
+  enabled: false,
+  animationFrameId: null,
+  
+  init: function() {
+    this.updateDOMCount();
+    this.startMonitoring();
+  },
+  
+  startMonitoring: function() {
+    const self = this;
+    function measure() {
+      self.frameCount++;
+      const now = performance.now();
+      
+      if (now - self.lastFpsUpdate >= self.fpsUpdateInterval) {
+        self.fps = Math.round((self.frameCount * 1000) / (now - self.lastFpsUpdate));
+        self.frameCount = 0;
+        self.lastFpsUpdate = now;
+        
+        if (self.enabled) {
+          self.updateDisplay();
+        }
+      }
+      
+      self.lastTime = now;
+      self.animationFrameId = requestAnimationFrame(measure);
+    }
+    this.animationFrameId = requestAnimationFrame(measure);
+  },
+  
+  updateDisplay: function() {
+    const fpsEl = document.getElementById('fpsValue');
+    if (fpsEl) {
+      fpsEl.textContent = this.fps;
+      fpsEl.className = 'stat-value' + (this.fps < 30 ? ' danger' : this.fps < 50 ? ' warning' : '');
+    }
+    
+    const memoryEl = document.getElementById('memoryValue');
+    if (memoryEl && performance.memory) {
+      const usedMB = Math.round(performance.memory.usedJSHeapSize / 1048576);
+      memoryEl.textContent = usedMB + 'MB';
+    } else if (memoryEl) {
+      memoryEl.textContent = 'N/A';
+    }
+    
+    this.updateDOMCount();
+  },
+  
+  updateDOMCount: function() {
+    const domEl = document.getElementById('domCount');
+    if (domEl) {
+      domEl.textContent = document.getElementsByTagName('*').length;
+    }
+  },
+  
+  toggle: function(show) {
+    this.enabled = show;
+    const monitor = document.getElementById('performanceMonitor');
+    if (monitor) {
+      monitor.classList.toggle('show', show);
+    }
+    if (show) {
+      this.updateDisplay();
+    }
+  },
+  
+  destroy: function() {
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+    }
+  }
+};
+
+// ==================== 对象池管理器 ====================
+const ObjectPool = {
+  pools: {},
+  maxPoolSize: 20,
+  
+  init: function() {
+    this.pools.damageFloat = [];
+    this.pools.logEntry = [];
+    this.pools.healFloat = [];
+  },
+  
+  get: function(type, createFn) {
+    const pool = this.pools[type];
+    if (!pool) return createFn();
+    
+    if (pool.length > 0) {
+      const obj = pool.pop();
+      obj.style.display = '';
+      return obj;
+    }
+    return createFn();
+  },
+  
+  release: function(type, obj) {
+    const pool = this.pools[type];
+    if (!pool) return;
+    
+    if (pool.length < this.maxPoolSize) {
+      obj.style.display = 'none';
+      obj.className = type.replace(/([A-Z])/g, '-$1').toLowerCase();
+      if (obj.parentNode) {
+        obj.parentNode.removeChild(obj);
+      }
+      pool.push(obj);
+    } else if (obj.parentNode) {
+      obj.parentNode.removeChild(obj);
+    }
+  },
+  
+  clear: function(type) {
+    const pool = this.pools[type];
+    if (pool) {
+      pool.forEach(obj => {
+        if (obj.parentNode) {
+          obj.parentNode.removeChild(obj);
+        }
+      });
+      pool.length = 0;
+    }
+  },
+  
+  clearAll: function() {
+    Object.keys(this.pools).forEach(type => this.clear(type));
+  }
+};
+
+// ==================== DOM缓存管理器 ====================
+const DOMCache = {
+  cache: new Map(),
+  
+  get: function(id) {
+    if (!this.cache.has(id)) {
+      const el = document.getElementById(id);
+      if (el) {
+        this.cache.set(id, el);
+      }
+      return el;
+    }
+    return this.cache.get(id);
+  },
+  
+  clear: function() {
+    this.cache.clear();
+  },
+  
+  batchUpdate: function(updates) {
+    requestAnimationFrame(() => {
+      updates.forEach(update => {
+        const el = this.get(update.id);
+        if (el) {
+          if (update.prop) {
+            el[update.prop] = update.value;
+          } else if (update.style) {
+            el.style[update.style] = update.value;
+          } else if (update.attr) {
+            el.setAttribute(update.attr, update.value);
+          }
+        }
+      });
+    });
+  }
+};
+
+// ==================== 资源管理器 ====================
+const ResourceManager = {
+  loadedResources: new Set(),
+  pendingLoads: new Map(),
+  
+  preloadCritical: function() {
+    return Promise.resolve();
+  },
+  
+  markLoaded: function(resourceId) {
+    this.loadedResources.add(resourceId);
+    this.pendingLoads.delete(resourceId);
+  },
+  
+  isLoaded: function(resourceId) {
+    return this.loadedResources.has(resourceId);
+  },
+  
+  cleanup: function() {
+    const unusedResources = [];
+    this.loadedResources.forEach(id => {
+      if (!this.isResourceInUse(id)) {
+        unusedResources.push(id);
+      }
+    });
+    unusedResources.forEach(id => this.loadedResources.delete(id));
+  },
+  
+  isResourceInUse: function(resourceId) {
+    return true;
+  }
+};
+
+// ==================== 事件委托管理器 ====================
+const EventDelegation = {
+  handlers: new Map(),
+  
+  init: function() {
+    document.addEventListener('click', this.handleClick.bind(this));
+    document.addEventListener('contextmenu', this.handleContextMenu.bind(this));
+    document.addEventListener('dragstart', this.handleDragStart.bind(this));
+    document.addEventListener('dragover', this.handleDragOver.bind(this));
+    document.addEventListener('dragleave', this.handleDragLeave.bind(this));
+    document.addEventListener('drop', this.handleDrop.bind(this));
+  },
+  
+  register: function(eventType, selector, handler) {
+    if (!this.handlers.has(eventType)) {
+      this.handlers.set(eventType, []);
+    }
+    this.handlers.get(eventType).push({ selector, handler });
+  },
+  
+  handleClick: function(e) {
+    const handlers = this.handlers.get('click');
+    if (!handlers) return;
+    
+    for (const { selector, handler } of handlers) {
+      const target = e.target.closest(selector);
+      if (target) {
+        handler(e, target);
+        break;
+      }
+    }
+  },
+  
+  handleContextMenu: function(e) {
+    const handlers = this.handlers.get('contextmenu');
+    if (!handlers) return;
+    
+    for (const { selector, handler } of handlers) {
+      const target = e.target.closest(selector);
+      if (target) {
+        handler(e, target);
+        break;
+      }
+    }
+  },
+  
+  handleDragStart: function(e) {
+    const handlers = this.handlers.get('dragstart');
+    if (!handlers) return;
+    
+    for (const { selector, handler } of handlers) {
+      const target = e.target.closest(selector);
+      if (target) {
+        handler(e, target);
+        break;
+      }
+    }
+  },
+  
+  handleDragOver: function(e) {
+    const handlers = this.handlers.get('dragover');
+    if (!handlers) return;
+    
+    for (const { selector, handler } of handlers) {
+      const target = e.target.closest(selector);
+      if (target) {
+        handler(e, target);
+        break;
+      }
+    }
+  },
+  
+  handleDragLeave: function(e) {
+    const handlers = this.handlers.get('dragleave');
+    if (!handlers) return;
+    
+    for (const { selector, handler } of handlers) {
+      const target = e.target.closest(selector);
+      if (target) {
+        handler(e, target);
+        break;
+      }
+    }
+  },
+  
+  handleDrop: function(e) {
+    const handlers = this.handlers.get('drop');
+    if (!handlers) return;
+    
+    for (const { selector, handler } of handlers) {
+      const target = e.target.closest(selector);
+      if (target) {
+        handler(e, target);
+        break;
+      }
+    }
+  }
+};
+
+// ==================== 游戏数据定义 ====================
+
+// 物品模板
+const ITEM_TEMPLATES = {
+  // 武器类
+  woodenSword: {
+    id: 'woodenSword',
+    name: '木剑',
+    icon: '🗡️',
+    type: 'weapon',
+    quality: 'common',
+    size: [1, 1],
+    stats: { attack: 3 },
+    skills: {},
+    price: 3,
+    desc: '一把简单的木剑'
+  },
+  ironSword: {
+    id: 'ironSword',
+    name: '铁剑',
+    icon: '⚔️',
+    type: 'weapon',
+    quality: 'uncommon',
+    size: [1, 2],
+    stats: { attack: 6 },
+    skills: { critChance: 0.1 },
+    price: 5,
+    desc: '坚固的铁制长剑，10%暴击率'
+  },
+  battleAxe: {
+    id: 'battleAxe',
+    name: '战斧',
+    icon: '🪓',
+    type: 'weapon',
+    quality: 'rare',
+    size: [2, 1],
+    stats: { attack: 10 },
+    skills: { critChance: 0.15, armorPen: 2 },
+    price: 8,
+    desc: '重型战斧，15%暴击率，2点穿甲'
+  },
+  magicStaff: {
+    id: 'magicStaff',
+    name: '法杖',
+    icon: '🪄',
+    type: 'weapon',
+    quality: 'rare',
+    size: [1, 3],
+    stats: { attack: 8, magic: 5 },
+    skills: { critChance: 0.2 },
+    price: 10,
+    desc: '蕴含魔力的法杖，20%暴击率'
+  },
+  legendaryBlade: {
+    id: 'legendaryBlade',
+    name: '传说之刃',
+    icon: '🔱',
+    type: 'weapon',
+    quality: 'legendary',
+    size: [2, 2],
+    stats: { attack: 20 },
+    skills: { critChance: 0.25, lifesteal: 0.15, doubleStrike: 0.1 },
+    price: 20,
+    desc: '传说中的神兵利器，25%暴击/15%吸血/10%连击'
+  },
+  dagger: {
+    id: 'dagger',
+    name: '匕首',
+    icon: '🔪',
+    type: 'weapon',
+    quality: 'common',
+    size: [1, 1],
+    stats: { attack: 2 },
+    skills: { doubleStrike: 0.15 },
+    price: 3,
+    desc: '小巧的匕首，15%连击率'
+  },
+  vampireBlade: {
+    id: 'vampireBlade',
+    name: '吸血剑',
+    icon: '🩸',
+    type: 'weapon',
+    quality: 'epic',
+    size: [1, 2],
+    stats: { attack: 8 },
+    skills: { lifesteal: 0.25 },
+    price: 12,
+    desc: '吸取生命的魔剑，25%吸血'
+  },
+  
+  // 护甲类
+  leatherArmor: {
+    id: 'leatherArmor',
+    name: '皮甲',
+    icon: '🥋',
+    type: 'armor',
+    quality: 'common',
+    size: [2, 2],
+    stats: { armor: 3 },
+    skills: {},
+    price: 4,
+    desc: '轻便的皮革护甲'
+  },
+  chainMail: {
+    id: 'chainMail',
+    name: '锁子甲',
+    icon: '🛡️',
+    type: 'armor',
+    quality: 'uncommon',
+    size: [2, 3],
+    stats: { armor: 6, health: 10 },
+    skills: {},
+    price: 7,
+    desc: '由铁环编织的护甲'
+  },
+  plateArmor: {
+    id: 'plateArmor',
+    name: '板甲',
+    icon: '🛡️',
+    type: 'armor',
+    quality: 'rare',
+    size: [2, 2],
+    stats: { armor: 10 },
+    skills: {},
+    price: 12,
+    desc: '重型板甲，防护极佳'
+  },
+  
+  // 消耗品类
+  healthPotion: {
+    id: 'healthPotion',
+    name: '生命药水',
+    icon: '🧪',
+    type: 'consumable',
+    quality: 'common',
+    size: [1, 1],
+    stats: { heal: 15 },
+    skills: {},
+    price: 2,
+    desc: '恢复15点生命值'
+  },
+  largeHealthPotion: {
+    id: 'largeHealthPotion',
+    name: '大生命药水',
+    icon: '🧪',
+    type: 'consumable',
+    quality: 'uncommon',
+    size: [1, 1],
+    stats: { heal: 30 },
+    skills: {},
+    price: 4,
+    desc: '恢复30点生命值'
+  },
+  megaHealthPotion: {
+    id: 'megaHealthPotion',
+    name: '超级药水',
+    icon: '❤️‍🩹',
+    type: 'consumable',
+    quality: 'rare',
+    size: [1, 1],
+    stats: { heal: 50 },
+    skills: {},
+    price: 7,
+    desc: '恢复50点生命值'
+  },
+  strengthPotion: {
+    id: 'strengthPotion',
+    name: '力量药水',
+    icon: '💪',
+    type: 'consumable',
+    quality: 'uncommon',
+    size: [1, 1],
+    stats: { tempAttack: 5 },
+    skills: {},
+    price: 5,
+    desc: '本场战斗+5攻击力'
+  },
+  criticalPotion: {
+    id: 'criticalPotion',
+    name: '暴击药水',
+    icon: '💥',
+    type: 'consumable',
+    quality: 'rare',
+    size: [1, 1],
+    stats: { tempCrit: 0.3 },
+    skills: {},
+    price: 6,
+    desc: '本场战斗+30%暴击率'
+  },
+  
+  // 饰品类
+  ruby: {
+    id: 'ruby',
+    name: '红宝石',
+    icon: '💎',
+    type: 'accessory',
+    quality: 'rare',
+    size: [1, 1],
+    stats: { attack: 5, health: 10 },
+    skills: { critChance: 0.1 },
+    price: 8,
+    desc: '增强力量的宝石，10%暴击率'
+  },
+  sapphire: {
+    id: 'sapphire',
+    name: '蓝宝石',
+    icon: '💎',
+    type: 'accessory',
+    quality: 'rare',
+    size: [1, 1],
+    stats: { armor: 5, health: 10 },
+    skills: {},
+    price: 8,
+    desc: '增强防御的宝石'
+  },
+  crown: {
+    id: 'crown',
+    name: '王者之冠',
+    icon: '👑',
+    type: 'accessory',
+    quality: 'legendary',
+    size: [2, 1],
+    stats: { attack: 8, armor: 8, health: 20 },
+    skills: { critChance: 0.15, lifesteal: 0.1 },
+    price: 18,
+    desc: '全面提升属性的皇冠'
+  },
+  luckyCharm: {
+    id: 'luckyCharm',
+    name: '幸运符',
+    icon: '🍀',
+    type: 'accessory',
+    quality: 'uncommon',
+    size: [1, 1],
+    stats: {},
+    skills: { doubleStrike: 0.2, critChance: 0.1 },
+    price: 7,
+    desc: '20%连击率，10%暴击率'
+  },
+  
+  // 特殊物品
+  shield: {
+    id: 'shield',
+    name: '圆盾',
+    icon: '🛡️',
+    type: 'shield',
+    quality: 'common',
+    size: [1, 2],
+    stats: { armor: 4 },
+    skills: {},
+    price: 3,
+    desc: '基础防御装备'
+  },
+  torch: {
+    id: 'torch',
+    name: '火把',
+    icon: '🔦',
+    type: 'accessory',
+    quality: 'common',
+    size: [1, 1],
+    stats: { attack: 2 },
+    skills: {},
+    price: 2,
+    desc: '照亮黑暗的火把'
+  },
+  luckyCoin: {
+    id: 'luckyCoin',
+    name: '幸运币',
+    icon: '🪙',
+    type: 'accessory',
+    quality: 'uncommon',
+    size: [1, 1],
+    stats: { goldBonus: 2 },
+    skills: {},
+    price: 6,
+    desc: '战斗胜利额外获得2金币'
+  }
+};
+
+// 敌人模板
+const ENEMY_TEMPLATES = {
+  goblin: {
+    id: 'goblin',
+    name: '哥布林',
+    icon: '👹',
+    tier: '普通怪物',
+    health: 40,
+    attack: 6,
+    armor: 1,
+    goldReward: 3
+  },
+  skeleton: {
+    id: 'skeleton',
+    name: '骷髅兵',
+    icon: '💀',
+    tier: '普通怪物',
+    health: 35,
+    attack: 8,
+    armor: 2,
+    goldReward: 4
+  },
+  orc: {
+    id: 'orc',
+    name: '兽人',
+    icon: '👺',
+    tier: '精英怪物',
+    health: 60,
+    attack: 10,
+    armor: 3,
+    goldReward: 6
+  },
+  darkKnight: {
+    id: 'darkKnight',
+    name: '黑暗骑士',
+    icon: '🖤',
+    tier: '精英怪物',
+    health: 80,
+    attack: 12,
+    armor: 5,
+    goldReward: 8
+  },
+  dragon: {
+    id: 'dragon',
+    name: '幼龙',
+    icon: '🐉',
+    tier: '首领',
+    health: 120,
+    attack: 15,
+    armor: 6,
+    goldReward: 15
+  },
+  demon: {
+    id: 'demon',
+    name: '恶魔',
+    icon: '😈',
+    tier: '首领',
+    health: 100,
+    attack: 18,
+    armor: 4,
+    goldReward: 12
+  },
+  troll: {
+    id: 'troll',
+    name: '巨魔',
+    icon: '🧌',
+    tier: '精英怪物',
+    health: 90,
+    attack: 14,
+    armor: 2,
+    goldReward: 10
+  }
+};
+
+// ==================== 游戏状态 ====================
+const GameState = {
+  // 玩家状态
+  player: {
+    level: 1,
+    maxHealth: 100,
+    currentHealth: 100,
+    baseAttack: 5,
+    baseArmor: 0,
+    bonusAttack: 0,
+    bonusArmor: 0,
+    bonusHealth: 0,
+    gold: 10,
+    tempAttack: 0,
+    tempCrit: 0
+  },
+  
+  // 背包状态 (4x5 = 20格)
+  inventory: {
+    cols: 4,
+    rows: 5,
+    cells: []
+  },
+  
+  // 商店状态
+  shop: {
+    slots: 5,
+    items: []
+  },
+  
+  // 游戏进度
+  progress: {
+    round: 1,
+    stage: 'prepare',
+    wins: 0,
+    streak: 0
+  },
+  
+  // 当前敌人
+  currentEnemy: null,
+  
+  // 战斗状态
+  battle: {
+    inProgress: false,
+    playerHealth: 0,
+    enemyHealth: 0,
+    log: [],
+    round: 0,
+    animationFrameId: null,
+    lastBattleTime: 0
+  },
+  
+  // 拖拽状态
+  drag: {
+    item: null,
+    sourceType: null,
+    sourceIndex: null
+  },
+  
+  // 右键菜单状态
+  contextMenu: {
+    item: null,
+    cellIndex: null
+  }
+};
+
+// ==================== 音频管理器 ====================
+const AudioManager = {
+  context: null,
+  sfxVolume: 0.7,
+  musicVolume: 0.5,
+  soundQueue: [],
+  maxConcurrentSounds: 5,
+  
+  init: function() {
+    try {
+      this.context = new (window.AudioContext || window.webkitAudioContext)();
+      console.log('音频系统初始化成功');
+    } catch (e) {
+      console.error('音频系统初始化失败:', e);
+    }
+    this.loadSettings();
+  },
+  
+  resume: function() {
+    if (this.context && this.context.state === 'suspended') {
+      this.context.resume();
+    }
+  },
+  
+  playSound: function(type) {
+    if (!this.context || this.sfxVolume === 0) return;
+    this.resume();
+    
+    // 限制同时播放的音效数量
+    if (this.soundQueue.length >= this.maxConcurrentSounds) {
+      return;
+    }
+    
+    const soundId = Date.now();
+    this.soundQueue.push(soundId);
+    
+    const oscillator = this.context.createOscillator();
+    const gainNode = this.context.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(this.context.destination);
+    
+    const self = this;
+    const cleanup = function() {
+      const index = self.soundQueue.indexOf(soundId);
+      if (index > -1) {
+        self.soundQueue.splice(index, 1);
+      }
+    };
+    
+    switch (type) {
+      case 'click':
+        oscillator.frequency.setValueAtTime(800, this.context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(600, this.context.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.2 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.1);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.1);
+        setTimeout(cleanup, 150);
+        break;
+      case 'buy':
+        oscillator.frequency.setValueAtTime(600, this.context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(900, this.context.currentTime + 0.15);
+        gainNode.gain.setValueAtTime(0.25 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.15);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.15);
+        setTimeout(cleanup, 200);
+        break;
+      case 'hit':
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(200, this.context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(50, this.context.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.3 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.1);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.1);
+        setTimeout(cleanup, 150);
+        break;
+      case 'critical':
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(400, this.context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(100, this.context.currentTime + 0.15);
+        gainNode.gain.setValueAtTime(0.4 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.15);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.15);
+        setTimeout(cleanup, 200);
+        break;
+      case 'victory':
+        this.playMelody([523, 659, 784, 1047], 0.15, this.sfxVolume);
+        break;
+      case 'defeat':
+        this.playMelody([400, 350, 300, 250], 0.2, this.sfxVolume);
+        break;
+      case 'item':
+        oscillator.frequency.setValueAtTime(1000, this.context.currentTime);
+        gainNode.gain.setValueAtTime(0.15 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.08);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.08);
+        setTimeout(cleanup, 100);
+        break;
+      case 'heal':
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(400, this.context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(800, this.context.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(0.2 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.2);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.2);
+        setTimeout(cleanup, 250);
+        break;
+      case 'sell':
+        oscillator.frequency.setValueAtTime(800, this.context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(1200, this.context.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.2 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.1);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.1);
+        setTimeout(cleanup, 150);
+        break;
+      default:
+        cleanup();
+    }
+  },
+  
+  playMelody: function(frequencies, duration, volume) {
+    frequencies.forEach(function(freq, index) {
+      setTimeout(function() {
+        if (!this.context) return;
+        const osc = this.context.createOscillator();
+        const gain = this.context.createGain();
+        osc.connect(gain);
+        gain.connect(this.context.destination);
+        osc.frequency.setValueAtTime(freq, this.context.currentTime);
+        gain.gain.setValueAtTime(0.3 * volume, this.context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + duration);
+        osc.start(this.context.currentTime);
+        osc.stop(this.context.currentTime + duration);
+      }.bind(this), index * duration * 1000);
+    }.bind(this));
+  },
+  
+  loadSettings: function() {
+    try {
+      const saved = localStorage.getItem('backpackwar_audio_settings');
+      if (saved) {
+        const settings = JSON.parse(saved);
+        this.sfxVolume = settings.sfxVolume || 0.7;
+        this.musicVolume = settings.musicVolume || 0.5;
+      }
+    } catch (e) {
+      console.error('加载音频设置失败:', e);
+    }
+  },
+  
+  saveSettings: function() {
+    localStorage.setItem('backpackwar_audio_settings', JSON.stringify({
+      sfxVolume: this.sfxVolume,
+      musicVolume: this.musicVolume
+    }));
+  }
+};
+
+// ==================== 初始化函数 ====================
+function initGame() {
+  // 初始化性能管理
+  PerformanceManager.init();
+  ObjectPool.init();
+  EventDelegation.init();
+  
+  // 初始化音频
+  AudioManager.init();
+  
+  // 初始化游戏状态
+  initInventory();
+  generateShopItems();
+  generateEnemy();
+  renderAll();
+  updateStats();
+  
+  // 注册事件委托
+  setupEventDelegation();
+  
+  // 添加全局点击处理
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.context-menu')) {
+      hideContextMenu();
+    }
+  });
+  
+  // 页面卸载时清理资源
+  window.addEventListener('beforeunload', cleanup);
+  
+  // 检测是否显示性能监控（从localStorage读取）
+  const showPerf = localStorage.getItem('backpackwar_show_perf') === 'true';
+  if (showPerf) {
+    document.getElementById('showPerfMonitor').checked = true;
+    PerformanceManager.toggle(true);
+  }
+}
+
+function setupEventDelegation() {
+  // 注册物品悬停事件
+  EventDelegation.register('click', '.inventory-cell', function(e, target) {
+    // 处理点击
+  });
+  
+  EventDelegation.register('contextmenu', '.item', function(e, target) {
+    e.preventDefault();
+    const cell = target.closest('.inventory-cell');
+    if (cell) {
+      const cellIndex = parseInt(cell.dataset.index);
+      showContextMenu(e, cellIndex);
+    }
+  });
+  
+  EventDelegation.register('dragstart', '.item', function(e, target) {
+    handleItemDragStart(e, target);
+  });
+  
+  EventDelegation.register('dragstart', '.shop-slot', function(e, target) {
+    handleShopDragStart(e, target);
+  });
+  
+  EventDelegation.register('dragover', '.inventory-cell', function(e, target) {
+    handleDragOver(e, target);
+  });
+  
+  EventDelegation.register('dragleave', '.inventory-cell', function(e, target) {
+    handleDragLeave(e, target);
+  });
+  
+  EventDelegation.register('drop', '.inventory-cell', function(e, target) {
+    handleDrop(e, target);
+  });
+}
+
+function cleanup() {
+  PerformanceManager.destroy();
+  ObjectPool.clearAll();
+  DOMCache.clear();
+  
+  if (GameState.battle.animationFrameId) {
+    cancelAnimationFrame(GameState.battle.animationFrameId);
+  }
+  
+  localStorage.setItem('backpackwar_show_perf', PerformanceManager.enabled);
+}
+
+function initInventory() {
+  GameState.inventory.cells = [];
+  for (let i = 0; i < GameState.inventory.rows * GameState.inventory.cols; i++) {
+    GameState.inventory.cells.push(null);
+  }
+}
+
+// ==================== 商店系统 ====================
+function generateShopItems() {
+  GameState.shop.items = [];
+  const templateKeys = Object.keys(ITEM_TEMPLATES);
+  
+  for (let i = 0; i < GameState.shop.slots; i++) {
+    const availableItems = templateKeys.filter(function(key) {
+      const item = ITEM_TEMPLATES[key];
+      if (GameState.progress.round < 3) {
+        return item.quality === 'common' || item.quality === 'uncommon';
+      } else if (GameState.progress.round < 6) {
+        return item.quality !== 'legendary';
+      }
+      return true;
+    });
+    
+    const randomKey = availableItems[Math.floor(Math.random() * availableItems.length)];
+    const template = ITEM_TEMPLATES[randomKey];
+    
+    GameState.shop.items.push({
+      ...template,
+      instanceId: generateId()
+    });
+  }
+}
+
+function refreshShop() {
+  if (GameState.player.gold < 2) {
+    showLog('金币不足!', 'info');
+    return;
+  }
+  
+  GameState.player.gold -= 2;
+  generateShopItems();
+  renderShop();
+  updateGoldDisplay();
+  AudioManager.playSound('click');
+}
+
+function buyItem(shopIndex) {
+  const item = GameState.shop.items[shopIndex];
+  if (!item) return;
+  
+  if (GameState.player.gold < item.price) {
+    showLog('金币不足!', 'info');
+    return;
+  }
+  
+  const placement = findPlacementPosition(item);
+  if (!placement) {
+    showLog('背包空间不足!', 'info');
+    return;
+  }
+  
+  GameState.player.gold -= item.price;
+  placeItemInInventory(item, placement.startCell);
+  GameState.shop.items[shopIndex] = null;
+  
+  renderInventory();
+  renderShop();
+  updateGoldDisplay();
+  updateStats();
+  AudioManager.playSound('buy');
+  showLog('购买了 ' + item.name, 'info');
+}
+
+function findPlacementPosition(item) {
+  const cols = GameState.inventory.cols;
+  const rows = GameState.inventory.rows;
+  const itemWidth = item.size[0];
+  const itemHeight = item.size[1];
+  
+  for (let row = 0; row <= rows - itemHeight; row++) {
+    for (let col = 0; col <= cols - itemWidth; col++) {
+      const startCell = row * cols + col;
+      if (canPlaceItem(item, startCell)) {
+        return { startCell: startCell };
+      }
+    }
+  }
+  return null;
+}
+
+function canPlaceItem(item, startCell) {
+  const cols = GameState.inventory.cols;
+  const rows = GameState.inventory.rows;
+  const itemWidth = item.size[0];
+  const itemHeight = item.size[1];
+  const startRow = Math.floor(startCell / cols);
+  const startCol = startCell % cols;
+  
+  if (startCol + itemWidth > cols || startRow + itemHeight > rows) {
+    return false;
+  }
+  
+  for (let r = 0; r < itemHeight; r++) {
+    for (let c = 0; c < itemWidth; c++) {
+      const cellIndex = (startRow + r) * cols + (startCol + c);
+      if (GameState.inventory.cells[cellIndex] !== null) {
+        return false;
+      }
+    }
+  }
+  
+  return true;
+}
+
+function placeItemInInventory(item, startCell) {
+  const cols = GameState.inventory.cols;
+  const itemWidth = item.size[0];
+  const itemHeight = item.size[1];
+  const startRow = Math.floor(startCell / cols);
+  const startCol = startCell % cols;
+  
+  for (let r = 0; r < itemHeight; r++) {
+    for (let c = 0; c < itemWidth; c++) {
+      const cellIndex = (startRow + r) * cols + (startCol + c);
+      GameState.inventory.cells[cellIndex] = {
+        item: item,
+        isPrimary: (r === 0 && c === 0),
+        primaryCell: startCell
+      };
+    }
+  }
+}
+
+function removeItemFromInventory(cellIndex) {
+  const cell = GameState.inventory.cells[cellIndex];
+  if (!cell) return null;
+  
+  const item = cell.item;
+  const primaryCell = cell.primaryCell;
+  const cols = GameState.inventory.cols;
+  const itemWidth = item.size[0];
+  const itemHeight = item.size[1];
+  const startRow = Math.floor(primaryCell / cols);
+  const startCol = primaryCell % cols;
+  
+  for (let r = 0; r < itemHeight; r++) {
+    for (let c = 0; c < itemWidth; c++) {
+      const idx = (startRow + r) * cols + (startCol + c);
+      GameState.inventory.cells[idx] = null;
+    }
+  }
+  
+  return item;
+}
+
+// ==================== 物品使用功能 ====================
+function useItem(cellIndex) {
+  const cell = GameState.inventory.cells[cellIndex];
+  if (!cell || !cell.isPrimary) return;
+  
+  const item = cell.item;
+  
+  if (item.type !== 'consumable') {
+    showLog('该物品无法使用!', 'info');
+    return;
+  }
+  
+  if (item.stats.heal) {
+    const healAmount = item.stats.heal;
+    const oldHealth = GameState.player.currentHealth;
+    GameState.player.currentHealth = Math.min(
+      GameState.player.maxHealth,
+      GameState.player.currentHealth + healAmount
+    );
+    const actualHeal = GameState.player.currentHealth - oldHealth;
+    
+    if (actualHeal > 0) {
+      showHealEffect(actualHeal);
+      showLog('恢复了 ' + actualHeal + ' 点生命值!', 'heal');
+    } else {
+      showLog('生命值已满!', 'info');
+      return;
+    }
+  }
+  
+  if (item.stats.tempAttack) {
+    GameState.player.tempAttack += item.stats.tempAttack;
+    showLog('获得 +' + item.stats.tempAttack + ' 攻击力（本场战斗）!', 'info');
+  }
+  
+  if (item.stats.tempCrit) {
+    GameState.player.tempCrit += item.stats.tempCrit;
+    showLog('获得 +' + Math.round(item.stats.tempCrit * 100) + '% 暴击率（本场战斗）!', 'info');
+  }
+  
+  removeItemFromInventory(cellIndex);
+  
+  renderInventory();
+  updateStats();
+  AudioManager.playSound('heal');
+  hideContextMenu();
+}
+
+function showHealEffect(amount) {
+  const avatar = document.getElementById('playerAvatar');
+  const rect = avatar.getBoundingClientRect();
+  
+  const floatText = ObjectPool.get('healFloat', function() {
+    return document.createElement('div');
+  });
+  
+  floatText.className = 'heal-float';
+  floatText.textContent = '+' + amount;
+  floatText.style.left = (rect.left + rect.width / 2 - 20) + 'px';
+  floatText.style.top = rect.top + 'px';
+  floatText.style.display = '';
+  document.body.appendChild(floatText);
+  
+  setTimeout(function() {
+    ObjectPool.release('healFloat', floatText);
+  }, 1000);
+  
+  avatar.classList.add('healed');
+  setTimeout(function() {
+    avatar.classList.remove('healed');
+  }, 500);
+}
+
+// ==================== 物品出售功能 ====================
+function sellItem(cellIndex) {
+  const cell = GameState.inventory.cells[cellIndex];
+  if (!cell || !cell.isPrimary) return;
+  
+  const item = cell.item;
+  const sellPrice = Math.floor(item.price * 0.5);
+  
+  removeItemFromInventory(cellIndex);
+  GameState.player.gold += sellPrice;
+  
+  renderInventory();
+  updateGoldDisplay();
+  updateStats();
+  AudioManager.playSound('sell');
+  showLog('出售了 ' + item.name + '，获得 ' + sellPrice + ' 金币', 'info');
+  hideContextMenu();
+}
+
+// ==================== 整理背包功能 ====================
+function organizeInventory() {
+  const items = [];
+  const processedItems = new Set();
+  
+  GameState.inventory.cells.forEach(function(cell, index) {
+    if (cell && cell.isPrimary && !processedItems.has(cell.item.instanceId)) {
+      items.push(cell.item);
+      processedItems.add(cell.item.instanceId);
+    }
+  });
+  
+  for (let i = 0; i < GameState.inventory.cells.length; i++) {
+    GameState.inventory.cells[i] = null;
+  }
+  
+  const qualityOrder = {
+    'legendary': 0,
+    'epic': 1,
+    'rare': 2,
+    'uncommon': 3,
+    'common': 4
+  };
+  
+  items.sort(function(a, b) {
+    const qualityDiff = qualityOrder[a.quality] - qualityOrder[b.quality];
+    if (qualityDiff !== 0) return qualityDiff;
+    return b.price - a.price;
+  });
+  
+  const typeOrder = {
+    'weapon': 0,
+    'armor': 1,
+    'shield': 2,
+    'accessory': 3,
+    'consumable': 4
+  };
+  
+  items.sort(function(a, b) {
+    const typeDiff = typeOrder[a.type] - typeOrder[b.type];
+    if (typeDiff !== 0) return typeDiff;
+    const qualityDiff = qualityOrder[a.quality] - qualityOrder[b.quality];
+    if (qualityDiff !== 0) return qualityDiff;
+    return b.price - a.price;
+  });
+  
+  let placedCount = 0;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const placement = findPlacementPosition(item);
+    if (placement) {
+      placeItemInInventory(item, placement.startCell);
+      placedCount++;
+    }
+  }
+  
+  renderInventory();
+  AudioManager.playSound('item');
+  showLog('整理完成，共 ' + placedCount + ' 件物品', 'info');
+}
+
+// ==================== 右键菜单功能 ====================
+function showContextMenu(e, cellIndex) {
+  const cell = GameState.inventory.cells[cellIndex];
+  if (!cell) return;
+  
+  const item = cell.item;
+  const menu = document.getElementById('contextMenu');
+  const useOption = document.getElementById('contextMenuUse');
+  
+  GameState.contextMenu.item = item;
+  GameState.contextMenu.cellIndex = cell.primaryCell;
+  
+  if (item.type === 'consumable') {
+    useOption.style.display = 'flex';
+  } else {
+    useOption.style.display = 'none';
+  }
+  
+  let x = e.clientX;
+  let y = e.clientY;
+  
+  const menuWidth = 140;
+  const menuHeight = 150;
+  
+  if (x + menuWidth > window.innerWidth) {
+    x = window.innerWidth - menuWidth - 10;
+  }
+  if (y + menuHeight > window.innerHeight) {
+    y = window.innerHeight - menuHeight - 10;
+  }
+  
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+  menu.classList.add('show');
+  
+  AudioManager.playSound('click');
+}
+
+function hideContextMenu() {
+  const menu = document.getElementById('contextMenu');
+  menu.classList.remove('show');
+  GameState.contextMenu.item = null;
+  GameState.contextMenu.cellIndex = null;
+}
+
+function contextMenuAction(action) {
+  const cellIndex = GameState.contextMenu.cellIndex;
+  if (cellIndex === null) return;
+  
+  switch (action) {
+    case 'use':
+      useItem(cellIndex);
+      break;
+    case 'sell':
+      sellItem(cellIndex);
+      break;
+    case 'delete':
+      const cell = GameState.inventory.cells[cellIndex];
+      if (cell && cell.isPrimary) {
+        const itemName = cell.item.name;
+        removeItemFromInventory(cellIndex);
+        renderInventory();
+        updateStats();
+        showLog('丢弃了 ' + itemName, 'info');
+      }
+      hideContextMenu();
+      break;
+  }
+}
+
+// ==================== 敌人生成 ====================
+function generateEnemy() {
+  const round = GameState.progress.round;
+  
+  let availableEnemies = [];
+  
+  if (round <= 2) {
+    availableEnemies = ['goblin', 'skeleton'];
+  } else if (round <= 4) {
+    availableEnemies = ['goblin', 'skeleton', 'orc'];
+  } else if (round <= 6) {
+    availableEnemies = ['orc', 'skeleton', 'darkKnight', 'troll'];
+  } else {
+    availableEnemies = ['darkKnight', 'troll', 'dragon', 'demon'];
+  }
+  
+  const enemyKey = availableEnemies[Math.floor(Math.random() * availableEnemies.length)];
+  const template = ENEMY_TEMPLATES[enemyKey];
+  
+  const scaling = 1 + (round - 1) * 0.1;
+  
+  GameState.currentEnemy = {
+    ...template,
+    maxHealth: Math.floor(template.health * scaling),
+    currentHealth: Math.floor(template.health * scaling),
+    attack: Math.floor(template.attack * scaling),
+    armor: Math.floor(template.armor * scaling),
+    goldReward: Math.floor(template.goldReward * scaling)
+  };
+}
+
+// ==================== 战斗系统 ====================
+
+// 计算战斗属性（包含技能加成）
+function calculateCombatStats() {
+  const player = GameState.player;
+  let totalAttack = player.baseAttack + player.bonusAttack + player.tempAttack;
+  let totalArmor = player.baseArmor + player.bonusArmor;
+  let totalHealth = 100 + player.bonusHealth;
+  
+  // 技能统计
+  let critChance = player.tempCrit || 0;
+  let lifesteal = 0;
+  let doubleStrike = 0;
+  let armorPen = 0;
+  
+  const processedItems = new Set();
+  GameState.inventory.cells.forEach(function(cell) {
+    if (cell && cell.isPrimary && !processedItems.has(cell.item.instanceId)) {
+      const item = cell.item;
+      
+      // 累加技能
+      if (item.skills) {
+        if (item.skills.critChance) critChance += item.skills.critChance;
+        if (item.skills.lifesteal) lifesteal += item.skills.lifesteal;
+        if (item.skills.doubleStrike) doubleStrike += item.skills.doubleStrike;
+        if (item.skills.armorPen) armorPen += item.skills.armorPen;
+      }
+      
+      processedItems.add(cell.item.instanceId);
+    }
+  });
+  
+  return {
+    attack: totalAttack,
+    armor: totalArmor,
+    maxHealth: totalHealth,
+    critChance: Math.min(critChance, 0.8), // 最高80%暴击率
+    lifesteal: Math.min(lifesteal, 0.5),   // 最高50%吸血
+    doubleStrike: Math.min(doubleStrike, 0.5), // 最高50%连击率
+    armorPen: armorPen
+  };
+}
+
+// 显示伤害飘字（使用对象池优化）
+function showDamageFloat(amount, type, targetId) {
+  const target = document.getElementById(targetId);
+  if (!target) return;
+  
+  const rect = target.getBoundingClientRect();
+  
+  const floatText = ObjectPool.get('damageFloat', function() {
+    return document.createElement('div');
+  });
+  
+  floatText.className = 'damage-float ' + type;
+  
+  if (type === 'critical') {
+    floatText.textContent = '暴击! -' + amount;
+  } else if (type === 'heal') {
+    floatText.textContent = '+' + amount;
+  } else if (type === 'enemy') {
+    floatText.textContent = '-' + amount;
+  } else {
+    floatText.textContent = '-' + amount;
+  }
+  
+  floatText.style.left = (rect.left + rect.width / 2 - 30 + Math.random() * 20) + 'px';
+  floatText.style.top = (rect.top + Math.random() * 20) + 'px';
+  floatText.style.display = '';
+  document.body.appendChild(floatText);
+  
+  setTimeout(function() {
+    ObjectPool.release('damageFloat', floatText);
+  }, 1000);
+}
+
+// 开始战斗
+function startBattle() {
+  if (GameState.battle.inProgress) return;
+  if (!GameState.currentEnemy) return;
+  
+  GameState.battle.inProgress = true;
+  GameState.battle.playerHealth = GameState.player.currentHealth;
+  GameState.battle.enemyHealth = GameState.currentEnemy.currentHealth;
+  GameState.battle.log = [];
+  GameState.battle.round = 0;
+  GameState.battle.lastBattleTime = performance.now();
+  
+  document.getElementById('battleBtn').disabled = true;
+  document.getElementById('nextRoundBtn').disabled = true;
+  document.getElementById('stageInfo').textContent = '战斗阶段';
+  GameState.progress.stage = 'battle';
+  
+  clearBattleLog();
+  runBattle();
+}
+
+// 战斗主循环（使用requestAnimationFrame优化）
+function runBattle() {
+  const combatStats = calculateCombatStats();
+  const enemy = GameState.currentEnemy;
+  let lastActionTime = 0;
+  const actionInterval = 1200;
+  let playerAttacked = false;
+  let enemyAttacked = false;
+  let battleEnded = false;
+  
+  function battleLoop(timestamp) {
+    if (battleEnded) return;
+    
+    if (GameState.battle.playerHealth <= 0 || GameState.battle.enemyHealth <= 0) {
+      battleEnded = true;
+      endBattle();
+      return;
+    }
+    
+    if (timestamp - lastActionTime >= actionInterval) {
+      lastActionTime = timestamp;
+      GameState.battle.round++;
+      
+      // 玩家攻击
+      playerAttacked = false;
+      enemyAttacked = false;
+      
+      executePlayerAttack(combatStats, enemy);
+      
+      // 敌人攻击（延迟执行）
+      setTimeout(function() {
+        if (GameState.battle.enemyHealth > 0 && !battleEnded) {
+          executeEnemyAttack(enemy, combatStats);
+          updateBattleHealth();
+          
+          if (GameState.battle.playerHealth <= 0) {
+            battleEnded = true;
+            setTimeout(endBattle, 300);
+          }
+        }
+      }, 600);
+    }
+    
+    if (!battleEnded) {
+      GameState.battle.animationFrameId = requestAnimationFrame(battleLoop);
+    }
+  }
+  
+  GameState.battle.animationFrameId = requestAnimationFrame(battleLoop);
+}
+
+// 执行玩家攻击
+function executePlayerAttack(combatStats, enemy) {
+  const playerAttack = combatStats.attack;
+  const enemyArmor = enemy.armor;
+  const armorPen = combatStats.armorPen;
+  
+  // 计算有效护甲（减去穿甲）
+  const effectiveArmor = Math.max(0, enemyArmor - armorPen);
+  
+  // 检查连击
+  const isDoubleStrike = Math.random() < combatStats.doubleStrike;
+  const attackCount = isDoubleStrike ? 2 : 1;
+  
+  if (isDoubleStrike) {
+    showBattleLog('⚡ 连击!', 'double');
+    document.getElementById('playerAvatar').classList.add('double-strike');
+    setTimeout(function() {
+      document.getElementById('playerAvatar').classList.remove('double-strike');
+    }, 500);
+  }
+  
+  for (let i = 0; i < attackCount; i++) {
+    setTimeout(function() {
+      // 基础伤害
+      let baseDamage = Math.max(1, playerAttack - effectiveArmor);
+      
+      // 检查暴击
+      const isCritical = Math.random() < combatStats.critChance;
+      let finalDamage = baseDamage;
+      
+      if (isCritical) {
+        finalDamage = Math.floor(baseDamage * (1.5 + Math.random() * 0.5)); // 1.5x - 2x伤害
+        showBattleLog('💥 暴击! 造成 ' + finalDamage + ' 点伤害!', 'critical');
+        showDamageFloat(finalDamage, 'critical', 'enemyAvatar');
+        document.getElementById('playerAvatar').classList.add('critical');
+        setTimeout(function() {
+          document.getElementById('playerAvatar').classList.remove('critical');
+        }, 400);
+        AudioManager.playSound('critical');
+      } else {
+        showBattleLog('你造成了 ' + finalDamage + ' 点伤害', 'damage');
+        showDamageFloat(finalDamage, 'normal', 'enemyAvatar');
+      }
+      
+      // 造成伤害
+      GameState.battle.enemyHealth -= finalDamage;
+      
+      // 吸血效果
+      if (combatStats.lifesteal > 0 && finalDamage > 0) {
+        const healAmount = Math.floor(finalDamage * combatStats.lifesteal);
+        if (healAmount > 0) {
+          const actualHeal = Math.min(
+            healAmount,
+            GameState.player.maxHealth - GameState.battle.playerHealth
+          );
+          if (actualHeal > 0) {
+            GameState.battle.playerHealth += actualHeal;
+            showBattleLog('💚 吸血恢复 ' + actualHeal + ' 生命', 'lifesteal');
+            showDamageFloat(actualHeal, 'heal', 'playerAvatar');
+          }
+        }
+      }
+      
+      animateAttack('player');
+      updateBattleHealth();
+      
+    }, i * 250);
+  }
+}
+
+// 执行敌人攻击
+function executeEnemyAttack(enemy, combatStats) {
+  const enemyAttack = enemy.attack;
+  const playerArmor = combatStats.armor;
+  
+  let damage = Math.max(1, enemyAttack - playerArmor);
+  
+  // 敌人也可能有暴击（低概率）
+  const enemyCritChance = 0.05;
+  if (Math.random() < enemyCritChance) {
+    damage = Math.floor(damage * 1.5);
+    showBattleLog('💥 ' + enemy.name + '暴击! 造成 ' + damage + ' 点伤害!', 'critical');
+    showDamageFloat(damage, 'critical', 'playerAvatar');
+  } else {
+    showBattleLog(enemy.name + '造成了 ' + damage + ' 点伤害', 'damage');
+    showDamageFloat(damage, 'enemy', 'playerAvatar');
+  }
+  
+  GameState.battle.playerHealth -= damage;
+  animateAttack('enemy');
+}
+
+function animateAttack(attacker) {
+  const avatar = document.getElementById(attacker === 'player' ? 'playerAvatar' : 'enemyAvatar');
+  avatar.classList.add('attacking');
+  setTimeout(function() {
+    avatar.classList.remove('attacking');
+  }, 300);
+  
+  const target = document.getElementById(attacker === 'player' ? 'enemyAvatar' : 'playerAvatar');
+  setTimeout(function() {
+    target.classList.add('damaged');
+    setTimeout(function() {
+      target.classList.remove('damaged');
+    }, 300);
+  }, 200);
+  
+  AudioManager.playSound('hit');
+}
+
+function updateBattleHealth() {
+  const playerMaxHealth = GameState.player.maxHealth;
+  const playerPercent = Math.max(0, (GameState.battle.playerHealth / playerMaxHealth) * 100);
+  const enemyPercent = Math.max(0, (GameState.battle.enemyHealth / GameState.currentEnemy.maxHealth) * 100);
+  
+  // 使用批量更新减少重绘
+  DOMCache.batchUpdate([
+    { id: 'playerHealthBar', style: 'width', value: playerPercent + '%' },
+    { id: 'enemyHealthBar', style: 'width', value: enemyPercent + '%' }
+  ]);
+  
+  document.getElementById('playerHealthText').textContent = 
+    Math.max(0, Math.floor(GameState.battle.playerHealth)) + '/' + playerMaxHealth;
+  document.getElementById('enemyHealthText').textContent = 
+    Math.max(0, Math.floor(GameState.battle.enemyHealth)) + '/' + GameState.currentEnemy.maxHealth;
+}
+
+function endBattle() {
+  // 取消动画帧
+  if (GameState.battle.animationFrameId) {
+    cancelAnimationFrame(GameState.battle.animationFrameId);
+    GameState.battle.animationFrameId = null;
+  }
+  
+  GameState.battle.inProgress = false;
+  const isVictory = GameState.battle.playerHealth > 0;
+  
+  // 清除临时加成
+  GameState.player.tempAttack = 0;
+  GameState.player.tempCrit = 0;
+  
+  // 更新玩家生命值
+  GameState.player.currentHealth = Math.max(0, Math.floor(GameState.battle.playerHealth));
+  
+  if (isVictory) {
+    GameState.progress.wins++;
+    GameState.progress.streak++;
+    
+    // 计算幸运币加成
+    let goldBonus = 0;
+    const processedItems = new Set();
+    GameState.inventory.cells.forEach(function(cell) {
+      if (cell && cell.isPrimary && !processedItems.has(cell.item.instanceId)) {
+        if (cell.item.stats.goldBonus) {
+          goldBonus += cell.item.stats.goldBonus;
+        }
+        processedItems.add(cell.item.instanceId);
+      }
+    });
+    
+    const goldReward = GameState.currentEnemy.goldReward + Math.floor(GameState.progress.streak * 1.5) + goldBonus;
+    GameState.player.gold += goldReward;
+    
+    showResultModal(true, goldReward);
+    AudioManager.playSound('victory');
+  } else {
+    GameState.progress.streak = 0;
+    GameState.player.currentHealth = Math.floor(GameState.player.maxHealth * 0.5);
+    
+    showResultModal(false, 0);
+    AudioManager.playSound('defeat');
+  }
+  
+  updateStats();
+  updateGoldDisplay();
+  document.getElementById('winsCount').textContent = GameState.progress.wins;
+  document.getElementById('streakCount').textContent = GameState.progress.streak;
+}
+
+function showResultModal(isVictory, goldReward) {
+  const modal = document.getElementById('resultModal');
+  const content = document.getElementById('resultContent');
+  const title = document.getElementById('resultTitle');
+  const rewards = document.getElementById('rewards');
+  
+  content.className = 'modal ' + (isVictory ? 'victory' : 'defeat');
+  title.textContent = isVictory ? '胜利!' : '失败...';
+  document.getElementById('goldReward').textContent = goldReward;
+  rewards.style.display = isVictory ? 'block' : 'none';
+  
+  modal.classList.add('show');
+  GameState.progress.stage = 'result';
+}
+
+function closeResultModal() {
+  document.getElementById('resultModal').classList.remove('show');
+  document.getElementById('nextRoundBtn').disabled = false;
+  AudioManager.playSound('click');
+}
+
+function nextRound() {
+  GameState.progress.round++;
+  GameState.progress.stage = 'prepare';
+  
+  GameState.player.gold += 5;
+  
+  generateEnemy();
+  generateShopItems();
+  
+  document.getElementById('roundNumber').textContent = GameState.progress.round;
+  document.getElementById('stageInfo').textContent = '准备阶段';
+  document.getElementById('battleBtn').disabled = false;
+  document.getElementById('nextRoundBtn').disabled = true;
+  
+  renderShop();
+  renderEnemy();
+  updateGoldDisplay();
+  updateStats();
+  AudioManager.playSound('click');
+}
+
+// ==================== 渲染函数 ====================
+function renderAll() {
+  renderInventory();
+  renderShop();
+  renderEnemy();
+}
+
+function renderInventory() {
+  const grid = document.getElementById('inventoryGrid');
+  
+  // 使用DocumentFragment优化
+  const fragment = document.createDocumentFragment();
+  
+  for (let i = 0; i < GameState.inventory.rows * GameState.inventory.cols; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'inventory-cell';
+    cell.dataset.index = i;
+    
+    const cellData = GameState.inventory.cells[i];
+    if (cellData && cellData.isPrimary) {
+      const itemEl = createItemElement(cellData.item);
+      cell.appendChild(itemEl);
+    }
+    
+    fragment.appendChild(cell);
+  }
+  
+  // 一次性更新DOM
+  grid.innerHTML = '';
+  grid.appendChild(fragment);
+}
+
+function renderShop() {
+  const container = document.getElementById('shopItems');
+  const fragment = document.createDocumentFragment();
+  
+  GameState.shop.items.forEach(function(item, index) {
+    const slot = document.createElement('div');
+    slot.className = 'shop-slot' + (item ? '' : ' empty');
+    slot.dataset.index = index;
+    
+    if (item) {
+      const itemEl = createItemElement(item);
+      slot.appendChild(itemEl);
+      
+      const priceTag = document.createElement('div');
+      priceTag.className = 'price-tag';
+      priceTag.textContent = item.price + '💰';
+      slot.appendChild(priceTag);
+      
+      slot.draggable = true;
+      slot.addEventListener('click', function() {
+        buyItem(index);
+      });
+    }
+    
+    fragment.appendChild(slot);
+  });
+  
+  container.innerHTML = '';
+  container.appendChild(fragment);
+}
+
+function renderEnemy() {
+  const enemy = GameState.currentEnemy;
+  if (!enemy) return;
+  
+  // 使用批量更新
+  DOMCache.batchUpdate([
+    { id: 'enemyMaxHealth', prop: 'textContent', value: enemy.maxHealth },
+    { id: 'enemyAttack', prop: 'textContent', value: enemy.attack },
+    { id: 'enemyArmor', prop: 'textContent', value: enemy.armor }
+  ]);
+  
+  document.getElementById('enemyAvatar').textContent = enemy.icon;
+  document.getElementById('enemyName').textContent = enemy.name;
+  document.getElementById('enemyHealthBar').style.width = '100%';
+  document.getElementById('enemyHealthText').textContent = enemy.maxHealth + '/' + enemy.maxHealth;
+  
+  document.getElementById('enemyIcon').textContent = enemy.icon;
+  document.getElementById('enemyDisplayName').textContent = enemy.name;
+  document.getElementById('enemyTier').textContent = enemy.tier;
+}
+
+function createItemElement(item) {
+  const el = document.createElement('div');
+  el.className = 'item ' + item.quality;
+  if (item.type === 'consumable') {
+    el.classList.add('consumable-indicator');
+  }
+  el.draggable = true;
+  el.dataset.itemId = item.instanceId || item.id;
+  
+  el.innerHTML = '<span class="item-icon">' + item.icon + '</span>' +
+    '<span class="item-name">' + item.name + '</span>';
+  
+  el.addEventListener('mouseenter', function(e) {
+    showTooltip(item, e);
+  });
+  el.addEventListener('mousemove', function(e) {
+    moveTooltip(e);
+  });
+  el.addEventListener('mouseleave', function() {
+    hideTooltip();
+  });
+  
+  el.addEventListener('dblclick', function(e) {
+    e.preventDefault();
+    const cell = el.closest('.inventory-cell');
+    if (cell) {
+      const cellIndex = parseInt(cell.dataset.index);
+      useItem(cellIndex);
+    }
+  });
+  
+  return el;
+}
+
+// ==================== 拖拽处理 ====================
+function handleItemDragStart(e, target) {
+  const cell = target.closest('.inventory-cell');
+  if (!cell) return;
+  
+  const index = parseInt(cell.dataset.index);
+  const cellData = GameState.inventory.cells[index];
+  
+  if (!cellData) return;
+  
+  GameState.drag.item = cellData.item;
+  GameState.drag.sourceType = 'inventory';
+  GameState.drag.sourceIndex = cellData.primaryCell;
+  
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', '');
+}
+
+function handleShopDragStart(e, target) {
+  const slot = target.closest('.shop-slot');
+  const index = parseInt(slot.dataset.index);
+  const item = GameState.shop.items[index];
+  
+  if (!item) return;
+  
+  GameState.drag.item = item;
+  GameState.drag.sourceType = 'shop';
+  GameState.drag.sourceIndex = index;
+  
+  e.dataTransfer.effectAllowed = 'copy';
+  e.dataTransfer.setData('text/plain', '');
+}
+
+function handleDragOver(e, target) {
+  e.preventDefault();
+  const cell = target.closest('.inventory-cell');
+  if (!cell) return;
+  
+  const index = parseInt(cell.dataset.index);
+  const item = GameState.drag.item;
+  
+  if (item && canPlaceItem(item, index)) {
+    cell.classList.add('drag-over');
+    e.dataTransfer.dropEffect = GameState.drag.sourceType === 'shop' ? 'copy' : 'move';
+  } else {
+    cell.classList.add('invalid');
+    e.dataTransfer.dropEffect = 'none';
+  }
+}
+
+function handleDragLeave(e, target) {
+  const cell = target.closest('.inventory-cell');
+  if (cell) {
+    cell.classList.remove('drag-over', 'invalid');
+  }
+}
+
+function handleDrop(e, target) {
+  e.preventDefault();
+  const cell = target.closest('.inventory-cell');
+  if (!cell) return;
+  
+  cell.classList.remove('drag-over', 'invalid');
+  
+  const targetIndex = parseInt(cell.dataset.index);
+  const item = GameState.drag.item;
+  
+  if (!item || !canPlaceItem(item, targetIndex)) {
+    GameState.drag = { item: null, sourceType: null, sourceIndex: null };
+    return;
+  }
+  
+  if (GameState.drag.sourceType === 'shop') {
+    if (GameState.player.gold < item.price) {
+      showLog('金币不足!', 'info');
+      GameState.drag = { item: null, sourceType: null, sourceIndex: null };
+      return;
+    }
+    
+    GameState.player.gold -= item.price;
+    GameState.shop.items[GameState.drag.sourceIndex] = null;
+    placeItemInInventory(item, targetIndex);
+    
+    updateGoldDisplay();
+    renderShop();
+    AudioManager.playSound('buy');
+  } else if (GameState.drag.sourceType === 'inventory') {
+    removeItemFromInventory(GameState.drag.sourceIndex);
+    placeItemInInventory(item, targetIndex);
+    AudioManager.playSound('item');
+  }
+  
+  renderInventory();
+  updateStats();
+  GameState.drag = { item: null, sourceType: null, sourceIndex: null };
+}
+
+// ==================== Tooltip ====================
+function showTooltip(item, e) {
+  const tooltip = document.getElementById('itemTooltip');
+  
+  document.getElementById('tooltipName').textContent = item.name;
+  document.getElementById('tooltipName').className = 'tooltip-name ' + item.quality;
+  
+  const typeNames = {
+    weapon: '武器',
+    armor: '护甲',
+    consumable: '消耗品',
+    accessory: '饰品',
+    shield: '盾牌'
+  };
+  document.getElementById('tooltipType').textContent = typeNames[item.type];
+  
+  let statsHtml = '';
+  if (item.stats.attack) statsHtml += '<span class="stat-attack">⚔️ +' + item.stats.attack + ' 攻击力</span><br>';
+  if (item.stats.armor) statsHtml += '<span class="stat-armor">🛡️ +' + item.stats.armor + ' 护甲</span><br>';
+  if (item.stats.health) statsHtml += '<span class="stat-health">❤️ +' + item.stats.health + ' 生命值</span><br>';
+  if (item.stats.magic) statsHtml += '<span class="stat-magic">✨ +' + item.stats.magic + ' 魔法</span><br>';
+  if (item.stats.heal) statsHtml += '<span class="stat-health">💚 恢复 ' + item.stats.heal + ' 生命</span><br>';
+  if (item.stats.tempAttack) statsHtml += '<span class="stat-attack">⚡ +' + item.stats.tempAttack + ' 临时攻击</span><br>';
+  if (item.stats.tempCrit) statsHtml += '<span class="stat-crit">💥 +' + Math.round(item.stats.tempCrit * 100) + '% 临时暴击</span><br>';
+  if (item.stats.goldBonus) statsHtml += '<span class="stat-magic">🪙 +' + item.stats.goldBonus + ' 战斗金币</span><br>';
+  
+  // 显示技能
+  if (item.skills) {
+    if (item.skills.critChance) statsHtml += '<span class="stat-crit">💥 ' + Math.round(item.skills.critChance * 100) + '% 暴击率</span><br>';
+    if (item.skills.lifesteal) statsHtml += '<span class="stat-lifesteal">💚 ' + Math.round(item.skills.lifesteal * 100) + '% 吸血</span><br>';
+    if (item.skills.doubleStrike) statsHtml += '<span class="stat-double">⚡ ' + Math.round(item.skills.doubleStrike * 100) + '% 连击</span><br>';
+    if (item.skills.armorPen) statsHtml += '<span class="stat-attack">🔧 ' + item.skills.armorPen + ' 穿甲</span><br>';
+  }
+  
+  document.getElementById('tooltipStats').innerHTML = statsHtml;
+  document.getElementById('tooltipDesc').textContent = item.desc || '';
+  
+  const sellPrice = Math.floor(item.price * 0.5);
+  document.getElementById('tooltipPrice').innerHTML = '💰 买: ' + item.price + ' | 卖: ' + sellPrice;
+  
+  let hint = '';
+  if (item.type === 'consumable') {
+    hint = '双击或右键使用';
+  } else {
+    hint = '右键打开菜单';
+  }
+  document.getElementById('tooltipHint').textContent = hint;
+  
+  tooltip.classList.add('show');
+  moveTooltip(e);
+}
+
+function moveTooltip(e) {
+  const tooltip = document.getElementById('itemTooltip');
+  let x = e.clientX + 15;
+  let y = e.clientY + 15;
+  
+  if (x + tooltip.offsetWidth > window.innerWidth) {
+    x = e.clientX - tooltip.offsetWidth - 15;
+  }
+  if (y + tooltip.offsetHeight > window.innerHeight) {
+    y = e.clientY - tooltip.offsetHeight - 15;
+  }
+  
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  document.getElementById('itemTooltip').classList.remove('show');
+}
+
+// ==================== UI更新 ====================
+function updateStats() {
+  // 计算装备加成
+  let bonusAttack = 0;
+  let bonusArmor = 0;
+  let bonusHealth = 0;
+  
+  const processedItems = new Set();
+  GameState.inventory.cells.forEach(function(cell) {
+    if (cell && cell.isPrimary && !processedItems.has(cell.item.instanceId)) {
+      const item = cell.item;
+      bonusAttack += item.stats.attack || 0;
+      bonusArmor += item.stats.armor || 0;
+      bonusHealth += item.stats.health || 0;
+      processedItems.add(cell.item.instanceId);
+    }
+  });
+  
+  GameState.player.bonusAttack = bonusAttack;
+  GameState.player.bonusArmor = bonusArmor;
+  GameState.player.bonusHealth = bonusHealth;
+  GameState.player.maxHealth = 100 + bonusHealth;
+  
+  const totalAttack = GameState.player.baseAttack + bonusAttack + GameState.player.tempAttack;
+  const totalArmor = GameState.player.baseArmor + bonusArmor;
+  
+  document.getElementById('playerLevel').textContent = GameState.player.level;
+  
+  const healthPercent = (GameState.player.currentHealth / GameState.player.maxHealth) * 100;
+  document.getElementById('healthFill').style.width = Math.max(0, healthPercent) + '%';
+  document.getElementById('healthText').textContent = 
+    GameState.player.currentHealth + '/' + GameState.player.maxHealth;
+  
+  document.getElementById('attackFill').style.width = Math.min(100, totalAttack * 2) + '%';
+  document.getElementById('attackTotal').textContent = '+' + totalAttack;
+  
+  document.getElementById('armorFill').style.width = Math.min(100, totalArmor * 3) + '%';
+  document.getElementById('armorTotal').textContent = '+' + totalArmor;
+  
+  document.getElementById('playerHealthBar').style.width = healthPercent + '%';
+  document.getElementById('playerHealthText').textContent = 
+    GameState.player.currentHealth + '/' + GameState.player.maxHealth;
+}
+
+function updateGoldDisplay() {
+  document.getElementById('goldAmount').textContent = GameState.player.gold;
+}
+
+// ==================== 战斗日志 ====================
+function showBattleLog(message, type) {
+  const log = document.getElementById('battleLog');
+  
+  const entry = ObjectPool.get('logEntry', function() {
+    return document.createElement('div');
+  });
+  
+  entry.className = 'log-entry ' + type;
+  entry.textContent = message;
+  entry.style.display = '';
+  log.appendChild(entry);
+  
+  // 限制日志数量
+  while (log.children.length > 5) {
+    const oldEntry = log.firstChild;
+    ObjectPool.release('logEntry', oldEntry);
+  }
+  
+  setTimeout(function() {
+    if (entry.parentNode) {
+      ObjectPool.release('logEntry', entry);
+    }
+  }, 3000);
+}
+
+function showLog(message, type) {
+  showBattleLog(message, type);
+}
+
+function clearBattleLog() {
+  const log = document.getElementById('battleLog');
+  while (log.firstChild) {
+    ObjectPool.release('logEntry', log.firstChild);
+  }
+}
+
+// ==================== 设置面板 ====================
+function toggleSettingsPanel() {
+  const panel = document.getElementById('volumePanel');
+  const btn = document.getElementById('settingsBtn');
+  
+  panel.classList.toggle('show');
+  btn.classList.toggle('active');
+  AudioManager.playSound('click');
+}
+
+function setSfxVolume(value) {
+  AudioManager.sfxVolume = value / 100;
+  document.getElementById('sfxVolumeValue').textContent = value + '%';
+  AudioManager.saveSettings();
+  AudioManager.playSound('click');
+}
+
+function setMusicVolume(value) {
+  AudioManager.musicVolume = value / 100;
+  document.getElementById('musicVolumeValue').textContent = value + '%';
+  AudioManager.saveSettings();
+}
+
+function setVolumePreset(preset) {
+  let sfxVol, musicVol;
+  
+  switch (preset) {
+    case 'mute': sfxVol = 0; musicVol = 0; break;
+    case 'low': sfxVol = 30; musicVol = 20; break;
+    case 'normal': sfxVol = 70; musicVol = 50; break;
+    case 'high': sfxVol = 100; musicVol = 80; break;
+    default: sfxVol = 70; musicVol = 50;
+  }
+  
+  document.getElementById('sfxVolumeSlider').value = sfxVol;
+  document.getElementById('musicVolumeSlider').value = musicVol;
+  setSfxVolume(sfxVol);
+  setMusicVolume(musicVol);
+}
+
+function togglePerformanceMonitor(show) {
+  PerformanceManager.toggle(show);
+  localStorage.setItem('backpackwar_show_perf', show);
+}
+
+// ==================== 工具函数 ====================
+function generateId() {
+  return 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+}
+
+// ==================== 初始化游戏 ====================
+document.addEventListener('DOMContentLoaded', initGame);
+</script>
+
+</body>
+</html>

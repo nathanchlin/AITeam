@@ -1,0 +1,66 @@
+public class ScoreSystem
+{
+    private int currentScore = 0;
+    private int comboMultiplier = 1;
+    private float comboTimer = 0f;
+    private float comboWindow = 3f; // 连击时间窗口
+    
+    public void AddScore(int baseScore, ScoreType scoreType)
+    {
+        // 根据得分类型计算实际得分
+        int actualScore = CalculateActualScore(baseScore, scoreType);
+        
+        // 应用连击加成
+        actualScore *= comboMultiplier;
+        
+        currentScore += actualScore;
+        OnScoreAdded?.Invoke(actualScore);
+    }
+    
+    private int CalculateActualScore(int baseScore, ScoreType scoreType)
+    {
+        switch (scoreType)
+        {
+            case ScoreType.DirectHit:
+                return baseScore * 2;
+            case ScoreType.StructureDamage:
+                return baseScore;
+            case ScoreType.PigElimination:
+                return baseScore * 5;
+            case ScoreType.CollateralDamage:
+                return baseScore * 3;
+            default:
+                return baseScore;
+        }
+    }
+    
+    public void RegisterHit()
+    {
+        comboTimer = comboWindow;
+        comboMultiplier = Mathf.Min(comboMultiplier + 1, 5); // 最大5倍连击
+    }
+    
+    public void Update(float deltaTime)
+    {
+        if (comboTimer > 0)
+        {
+            comboTimer -= deltaTime;
+            if (comboTimer <= 0)
+            {
+                comboMultiplier = 1;
+            }
+        }
+    }
+    
+    public int GetCurrentScore() => currentScore;
+    
+    public event Action<int> OnScoreAdded;
+}
+
+public enum ScoreType
+{
+    DirectHit,      // 直接命中
+    StructureDamage, // 建筑损坏
+    PigElimination, // 消灭猪
+    CollateralDamage // 连锁破坏
+}

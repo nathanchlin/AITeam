@@ -1,0 +1,257 @@
+import math
+from enum import Enum
+
+class CollisionShape(Enum):
+    CIRCLE = 1
+    AABB = 2
+    POLYGON = 3
+
+class GameObject:
+    def __init__(self, x, y, shape=CollisionShape.CIRCLE, radius=10, 
+                 group="default", layer_mask=0):
+        self.x = x
+        self.y = y
+        self.shape = shape
+        self.radius = radius
+        self.group = group
+        self.layer_mask = layer_mask
+        self.id = id(self)  # 唯一标识符
+        
+        # 边界框（用于AABB检测）
+        self.boundary = {
+            'x': x - radius,
+            'y': y - radius,
+            'width': radius * 2,
+            'height': radius * 2
+        }
+        
+    def update_boundary(self):
+        """更新边界框"""
+        self.boundary = {
+            'x': self.x - self.radius,
+            'y': self.y - self.radius,
+            'width': self.radius * 2,
+            'height': self.radius * 2
+        }
+
+class QuadTree:
+    def __init__(self, boundary, capacity=10):
+        self.boundary = boundary
+        self.capacity = capacity
+        self.objects = []
+        self.divided = False
+        self.northeast = None
+        self.northwest = None
+        self.southeast = None
+        self.southwest = None
+        
+    def subdivide(self):
+        """分割四叉树"""
+        x, y, w, h = self.boundary
+        half_w = w / 2
+        half_h = h / 2
+        
+        ne = (x + half_w, y, half_w, half_h)
+        self.northeast = QuadTree(ne, self.capacity)
+        
+        nw = (x, y, half_w, half_h)
+        self.northwest = QuadTree(nw, self.capacity)
+        
+        se = (x + half_w, y + half_h, half_w, half_h)
+        self.southeast = QuadTree(se, self.capacity)
+        
+        sw = (x, y + half_h, half_w, half_h)
+        self.southwest = QuadTree(sw, self.capacity)
+        
+        self.divided = True
+        
+    def insert(self, obj):
+        """插入对象到四叉树"""
+        if not self._contains(obj):
+            return False
+            
+        if len(self.objects) < self.capacity:
+            self.objects.append(obj)
+            return True
+            
+        if not self.divided:
+            self.subdivide()
+            
+        return (self.northeast.insert(obj) or 
+                self.northwest.insert(obj) or 
+                self.southeast.insert(obj) or 
+                self.southwest.insert(obj))
+                
+    def _contains(self, obj):
+        """检查对象是否在边界内"""
+        x, y, w, h = self.boundary
+        return (x <= obj.boundary['x'] and
+                x + w >= obj.boundary['x'] + obj.boundary['width'] and
+                y <= obj.boundary['y'] and
+                y + h >= obj.boundary['y'] + obj.boundary['height'])
+                
+    def query(self, range_obj, found=None):
+        """查询范围内的对象"""
+        if found is None:
+            found = []
+            
+        if not self._intersects(range_obj):
+            return found
+            
+        for obj in self.objects:
+            if self._range_contains(range_obj, obj):
+                found.append(obj)
+                
+        if self.divided:
+            self.northeast.query(range_obj, found)
+            self.northwest.query(range_obj, found)
+            self.southeast.query(range_obj, found)
+            self.southwest.query(range_obj, found)
+            
+        return found
+        
+    def _intersects(self, range_obj):
+        """检查是否与范围相交"""
+        x, y, w, h = self.boundary
+        rx = range_obj.boundary['x']
+        ry = range_obj.boundary['y']
+        rw = range_obj.boundary['width']
+        rh = range_obj.boundary['height']
+        
+        return not (x > rx + rw or 
+                   x + w < rx or 
+                   y > ry + rh or 
+                   y + h < ry)
+                   
+    def _range_contains(self, range_obj, obj):
+        """检查对象是否在范围内"""
+        return (range_obj.boundary['x'] <= obj.boundary['x'] and
+                range_obj.boundary['x'] + range_obj.boundary['width'] >= obj.boundary['x'] + obj.boundary['width'] and
+                range_obj.boundary['y'] <= obj.boundary['y'] and
+                range_obj.boundary['y'] + range_obj.boundary['height'] >= obj.boundary['y'] + obj.boundary['height'])
+
+class CollisionSystem:
+    def __init__(self, width, height):
+        self.width = width
+        self.height = height
+        self.collision_pairs = []
+        self.quadtree = None
+        self.collision_matrix = {}
+        
+    def update(self, game_objects):
+        """更新碰撞系统"""
+        # 初始化四叉树
+        boundary = (0, 0, self.width, self.height)
+        self.quadtree = QuadTree(boundary)
+        
+        # 插入所有物体
+        for obj in game_objects:
+            obj.update_boundary()
+            self.quadtree.insert(obj)
+            
+        # 检测碰撞
+        self.collision_pairs = []
+        self._check_collisions(game_objects)
+        
+    def _check_collisions(self, game_objects):
+        """检测所有碰撞"""
+        # 按组分类物体
+        groups = {}
+        for obj in game_objects:
+            if obj.group not in groups:
+                groups[obj.group] = []
+            groups[obj.group].append(obj)
+            
+        # 只检测可能碰撞的组
+        group_pairs = self._get_potential_collision_groups(groups)
+        
+        for group1, group2 in group_pairs:
+            if group1 in groups and group2 in groups:
+                for obj1 in groups[group1]:
+                    # 扩大查询范围以确保检测到所有可能的碰撞
+                    query_range = GameObject(
+                        obj1.x, obj1.y, 
+                        CollisionShape.AABB, 
+                        max(obj1.radius, 20)  # 查询半径
+                    )
+                    
+                    potential_collisions = self.quadtree.query(query_range)
+                    
+                    for obj2 in potential_collisions:
+                        if (obj1 != obj2 and obj1.id < obj2.id and 
+                            obj1.group == group1 and obj2.group == group2 and
+                            self._should_check_collision(obj1, obj2)):
+                            
+                            if self._check_collision(obj1, obj2):
+                                self.collision_pairs.append((obj1, obj2))
+                                
+    def _get_potential_collision_groups(self, groups):
+        """获取可能碰撞的组对"""
+        potential_pairs = []
+        
+        # 预定义可能碰撞的组对
+        collision_rules = {
+            "player": ["asteroid", "enemy"],
+            "bullet": ["enemy", "asteroid"],
+            "enemy": ["player", "bullet"],
+            "asteroid": ["player", "bullet"]
+        }
+        
+        for group1 in groups:
+            if group1 in collision_rules:
+                for group2 in collision_rules[group1]:
+                    if group2 in groups:
+                        # 避免重复添加组对
+                        pair = tuple(sorted([group1, group2]))
+                        if pair not in potential_pairs:
+                            potential_pairs.append(pair)
+                            
+        return potential_pairs
+        
+    def _should_check_collision(self, obj1, obj2):
+        """检查是否应该检测两个物体的碰撞"""
+        return (obj1.layer_mask & obj2.group) != 0 or (obj2.layer_mask & obj1.group) != 0
+        
+    def _check_collision(self, obj1, obj2):
+        """检测两个物体是否碰撞"""
+        # 先进行AABB检测
+        if not self._aabb_collision(obj1.boundary, obj2.boundary):
+            return False
+            
+        # 根据形状进行精确检测
+        if obj1.shape == CollisionShape.CIRCLE and obj2.shape == CollisionShape.CIRCLE:
+            return self._circle_collision(obj1, obj2)
+        elif obj1.shape == CollisionShape.AABB and obj2.shape == CollisionShape.AABB:
+            return True  # AABB已经检测过
+        else:
+            # 混合形状检测
+            return self._mixed_collision(obj1, obj2)
+            
+    def _aabb_collision(self, rect1, rect2):
+        """检测两个AABB是否碰撞"""
+        return (rect1['x'] < rect2['x'] + rect2['width'] and
+                rect1['x'] + rect1['width'] > rect2['x'] and
+                rect1['y'] < rect2['y'] + rect2['height'] and
+                rect1['y'] + rect1['height'] > rect2['y'])
+                
+    def _circle_collision(self, obj1, obj2):
+        """检测两个圆形物体是否碰撞"""
+        dx = obj1.x - obj2.x
+        dy = obj1.y - obj2.y
+        distance = math.sqrt(dx*dx + dy*dy)
+        return distance < (obj1.radius + obj2.radius)
+        
+    def _mixed_collision(self, obj1, obj2):
+        """混合形状碰撞检测"""
+        # 简化实现：使用圆形近似
+        dx = obj1.x - obj2.x
+        dy = obj1.y - obj2.y
+        distance = math.sqrt(dx*dx + dy*dy)
+        
+        # 使用两个物体中较大的半径作为近似
+        max_radius = max(obj1.radius, obj2.radius)
+        return distance < max_radius * 1.5  # 1.5是经验系数
+        
+    def get_collisions(self):
+        """获取所有碰撞对"""
+        return self.collision_pairs

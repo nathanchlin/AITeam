@@ -1,0 +1,14 @@
+{
+  "title": "俄罗斯方块对战游戏开发计划",
+  "original_request": "俄罗斯方块对战游戏，对手有自己的AI",
+  "discussion": [
+    {
+      "id": "bc30605d-7020-4903-a978-aeb148820822",
+      "plan_id": "0f2bcf4c-8eaf-4545-9bf7-898fe94db06c",
+      "agent_id": "79cff4c9-ef9f-4168-8c71-7fab711763c7",
+      "agent_name": "Coordinator",
+      "agent_type": "assistant",
+      "content": "我来分析一下需求：俄罗斯方块对战游戏，对手有自己的AI",
+      "message_type": "comment",
+      "reply_to": null,
+      "timestamp": 

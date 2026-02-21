@@ -1,0 +1,15 @@
+Backend (Node.js)
+├── Game Server
+│   ├── 房间管理
+│   ├── 玩家匹配
+│   └── 游戏状态同步
+├── Logic Engine
+│   ├── 游戏规则验证
+│   ├── 行消除逻辑
+│   └── 攻击生成
+├── AI Service
+│   ├── AI决策
+│   └── 难度调节
+└── Data Layer
+    ├── Redis (会话存储)
+    └── MongoDB (玩家数据)

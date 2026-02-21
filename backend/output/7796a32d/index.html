@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>是男人就下100层</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .game-container {
+            width: 800px;
+            background-color: #34495e;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+        }
+
+        .game-header {
+            background-color: #2c3e50;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #1a252f;
+        }
+
+        .game-header h1 {
+            font-size: 24px;
+            color: #e74c3c;
+        }
+
+        .game-stats {
+            display: flex;
+            gap: 20px;
+        }
+
+        .game-stats div {
+            font-size: 16px;
+        }
+
+        #gameCanvas {
+            display: block;
+            background-color: #ecf0f1;
+            margin: 0 auto;
+        }
+
+        .game-controls {
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            background-color: #2c3e50;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-header">
+            <h1>是男人就下100层</h1>
+            <div class="game-stats">
+                <div>得分: <span id="score">0</span></div>
+                <div>楼层: <span id="floor">1</span></div>
+                <div>生命: <span id="lives">3</span></div>
+            </div>
+        </div>
+        <canvas id="gameCanvas"></canvas>
+        <div class="game-controls">
+            <button id="startBtn">开始游戏</button>
+            <button id="pauseBtn">暂停</button>
+            <button id="restartBtn">重新开始</button>
+        </div>
+    </div>
+
+    <script>
+        // ============== 工具函数 ==============
+        const Utils = {
+            random: (min, max) => Math.random() * (max - min) + min,
+            randomInt: (min, max) => Math.floor(Math.random() * (max - min + 1)) + min,
+            clamp: (value, min, max) => Math.min(Math.max(value, min), max)
+        };
+
+        // ============== 玩家类 ==============
+        class Player {
+            constructor(x, y, width, height) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.velocityX = 0;
+                this.velocityY = 0;
+                this.speed = 5;
+                this.jumpPower = 15;
+                this.gravity = 0.8;
+                this.isJumping = false;
+                this.lives = 3;
+                this.score = 0;
+                this.color = '#e74c3c';
+            }
+
+            update() {
+                this.velocityY += this.gravity;
+                this.x += this.velocityX;
+                this.y += this.velocityY;
+                this.velocityX *= 0.9;
+            }
+
+            jump() {
+                if (!this.isJumping) {
+                    this.velocityY = -this.jumpPower;
+                    this.isJumping = true;
+                }
+            }
+
+            moveLeft() {
+                this.velocityX = -this.speed;
+            }
+
+            moveRight() {
+                this.velocityX = this.speed;
+            }
+
+            draw(ctx) {
+                // 绘制玩家身体
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                // 绘制眼睛
+                ctx.fillStyle = 'white';
+                ctx.fillRect(this.x + 8, this.y + 10, 8, 8);
+                ctx.fillRect(this.x + this.width - 16, this.y + 10, 8, 8);
+
+                // 绘制瞳孔
+                ctx.fillStyle = 'black';
+                ctx.fillRect(this.x + 12, this.y + 12, 4, 4);
+                ctx.fillRect(this.x + this.width - 12, this.y + 12, 4, 4);
+            }
+
+            onPlatform(platform) {
+                return this.y + this.height >= platform.y &&
+                       this.y + this.height <= platform.y + 15 &&
+                       this.x + this.width > platform.x &&
+                       this.x < platform.x + platform.width &&
+                       this.velocityY >= 0;
+            }
+        }
+
+        // ============== 平台类 ==============
+        class Platform {
+            constructor(x, y, width, height, type = 'normal') {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.type = type;
+                this.color = this.getColorByType();
+                this.passed = false;
+                this.moveDirection = 1;
+                this.moveSpeed = 2;
+                this.originalX = x;
+            }
+
+            getColorByType() {
+                switch (this.type) {
+                    case 'normal': return '#2ecc71';
+                    case 'moving': return '#3498db';
+                    case 'breakable': return '#f39c12';
+                    case 'danger': return '#e74c3c';
+                    default: return '#2ecc71';
+                }
+            }
+
+            update(gameWidth) {
+                if (this.type === 'moving') {
+                    this.x += this.moveSpeed * this.moveDirection;
+                    if (this.x <= 0 || this.x + this.width >= gameWidth) {
+                        this.moveDirection *= -1;
+                    }
+                }
+            }
+
+            draw(ctx) {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                // 添加高光效果
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.fillRect(this.x, this.y, this.width, 5);
+
+                // 添加阴影效果
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                ctx.fillRect(this.x, this.y + this.height - 5, this.width, 5);
+            }
+        }
+
+        // ============== 游戏主类 ==============
+        class Game {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.width = canvas.width;
+                this.height = canvas.height;
+
+                this.player = null;
+                this.platforms = [];
+                this.camera = { y: 0 };
+                this.gameState = 'menu';
+                this.score = 0;
+                this.floor = 1;
+                this.maxFloor = 1;
+                this.keys = {};
+
+                this.init();
+            }
+
+            init() {
+                this.player = new Player(this.width / 2 - 25, this.height - 100, 50, 50);
+                this.platforms = [];
+                this.camera = { y: 0 };
+                this.score = 0;
+                this.floor = 1;
+                this.maxFloor = 1;
+
+                this.createInitialPlatforms();
+                this.setupEventListeners();
+                this.updateUI();
+            }
+
+            createInitialPlatforms() {
+                // 起始平台（宽大稳定）
+                this.platforms.push(new Platform(
+                    this.width / 2 - 100,
+                    this.height - 50,
+                    200,
+                    20
+                ));
+
+                // 生成初始平台
+                for (let i = 1; i < 20; i++) {
+                    this.createPlatform(this.height - 50 - i * 80);
+                }
+            }
+
+            createPlatform(y) {
+                const platformWidth = Utils.randomInt(80, 150);
+                const platformX = Utils.randomInt(0, this.width - platformWidth);
+
+                // 随机平台类型
+                let platformType = 'normal';
+                const rand = Math.random();
+                if (rand < 0.1) {
+                    platformType = 'moving';
+                } else if (rand < 0.15) {
+                    platformType = 'breakable';
+                }
+
+                this.platforms.push(new Platform(platformX, y, platformWidth, 20, platformType));
+            }
+
+            setupEventListeners() {
+                window.addEventListener('keydown', (e) => {
+                    this.keys[e.key] = true;
+                    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+                        e.preventDefault();
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.key] = false;
+                });
+            }
+
+            handleInput() {
+                if (this.gameState !== 'playing') return;
+
+                if (this.keys['ArrowLeft'] || this.keys['a']) {
+                    this.player.moveLeft();
+                }
+                if (this.keys['ArrowRight'] || this.keys['d']) {
+                    this.player.moveRight();
+                }
+                if (this.keys[' '] || this.keys['ArrowUp'] || this.keys['w']) {
+                    this.player.jump();
+                }
+            }
+
+            update() {
+                if (this.gameState !== 'playing') return;
+
+                this.handleInput();
+                this.player.update();
+
+                // 边界检测（左右穿越）
+                if (this.player.x + this.player.width < 0) {
+                    this.player.x = this.width;
+                }
+                if (this.player.x > this.width) {
+                    this.player.x = -this.player.width;
+                }
+
+                // 平台碰撞检测
+                let onPlatform = false;
+                for (let platform of this.platforms) {
+                    platform.update(this.width);
+
+                    if (this.player.onPlatform(platform)) {
+                        if (platform.type === 'breakable') {
+                            platform.passed = true;
+                        } else {
+                            this.player.y = platform.y - this.player.height;
+                            this.player.velocityY = 0;
+                            this.player.isJumping = false;
+                            onPlatform = true;
+
+                            // 计分
+                            if (!platform.passed) {
+                                platform.passed = true;
+                                this.score += 10;
+                                this.floor = Math.max(this.floor, Math.floor((this.height - this.player.y + this.camera.y) / 80));
+                                if (this.floor > this.maxFloor) {
+                                    this.maxFloor = this.floor;
+                                    this.score += 50; // 新楼层奖励
+                                }
+                                this.updateUI();
+                            }
+                        }
+                    }
+                }
+
+                // 移除已踩碎的平台
+                this.platforms = this.platforms.filter(p => !p.passed || p.type !== 'breakable');
+
+                // 更新相机位置
+                const targetCameraY = this.height / 2 - this.player.y;
+                if (targetCameraY > this.camera.y) {
+                    this.camera.y += (targetCameraY - this.camera.y) * 0.1;
+                }
+
+                // 移除屏幕外的平台
+                this.platforms = this.platforms.filter(platform => {
+                    return platform.y - this.camera.y < this.height + 100;
+                });
+
+                // 生成新平台
+                const highestPlatform = Math.min(...this.platforms.map(p => p.y));
+                if (highestPlatform > this.camera.y - 200) {
+                    for (let i = 0; i < 5; i++) {
+                        this.createPlatform(highestPlatform - (i + 1) * 80);
+                    }
+                }
+
+                // 检测游戏结束
+                if (this.player.y - this.camera.y > this.height) {
+                    this.gameOver();
+                }
+
+                // 更新楼层显示
+                this.floor = Math.max(1, Math.floor((this.camera.y + this.height / 2) / 80) + 1);
+                document.getElementById('floor').textContent = this.floor;
+            }
+
+            draw() {
+                // 清空画布
+                this.ctx.fillStyle = '#ecf0f1';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+
+                // 绘制背景网格
+                this.ctx.strokeStyle = '#ddd';
+                this.ctx.lineWidth = 1;
+                for (let i = 0; i < this.width; i += 50) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(i, 0);
+                    this.ctx.lineTo(i, this.height);
+                    this.ctx.stroke();
+                }
+
+                // 保存状态并应用相机变换
+                this.ctx.save();
+                this.ctx.translate(0, this.camera.y);
+
+                // 绘制平台
+                for (let platform of this.platforms) {
+                    platform.draw(this.ctx);
+                }
+
+                // 绘制玩家
+                this.player.draw(this.ctx);
+
+                // 恢复状态
+                this.ctx.restore();
+
+                // 绘制UI覆盖层
+                this.drawUI();
+            }
+
+            drawUI() {
+                if (this.gameState === 'menu') {
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                    this.ctx.fillRect(0, 0, this.width, this.height);
+
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = 'bold 48px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('是男人就下100层', this.width / 2, this.height / 2 - 50);
+
+                    this.ctx.font = '24px Arial';
+                    this.ctx.fillText('点击 "开始游戏" 按钮开始', this.width / 2, this.height / 2 + 20);
+
+                    this.ctx.font = '18px Arial';
+                    this.ctx.fillStyle = '#3498db';
+                    this.ctx.fillText('← → 移动 | 空格/↑ 跳跃', this.width / 2, this.height / 2 + 60);
+                } else if (this.gameState === 'paused') {
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                    this.ctx.fillRect(0, 0, this.width, this.height);
+
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = 'bold 48px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('游戏暂停', this.width / 2, this.height / 2);
+                } else if (this.gameState === 'gameover') {
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                    this.ctx.fillRect(0, 0, this.width, this.height);
+
+                    this.ctx.fillStyle = '#e74c3c';
+                    this.ctx.font = 'bold 48px Arial';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText('游戏结束', this.width / 2, this.height / 2 - 80);
+
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = '28px Arial';
+                    this.ctx.fillText(`最终得分: ${this.score}`, this.width / 2, this.height / 2 - 20);
+                    this.ctx.fillText(`到达楼层: ${this.maxFloor}`, this.width / 2, this.height / 2 + 20);
+
+                    this.ctx.font = '20px Arial';
+                    this.ctx.fillStyle = '#3498db';
+                    this.ctx.fillText('点击 "重新开始" 按钮再试一次', this.width / 2, this.height / 2 + 70);
+                }
+            }
+
+            updateUI() {
+                document.getElementById('score').textContent = this.score;
+                document.getElementById('lives').textContent = this.player.lives;
+                document.getElementById('floor').textContent = this.floor;
+            }
+
+            start() {
+                if (this.gameState === 'menu' || this.gameState === 'gameover') {
+                    this.gameState = 'playing';
+                }
+            }
+
+            pause() {
+                if (this.gameState === 'playing') {
+                    this.gameState = 'paused';
+                } else if (this.gameState === 'paused') {
+                    this.gameState = 'playing';
+                }
+            }
+
+            restart() {
+                this.gameState = 'menu';
+                this.init();
+            }
+
+            gameOver() {
+                this.player.lives--;
+                this.updateUI();
+
+                if (this.player.lives <= 0) {
+                    this.gameState = 'gameover';
+                } else {
+                    // 重置玩家位置
+                    this.player.x = this.width / 2 - 25;
+                    this.player.y = this.height - 100;
+                    this.player.velocityX = 0;
+                    this.player.velocityY = 0;
+                    this.player.isJumping = false;
+                    this.camera.y = 0;
+                }
+            }
+
+            gameLoop() {
+                this.update();
+                this.draw();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+        }
+
+        // ============== 启动游戏 ==============
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('gameCanvas');
+            canvas.width = 800;
+            canvas.height = 600;
+
+            const game = new Game(canvas);
+
+            document.getElementById('startBtn').addEventListener('click', () => game.start());
+            document.getElementById('pauseBtn').addEventListener('click', () => game.pause());
+            document.getElementById('restartBtn').addEventListener('click', () => game.restart());
+
+            game.gameLoop();
+        });
+    </script>
+</body>
+</html>

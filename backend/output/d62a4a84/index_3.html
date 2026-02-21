@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>球球大作战 - UI与动画效果</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #menu {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background-color: rgba(255, 255, 255, 0.7);
+    padding: 10px;
+    border-radius: 5px;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+  }
+  #score {
+    font-size: 20px;
+    font-weight: bold;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="menu">
+  <div id="score">Score: 0</div>
+  <button id="startButton">Start Game</button>
+</div>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  // 游戏地图
+  const map = {
+    width: canvas.width,
+    height: canvas.height
+  };
+
+  // 玩家角色
+  class Player {
+    constructor(id, color) {
+      this.id = id;
+      this.x = Math.random() * (map.width - 20) + 10;
+      this.y = Math.random() * (map.height - 20) + 10;
+      this.size = 20;
+      this.color = color;
+      this.speed = 5;
+    }
+
+    draw() {
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    move(dx, dy) {
+      this.x += dx;
+      this.y += dy;
+      this.checkBounds();
+    }
+
+    checkBounds() {
+      if (this.x - this.size < 0) this.x = this.size;
+      if (this.x + this.size > map.width) this.x = map.width - this.size;
+      if (this.y - this.size < 0) this.y = this.size;
+      if (this.y + this.size > map.height) this.y = map.height - this.size;
+    }
+  }
+
+  // 碰撞检测
+  function checkCollision(player1, player2) {
+    const dx = player2.x - player1.x;
+    const dy = player2.y - player1.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    return distance < (player1.size + player2.size) / 2;
+  }
+
+  // 得分系统
+  let score = 0;
+  function increaseScore() {
+    score += 10;
+    document.getElementById('score').innerText = `Score: ${score}`;
+  }
+
+  // 初始化玩家
+  let players = [];
+  let gameStarted = false;
+
+  function startGame() {
+    gameStarted = true;
+    for (let i = 0; i < 5; i++) {
+      players.push(new Player(i, `rgb(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255})`));
+    }
+    document.getElementById('startButton').style.display = 'none';
+  }
+
+  function gameLoop() {
+    if (!gameStarted) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    players.forEach(player => {
+      player.draw();
+      player.move(Math.random() * -10 + 5, Math.random() * -10 + 5);
+    });
+
+    // 玩家之间的碰撞检测
+    for (let i = 0; i < players.length; i++) {
+      for (let j = i + 1; j < players.length; j++) {
+        if (checkCollision(players[i], players[j])) {
+          // 碰撞后交换颜色
+          const tempColor = players[i].color;
+          players[i].color = players[j].color;
+          players[j].color = tempColor;
+          increaseScore();
+        }
+      }
+    }
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  window.onload = function() {
+    document.getElementById('startButton').addEventListener('click', startGame);
+    gameLoop();
+  };
+
+  document.addEventListener('keydown', function(event) {
+    if (!gameStarted) return;
+    const dx = event.key === 'ArrowRight' ? players[0].speed : event.key === 'ArrowLeft' ? -players[0].speed : 0;
+    const dy = event.key === 'ArrowUp' ? -players[0].speed : event.key === 'ArrowDown' ? players[0].speed : 0;
+    players[0].move(dx, dy);
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+    "test_type": "string",
+    "success_rate": 95.5,
+    "avg_response_time": 250,
+    "total_tests": 100,
+    "error_count": 5
+}

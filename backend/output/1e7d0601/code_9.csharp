@@ -1,0 +1,24 @@
+public abstract class GameEntity {
+    public string Id { get; protected set; }
+    public Vector2 Position { get; set; }
+    public Vector2 Velocity { get; set; }
+    public float Rotation { get; set; }
+    public bool IsActive { get; set; }
+    
+    private List<IComponent> components = new List<IComponent>();
+    
+    public void AddComponent(IComponent component) {
+        components.Add(component);
+        component.Initialize(this);
+    }
+    
+    public T GetComponent<T>() where T : IComponent {
+        return components.OfType<T>().FirstOrDefault();
+    }
+    
+    public virtual void Update(float deltaTime) {
+        foreach (var component in components) {
+            component.Update(deltaTime);
+        }
+    }
+}

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>火柴人跑酷游戏</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        
+        #gameContainer {
+            position: relative;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background-color: #87CEEB;
+        }
+        
+        #score {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            font-size: 16px;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.7);
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <div id="score">得分: 0</div>
+        <div id="instructions">按空格键跳跃</div>
+    </div>
+
+    <script>
+        // 游戏配置
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        
+        // 游戏状态
+        let gameRunning = true;
+        let score = 0;
+        let gameSpeed = 5;
+        let backgroundOffset = 0;
+        
+        // 火柴人对象
+        const stickman = {
+            x: 100,
+            y: 250,
+            width: 30,
+            height: 60,
+            velocityY: 0,
+            jumping: false,
+            jumpPower: 15,
+            gravity: 0.8,
+            groundY: 250
+        };
+        
+        // 障碍物数组
+        let obstacles = [];
+        
+        // 背景元素（云朵）
+        let clouds = [];
+        
+        // 初始化云朵
+        function initClouds() {
+            for (let i = 0; i < 5; i++) {
+                clouds.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * 150,
+                    width: 80 + Math.random() * 40,
+                    height: 40 + Math.random() * 20,
+                    speed: 0.5 + Math.random() * 1
+                });
+            }
+        }
+        
+        // 绘制背景（天空和地面）
+        function drawBackground() {
+            // 天空渐变
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#87CEEB');
+            gradient.addColorStop(1, '#E0F7FA');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制云朵
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            clouds.forEach(cloud => {
+                ctx.beginPath();
+                ctx.arc(cloud.x, cloud.y, cloud.width * 0.3, 0, Math.PI * 2);
+                ctx.arc(cloud.x + cloud.width * 0.3, cloud.y, cloud.width * 0.4, 0, Math.PI * 2);
+                ctx.arc(cloud.x + cloud.width * 0.6, cloud.y, cloud.width * 0.3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            
+            // 绘制地面
+            ctx.fillStyle = '#8BC34A';
+            ctx.fillRect(0, stickman.groundY + stickman.height, canvas.width, canvas.height - stickman.groundY - stickman.height);
+            
+            // 绘制地面纹理
+            ctx.strokeStyle = '#689F38';
+            ctx.lineWidth = 2;
+            for (let i = backgroundOffset % 40; i < canvas.width; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(i, stickman.groundY + stickman.height);
+                ctx.lineTo(i + 20, stickman.groundY + stickman.height + 10);
+                ctx.stroke();
+            }
+        }
+        
+        // 更新背景位置
+        function updateBackground() {
+            // 更新云朵位置
+            clouds.forEach(cloud => {
+                cloud.x -= cloud.speed;
+                if (cloud.x + cloud.width < 0) {
+                    cloud.x = canvas.width + Math.random() * 200;
+                    cloud.y = Math.random() * 150;
+                }
+            });
+            
+            // 更新地面纹理偏移
+            backgroundOffset += gameSpeed;
+        }
+        
+        // 绘制火柴人
+        function drawStickman() {
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            
+            // 头部
+            ctx.beginPath();
+            ctx.arc(stickman.x + stickman.width / 2, stickman.y + 15, 10, 0, Math.PI * 2);
+            ctx.stroke();
+            
+            // 身体
+            ctx.beginPath();
+            ctx.moveTo(stickman.x + stickman.width / 2, stickman.y + 25);
+            ctx.lineTo(stickman.x + stickman.width / 2, stickman.y + stickman.height - 20);
+            ctx.stroke();
+            
+            // 手臂
+            ctx.beginPath();
+            ctx.moveTo(stickman.x + stickman.width / 2, stickman.y + 35);
+            ctx.lineTo(stickman.x, stickman.y + 45);
+            ctx.moveTo(stickman.x + stickman.width / 2, stickman.y + 35);
+            ctx.lineTo(stickman.x + stickman.width, stickman.y + 45);
+            ctx.stroke();
+            
+            // 腿部（跑步动画）
+            const legOffset = Math.sin(Date.now() / 100) * 10;
+            ctx.beginPath();
+            ctx.moveTo(stickman.x + stickman.width / 2, stickman.y + stickman.height - 20);
+            ctx.lineTo(stickman.x + stickman.width / 2 - 10, stickman.y + stickman.height + legOffset);
+            ctx.moveTo(stickman.x + stickman.width / 2, stickman.y + stickman.height - 20);
+            ctx.lineTo(stickman.x + stickman.width / 2 + 10, stickman.y + stickman.height - legOffset);
+            ctx.stroke();
+        }
+        
+        // 更新火柴人位置
+        function updateStickman() {
+            // 应用重力
+            stickman.velocityY += stickman.gravity;
+            stickman.y += stickman.velocityY;
+            
+            // 检查是否着地
+            if (stickman.y > stickman.groundY) {
+                stickman.y = stickman.groundY;
+                stickman.velocityY = 0;
+                stickman.jumping = false;
+            }
+        }
+        
+        // 跳跃功能
+        function jump() {
+            if (!stickman.jumping) {
+                stickman.velocityY = -stickman.jumpPower;
+                stickman.jumping = true;
+            }
+        }
+        
+        // 创建障碍物
+        function createObstacle() {
+            obstacles.push({
+                x: canvas.width,
+                y: stickman.groundY + stickman.height - 30,
+                width: 20,
+                height: 30,
+                speed: gameSpeed
+            });
+        }
+        
+        // 绘制障碍物
+        function drawObstacles() {
+            ctx.fillStyle = '#F44336';
+            obstacles.forEach(obstacle => {
+                ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+                
+                // 添加障碍物细节
+                ctx.fillStyle = '#D32F2F';
+                ctx.fillRect(obstacle.x + 5, obstacle.y + 5, obstacle.width - 10, 10);
+                ctx.fillStyle = '#F44336';
+            });
+        }
+        
+        // 更新障碍物位置
+        function updateObstacles() {
+            obstacles.forEach((obstacle, index) => {
+                obstacle.x -= obstacle.speed;
+                
+                // 移除屏幕外的障碍物
+                if (obstacle.x + obstacle.width < 0) {
+                    obstacles.splice(index, 1);
+                    score += 10;
+                    scoreElement.textContent = `得分: ${score}`;
+                    
+                    // 增加游戏速度
+                    if (score % 100 === 0) {
+                        gameSpeed += 0.5;
+                    }
+                }
+            });
+            
+            // 随机生成新障碍物
+            if (Math.random() < 0.01) {
+                createObstacle();
+            }
+        }
+        
+        // 碰撞检测
+        function checkCollisions() {
+            obstacles.forEach(obstacle => {
+                if (
+                    stickman.x < obstacle.x + obstacle.width &&
+                    stickman.x + stickman.width > obstacle.x &&
+                    stickman.y < obstacle.y + obstacle.height &&
+                    stickman.y + stickman.height > obstacle.y
+                ) {
+                    gameRunning = false;
+                }
+            });
+        }
+        
+        // 游戏结束
+        function gameOver() {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = 'white';
+            ctx.font = '48px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('游戏结束', canvas.width / 2, canvas.height / 2 - 30);
+            
+            ctx.font = '24px Arial';
+            ctx.fillText(`最终得分: ${score}`, canvas.width / 2, canvas.height / 2 + 20);
+            
+            ctx.font = '20px Arial';
+            ctx.fillText('按空格键重新开始', canvas.width / 2, canvas.height / 2 + 60);
+        }
+        
+        // 重置游戏
+        function resetGame() {
+            gameRunning = true;
+            score = 0;
+            gameSpeed = 5;
+            backgroundOffset = 0;
+            obstacles = [];
+            stickman.y = stickman.groundY;
+            stickman.velocityY = 0;
+            stickman.jumping = false;
+            scoreElement.textContent = `得分: ${score}`;
+        }
+        
+        // 游戏主循环
+        function gameLoop() {
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制背景
+            drawBackground();
+            
+            // 更新背景
+            updateBackground();
+            
+            if (gameRunning) {
+                // 更新火柴人
+                updateStickman();
+                
+                // 更新障碍物
+                updateObstacles();
+                
+                // 检测碰撞
+                checkCollisions();
+            }
+            
+            // 绘制火柴人
+            drawStickman();
+            
+            // 绘制障碍物
+            drawObstacles();
+            
+            // 游戏结束画面
+            if (!gameRunning) {
+                gameOver();
+            }
+            
+            // 继续循环
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // 事件监听
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (gameRunning) {
+                    jump();
+                } else {
+                    resetGame();
+                }
+            }
+        });
+        
+        // 初始化游戏
+        function init() {
+            initClouds();
+            gameLoop();
+        }
+        
+        // 启动游戏
+        window.onload = init;
+    </script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+snake-game/
+├── index.html          # 游戏主页面
+├── css/
+│   └── style.css       # 游戏样式
+├── js/
+│   ├── game.js         # 游戏逻辑
+│   └── controls.js     # 控制逻辑
+├── assets/
+│   ├── snake.png       # 蛇的图像资源
+│   └── food.png        # 食物图像资源
+└── README.md           # 游戏说明文档

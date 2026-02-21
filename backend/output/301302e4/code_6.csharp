@@ -1,0 +1,49 @@
+public class GameManager : MonoBehaviour
+{
+    private ScoreSystem scoreSystem;
+    private StarRatingSystem starSystem;
+    private AchievementSystem achievementSystem;
+    private GameProgress progress;
+    private GameEventManager eventManager;
+    
+    private void Awake()
+    {
+        // 初始化系统
+        progress = SaveSystem.LoadGameProgress();
+        
+        scoreSystem = new ScoreSystem();
+        starSystem = new StarRatingSystem();
+        achievementSystem = new AchievementSystem(progress);
+        eventManager = new GameEventManager(scoreSystem, achievementSystem, progress);
+        
+        // 设置游戏事件监听
+        SetupGameEventListeners();
+    }
+    
+    private void SetupGameEventListeners()
+    {
+        // 示例：监听游戏事件
+        // 这里应该根据您的游戏引擎设置具体的事件监听
+        // 例如在Unity中可以使用UnityEvent或自定义事件系统
+    }
+    
+    private void Update()
+    {
+        scoreSystem.Update(Time.deltaTime);
+    }
+    
+    public void OnLevelComplete(int finalScore, int pigsRemaining, int birdsUsed)
+    {
+        // 计算星级
+        int stars = starSystem.CalculateStars(finalScore, pigsRemaining, birdsUsed);
+        
+        // 更新进度
+        progress.CurrentLevel++;
+        
+        // 触发关卡完成事件
+        eventManager.OnLevelComplete(finalScore, stars, pigsRemaining == 0 && birdsUsed == 1);
+        
+        // 显示UI
+        FindObjectOfType<GameUI>().ShowStars(stars);
+    }
+}

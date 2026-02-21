@@ -1,0 +1,209 @@
+using UnityEngine;
+
+[RequireComponent(typeof(Rigidbody2D))]
+[RequireComponent(typeof(Animator))]
+[RequireComponent(typeof(SpriteRenderer))]
+public class NinjaController : MonoBehaviour
+{
+    [Header("Movement Settings")]
+    [SerializeField] private float moveSpeed = 5f;
+    [SerializeField] private float jumpForce = 10f;
+    [SerializeField] private float doubleJumpForce = 8f;
+    [SerializeField] private float slideSpeed = 8f;
+    [SerializeField] private float slideDuration = 1f;
+    
+    [Header("Ground Check")]
+    [SerializeField] private Transform groundCheck;
+    [SerializeField] private LayerMask groundLayer;
+    [SerializeField] private float groundCheckRadius = 0.2f;
+    
+    [Header("Visual Settings")]
+    [SerializeField] private Color ninjaColor = Color.green;
+    
+    private Rigidbody2D rb;
+    private Animator animator;
+    private SpriteRenderer spriteRenderer;
+    
+    private bool isGrounded;
+    private bool isSliding;
+    private bool canDoubleJump;
+    private bool facingRight = true;
+    
+    private float horizontalInput;
+    private float slideTimer;
+    
+    // Animation parameters
+    private readonly int isRunningParam = Animator.StringToHash("IsRunning");
+    private readonly int isJumpingParam = Animator.StringToHash("IsJumping");
+    private readonly int isSlidingParam = Animator.StringToHash("IsSliding");
+    private readonly int doubleJumpParam = Animator.StringToHash("DoubleJump");
+
+    private void Awake()
+    {
+        rb = GetComponent<Rigidbody2D>();
+        animator = GetComponent<Animator>();
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        
+        // 设置忍者颜色
+        spriteRenderer.color = ninjaColor;
+    }
+
+    private void Update()
+    {
+        // 获取输入
+        HandleInput();
+        
+        // 检查是否在地面上
+        CheckGrounded();
+        
+        // 更新动画参数
+        UpdateAnimations();
+        
+        // 处理滑行计时
+        HandleSliding();
+    }
+
+    private void FixedUpdate()
+    {
+        // 处理移动
+        HandleMovement();
+        
+        // 处理滑行物理
+        HandleSlidePhysics();
+    }
+
+    private void HandleInput()
+    {
+        // 水平移动输入
+        horizontalInput = Input.GetAxisRaw("Horizontal");
+        
+        // 跳跃输入
+        if (Input.GetButtonDown("Jump"))
+        {
+            HandleJump();
+        }
+        
+        // 滑行输入
+        if (Input.GetButtonDown("Fire1") && isGrounded && !isSliding)
+        {
+            StartSlide();
+        }
+    }
+
+    private void HandleMovement()
+    {
+        // 正常移动
+        if (!isSliding)
+        {
+            Vector2 velocity = rb.velocity;
+            velocity.x = horizontalInput * moveSpeed;
+            rb.velocity = velocity;
+        }
+        
+        // 翻转角色朝向
+        if (horizontalInput > 0 && !facingRight)
+        {
+            Flip();
+        }
+        else if (horizontalInput < 0 && facingRight)
+        {
+            Flip();
+        }
+    }
+
+    private void HandleJump()
+    {
+        if (isGrounded)
+        {
+            // 第一次跳跃
+            rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+            canDoubleJump = true;
+        }
+        else if (canDoubleJump)
+        {
+            // 二段跳
+            rb.velocity = new Vector2(rb.velocity.x, doubleJumpForce);
+            canDoubleJump = false;
+            animator.SetTrigger(doubleJumpParam);
+        }
+    }
+
+    private void StartSlide()
+    {
+        isSliding = true;
+        slideTimer = slideDuration;
+        animator.SetBool(isSlidingParam, true);
+    }
+
+    private void HandleSliding()
+    {
+        if (isSliding)
+        {
+            slideTimer -= Time.deltaTime;
+            if (slideTimer <= 0)
+            {
+                StopSlide();
+            }
+        }
+    }
+
+    private void HandleSlidePhysics()
+    {
+        if (isSliding)
+        {
+            // 滑行时降低碰撞箱高度
+            Vector2 velocity = rb.velocity;
+            velocity.x = horizontalInput * slideSpeed;
+            rb.velocity = velocity;
+            
+            // 这里可以添加调整碰撞箱高度的代码
+        }
+    }
+
+    private void StopSlide()
+    {
+        isSliding = false;
+        animator.SetBool(isSlidingParam, false);
+        
+        // 恢复碰撞箱高度
+        // 这里可以添加恢复碰撞箱高度的代码
+    }
+
+    private void CheckGrounded()
+    {
+        isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+        
+        // 如果落地，重置二段跳
+        if (isGrounded && rb.velocity.y <= 0)
+        {
+            canDoubleJump = false;
+        }
+    }
+
+    private void UpdateAnimations()
+    {
+        // 更新跑步动画
+        animator.SetBool(isRunningParam, Mathf.Abs(horizontalInput) > 0.1f && isGrounded && !isSliding);
+        
+        // 更新跳跃动画
+        animator.SetBool(isJumpingParam, !isGrounded && !isSliding);
+    }
+
+    private void Flip()
+    {
+        facingRight = !facingRight;
+        Vector3 scale = transform.localScale;
+        scale.x *= -1;
+        transform.localScale = scale;
+    }
+
+    // 用于在编辑器中可视化地面检测
+    private void OnDrawGizmos()
+    {
+        if (groundCheck != null)
+        {
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+        }
+    }
+}

@@ -1,0 +1,12 @@
+/* 原始代码 */
+.gem {
+  border-radius: 8px;
+}
+
+/* 修改后 */
+.gem {
+  border-radius: 8px;
+  -moz-transform: translateZ(0);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}

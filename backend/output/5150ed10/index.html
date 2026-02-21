@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>男人就要撑过100秒</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #111;
+            font-family: Arial, sans-serif;
+            color: white;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #fff;
+            background-color: #000;
+        }
+        
+        #gameUI {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 20px;
+            z-index: 10;
+        }
+        
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+        }
+        
+        #gameOverScreen h2 {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+        
+        #gameOverScreen p {
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+        
+        #restartButton {
+            padding: 10px 20px;
+            font-size: 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        #restartButton:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="gameUI">
+            <div>时间: <span id="timeDisplay">0</span>秒</div>
+            <div>生命: <span id="livesDisplay">3</span></div>
+        </div>
+        <div id="gameOverScreen">
+            <h2>游戏结束</h2>
+            <p>你撑过了 <span id="finalTime">0</span> 秒</p>
+            <button id="restartButton">重新开始</button>
+        </div>
+    </div>
+
+    <script>
+        // 游戏引擎类
+        class GameEngine {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                
+                // 游戏状态
+                this.isRunning = false;
+                this.gameTime = 0;
+                this.lives = 3;
+                this.score = 0;
+                
+                // 游戏对象
+                this.player = null;
+                this.obstacles = [];
+                this.powerUps = [];
+                this.particles = [];
+                
+                // 游戏配置
+                this.config = {
+                    obstacleSpeed: 5,
+                    obstacleSpawnRate: 60, // 每60帧生成一个障碍物
+                    frameCount: 0,
+                    difficultyIncreaseInterval: 300, // 每300帧增加难度
+                    initialObstacleSpeed: 5,
+                    maxObstacleSpeed: 15
+                };
+                
+                // 绑定主循环
+                this.lastTime = 0;
+                this.animationId = null;
+                
+                // 初始化游戏
+                this.init();
+            }
+            
+            // 初始化游戏
+            init() {
+                // 创建玩家（传入 engine 引用，避免使用未赋值的全局 gameEngine）
+                this.player = new Player(this, this.width / 2, this.height - 100);
+                
+                // 绑定事件
+                this.bindEvents();
+                
+                // 开始游戏
+                this.start();
+            }
+            
+            // 绑定事件
+            bindEvents() {
+                // 键盘事件
+                this.keys = {};
+                
+                window.addEventListener('keydown', (e) => {
+                    this.keys[e.key] = true;
+                });
+                
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.key] = false;
+                });
+                
+                // 鼠标事件
+                this.canvas.addEventListener('mousemove', (e) => {
+                    if (this.isRunning) {
+                        const rect = this.canvas.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        this.player.moveTo(x, y);
+                    }
+                });
+                
+                // 触摸事件（移动设备支持）
+                this.canvas.addEventListener('touchmove', (e) => {
+                    if (this.isRunning) {
+                        e.preventDefault();
+                        const rect = this.canvas.getBoundingClientRect();
+                        const touch = e.touches[0];
+                        const x = touch.clientX - rect.left;
+                        const y = touch.clientY - rect.top;
+                        this.player.moveTo(x, y);
+                    }
+                });
+                
+                // 重新开始按钮
+                document.getElementById('restartButton').addEventListener('click', () => {
+                    this.restart();
+                });
+            }
+            
+            // 开始游戏
+            start() {
+                this.isRunning = true;
+                this.gameLoop();
+            }
+            
+            // 游戏主循环
+            gameLoop(currentTime = 0) {
+                if (!this.isRunning) return;
+                
+                // 计算时间增量
+                const deltaTime = currentTime - this.lastTime;
+                this.lastTime = currentTime;
+                
+                // 更新游戏状态
+                this.update(deltaTime);
+                
+                // 渲染游戏
+                this.render();
+                
+                // 继续循环
+                this.animationId = requestAnimationFrame((time) => this.gameLoop(time));
+            }
+            
+            // 更新游戏状态
+            update(deltaTime) {
+                // 更新帧计数
+                this.config.frameCount++;
+                
+                // 更新游戏时间
+                this.gameTime += deltaTime / 1000;
+                document.getElementById('timeDisplay').textContent = Math.floor(this.gameTime);
+                
+                // 增加难度
+                if (this.config.frameCount % this.config.difficultyIncreaseInterval === 0) {
+                    this.increaseDifficulty();
+                }
+                
+                // 生成障碍物
+                if (this.config.frameCount % this.config.obstacleSpawnRate === 0) {
+                    this.spawnObstacle();
+                }
+                
+                // 更新玩家
+                this.player.update(this.keys);
+                
+                // 更新障碍物
+                this.updateObstacles();
+                
+                // 更新粒子效果
+                this.updateParticles();
+                
+                // 检测碰撞
+                this.checkCollisions();
+                
+                // 检查游戏结束条件
+                if (this.gameTime >= 100) {
+                    this.gameWin();
+                }
+            }
+            
+            // 渲染游戏
+            render() {
+                // 清空画布
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                
+                // 绘制背景
+                this.drawBackground();
+                
+                // 绘制玩家
+                this.player.draw(this.ctx);
+                
+                // 绘制障碍物
+                this.obstacles.forEach(obstacle => obstacle.draw(this.ctx));
+                
+                // 绘制道具
+                this.powerUps.forEach(powerUp => powerUp.draw(this.ctx));
+                
+                // 绘制粒子效果
+                this.particles.forEach(particle => particle.draw(this.ctx));
+            }
+            
+            // 绘制背景
+            drawBackground() {
+                // 创建星空背景效果
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+                
+                // 绘制星星
+                this.ctx.fillStyle = '#fff';
+                for (let i = 0; i < 50; i++) {
+                    const x = (i * 37) % this.width;
+                    const y = (i * 17 + this.config.frameCount * 0.1) % this.height;
+                    const size = (i % 3) + 1;
+                    this.ctx.fillRect(x, y, size, size);
+                }
+            }
+            
+            // 生成障碍物
+            spawnObstacle() {
+                const x = Math.random() * (this.width - 50);
+                const y = -50;
+                const width = 30 + Math.random() * 50;
+                const height = 30 + Math.random() * 50;
+                const speed = this.config.obstacleSpeed + Math.random() * 2;
+                
+                this.obstacles.push(new Obstacle(x, y, width, height, speed));
+            }
+            
+            // 更新障碍物
+            updateObstacles() {
+                // 更新位置
+                this.obstacles.forEach(obstacle => {
+                    obstacle.update();
+                });
+                
+                // 移除超出屏幕的障碍物
+                this.obstacles = this.obstacles.filter(obstacle => {
+                    if (obstacle.y > this.height) {
+                        // 障碍物成功躲避，增加分数
+                        this.score += 10;
+                        return false;
+                    }
+                    return true;
+                });
+            }
+            
+            // 更新粒子效果
+            updateParticles() {
+                // 更新粒子
+                this.particles.forEach(particle => {
+                    particle.update();
+                });
+                
+                // 移除消失的粒子
+                this.particles = this.particles.filter(particle => {
+                    return particle.life > 0;
+                });
+            }
+            
+            // 检测碰撞
+            checkCollisions() {
+                // 检测玩家与障碍物的碰撞
+                for (let i = 0; i < this.obstacles.length; i++) {
+                    const obstacle = this.obstacles[i];
+                    if (this.checkCollision(this.player, obstacle)) {
+                        // 创建碰撞粒子效果
+                        this.createExplosion(this.player.x, this.player.y);
+                        
+                        // 减少生命
+                        this.lives--;
+                        document.getElementById('livesDisplay').textContent = this.lives;
+                        
+                        // 移除障碍物
+                        this.obstacles.splice(i, 1);
+                        
+                        // 检查游戏结束
+                        if (this.lives <= 0) {
+                            this.gameOver();
+                        }
+                        
+                        break;
+                    }
+                }
+            }
+            
+            // 碰撞检测
+            checkCollision(obj1, obj2) {
+                return obj1.x < obj2.x + obj2.width &&
+                       obj1.x + obj1.width > obj2.x &&
+                       obj1.y < obj2.y + obj2.height &&
+                       obj1.y + obj1.height > obj2.y;
+            }
+            
+            // 创建爆炸效果
+            createExplosion(x, y) {
+                for (let i = 0; i < 20; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 5 + 2;
+                    const vx = Math.cos(angle) * speed;
+                    const vy = Math.sin(angle) * speed;
+                    
+                    this.particles.push(new Particle(x, y, vx, vy));
+                }
+            }
+            
+            // 增加难度
+            increaseDifficulty() {
+                // 增加障碍物速度
+                if (this.config.obstacleSpeed < this.config.maxObstacleSpeed) {
+                    this.config.obstacleSpeed += 0.5;
+                }
+                
+                // 增加障碍物生成频率
+                if (this.config.obstacleSpawnRate > 30) {
+                    this.config.obstacleSpawnRate -= 2;
+                }
+            }
+            
+            // 游戏结束
+            gameOver() {
+                this.isRunning = false;
+                document.getElementById('finalTime').textContent = Math.floor(this.gameTime);
+                document.getElementById('gameOverScreen').style.display = 'flex';
+            }
+            
+            // 游戏胜利
+            gameWin() {
+                this.isRunning = false;
+                document.getElementById('gameOverScreen').querySelector('h2').textContent = '恭喜你成功了！';
+                document.getElementById('finalTime').textContent = Math.floor(this.gameTime);
+                document.getElementById('gameOverScreen').style.display = 'flex';
+            }
+            
+            // 重新开始游戏
+            restart() {
+                // 重置游戏状态
+                this.isRunning = false;
+                this.gameTime = 0;
+                this.lives = 3;
+                this.score = 0;
+                this.config.frameCount = 0;
+                this.config.obstacleSpeed = this.config.initialObstacleSpeed;
+                this.config.obstacleSpawnRate = 60;
+                
+                // 清空游戏对象
+                this.obstacles = [];
+                this.powerUps = [];
+                this.particles = [];
+                
+                // 重置玩家位置
+                this.player.x = this.width / 2;
+                this.player.y = this.height - 100;
+                
+                // 更新UI
+                document.getElementById('timeDisplay').textContent = '0';
+                document.getElementById('livesDisplay').textContent = '3';
+                document.getElementById('gameOverScreen').style.display = 'none';
+                
+                // 开始游戏
+                this.start();
+            }
+        }
+        
+        // 玩家类
+        class Player {
+            constructor(engine, x, y) {
+                this.engine = engine;
+                this.x = x;
+                this.y = y;
+                this.width = 40;
+                this.height = 40;
+                this.speed = 5;
+            }
+            
+            update(keys) {
+                // 键盘控制移动
+                if (keys['ArrowLeft'] || keys['a']) {
+                    this.x -= this.speed;
+                }
+                if (keys['ArrowRight'] || keys['d']) {
+                    this.x += this.speed;
+                }
+                if (keys['ArrowUp'] || keys['w']) {
+                    this.y -= this.speed;
+                }
+                if (keys['ArrowDown'] || keys['s']) {
+                    this.y += this.speed;
+                }
+                
+                // 限制在画布内
+                this.x = Math.max(0, Math.min(this.engine.width - this.width, this.x));
+                this.y = Math.max(0, Math.min(this.engine.height - this.height, this.y));
+            }
+            
+            moveTo(x, y) {
+                // 鼠标/触摸控制移动
+                this.x = x - this.width / 2;
+                this.y = y - this.height / 2;
+                
+                // 限制在画布内
+                this.x = Math.max(0, Math.min(this.engine.width - this.width, this.x));
+                this.y = Math.max(0, Math.min(this.engine.height - this.height, this.y));
+            }
+            
+            draw(ctx) {
+                // 绘制玩家（简单的飞船形状）
+                ctx.fillStyle = '#0f0';
+                ctx.beginPath();
+                ctx.moveTo(this.x + this.width / 2, this.y);
+                ctx.lineTo(this.x, this.y + this.height);
+                ctx.lineTo(this.x + this.width, this.y + this.height);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 绘制引擎火焰
+                ctx.fillStyle = '#f90';
+                ctx.beginPath();
+                ctx.moveTo(this.x + this.width / 3, this.y + this.height);
+                ctx.lineTo(this.x + this.width / 2, this.y + this.height + 10);
+                ctx.lineTo(this.x + 2 * this.width / 3, this.y + this.height);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+        
+        // 障碍物类
+        class Obstacle {
+            constructor(x, y, width, height, speed) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.speed = speed;
+                this.rotation = 0;
+            }
+            
+            update() {
+                this.y += this.speed;
+                this.rotation += 0.05;
+            }
+            
+            draw(ctx) {
+                ctx.save();
+                ctx.translate(this.x + this.width / 2, this.y + this.height / 2);
+                ctx.rotate(this.rotation);
+                
+                // 绘制障碍物（陨石形状）
+                ctx.fillStyle = '#f00';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.width / 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 添加一些细节
+                ctx.fillStyle = '#800';
+                ctx.beginPath();
+                ctx.arc(-this.width / 4, -this.height / 4, this.width / 6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            }
+        }
+        
+        // 粒子类
+        class Particle {
+            constructor(x, y, vx, vy) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.life = 1.0;
+                this.decay = 0.02;
+                this.size = 3;
+            }
+            
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= this.decay;
+                this.size *= 0.98;
+            }
+            
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = '#f90';
+                ctx.fillRect(this.x, this.y, this.size, this.size);
+                ctx.restore();
+            }
+        }
+        
+        // 初始化游戏（使用 DOMContentLoaded 避免 onload 未触发或全局 gameEngine 未赋值时的时序问题）
+        let gameEngine;
+        function startGame() {
+            gameEngine = new GameEngine('gameCanvas');
+        }
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            startGame();
+        } else {
+            document.addEventListener('DOMContentLoaded', startGame);
+        }
+    </script>
+</body>
+</html>

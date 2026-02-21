@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>1942 Style Game</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #gameover {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 24px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="gameover">Game Over</div>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const gameover = document.getElementById('gameover');
+const scale = 2;
+canvas.width = 800 * scale;
+canvas.height = 600 * scale;
+canvas.style.width = `${canvas.width / scale}px`;
+canvas.style.height = `${canvas.height / scale}px`;
+
+class GameObject {
+  constructor(x, y, width, height, color) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.color = color;
+  }
+
+  draw() {
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+  }
+}
+
+class PlayerPlane extends GameObject {
+  constructor(x, y, width, height, color) {
+    super(x, y, width, height, color);
+    this.speed = 5;
+    this.shootInterval = 1000;
+    this.lastShotTime = 0;
+  }
+
+  update() {
+    if (keys['ArrowUp']) this.y -= this.speed;
+    if (keys['ArrowDown']) this.y += this.speed;
+    if (keys['ArrowLeft']) this.x -= this.speed;
+    if (keys['ArrowRight']) this.x += this.speed;
+    this.x = Math.max(0, Math.min(canvas.width - this.width, this.x));
+    this.y = Math.max(0, Math.min(canvas.height - this.height, this.y));
+  }
+
+  shoot() {
+    bullets.push(new Bullet(this.x + this.width / 2 - 2, this.y, 4, 'white'));
+    this.lastShotTime = Date.now();
+  }
+}
+
+class Bullet extends GameObject {
+  constructor(x, y, width, color) {
+    super(x, y, width, 2, color);
+    this.speed = -10;
+  }
+
+  update() {
+    this.y += this.speed;
+    if (this.y < 0) bullets.splice(bullets.indexOf(this), 1);
+  }
+}
+
+class EnemyPlane extends GameObject {
+  constructor(x, y, width, height, color) {
+    super(x, y, width, height, color);
+    this.speed = 1;
+    this.shootInterval = 3000;
+    this.lastShotTime = 0;
+  }
+
+  update() {
+    this.y += this.speed;
+    if (this.y > canvas.height) this.y = -this.height;
+    if (Date.now() - this.lastShotTime > this.shootInterval) {
+      enemies.push(new Bullet(this.x + this.width / 2 - 2, this.y + this.height, 4, 'red'));
+      this.lastShotTime = Date.now();
+    }
+  }
+}
+
+let player = new PlayerPlane(canvas.width / 4, canvas.height - 50, 30, 20, 'blue');
+let bullets = [];
+let enemies = [];
+let score = 0;
+let lives = 3;
+
+const keys = {};
+window.addEventListener('keydown', function(e) {
+  keys[e.key] = true;
+});
+
+window.addEventListener('keyup', function(e) {
+  keys[e.key] = false;
+});
+
+function gameLoop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  player.update();
+  player.draw();
+  for (let bullet of bullets) {
+    bullet.update();
+    bullet.draw();
+    for (let enemy of enemies) {
+      if (bullet.x < enemy.x + enemy.width &&
+          bullet.x + bullet.width > enemy.x &&
+          bullet.y < enemy.y + enemy.height &&
+          bullet.y + bullet.height > enemy.y) {
+        enemies.splice(enemies.indexOf(enemy), 1);
+        score += 10;
+      }
+    }
+  }
+  for (let enemy of enemies) {
+    enemy.update();
+    enemy.draw();
+    if (player.x < enemy.x + enemy.width &&
+        player.x + player.width > enemy.x &&
+        player.y < enemy.y + enemy.height &&
+        player.y + player.height > enemy.y) {
+      lives--;
+      if (lives <= 0) {
+        gameover.style.display = 'block';
+        cancelAnimationFrame(frameId);
+      }
+    }
+  }
+  ctx.fillText(`Score: ${score}`, 10, 30);
+  ctx.fillText(`Lives: ${lives}`, canvas.width - 80, 30);
+  frameId = requestAnimationFrame(gameLoop);
+}
+
+let frameId = requestAnimationFrame(gameLoop);
+
+window.addEventListener('keydown', function(e) {
+  if (e.key === ' ') {
+    player.shoot();
+  }
+});
+
+// Initialize game
+window.onload = function() {
+  gameLoop();
+};
+</script>
+</body>
+</html>

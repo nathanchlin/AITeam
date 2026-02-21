@@ -1,0 +1,14 @@
+1942-game/
+├── index.html          # 主HTML文件
+├── css/
+│   └── style.css       # 样式文件
+├── js/
+│   ├── engine.js       # 游戏引擎核心
+│   ├── game.js         # 游戏逻辑
+│   ├── player.js       # 玩家飞机
+│   ├── enemy.js        # 敌机
+│   ├── bullet.js       # 子弹系统
+│   └── input.js        # 输入处理
+└── assets/             # 游戏资源目录
+    ├── images/         # 图片资源
+    └── sounds/         # 音效资源

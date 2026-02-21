@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Mario</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background-color: #000;
+            border: 2px solid #fff;
+        }
+        
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #000;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        .loading-bar {
+            width: 300px;
+            height: 20px;
+            background-color: #444;
+            border: 1px solid #fff;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+        
+        .loading-progress {
+            height: 100%;
+            background-color: #ff6600;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        #fps-counter {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: #fff;
+            font-size: 14px;
+            z-index: 10;
+        }
+        
+        #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        #game-over-screen button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #ff6600;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        
+        #game-over-screen button:hover {
+            background-color: #ff8833;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="loading-screen">
+            <h1>Loading Super Mario...</h1>
+            <div class="loading-bar">
+                <div class="loading-progress" id="loading-progress"></div>
+            </div>
+            <p id="loading-text">0%</p>
+        </div>
+        <div id="fps-counter">FPS: 0</div>
+        <div id="game-over-screen">
+            <h1 id="game-over-title">Game Over</h1>
+            <p id="game-over-message">Your score: 0</p>
+            <button id="restart-button">Restart Game</button>
+        </div>
+    </div>
+
+    <!-- Phaser.js库引入 -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    
+    <script>
+        // 游戏配置
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            parent: 'game-container',
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 300 },
+                    debug: false
+                }
+            },
+            scene: {
+                preload: preload,
+                create: create,
+                update: update
+            }
+        };
+
+        // 创建游戏实例
+        const game = new Phaser.Game(config);
+    </script>
+    
+    <script>
+        // 游戏状态枚举
+        const GameState = {
+            MENU: 'menu',
+            PLAYING: 'playing',
+            PAUSED: 'paused',
+            GAME_OVER: 'game_over',
+            LEVEL_COMPLETE: 'level_complete'
+        };
+
+        // 玩家状态枚举
+        const PlayerState = {
+            STANDING: 'standing',
+            WALKING: 'walking',
+            JUMPING: 'jumping',
+            DEAD: 'dead'
+        };
+
+        // 游戏变量
+        let gameState = GameState.MENU;
+        let player;
+        let cursors;
+        let platforms;
+        let enemies;
+        let coins;
+        let stars;
+        let score = 0;
+        let lives = 3;
+        let currentLevel = 1;
+        let fpsText;
+        let lastTime = 0;
+        let frameCount = 0;
+        let fps = 0;
+
+        // 资源加载
+        function preload() {
+            // 显示加载进度
+            const loadingText = document.getElementById('loading-text');
+            const loadingProgress = document.getElementById('loading-progress');
+            
+            // 监听加载进度
+            this.load.on('progress', function (value) {
+                const percent = Math.round(value * 100);
+                loadingText.textContent = percent + '%';
+                loadingProgress.style.width = percent + '%';
+            });
+            
+            // 监听加载完成
+            this.load.on('complete', function () {
+                document.getElementById('loading-screen').style.display = 'none';
+            });
+            
+            // 加载精灵图集
+            this.load.atlas('mario', 'assets/mario.png', 'assets/mario.json');
+            this.load.atlas('enemies', 'assets/enemies.png', 'assets/enemies.json');
+            this.load.atlas('items', 'assets/items.png', 'assets/items.json');
+            
+            // 加载地图
+            this.load.tilemapTiledJSON('level1', 'assets/level1.json');
+            
+            // 加载音效
+            this.load.audio('jump', 'assets/sounds/jump.mp3');
+            this.load.audio('coin', 'assets/sounds/coin.mp3');
+            this.load.audio('die', 'assets/sounds/die.mp3');
+            this.load.audio('powerup', 'assets/sounds/powerup.mp3');
+            
+            // 模拟加载延迟，用于测试加载进度
+            setTimeout(() => {
+                console.log('All assets loaded');
+            }, 1000);
+        }
+
+        // 游戏创建
+        function create() {
+            // 设置背景
+            this.cameras.main.setBackgroundColor('#87CEEB'); // 天蓝色背景
+            
+            // 创建地图
+            const map = this.make.tilemap({ key: 'level1' });
+            const tileset = map.addTilesetImage('mario-tileset', 'mario-tiles');
+            
+            // 创建平台层
+            platforms = this.physics.add.staticGroup();
+            map.createStaticLayer('platforms', tileset, 0, 0).setCollisionByExclusion([-1]);
+            
+            // 创建玩家
+            player = this.physics.add.sprite(100, 450, 'mario');
+            player.setBounce(0.2);
+            player.setCollideWorldBounds(true);
+            player.body.setSize(16, 24);
+            player.body.setOffset(4, 8);
+            
+            // 创建动画
+            createAnimations(this);
+            
+            // 创建敌人
+            enemies = this.physics.add.group();
+            createEnemies(this, map);
+            
+            // 创建金币
+            coins = this.physics.add.group();
+            createCoins(this, map);
+            
+            // 创建星星
+            stars = this.physics.add.group();
+            createStars(this, map);
+            
+            // 设置碰撞检测
+            this.physics.add.collider(player, platforms);
+            this.physics.add.collider(enemies, platforms);
+            this.physics.add.collider(player, enemies, hitEnemy, null, this);
+            this.physics.add.collider(player, coins, collectCoin, null, this);
+            this.physics.add.collider(player, stars, collectStar, null, this);
+            
+            // 设置键盘控制
+            cursors = this.input.keyboard.createCursorKeys();
+            
+            // 添加FPS计数器
+            fpsText = this.add.text(10, 10, 'FPS: 0', { font: '16px Arial', fill: '#fff' });
+            
+            // 设置游戏状态
+            gameState = GameState.PLAYING;
+            
+            // 添加重启按钮事件
+            document.getElementById('restart-button').addEventListener('click', restartGame);
+        }
+
+        // 创建动画
+        function createAnimations(scene) {
+            // 站立动画
+            scene.anims.create({
+                key: 'stand',
+                frames: scene.anims.generateFrameNames('mario', {
+                    prefix: 'mario-',
+                    start: 0,
+                    end: 0
+                }),
+                frameRate: 10,
+                repeat: -1
+            });
+            
+            // 向右行走动画
+            scene.anims.create({
+                key: 'walk-right',
+                frames: scene.anims.generateFrameNames('mario', {
+                    prefix: 'mario-',
+                    start: 1,
+                    end: 3
+                }),
+                frameRate: 10,
+                repeat: -1
+            });
+            
+            // 向左行走动画
+            scene.anims.create({
+                key: 'walk-left',
+                frames: scene.anims.generateFrameNames('mario', {
+                    prefix: 'mario-',
+                    start: 5,
+                    end: 7
+                }),
+                frameRate: 10,
+                repeat: -1
+            });
+            
+            // 跳跃动画
+            scene.anims.create({
+                key: 'jump',
+                frames: scene.anims.generateFrameNames('mario', {
+                    prefix: 'mario-',
+                    start: 4,
+                    end: 4
+                }),
+                frameRate: 10,
+                repeat: -1
+            });
+            
+            // 死亡动画
+            scene.anims.create({
+                key: 'dead',
+                frames: scene.anims.generateFrameNames('mario', {
+                    prefix: 'mario-',
+                    start: 8,
+                    end: 8
+                }),
+                frameRate: 10,
+                repeat: -1
+            });
+            
+            // 敌人动画
+            scene.anims.create({
+                key: 'walk-enemy',
+                frames: scene.anims.generateFrameNames('enemies', {
+                    prefix: 'goomba-',
+                    start: 0,
+                    end: 1
+                }),
+                frameRate: 5,
+                repeat: -1
+            });
+            
+            // 金币动画
+            scene.anims.create({
+                key: 'spin',
+                frames: scene.anims.generateFrameNames('items', {
+                    prefix: 'coin-',
+                    start: 0,
+                    end: 3
+                }),
+                frameRate: 10,
+                repeat: -1
+            });
+            
+            // 星星动画
+            scene.anims.create({
+                key: 'star-spin',
+                frames: scene.anims.generateFrameNames('items', {
+                    prefix: 'star-',
+                    start: 0,
+                    end: 3
+                }),
+                frameRate: 10,
+                repeat: -1
+            });
+        }
+
+        // 创建敌人
+        function createEnemies(scene, map) {
+            const enemyObjects = map.getObjectLayer('enemies').objects;
+            
+            enemyObjects.forEach(enemyObject => {
+                const enemy = enemies.create(enemyObject.x, enemyObject.y, 'enemies');
+                enemy.setBounceY(0.2);
+                enemy.setVelocityX(-50);
+                enemy.anims.play('walk-enemy');
+                enemy.body.setSize(16, 16);
+                enemy.body.setOffset(0, 0);
+                
+                // 设置敌人移动范围
+                enemy.minX = enemyObject.x - 50;
+                enemy.maxX = enemyObject.x + 50;
+            });
+        }
+
+        // 创建金币
+        function createCoins(scene, map) {
+            const coinObjects = map.getObjectLayer('coins').objects;
+            
+            coinObjects.forEach(coinObject => {
+                const coin = coins.create(coinObject.x, coinObject.y, 'items');
+                coin.anims.play('spin');
+                coin.body.allowGravity = false;
+                coin.body.setSize(16, 16);
+                coin.body.setOffset(0, 0);
+            });
+        }
+
+        // 创建星星
+        function createStars(scene, map) {
+            const starObjects = map.getObjectLayer('stars').objects;
+            
+            starObjects.forEach(starObject => {
+                const star = stars.create(starObject.x, starObject.y, 'items');
+                star.anims.play('star-spin');
+                star.body.allowGravity = false;
+                star.body.setSize(16, 16);
+                star.body.setOffset(0, 0);
+            });
+        }
+
+        // 碰撞检测
+        function checkCollisions() {
+            // 这里可以添加额外的碰撞检测逻辑
+            // 例如检查玩家是否掉出地图边界
+            if (player.y > game.config.height) {
+                handlePlayerDeath();
+            }
+            
+            // 检查是否到达终点
+            if (player.x > 700) {
+                levelComplete();
+            }
+        }
+
+        // 更新游戏
+        function update(time, delta) {
+            // 计算FPS
+            frameCount++;
+            if (time > lastTime + 1000) {
+                fps = Math.round((frameCount * 1000) / (time - lastTime));
+                fpsText.setText(`FPS: ${fps}`);
+                lastTime = time;
+                frameCount = 0;
+            }
+            
+            // 根据游戏状态执行不同逻辑
+            if (gameState === GameState.PLAYING) {
+                updatePlayer();
+                updateEnemies();
+                checkCollisions();
+            }
+        }
+
+        // 更新玩家
+        function updatePlayer() {
+            // 重置水平速度
+            player.setVelocityX(0);
+            
+            // 处理输入
+            if (cursors.left.isDown) {
+                player.setVelocityX(-160);
+                player.anims.play('walk-left', true);
+            } else if (cursors.right.isDown) {
+                player.setVelocityX(160);
+                player.anims.play('walk-right', true);
+            } else {
+                // 如果没有移动，显示站立动画
+                if (player.body.touching.down) {
+                    player.anims.play('stand', true);
+                }
+            }
+            
+            // 跳跃
+            if (cursors.up.isDown && player.body.touching.down) {
+                player.setVelocityY(-330);
+                player.anims.play('jump', true);
+            }
+            
+            // 更新玩家状态
+            if (player.body.velocity.y < 0) {
+                player.anims.play('jump', true);
+            } else if (player.body.velocity.y > 0) {
+                // 下落动画
+                if (player.body.touching.down) {
+                    player.anims.play('stand', true);
+                }
+            }
+        }
+
+        // 更新敌人
+        function updateEnemies() {
+            enemies.children.entries.forEach(enemy => {
+                // 反转方向当到达边界
+                if (enemy.x <= enemy.minX || enemy.x >= enemy.maxX) {
+                    enemy.setVelocityX(-enemy.body.velocity.x);
+                }
+            });
+        }
+
+        // 碰撞敌人处理
+        function hitEnemy(player, enemy) {
+            // 如果玩家从敌人上方跳下，则消灭敌人
+            if (player.body.velocity.y > 0 && player.y < enemy.y) {
+                enemy.destroy();
+                player.setVelocityY(-200); // 小跳跃
+                score += 100;
+                updateScore();
+            } else {
+                // 否则玩家死亡
+                handlePlayerDeath();
+            }
+        }
+
+        // 收集金币
+        function collectCoin(player, coin) {
+            coin.destroy();
+            score += 50;
+            updateScore();
+            
+            // 播放音效
+            game.sound.play('coin');
+        }
+
+        // 收集星星
+        function collectStar(player, star) {
+            star.destroy();
+            score += 200;
+            updateScore();
+            
+            // 播放音效
+            game.sound.play('powerup');
+        }
+
+        // 更新分数显示
+        function updateScore() {
+            // 这里可以添加分数显示UI的更新
+            console.log('Score:', score);
+        }
+
+        // 处理玩家死亡
+        function handlePlayerDeath() {
+            lives--;
+            player.anims.play('dead');
+            
+            // 播放音效
+            game.sound.play('die');
+            
+            if (lives <= 0) {
+                gameOver();
+            } else {
+                // 重置玩家位置
+                player.setPosition(100, 450);
+                player.setVelocity(0, 0);
+                player.anims.play('stand');
+            }
+        }
+
+        // 游戏结束
+        function gameOver() {
+            gameState = GameState.GAME_OVER;
+            document.getElementById('game-over-title').textContent = 'Game Over';
+            document.getElementById('game-over-message').textContent = `Your score: ${score}`;
+            document.getElementById('game-over-screen').style.display = 'flex';
+        }
+
+        // 关卡完成
+        function levelComplete() {
+            gameState = GameState.LEVEL_COMPLETE;
+            document.getElementById('game-over-title').textContent = 'Level Complete!';
+            document.getElementById('game-over-message').textContent = `Your score: ${score}`;
+            document.getElementById('game-over-screen').style.display = 'flex';
+        }
+
+        // 重新开始游戏
+        function restartGame() {
+            // 重置游戏状态
+            gameState = GameState.PLAYING;
+            score = 0;
+            lives = 3;
+            currentLevel = 1;
+            
+            // 重置玩家
+            player.setPosition(100, 450);
+            player.setVelocity(0, 0);
+            player.anims.play('stand');
+            
+            // 重置敌人
+            enemies.children.entries.forEach(enemy => {
+                enemy.setPosition(enemy.minX + 50, enemy.y);
+                enemy.setVelocityX(-50);
+                enemy.active = true;
+                enemy.visible = true;
+            });
+            
+            // 重置金币和星星
+            coins.children.entries.forEach(coin => {
+                coin.active = true;
+                coin.visible = true;
+            });
+            
+            stars.children.entries.forEach(star => {
+                star.active = true;
+                star.visible = true;
+            });
+            
+            // 隐藏游戏结束界面
+            document.getElementById('game-over-screen').style.display = 'none';
+            
+            // 更新分数显示
+            updateScore();
+        }
+    </script>
+</body>
+</html>

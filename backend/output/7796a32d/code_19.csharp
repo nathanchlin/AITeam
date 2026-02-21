@@ -1,0 +1,24 @@
+[SerializeField] private KeyCode attackKey = KeyCode.Space;
+[SerializeField] private float attackRange = 0.5f;
+[SerializeField] private LayerMask enemyLayer;
+
+private void Update()
+{
+    // 攻击输入
+    if (Input.GetKeyDown(attackKey))
+    {
+        Attack();
+    }
+}
+
+private void Attack()
+{
+    // 检测范围内的敌人
+    Collider2D[] hitEnemies = Physics2D.OverlapCircleAll(transform.position, attackRange, enemyLayer);
+    
+    foreach (var enemy in hitEnemies)
+    {
+        // 对敌人造成伤害
+        enemy.GetComponent<EnemyHealth>()?.TakeDamage(1);
+    }
+}

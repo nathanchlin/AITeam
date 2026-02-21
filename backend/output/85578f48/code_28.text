@@ -1,0 +1,7 @@
+Server -> All Clients: {
+    "event": "leaderboardUpdate",
+    "data": {
+        "type": "global | friends | local",
+        "rankings": [ranking objects]
+    }
+}

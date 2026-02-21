@@ -1,0 +1,10 @@
+tetris-battle/
+├── src/
+│   ├── game/          # 游戏核心逻辑
+│   ├── ai/            # AI实现
+│   ├── ui/            # 用户界面
+│   └── assets/        # 游戏资源
+├── tests/             # 测试文件
+├── docs/              # 文档
+├── build/             # 构建输出
+└── config/            # 配置文件

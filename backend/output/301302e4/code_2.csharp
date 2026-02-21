@@ -1,0 +1,87 @@
+public class AchievementSystem
+{
+    private List<Achievement> achievements;
+    private List<Achievement> unlockedAchievements;
+    private GameProgress progress;
+    
+    public AchievementSystem(GameProgress progress)
+    {
+        this.progress = progress;
+        achievements = InitializeAchievements();
+        unlockedAchievements = progress.UnlockedAchievements;
+    }
+    
+    private List<Achievement> InitializeAchievements()
+    {
+        return new List<Achievement>
+        {
+            new Achievement("First_Blood", "初次击杀", "消灭第一只猪", () => progress.TotalPigsKilled >= 1),
+            new Achievement("Combo_Master", "连击大师", "达到5倍连击", () => progress.MaxComboMultiplier >= 5),
+            new Achievement("Perfect_Level", "完美通关", "一关获得三星评价", () => progress.PerfectLevels >= 1),
+            new Achievement("Sharpshooter", "神射手", "连续10次直接命中", () => progress.ConsecutiveDirectHits >= 10),
+            new Achievement("Demolitionist", "爆破专家", "单关得分超过50000", () => progress.HighScore >= 50000),
+            new Achievement("Eagle", "雄鹰", "用一只小鸟消灭所有猪", () => progress.OneBirdClears >= 1),
+            new Achievement("Veteran", "老鸟", "完成50个关卡", () => progress.LevelsCompleted >= 50),
+            new Achievement("Collector", "收藏家", "解锁所有成就", () => false) // 特殊成就
+        };
+    }
+    
+    public void CheckAchievements(GameStats stats)
+    {
+        foreach (var achievement in achievements)
+        {
+            if (!unlockedAchievements.Contains(achievement) && achievement.IsUnlocked(stats))
+            {
+                UnlockAchievement(achievement);
+            }
+        }
+        
+        // 检查收藏家成就
+        if (unlockedAchievements.Count == achievements.Count - 1)
+        {
+            var collectorAchievement = achievements.Find(a => a.Id == "Collector");
+            if (collectorAchievement != null)
+            {
+                UnlockAchievement(collectorAchievement);
+            }
+        }
+    }
+    
+    private void UnlockAchievement(Achievement achievement)
+    {
+        unlockedAchievements.Add(achievement);
+        progress.UnlockedAchievements = unlockedAchievements;
+        
+        // 保存进度
+        SaveSystem.SaveGameProgress(progress);
+        
+        // 触发解锁事件
+        OnAchievementUnlocked?.Invoke(achievement);
+    }
+    
+    public List<Achievement> GetAllAchievements() => achievements;
+    public List<Achievement> GetUnlockedAchievements() => unlockedAchievements;
+    
+    public event Action<Achievement> OnAchievementUnlocked;
+}
+
+public class Achievement
+{
+    public string Id { get; }
+    public string Title { get; }
+    public string Description { get; }
+    public Func<bool> IsUnlockedCondition { get; }
+    
+    public Achievement(string id, string title, string description, Func<bool> isUnlockedCondition)
+    {
+        Id = id;
+        Title = title;
+        Description = description;
+        IsUnlockedCondition = isUnlockedCondition;
+    }
+    
+    public bool IsUnlocked(GameStats stats)
+    {
+        return IsUnlockedCondition();
+    }
+}

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>消消乐游戏</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        
+        .game-container {
+            text-align: center;
+        }
+        
+        canvas {
+            border: 2px solid #333;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .score {
+            margin-top: 10px;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .instructions {
+            margin-top: 10px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>消消乐游戏</h1>
+        <canvas id="gameCanvas" width="480" height="480"></canvas>
+        <div class="score">得分: <span id="score">0</span></div>
+        <div class="instructions">点击相邻的相同方块进行消除</div>
+    </div>
+
+    <script>
+        // 游戏配置
+        const GRID_SIZE = 8; // 8x8的网格
+        const CELL_SIZE = 60; // 每个格子的大小
+        const COLORS = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#FFBE0B', '#FB5607']; // 5种不同颜色的方块
+        const ANIMATION_SPEED = 0.15; // 动画速度
+        
+        // 游戏状态
+        let grid = [];
+        let selectedCell = null;
+        let score = 0;
+        let animating = false;
+        let animationProgress = 0;
+        let removingCells = [];
+        let fallingCells = [];
+        
+        // 获取Canvas元素和上下文
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 方块类
+        class Cell {
+            constructor(row, col, color) {
+                this.row = row;
+                this.col = col;
+                this.color = color;
+                this.x = col * CELL_SIZE;
+                this.y = row * CELL_SIZE;
+                this.targetY = this.y;
+                this.scale = 1;
+                this.removing = false;
+                this.falling = false;
+            }
+            
+            // 更新方块位置（用于下落动画）
+            update() {
+                if (this.y < this.targetY) {
+                    this.y += (this.targetY - this.y) * ANIMATION_SPEED;
+                    if (Math.abs(this.y - this.targetY) < 0.5) {
+                        this.y = this.targetY;
+                        this.falling = false;
+                    }
+                }
+            }
+            
+            // 绘制方块
+            draw() {
+                ctx.save();
+                
+                // 如果方块正在被移除，应用缩放动画
+                if (this.removing) {
+                    this.scale = 1 - animationProgress;
+                    ctx.globalAlpha = 1 - animationProgress;
+                }
+                
+                // 应用缩放变换
+                ctx.translate(this.x + CELL_SIZE / 2, this.y + CELL_SIZE / 2);
+                ctx.scale(this.scale, this.scale);
+                ctx.translate(-CELL_SIZE / 2, -CELL_SIZE / 2);
+                
+                // 绘制方块
+                ctx.fillStyle = this.color;
+                ctx.fillRect(0, 0, CELL_SIZE, CELL_SIZE);
+                
+                // 绘制边框
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(0, 0, CELL_SIZE, CELL_SIZE);
+                
+                // 如果被选中，绘制高亮边框
+                if (selectedCell && selectedCell.row === this.row && selectedCell.col === this.col) {
+                    ctx.strokeStyle = '#FFD700';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(2, 2, CELL_SIZE - 4, CELL_SIZE - 4);
+                }
+                
+                ctx.restore();
+            }
+        }
+        
+        // 初始化游戏网格
+        function initGrid() {
+            grid = [];
+            for (let row = 0; row < GRID_SIZE; row++) {
+                grid[row] = [];
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    // 随机选择一种颜色
+                    const colorIndex = Math.floor(Math.random() * COLORS.length);
+                    grid[row][col] = new Cell(row, col, COLORS[colorIndex]);
+                }
+            }
+            
+            // 确保初始网格没有可消除的组合
+            while (checkMatches().length > 0) {
+                reshuffleGrid();
+            }
+        }
+        
+        // 重新打乱网格（用于初始状态）
+        function reshuffleGrid() {
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    const colorIndex = Math.floor(Math.random() * COLORS.length);
+                    grid[row][col].color = COLORS[colorIndex];
+                }
+            }
+        }
+        
+        // 检查匹配的方块
+        function checkMatches() {
+            const matches = [];
+            
+            // 检查水平匹配
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE - 2; col++) {
+                    const color = grid[row][col].color;
+                    if (color && grid[row][col + 1].color === color && grid[row][col + 2].color === color) {
+                        const match = [{row, col}, {row, col: col + 1}, {row, col: col + 2}];
+                        
+                        // 检查是否有更多连续的相同颜色
+                        let k = col + 3;
+                        while (k < GRID_SIZE && grid[row][k].color === color) {
+                            match.push({row, col: k});
+                            k++;
+                        }
+                        
+                        matches.push(match);
+                        col = k - 1; // 跳过已匹配的方块
+                    }
+                }
+            }
+            
+            // 检查垂直匹配
+            for (let col = 0; col < GRID_SIZE; col++) {
+                for (let row = 0; row < GRID_SIZE - 2; row++) {
+                    const color = grid[row][col].color;
+                    if (color && grid[row + 1][col].color === color && grid[row + 2][col].color === color) {
+                        const match = [{row, col}, {row: row + 1, col}, {row: row + 2, col}];
+                        
+                        // 检查是否有更多连续的相同颜色
+                        let k = row + 3;
+                        while (k < GRID_SIZE && grid[k][col].color === color) {
+                            match.push({row: k, col});
+                            k++;
+                        }
+                        
+                        matches.push(match);
+                        row = k - 1; // 跳过已匹配的方块
+                    }
+                }
+            }
+            
+            return matches;
+        }
+        
+        // 移除匹配的方块
+        function removeMatches(matches) {
+            removingCells = [];
+            
+            // 收集所有需要移除的方块
+            matches.forEach(match => {
+                match.forEach(cell => {
+                    if (!removingCells.some(c => c.row === cell.row && c.col === cell.col)) {
+                        removingCells.push(grid[cell.row][cell.col]);
+                        grid[cell.row][cell.col] = null;
+                    }
+                });
+            });
+            
+            // 更新分数
+            score += removingCells.length * 10;
+            document.getElementById('score').textContent = score;
+            
+            // 开始移除动画
+            animating = true;
+            animationProgress = 0;
+        }
+        
+        // 让方块下落填充空位
+        function dropCells() {
+            for (let col = 0; col < GRID_SIZE; col++) {
+                let emptyRow = GRID_SIZE - 1;
+                
+                // 从底部向上扫描
+                for (let row = GRID_SIZE - 1; row >= 0; row--) {
+                    if (grid[row][col] !== null) {
+                        if (row !== emptyRow) {
+                            // 将方块移动到空位
+                            grid[emptyRow][col] = grid[row][col];
+                            grid[emptyRow][col].row = emptyRow;
+                            grid[emptyRow][col].targetY = emptyRow * CELL_SIZE;
+                            grid[emptyRow][col].falling = true;
+                            grid[row][col] = null;
+                        }
+                        emptyRow--;
+                    }
+                }
+                
+                // 在顶部生成新方块
+                for (let row = emptyRow; row >= 0; row--) {
+                    const colorIndex = Math.floor(Math.random() * COLORS.length);
+                    grid[row][col] = new Cell(row, col, COLORS[colorIndex]);
+                    grid[row][col].y = -CELL_SIZE;
+                    grid[row][col].targetY = row * CELL_SIZE;
+                    grid[row][col].falling = true;
+                }
+            }
+        }
+        
+        // 处理鼠标点击
+        function handleClick(event) {
+            if (animating) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            const col = Math.floor(x / CELL_SIZE);
+            const row = Math.floor(y / CELL_SIZE);
+            
+            if (row >= 0 && row < GRID_SIZE && col >= 0 && col < GRID_SIZE && grid[row][col]) {
+                if (!selectedCell) {
+                    // 第一次选择
+                    selectedCell = {row, col};
+                } else {
+                    // 第二次选择，尝试交换
+                    if (isAdjacent(selectedCell, {row, col})) {
+                        swapCells(selectedCell, {row, col});
+                        selectedCell = null;
+                    } else {
+                        // 选择新的方块
+                        selectedCell = {row, col};
+                    }
+                }
+            }
+        }
+        
+        // 检查两个方块是否相邻
+        function isAdjacent(cell1, cell2) {
+            const rowDiff = Math.abs(cell1.row - cell2.row);
+            const colDiff = Math.abs(cell1.col - cell2.col);
+            return (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1);
+        }
+        
+        // 交换两个方块
+        function swapCells(cell1, cell2) {
+            const temp = grid[cell1.row][cell1.col];
+            grid[cell1.row][cell1.col] = grid[cell2.row][cell2.col];
+            grid[cell2.row][cell2.col] = temp;
+            
+            // 更新方块的位置信息
+            grid[cell1.row][cell1.col].row = cell1.row;
+            grid[cell1.row][cell1.col].col = cell1.col;
+            grid[cell2.row][cell2.col].row = cell2.row;
+            grid[cell2.row][cell2.col].col = cell2.col;
+            
+            // 检查是否有匹配
+            const matches = checkMatches();
+            if (matches.length > 0) {
+                removeMatches(matches);
+            } else {
+                // 如果没有匹配，交换回来
+                const temp = grid[cell1.row][cell1.col];
+                grid[cell1.row][cell1.col] = grid[cell2.row][cell2.col];
+                grid[cell2.row][cell2.col] = temp;
+                
+                grid[cell1.row][cell1.col].row = cell1.row;
+                grid[cell1.row][cell1.col].col = cell1.col;
+                grid[cell2.row][cell2.col].row = cell2.row;
+                grid[cell2.row][cell2.col].col = cell2.col;
+            }
+        }
+        
+        // 绘制游戏网格
+        function drawGrid() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制背景网格线
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 1;
+            
+            for (let i = 0; i <= GRID_SIZE; i++) {
+                // 水平线
+                ctx.beginPath();
+                ctx.moveTo(0, i * CELL_SIZE);
+                ctx.lineTo(canvas.width, i * CELL_SIZE);
+                ctx.stroke();
+                
+                // 垂直线
+                ctx.beginPath();
+                ctx.moveTo(i * CELL_SIZE, 0);
+                ctx.lineTo(i * CELL_SIZE, canvas.height);
+                ctx.stroke();
+            }
+            
+            // 绘制所有方块
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    if (grid[row][col]) {
+                        grid[row][col].draw();
+                    }
+                }
+            }
+        }
+        
+        // 游戏循环
+        function gameLoop() {
+            // 更新动画
+            if (animating) {
+                animationProgress += 0.05;
+                
+                if (animationProgress >= 1) {
+                    // 移除动画完成
+                    animating = false;
+                    animationProgress = 0;
+                    
+                    // 让方块下落
+                    dropCells();
+                    
+                    // 检查新的匹配
+                    setTimeout(() => {
+                        const matches = checkMatches();
+                        if (matches.length > 0) {
+                            removeMatches(matches);
+                        }
+                    }, 300);
+                }
+            }
+            
+            // 更新下落的方块
+            let stillFalling = false;
+            for (let row = 0; row < GRID_SIZE; row++) {
+                for (let col = 0; col < GRID_SIZE; col++) {
+                    if (grid[row][col] && grid[row][col].falling) {
+                        grid[row][col].update();
+                        stillFalling = true;
+                    }
+                }
+            }
+            
+            // 如果没有方块在下落且没有动画在进行，检查匹配
+            if (!stillFalling && !animating) {
+                const matches = checkMatches();
+                if (matches.length > 0) {
+                    removeMatches(matches);
+                }
+            }
+            
+            // 绘制游戏
+            drawGrid();
+            
+            // 继续游戏循环
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // 初始化游戏
+        function initGame() {
+            initGrid();
+            
+            // 绑定鼠标点击事件
+            canvas.addEventListener('click', handleClick);
+            
+            // 开始游戏循环
+            gameLoop();
+        }
+        
+        // 页面加载完成后初始化游戏
+        window.onload = initGame;
+    </script>
+</body>
+</html>

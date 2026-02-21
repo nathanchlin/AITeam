@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>优化计算器</title>
+  <style>
+    /* 上述CSS样式 */
+  </style>
+</head>
+<body>
+  <div class="calculator">
+    <div class="display">0</div>
+    <div class="buttons">
+      <button class="clear" onclick="calculator.clear()">C</button>
+      <button class="clear" onclick="calculator.clearEntry()">CE</button>
+      <button onclick="calculator.handleOperator('÷')">÷</button>
+      <button onclick="calculator.handleOperator('×')">×</button>
+      
+      <button onclick="calculator.inputDigit('7')">7</button>
+      <button onclick="calculator.inputDigit('8')">8</button>
+      <button onclick="calculator.inputDigit('9')">9</button>
+      <button class="operator" onclick="calculator.handleOperator('-')">-</button>
+      
+      <button onclick="calculator.inputDigit('4')">4</button>
+      <button onclick="calculator.inputDigit('5')">5</button>
+      <button onclick="calculator.inputDigit('6')">6</button>
+      <button class="operator" onclick="calculator.handleOperator('+')">+</button>
+      
+      <button onclick="calculator.inputDigit('1')">1</button>
+      <button onclick="calculator.inputDigit('2')">2</button>
+      <button onclick="calculator.inputDigit('3')">3</button>
+      <button rowspan="2" class="equals" onclick="calculator.equals()">=</button>
+      
+      <button onclick="calculator.inputDigit('0')">0</button>
+      <button onclick="calculator.inputDecimal()">.</button>
+      <button onclick="calculator.clearEntry()">⌫</button>
+    </div>
+  </div>
+
+  <script>
+    // 上述JavaScript代码
+  </script>
+</body>
+</html>

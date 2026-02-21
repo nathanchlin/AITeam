@@ -1,0 +1,17 @@
+GET /api/v1/chat/:friendId
+Headers: Authorization: Bearer <token>
+Query Parameters:
+- limit: number (default: 20)
+- offset: number (default: 0)
+Response:
+[
+    {
+        "messageId": "string",
+        "senderId": "string",
+        "receiverId": "string",
+        "message": "string",
+        "type": "string",
+        "timestamp": "timestamp",
+        "isRead": "boolean"
+    }
+]

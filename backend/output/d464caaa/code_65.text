@@ -1,0 +1,28 @@
+tetris-battle-ai/
+├── src/
+│   ├── __init__.py
+│   ├── game/
+│   │   ├── __init__.py
+│   │   ├── board.py
+│   │   ├── tetromino.py
+│   │   └── game_logic.py
+│   ├── ai/
+│   │   ├── __init__.py
+│   │   ├── ai_player.py
+│   │   └── strategy.py
+│   ├── ui/
+│   │   ├── __init__.py
+│   │   ├── game_window.py
+│   │   └── renderer.py
+│   └── utils/
+│       ├── __init__.py
+│       └── constants.py
+├── tests/
+│   ├── __init__.py
+│   ├── test_game.py
+│   └── test_ai.py
+├── docs/
+├── .gitignore
+├── requirements.txt
+├── README.md
+└── main.py

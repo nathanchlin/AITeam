@@ -1,0 +1,14 @@
+{
+  "title": "俄罗斯方块游戏开发执行计划",
+  "original_request": "制作一个俄罗斯方块游戏，使用方向键控制方块移动和旋转，消除满行得分，方块堆到顶部游戏结束",
+  "discussion": [
+    {
+      "id": "697d37c8-6d93-42c3-a5fd-ec28be2b9f2c",
+      "plan_id": "9ba18b98-9aec-466e-beb7-a2c27b45c857",
+      "agent_id": "1b9489b0-1468-45dc-ad33-b9f41e85e620",
+      "agent_name": "Coordinator",
+      "agent_type": "assistant",
+      "content": "我来分析一下需求：制作一个俄罗斯方块游戏，使用方向键控制方块移动和旋转，消除满行得分，方块堆到顶部游戏结束",
+      "message_type": "comment",
+      "reply_to": null,
+      "timestamp": 

@@ -1,0 +1,9 @@
+Key: session:{sessionId}
+Value: {
+  userId: String,
+  playerId: String,
+  roomId: String,
+  lastActivity: Timestamp,
+  status: String // online, ingame, offline
+}
+TTL: 3600 // 1小时

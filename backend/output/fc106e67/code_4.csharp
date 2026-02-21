@@ -1,0 +1,38 @@
+void HandleMovement()
+{
+    Vector2 velocity = rb.velocity;
+    
+    switch (currentState)
+    {
+        case NinjaState.Running:
+        case NinjaState.Idle:
+            velocity.x = moveSpeed;
+            break;
+            
+        case NinjaState.Dashing:
+            velocity.x = facingRight ? dashSpeed : -dashSpeed;
+            // 冲刺结束后自动恢复跑步状态
+            if (Mathf.Abs(velocity.x) == 0)
+            {
+                ChangeState(NinjaState.Running);
+            }
+            break;
+            
+        case NinjaState.Sliding:
+            velocity.x = moveSpeed * 1.5f; // 滑行时速度更快
+            break;
+    }
+    
+    rb.velocity = velocity;
+}
+
+bool CheckGrounded()
+{
+    // 使用射线检测地面
+    Vector2 origin = transform.position;
+    float distance = 0.1f;
+    LayerMask groundLayer = LayerMask.GetMask("Ground");
+    
+    RaycastHit2D hit = Physics2D.Raycast(origin, Vector2.down, distance, groundLayer);
+    return hit.collider != null;
+}

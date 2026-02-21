@@ -1,0 +1,26 @@
+void HandleInput()
+{
+    // 跳跃
+    if (Input.GetButtonDown("Jump") && isGrounded)
+    {
+        ChangeState(NinjaState.Jumping);
+    }
+    
+    // 滑行
+    if (Input.GetButtonDown("Fire1") && isGrounded && currentState != NinjaState.Sliding)
+    {
+        ChangeState(NinjaState.Sliding);
+    }
+    
+    // 冲刺
+    if (Input.GetButtonDown("Fire2"))
+    {
+        ChangeState(NinjaState.Dashing);
+    }
+    
+    // 攻击
+    if (Input.GetButtonDown("Fire3"))
+    {
+        animator.SetTrigger(ANIM_PARAM_ATTACK);
+    }
+}

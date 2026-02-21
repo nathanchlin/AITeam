@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>球球大作战 - 状态存储与加载</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  let ball = {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    radius: 30,
+    color: 'red',
+    velocityX: 5,
+    velocityY: 5
+  };
+
+  let score = 0;
+
+  function drawBall() {
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fillStyle = ball.color;
+    ctx.fill();
+    ctx.closePath();
+  }
+
+  function drawScore() {
+    ctx.font = '24px Arial';
+    ctx.fillStyle = 'black';
+    ctx.fillText('Score: ' + score, 10, 30);
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBall();
+    drawScore();
+    ball.x += ball.velocityX;
+    ball.y += ball.velocityY;
+
+    // Reverse direction when ball hits the canvas wall
+    if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) {
+      ball.velocityX = -ball.velocityX;
+    }
+
+    if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+      ball.velocityY = -ball.velocityY;
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  function saveState() {
+    localStorage.setItem('ballX', ball.x);
+    localStorage.setItem('ballY', ball.y);
+    localStorage.setItem('ballRadius', ball.radius);
+    localStorage.setItem('score', score);
+  }
+
+  function loadState() {
+    ball.x = parseFloat(localStorage.getItem('ballX')) || canvas.width / 2;
+    ball.y = parseFloat(localStorage.getItem('ballY')) || canvas.height / 2;
+    ball.radius = parseFloat(localStorage.getItem('ballRadius')) || 30;
+    score = parseInt(localStorage.getItem('score')) || 0;
+  }
+
+  function handleKeyDown(event) {
+    switch (event.key) {
+      case 'ArrowLeft':
+        ball.velocityX = -5;
+        break;
+      case 'ArrowRight':
+        ball.velocityX = 5;
+        break;
+      case 'ArrowUp':
+        ball.velocityY = -5;
+        break;
+      case 'ArrowDown':
+        ball.velocityY = 5;
+        break;
+    }
+  }
+
+  function handleKeyUp(event) {
+    switch (event.key) {
+      case 'ArrowLeft':
+      case 'ArrowRight':
+        ball.velocityX = 0;
+        break;
+      case 'ArrowUp':
+      case 'ArrowDown':
+        ball.velocityY = 0;
+        break;
+    }
+  }
+
+  window.onload = function() {
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    loadState(); // Load the game state from localStorage
+    requestAnimationFrame(draw);
+  };
+
+  // Save the game state every time the ball moves
+  setInterval(saveState, 1000);
+</script>
+</body>
+</html>

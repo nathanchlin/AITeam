@@ -1,0 +1,32 @@
+// 游戏配置类
+[Serializable]
+public class GameConfig {
+    public PlayerConfig PlayerConfig;
+    public EnemyConfig EnemyConfig;
+    public BulletConfig BulletConfig;
+    public PowerUpConfig PowerUpConfig;
+    public UIConfig UIConfig;
+    public AudioConfig AudioConfig;
+}
+
+// 玩家配置
+[Serializable]
+public class PlayerConfig {
+    public float Speed;
+    public int Health;
+    public float FireRate;
+    public Sprite Sprite;
+    public Vector2 Size;
+}
+
+// 敌机配置
+[Serializable]
+public class EnemyConfig {
+    public EnemyType Type;
+    public float Speed;
+    public int Health;
+    public int ScoreValue;
+    public Sprite Sprite;
+    public Vector2 Size;
+    public BehaviorPattern BehaviorPattern;
+}

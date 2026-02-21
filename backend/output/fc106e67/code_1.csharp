@@ -1,0 +1,29 @@
+// 动画参数名称常量
+private const string ANIM_PARAM_SPEED = "Speed";
+private const string ANIM_PARAM_GROUNDED = "IsGrounded";
+private const string ANIM_PARAM_STATE = "State";
+private const string ANIM_PARAM_ATTACK = "Attack";
+
+void UpdateAnimation()
+{
+    // 设置动画参数
+    animator.SetFloat(ANIM_PARAM_SPEED, Mathf.Abs(rb.velocity.x));
+    animator.SetBool(ANIM_PARAM_GROUNDED, isGrounded);
+    animator.SetInteger(ANIM_PARAM_STATE, (int)currentState);
+    
+    // 处理面向方向
+    if (rb.velocity.x > 0 && !facingRight)
+    {
+        FlipCharacter();
+    }
+    else if (rb.velocity.x < 0 && facingRight)
+    {
+        FlipCharacter();
+    }
+}
+
+void FlipCharacter()
+{
+    facingRight = !facingRight;
+    spriteRenderer.flipX = !facingRight;
+}

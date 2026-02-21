@@ -1,0 +1,23 @@
+public class ScriptingSystem {
+    private Dictionary<string, GameObject> gameObjects = new Dictionary<string, GameObject>();
+    
+    public void AttachScript(string objectId, Type scriptType) {
+        if (gameObjects.TryGetValue(objectId, out var gameObject)) {
+            var script = (MonoBehaviour)Activator.CreateInstance(scriptType);
+            script.gameObject = gameObject;
+            gameObject.AddComponent(script);
+        }
+    }
+    
+    public void ExecuteScriptMethod(string objectId, string methodName, params object[] parameters) {
+        if (gameObjects.TryGetValue(objectId, out var gameObject)) {
+            var scripts = gameObject.GetComponents<MonoBehaviour>();
+            foreach (var script in scripts) {
+                var method = script.GetType().GetMethod(methodName);
+                if (method != null) {
+                    method.Invoke(script, parameters);
+                }
+            }
+        }
+    }
+}

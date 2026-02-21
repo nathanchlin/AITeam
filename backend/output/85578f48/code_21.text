@@ -1,0 +1,15 @@
+GET /api/v1/shop/items
+Response:
+[
+    {
+        "itemId": "string",
+        "name": "string",
+        "type": "skin | boost | powerup",
+        "price": {
+            "coins": "number",
+            "gems": "number"
+        },
+        "description": "string",
+        "preview": "string"
+    }
+]

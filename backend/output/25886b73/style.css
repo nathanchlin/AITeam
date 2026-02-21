@@ -1,0 +1,37 @@
+/* 自定义样式补充 */
+.calculator {
+    transition: all 0.3s ease;
+}
+
+.calculator:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+}
+
+.btn {
+    @apply bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-3 px-4 rounded transition duration-200 ease-in-out transform hover:scale-105;
+}
+
+.btn:active {
+    @apply scale-95;
+}
+
+.btn-operator {
+    @apply bg-blue-500 hover:bg-blue-600 text-white;
+}
+
+.btn-equals {
+    @apply bg-green-500 hover:bg-green-600 text-white;
+}
+
+.btn-clear {
+    @apply bg-red-500 hover:bg-red-600 text-white;
+}
+
+.btn-delete {
+    @apply bg-yellow-500 hover:bg-yellow-600 text-white;
+}
+
+.btn-zero {
+    @apply col-span-2;
+}

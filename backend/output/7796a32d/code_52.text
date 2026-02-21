@@ -1,0 +1,13 @@
+/是男人就下100层/
+├── index.html          # 主页面
+├── css/
+│   ├── style.css       # 样式表
+│   └── responsive.css  # 响应式样式
+├── js/
+│   ├── game.js         # 游戏逻辑
+│   ├── controls.js     # 控制系统
+│   └── utils.js        # 工具函数
+├── assets/
+│   ├── images/         # 游戏图片资源
+│   └── sounds/         # 游音效资源
+└── README.md           # 游戏说明文档

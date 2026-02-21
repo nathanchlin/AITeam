@@ -1,0 +1,11 @@
+POST /api/v1/users/login
+Request Body:
+{
+    "username": "string",
+    "password": "string"
+}
+Response:
+{
+    "userId": "string",
+    "token": "string"
+}

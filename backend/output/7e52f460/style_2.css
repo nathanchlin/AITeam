@@ -1,0 +1,46 @@
+/* 响应式布局调整 */
+.game-container {
+    width: 100%;
+    max-width: 600px;
+    padding: 10px;
+    box-sizing: border-box;
+}
+
+#gameCanvas {
+    width: 100%;
+    max-width: 500px;
+    height: auto;
+    border: 2px solid #333;
+}
+
+.controls {
+    width: 100%;
+    max-width: 500px;
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+    min-width: 100px;
+}
+
+/* 小屏幕调整 */
+@media (max-width: 600px) {
+    button {
+        padding: 8px 15px;
+        font-size: 14px;
+        min-width: 80px;
+    }
+}
+
+/* 超小屏幕调整 */
+@media (max-width: 400px) {
+    button {
+        padding: 6px 12px;
+        font-size: 12px;
+        min-width: 60px;
+    }
+}

@@ -1,0 +1,14 @@
+Frontend (React + TypeScript)
+├── Game Components
+│   ├── GameBoard (Phaser游戏主场景)
+│   ├── Tetromino (方块组件)
+│   ├── GameUI (用户界面组件)
+│   └── AIPlayer (AI对手逻辑)
+├── State Management (Context API + useReducer)
+│   ├── Game State
+│   ├── Player State
+│   └── AI State
+└── Utilities
+    ├── Tetromino Generator (方块生成器)
+    ├── Collision Detection (碰撞检测)
+    └── Scoring System (计分系统)

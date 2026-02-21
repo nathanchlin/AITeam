@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>坦克大战</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #1a1a2e; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: sans-serif; }
+        #app { position: relative; }
+        canvas { display: block; border: 2px solid #0f3460; background: #16213e; }
+        #ui { position: absolute; top: 8px; left: 8px; color: #e94560; font-size: 14px; text-shadow: 0 0 4px #000; pointer-events: none; }
+        #gameOver { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; flex-direction: column; color: #fff; }
+        #gameOver.show { display: flex; }
+        #gameOver h2 { color: #e94560; margin-bottom: 12px; }
+        #gameOver button { padding: 10px 24px; font-size: 16px; background: #e94560; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+        #gameOver button:hover { background: #ff6b6b; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <canvas id="game" width="800" height="600"></canvas>
+        <div id="ui">得分: <span id="score">0</span> &nbsp; 生命: <span id="life">100</span> &nbsp; 关卡: <span id="level">1</span></div>
+        <div id="gameOver">
+            <h2 id="gameOverText">游戏结束</h2>
+            <p id="gameOverScore"></p>
+            <button id="restartBtn">重新开始</button>
+        </div>
+    </div>
+<script>
+/**
+ * 本文件整合了本目录以下模块的结构与数据，并补全为完整可运行实现：
+ * - code_1.js: Tank 类（移动、射击、受伤、销毁）
+ * - code_2.js: Bullet 类（运动、碰撞检测）
+ * - code_4.js: mapData 尺寸 (800x600, tileSize 40)，以 MAP_W/MAP_H/TILE 使用
+ * - code_5.js: gameState（关卡、得分、生命、状态、玩家/敌人/子弹数组）
+ * 游戏循环、Canvas 渲染、键盘输入、敌人生成与碰撞逻辑已在此文件中实现。
+ */
+const MAP_W = 800, MAP_H = 600, TILE = 40, TANK_SIZE = 36;
+
+class Tank {
+  constructor(x, y, isPlayer = false) {
+    this.x = x;
+    this.y = y;
+    this.isPlayer = isPlayer;
+    this.health = 100;
+    this.speed = 3;
+    this.direction = 0; // 0: 上, 1: 右, 2: 下, 3: 左
+    this.width = TANK_SIZE;
+    this.height = TANK_SIZE;
+    this.lastShotTime = 0;
+    this.shotCooldown = 400;
+    this.active = true;
+  }
+
+  move(dx, dy) {
+    this.x = Math.max(0, Math.min(MAP_W - this.width, this.x + dx));
+    this.y = Math.max(0, Math.min(MAP_H - this.height, this.y + dy));
+  }
+
+  shoot() {
+    const now = Date.now();
+    if (now - this.lastShotTime < this.shotCooldown) return null;
+    this.lastShotTime = now;
+    const cx = this.x + this.width / 2, cy = this.y + this.height / 2;
+    const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    const [dx, dy] = dirs[this.direction];
+    return new Bullet(cx, cy, this.direction, this);
+  }
+
+  takeDamage(amount) {
+    this.health = Math.max(0, this.health - amount);
+    return this.health <= 0;
+  }
+
+  destroy() {
+    this.active = false;
+  }
+}
+
+// From code_2.js
+class Bullet {
+  constructor(x, y, direction, owner) {
+    this.x = x;
+    this.y = y;
+    this.direction = direction;
+    this.owner = owner;
+    this.speed = 8;
+    this.damage = 25;
+    this.width = 6;
+    this.height = 6;
+    this.active = true;
+    const dirs = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    const [dx, dy] = dirs[direction];
+    this.vx = dx * this.speed;
+    this.vy = dy * this.speed;
+  }
+
+  update() {
+    this.x += this.vx;
+    this.y += this.vy;
+    if (this.x < -10 || this.x > MAP_W + 10 || this.y < -10 || this.y > MAP_H + 10) this.active = false;
+  }
+
+  checkCollision(tanks) {
+    for (const t of tanks) {
+      if (!t.active || t === this.owner) continue;
+      if (this.x < t.x + t.width && this.x + this.width > t.x &&
+          this.y < t.y + t.height && this.y + this.height > t.y) {
+        this.active = false;
+        return t;
+      }
+    }
+    return null;
+  }
+}
+
+// From code_5.js
+const gameState = {
+  currentLevel: 1,
+  playerScore: 0,
+  playerHealth: 100,
+  enemiesRemaining: 0,
+  gameStatus: 'playing',
+  playerTank: null,
+  enemyTanks: [],
+  bullets: []
+};
+
+// ----- 游戏循环与渲染 -----
+let canvas, ctx, keys = {}, lastSpawn = 0, SPAWN_INTERVAL = 3000;
+
+function init() {
+  canvas = document.getElementById('game');
+  ctx = canvas.getContext('2d');
+  gameState.playerTank = new Tank(MAP_W / 2 - TANK_SIZE / 2, MAP_H - TANK_SIZE - 20, true);
+  gameState.enemyTanks = [];
+  gameState.bullets = [];
+  gameState.playerScore = 0;
+  gameState.gameStatus = 'playing';
+  gameState.playerTank.health = 100;
+  spawnEnemy();
+  document.getElementById('gameOver').classList.remove('show');
+  requestAnimationFrame(gameLoop);
+}
+
+function spawnEnemy() {
+  const x = 80 + Math.random() * (MAP_W - 160);
+  const t = new Tank(x, 20, false);
+  t.direction = 2;
+  gameState.enemyTanks.push(t);
+}
+
+function gameLoop() {
+  if (gameState.gameStatus !== 'playing') return;
+
+  const dt = 1;
+  const p = gameState.playerTank;
+  if (keys['ArrowUp'] || keys['w']) { p.direction = 0; p.move(0, -p.speed * dt); }
+  if (keys['ArrowDown'] || keys['s']) { p.direction = 2; p.move(0, p.speed * dt); }
+  if (keys['ArrowLeft'] || keys['a']) { p.direction = 3; p.move(-p.speed * dt, 0); }
+  if (keys['ArrowRight'] || keys['d']) { p.direction = 1; p.move(p.speed * dt, 0); }
+  if (keys[' ']) {
+    const b = p.shoot();
+    if (b) gameState.bullets.push(b);
+  }
+
+  gameState.bullets = gameState.bullets.filter(b => {
+    b.update();
+    if (!b.active) return false;
+    const hit = b.checkCollision([p, ...gameState.enemyTanks]);
+    if (hit) {
+      if (hit.takeDamage(b.damage)) {
+        hit.destroy();
+        if (hit.isPlayer) {
+          gameState.gameStatus = 'gameover';
+          document.getElementById('gameOverText').textContent = '游戏结束';
+        } else {
+          gameState.playerScore += 100;
+          gameState.enemyTanks = gameState.enemyTanks.filter(e => e.active);
+        }
+      }
+      return false;
+    }
+    return true;
+  });
+
+  const now = Date.now();
+  if (now - lastSpawn > SPAWN_INTERVAL) {
+    lastSpawn = now;
+    spawnEnemy();
+  }
+
+  draw();
+  requestAnimationFrame(gameLoop);
+}
+
+function draw() {
+  ctx.fillStyle = '#16213e';
+  ctx.fillRect(0, 0, MAP_W, MAP_H);
+  ctx.strokeStyle = '#0f3460';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= MAP_W; i += TILE) ctx.fillRect(i, 0, 1, MAP_H);
+  for (let j = 0; j <= MAP_H; j += TILE) ctx.fillRect(0, j, MAP_W, 1);
+
+  gameState.bullets.forEach(b => {
+    ctx.fillStyle = '#e94560';
+    ctx.fillRect(b.x - b.width/2, b.y - b.height/2, b.width, b.height);
+  });
+
+  function drawTank(t) {
+    if (!t.active) return;
+    ctx.fillStyle = t.isPlayer ? '#4ecca3' : '#e94560';
+    ctx.fillRect(t.x, t.y, t.width, t.height);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(t.x, t.y, t.width, t.height);
+    ctx.fillStyle = '#333';
+    const cx = t.x + t.width/2, cy = t.y + t.height/2;
+    const dirs = [[0, -12], [12, 0], [0, 12], [-12, 0]];
+    const [dx, dy] = dirs[t.direction];
+    ctx.fillRect(cx + dx - 3, cy + dy - 3, 6, 6);
+  }
+  drawTank(p);
+  gameState.enemyTanks.forEach(drawTank);
+
+  document.getElementById('score').textContent = gameState.playerScore;
+  document.getElementById('life').textContent = p.health;
+  document.getElementById('level').textContent = gameState.currentLevel;
+
+  if (gameState.gameStatus === 'gameover') {
+    document.getElementById('gameOverScore').textContent = '最终得分: ' + gameState.playerScore;
+    document.getElementById('gameOver').classList.add('show');
+  }
+}
+
+document.addEventListener('keydown', e => { keys[e.key] = true; if ([' ', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) e.preventDefault(); });
+document.addEventListener('keyup', e => { keys[e.key] = false; });
+document.getElementById('restartBtn').addEventListener('click', init);
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

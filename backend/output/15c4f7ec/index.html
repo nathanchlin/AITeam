@@ -1,0 +1,1697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1942 打飞机游戏</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #111;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+
+        canvas {
+            background-color: #000;
+            border: 2px solid #0ff;
+            display: block;
+        }
+
+        #gameInfo {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #0ff;
+            font-size: 16px;
+            text-shadow: 0 0 5px rgba(0, 255, 255, 0.8);
+        }
+
+        #gameInfo .high-score {
+            color: #ffd700;
+            font-size: 20px;
+            font-weight: bold;
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.25), rgba(255, 140, 0, 0.35));
+            padding: 8px 15px;
+            border-radius: 8px;
+            margin: 8px 0;
+            border: 2px solid rgba(255, 215, 0, 0.6);
+            text-shadow: 0 0 12px rgba(255, 215, 0, 1), 0 0 20px rgba(255, 165, 0, 0.8);
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 0 15px rgba(255, 215, 0, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.1);
+            animation: high-score-glow 2s ease-in-out infinite;
+        }
+
+        #gameInfo .high-score .trophy-icon {
+            font-size: 24px;
+            animation: trophy-bounce 1.5s ease-in-out infinite;
+            filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.8));
+        }
+
+        #gameInfo .high-score .high-score-label {
+            color: #fff8dc;
+            letter-spacing: 1px;
+        }
+
+        #gameInfo .high-score #highScore {
+            color: #fff;
+            font-size: 22px;
+            min-width: 50px;
+            text-align: center;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        @keyframes high-score-glow {
+            0%, 100% {
+                box-shadow: 0 0 15px rgba(255, 215, 0, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.1);
+                border-color: rgba(255, 215, 0, 0.6);
+            }
+            50% {
+                box-shadow: 0 0 25px rgba(255, 215, 0, 0.7), inset 0 0 15px rgba(255, 255, 255, 0.2);
+                border-color: rgba(255, 215, 0, 0.9);
+            }
+        }
+
+        @keyframes trophy-bounce {
+            0%, 100% { transform: translateY(0) rotate(-5deg); }
+            50% { transform: translateY(-3px) rotate(5deg); }
+        }
+
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #f00;
+            font-size: 48px;
+            text-align: center;
+            display: none;
+            text-shadow: 0 0 10px rgba(255, 0, 0, 0.8);
+        }
+
+        #gameOver .final-score {
+            font-size: 28px;
+            margin: 15px 0;
+        }
+
+        #gameOver .high-score-display {
+            font-size: 28px;
+            color: #ffd700;
+            text-shadow: 0 0 15px rgba(255, 215, 0, 1);
+            background: linear-gradient(135deg, rgba(255, 215, 0, 0.3), rgba(255, 140, 0, 0.4));
+            padding: 10px 20px;
+            border-radius: 10px;
+            border: 2px solid rgba(255, 215, 0, 0.7);
+            margin: 15px auto;
+            display: inline-block;
+        }
+
+        #newRecord {
+            font-size: 36px;
+            color: #ffd700;
+            text-shadow: 0 0 20px rgba(255, 215, 0, 1);
+            animation: record-pulse 0.6s ease-in-out infinite alternate;
+            margin: 10px 0;
+        }
+
+        @keyframes record-pulse {
+            from { 
+                transform: scale(1); 
+                text-shadow: 0 0 20px rgba(255, 215, 0, 1);
+            }
+            to { 
+                transform: scale(1.15); 
+                text-shadow: 0 0 30px rgba(255, 215, 0, 1), 0 0 40px rgba(255, 140, 0, 0.8);
+            }
+        }
+
+        #startScreen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #0ff;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        button {
+            background-color: transparent;
+            border: 2px solid #0ff;
+            color: #0ff;
+            padding: 10px 20px;
+            font-size: 18px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background-color: #0ff;
+            color: #000;
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
+        }
+
+        .weapon-info {
+            margin-top: 5px;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+
+        .weapon-normal { background-color: #333; color: #aaa; }
+        .weapon-a { background-color: #0a0; color: #0f0; }
+        .weapon-d { background-color: #00a; color: #0ff; }
+
+        /* 新纪录动画样式 */
+        #newRecordAnimation {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 100;
+            opacity: 0;
+        }
+
+        #newRecordAnimation .record-text {
+            font-size: 48px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 
+                0 0 10px rgba(255, 215, 0, 1),
+                0 0 20px rgba(255, 215, 0, 0.8),
+                0 0 30px rgba(255, 140, 0, 0.6),
+                0 0 40px rgba(255, 140, 0, 0.4);
+            white-space: nowrap;
+        }
+
+        #newRecordAnimation.active {
+            animation: record-appear 2s ease-out forwards;
+        }
+
+        #newRecordAnimation.active .record-text {
+            animation: record-text-bounce 2s ease-out forwards;
+        }
+
+        @keyframes record-appear {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.3);
+            }
+            40% {
+                transform: translate(-50%, -50%) scale(1);
+            }
+            80% {
+                opacity: 1;
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+        }
+
+        @keyframes record-text-bounce {
+            0%, 100% { letter-spacing: 5px; }
+            50% { letter-spacing: 15px; }
+        }
+
+        /* 边框闪烁动画 */
+        #gameContainer.record-flash canvas {
+            animation: border-flash 0.5s ease-in-out 3;
+        }
+
+        @keyframes border-flash {
+            0%, 100% { border-color: #0ff; box-shadow: 0 0 20px rgba(0, 255, 255, 0.5); }
+            50% { border-color: #ffd700; box-shadow: 0 0 40px rgba(255, 215, 0, 0.8); }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="gameInfo">
+            <div>分数: <span id="score">0</span></div>
+            <div class="high-score">
+                <span class="trophy-icon">🏆</span>
+                <span class="high-score-label">最高分:</span>
+                <span id="highScore">0</span>
+            </div>
+            <div>生命: <span id="lives">3</span></div>
+            <div>击中: <span id="hitCount">0</span>/5</div>
+            <div id="weaponDisplay" class="weapon-info weapon-normal">武器: 普通</div>
+        </div>
+        <div id="gameOver">
+            <div>游戏结束</div>
+            <div id="newRecord" style="display:none;">🎉 新纪录！🏆</div>
+            <div class="final-score">最终分数: <span id="finalScore">0</span></div>
+            <div class="high-score-display">🏆 最高分: <span id="finalHighScore">0</span></div>
+            <button onclick="game.restart()">重新开始</button>
+        </div>
+        <div id="startScreen">
+            <h1>1942 打飞机游戏</h1>
+            <p>使用方向键移动飞机，空格键射击</p>
+            <p style="font-size: 14px; color: #f0f;">紫色精英敌机会追踪你！</p>
+            <p style="font-size: 14px; color: #ff0;">道具: B=炸弹 | A=扇形 | D=激光</p>
+            <button onclick="game.start()">开始游戏</button>
+        </div>
+        <div id="newRecordAnimation">
+            <div class="record-text">🎉 NEW RECORD! 🎉</div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // 安全存储类 - 处理分数数据的安全存储
+        // ============================================
+        class SecureStorage {
+            constructor() {
+                this.storageKey = 'game1942_secure_data';
+                this.secretKey = '1942_arcade_' + navigator.userAgent.split(' ')[0].split('/')[1];
+                this.version = 2; // 数据格式版本
+                this.maxScorePerIncrement = 100; // 单次最大分数增量（用于检测作弊）
+            }
+            
+            // 生成校验和（简单的哈希算法）
+            generateChecksum(data) {
+                const str = JSON.stringify(data) + this.secretKey;
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) {
+                    const char = str.charCodeAt(i);
+                    hash = ((hash << 5) - hash) + char;
+                    hash = hash & hash; // Convert to 32bit integer
+                }
+                // 转换为无符号整数并转为16进制
+                return (hash >>> 0).toString(16).padStart(8, '0');
+            }
+            
+            // 编码数据（Base64 + 混淆）
+            encode(data) {
+                const jsonStr = JSON.stringify(data);
+                // 添加随机盐值增加混淆
+                const salt = Math.random().toString(36).substring(2, 6);
+                const saltedStr = salt + jsonStr.length.toString(16).padStart(4, '0') + jsonStr;
+                return btoa(saltedStr);
+            }
+            
+            // 解码数据
+            decode(encoded) {
+                try {
+                    const saltedStr = atob(encoded);
+                    // 移除盐值（前4个字符）和长度标记（接下来4个字符）
+                    const jsonStr = saltedStr.substring(8);
+                    return JSON.parse(jsonStr);
+                } catch (e) {
+                    console.error('[SecureStorage] 解码失败:', e.message);
+                    return null;
+                }
+            }
+            
+            // 验证数据结构
+            validateDataStructure(payload) {
+                if (!payload || typeof payload !== 'object') {
+                    return false;
+                }
+                if (!payload.data || typeof payload.data !== 'object') {
+                    return false;
+                }
+                if (typeof payload.checksum !== 'string') {
+                    return false;
+                }
+                if (typeof payload.data.score !== 'number') {
+                    return false;
+                }
+                if (typeof payload.data.timestamp !== 'number') {
+                    return false;
+                }
+                if (payload.data.score < 0 || payload.data.score > 999999) {
+                    return false;
+                }
+                return true;
+            }
+            
+            // 保存分数
+            save(score, additionalData = {}) {
+                try {
+                    const timestamp = Date.now();
+                    const data = {
+                        score: Math.max(0, Math.min(999999, score)), // 分数范围限制
+                        timestamp: timestamp,
+                        version: this.version,
+                        playCount: additionalData.playCount || 0,
+                        lastPlayDate: new Date(timestamp).toISOString().split('T')[0]
+                    };
+                    
+                    const checksum = this.generateChecksum(data);
+                    const payload = {
+                        data: data,
+                        checksum: checksum,
+                        // 添加额外验证信息
+                        meta: {
+                            created: timestamp,
+                            appVersion: '1942_v1.0'
+                        }
+                    };
+                    
+                    localStorage.setItem(this.storageKey, this.encode(payload));
+                    
+                    // 同时保存一个备份（用于恢复）
+                    this.saveBackup(score);
+                    
+                    return true;
+                } catch (e) {
+                    console.error('[SecureStorage] 保存失败:', e.message);
+                    return false;
+                }
+            }
+            
+            // 保存备份
+            saveBackup(score) {
+                try {
+                    const backupKey = this.storageKey + '_backup';
+                    const backup = {
+                        score: score,
+                        timestamp: Date.now()
+                    };
+                    // 备份使用简单的校验
+                    backup.check = this.generateChecksum({ score: score });
+                    localStorage.setItem(backupKey, btoa(JSON.stringify(backup)));
+                } catch (e) {
+                    // 备份失败不影响主流程
+                }
+            }
+            
+            // 从备份恢复
+            loadFromBackup() {
+                try {
+                    const backupKey = this.storageKey + '_backup';
+                    const encoded = localStorage.getItem(backupKey);
+                    if (!encoded) return null;
+                    
+                    const backup = JSON.parse(atob(encoded));
+                    if (backup && typeof backup.score === 'number') {
+                        // 验证备份的校验和
+                        const expectedCheck = this.generateChecksum({ score: backup.score });
+                        if (backup.check === expectedCheck) {
+                            return backup.score;
+                        }
+                    }
+                } catch (e) {
+                    // 备份恢复失败
+                }
+                return null;
+            }
+            
+            // 加载分数
+            load() {
+                try {
+                    const encoded = localStorage.getItem(this.storageKey);
+                    
+                    // 如果没有数据，尝试从旧版本迁移
+                    if (!encoded) {
+                        return this.migrateFromOldVersion();
+                    }
+                    
+                    const payload = this.decode(encoded);
+                    
+                    // 验证数据结构
+                    if (!this.validateDataStructure(payload)) {
+                        console.warn('[SecureStorage] 数据结构无效，尝试从备份恢复');
+                        return this.loadFromBackup() || 0;
+                    }
+                    
+                    // 验证校验和
+                    const expectedChecksum = this.generateChecksum(payload.data);
+                    if (payload.checksum !== expectedChecksum) {
+                        console.warn('[SecureStorage] 校验和不匹配，数据可能被篡改');
+                        // 尝试从备份恢复
+                        const backupScore = this.loadFromBackup();
+                        if (backupScore !== null) {
+                            console.log('[SecureStorage] 从备份恢复分数:', backupScore);
+                            // 重新保存以修复数据
+                            this.save(backupScore);
+                            return backupScore;
+                        }
+                        return 0;
+                    }
+                    
+                    // 验证版本兼容性
+                    if (payload.data.version && payload.data.version < this.version) {
+                        console.log('[SecureStorage] 数据版本升级，迁移数据');
+                        // 迁移到新版本格式
+                        this.save(payload.data.score);
+                    }
+                    
+                    return payload.data.score;
+                } catch (e) {
+                    console.error('[SecureStorage] 加载失败:', e.message);
+                    return this.loadFromBackup() || 0;
+                }
+            }
+            
+            // 从旧版本迁移数据
+            migrateFromOldVersion() {
+                try {
+                    const oldKey = 'game1942_highScore';
+                    const oldData = localStorage.getItem(oldKey);
+                    
+                    if (oldData) {
+                        const score = parseInt(oldData, 10);
+                        if (!isNaN(score) && score >= 0 && score <= 999999) {
+                            console.log('[SecureStorage] 从旧版本迁移数据:', score);
+                            // 保存到新格式
+                            this.save(score);
+                            // 清理旧数据
+                            localStorage.removeItem(oldKey);
+                            return score;
+                        }
+                    }
+                } catch (e) {
+                    console.error('[SecureStorage] 迁移失败:', e.message);
+                }
+                return 0;
+            }
+            
+            // 清除所有数据（用于测试或重置）
+            clear() {
+                localStorage.removeItem(this.storageKey);
+                localStorage.removeItem(this.storageKey + '_backup');
+                localStorage.removeItem('game1942_highScore');
+            }
+            
+            // 获取完整的存储信息（用于调试）
+            getDebugInfo() {
+                try {
+                    const encoded = localStorage.getItem(this.storageKey);
+                    if (!encoded) return { status: 'no_data' };
+                    
+                    const payload = this.decode(encoded);
+                    return {
+                        status: 'ok',
+                        data: payload.data,
+                        checksumValid: payload.checksum === this.generateChecksum(payload.data),
+                        encoded: encoded.substring(0, 50) + '...'
+                    };
+                } catch (e) {
+                    return { status: 'error', message: e.message };
+                }
+            }
+        }
+
+        // 游戏主类
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = this.canvas.width;
+                this.height = this.canvas.height;
+                
+                // 初始化安全存储
+                this.secureStorage = new SecureStorage();
+                
+                // 游戏状态
+                this.isRunning = false;
+                this.isPaused = false;
+                
+                // 分数和生命
+                this.score = 0;
+                this.highScore = this.loadHighScore(); // 使用安全方式加载最高分
+                this.lives = 3;
+                this.hitCount = 0;
+                
+                // 分数安全验证相关
+                this.lastScore = 0; // 记录上一次的分数，用于检测异常
+                this.scoreHistory = []; // 记录最近的分数变化历史
+                
+                // 新纪录动画相关
+                this.isNewRecordTriggered = false; // 本次游戏中是否已触发过新纪录动画
+                
+                // 游戏对象
+                this.player = null;
+                this.enemies = [];
+                this.bullets = [];
+                this.enemyBullets = [];
+                this.powerUps = [];
+                this.explosions = [];
+                this.stars = [];
+                this.newRecordParticles = []; // 新纪录粒子效果
+                
+                // 输入状态
+                this.keys = {};
+                
+                // 射击控制
+                this.shootCooldown = 0;
+                this.shootDelay = 150;
+                
+                // 武器系统
+                this.weaponType = 'normal';
+                this.weaponTimer = 0;
+                
+                // 敌机生成控制
+                this.enemySpawnTimer = 0;
+                this.enemySpawnDelay = 1500;
+                
+                // 初始化
+                this.init();
+            }
+            
+            // 从安全存储加载最高分
+            loadHighScore() {
+                const highScore = this.secureStorage.load();
+                document.getElementById('highScore').textContent = highScore;
+                console.log('[Game] 加载最高分:', highScore);
+                return highScore;
+            }
+            
+            // 保存最高分到安全存储
+            saveHighScore() {
+                const success = this.secureStorage.save(this.highScore);
+                if (!success) {
+                    console.error('[Game] 保存最高分失败');
+                }
+                return success;
+            }
+            
+            // 验证分数增量的合法性
+            validateScoreIncrement(increment) {
+                // 检查增量是否合理
+                const maxReasonableIncrement = 100; // 单次最大合理增量
+                
+                if (increment <= 0) {
+                    return false;
+                }
+                
+                if (increment > maxReasonableIncrement) {
+                    console.warn('[Game] 检测到异常分数增量:', increment);
+                    // 记录可疑行为
+                    this.logSuspiciousActivity(increment);
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            // 记录可疑行为（可用于后续分析）
+            logSuspiciousActivity(increment) {
+                const log = {
+                    timestamp: Date.now(),
+                    currentScore: this.score,
+                    increment: increment,
+                    weaponType: this.weaponType,
+                    enemyCount: this.enemies.length
+                };
+                console.warn('[Game] 可疑活动:', log);
+                
+                // 可以选择将日志存储到 localStorage 用于分析
+                try {
+                    const logs = JSON.parse(localStorage.getItem('game1942_suspicious_logs') || '[]');
+                    logs.push(log);
+                    // 只保留最近10条记录
+                    if (logs.length > 10) {
+                        logs.shift();
+                    }
+                    localStorage.setItem('game1942_suspicious_logs', JSON.stringify(logs));
+                } catch (e) {
+                    // 忽略存储错误
+                }
+            }
+            
+            // 触发新纪录动画
+            triggerNewRecordAnimation() {
+                // 触发DOM动画
+                const animElement = document.getElementById('newRecordAnimation');
+                const gameContainer = document.getElementById('gameContainer');
+                
+                // 移除之前的动画类
+                animElement.classList.remove('active');
+                gameContainer.classList.remove('record-flash');
+                
+                // 强制重绘
+                void animElement.offsetWidth;
+                
+                // 添加动画类
+                animElement.classList.add('active');
+                gameContainer.classList.add('record-flash');
+                
+                // 2秒后移除动画类
+                setTimeout(() => {
+                    animElement.classList.remove('active');
+                    gameContainer.classList.remove('record-flash');
+                }, 2000);
+                
+                // 创建粒子效果
+                this.createNewRecordParticles();
+            }
+            
+            // 创建新纪录粒子效果
+            createNewRecordParticles() {
+                const centerX = this.width / 2;
+                const centerY = this.height / 2;
+                
+                // 创建多波粒子
+                for (let wave = 0; wave < 3; wave++) {
+                    setTimeout(() => {
+                        for (let i = 0; i < 30; i++) {
+                            const angle = (Math.PI * 2 * i / 30) + (wave * 0.3);
+                            const speed = 150 + Math.random() * 100;
+                            this.newRecordParticles.push(new NewRecordParticle(
+                                this, centerX, centerY, angle, speed
+                            ));
+                        }
+                    }, wave * 200);
+                }
+            }
+            
+            // 更新最高分（核心功能：即时检查并更新）
+            updateHighScore() {
+                if (this.score > this.highScore) {
+                    // 验证新高分的合理性
+                    if (this.score > this.highScore + 10000) {
+                        console.warn('[Game] 新高分异常，可能存在问题');
+                    }
+                    
+                    this.highScore = this.score;
+                    document.getElementById('highScore').textContent = this.highScore;
+                    this.saveHighScore();
+                    
+                    // 如果本次游戏中还没触发过新纪录动画，则触发
+                    if (!this.isNewRecordTriggered) {
+                        this.isNewRecordTriggered = true;
+                        this.triggerNewRecordAnimation();
+                    }
+                    
+                    return true; // 返回true表示创造了新纪录
+                }
+                return false;
+            }
+            
+            init() {
+                // 创建星空背景
+                for (let i = 0; i < 100; i++) {
+                    this.stars.push({
+                        x: Math.random() * this.width,
+                        y: Math.random() * this.height,
+                        size: Math.random() * 2 + 0.5,
+                        speed: Math.random() * 2 + 1
+                    });
+                }
+                
+                // 绑定键盘事件
+                document.addEventListener('keydown', (e) => {
+                    this.keys[e.code] = true;
+                    if (e.code === 'Space') e.preventDefault();
+                });
+                
+                document.addEventListener('keyup', (e) => {
+                    this.keys[e.code] = false;
+                });
+            }
+            
+            start() {
+                document.getElementById('startScreen').style.display = 'none';
+                document.getElementById('gameOver').style.display = 'none';
+                document.getElementById('newRecord').style.display = 'none';
+                
+                // 重置游戏状态
+                this.score = 0;
+                this.lastScore = 0;
+                this.scoreHistory = [];
+                this.lives = 3;
+                this.hitCount = 0;
+                this.weaponType = 'normal';
+                this.weaponTimer = 0;
+                this.isNewRecordTriggered = false; // 重置新纪录触发状态
+                
+                // 更新UI显示
+                this.updateUI();
+                document.getElementById('highScore').textContent = this.highScore;
+                
+                // 创建玩家
+                this.player = new Player(this);
+                
+                // 清空游戏对象
+                this.enemies = [];
+                this.bullets = [];
+                this.enemyBullets = [];
+                this.powerUps = [];
+                this.explosions = [];
+                this.newRecordParticles = [];
+                
+                this.isRunning = true;
+                this.lastTime = performance.now();
+                this.gameLoop();
+            }
+            
+            restart() {
+                this.start();
+            }
+            
+            gameLoop(currentTime = performance.now()) {
+                if (!this.isRunning) return;
+                
+                const deltaTime = currentTime - this.lastTime;
+                this.lastTime = currentTime;
+                
+                this.update(deltaTime);
+                this.render();
+                
+                requestAnimationFrame((t) => this.gameLoop(t));
+            }
+            
+            update(deltaTime) {
+                // 更新星空
+                this.updateStars(deltaTime);
+                
+                // 更新玩家
+                if (this.player) {
+                    this.player.update(deltaTime);
+                }
+                
+                // 更新子弹
+                this.bullets = this.bullets.filter(bullet => {
+                    bullet.update(deltaTime);
+                    return bullet.y > -10 && bullet.y < this.height + 10;
+                });
+                
+                // 更新敌机子弹
+                this.enemyBullets = this.enemyBullets.filter(bullet => {
+                    bullet.update(deltaTime);
+                    return bullet.y > -10 && bullet.y < this.height + 10;
+                });
+                
+                // 更新敌机
+                this.enemies = this.enemies.filter(enemy => {
+                    enemy.update(deltaTime);
+                    return enemy.y < this.height + 50 && enemy.health > 0;
+                });
+                
+                // 更新道具
+                this.powerUps = this.powerUps.filter(powerUp => {
+                    powerUp.update(deltaTime);
+                    return powerUp.y < this.height + 20;
+                });
+                
+                // 更新爆炸效果
+                this.explosions = this.explosions.filter(exp => {
+                    exp.update(deltaTime);
+                    return exp.active;
+                });
+                
+                // 更新新纪录粒子效果
+                this.newRecordParticles = this.newRecordParticles.filter(particle => {
+                    particle.update(deltaTime);
+                    return particle.active;
+                });
+                
+                // 生成敌机
+                this.spawnEnemies(deltaTime);
+                
+                // 射击控制
+                this.handleShooting(deltaTime);
+                
+                // 武器计时
+                if (this.weaponTimer > 0) {
+                    this.weaponTimer -= deltaTime;
+                    if (this.weaponTimer <= 0) {
+                        this.weaponType = 'normal';
+                        this.updateWeaponDisplay();
+                    }
+                }
+                
+                // 碰撞检测
+                this.checkCollisions();
+            }
+            
+            updateStars(deltaTime) {
+                this.stars.forEach(star => {
+                    star.y += star.speed;
+                    if (star.y > this.height) {
+                        star.y = 0;
+                        star.x = Math.random() * this.width;
+                    }
+                });
+            }
+            
+            spawnEnemies(deltaTime) {
+                this.enemySpawnTimer += deltaTime;
+                
+                if (this.enemySpawnTimer >= this.enemySpawnDelay) {
+                    this.enemySpawnTimer = 0;
+                    
+                    // 随机生成敌机类型
+                    const rand = Math.random();
+                    let enemy;
+                    
+                    if (rand < 0.1) {
+                        // 10% 概率生成精英敌机
+                        enemy = new EliteEnemy(this, Math.random() * (this.width - 40) + 20, -30);
+                    } else if (rand < 0.4) {
+                        // 30% 概率生成中型敌机
+                        enemy = new MediumEnemy(this, Math.random() * (this.width - 50) + 25, -40);
+                    } else {
+                        // 60% 概率生成小型敌机
+                        enemy = new SmallEnemy(this, Math.random() * (this.width - 30) + 15, -25);
+                    }
+                    
+                    this.enemies.push(enemy);
+                    
+                    // 随着分数增加，加快生成速度
+                    this.enemySpawnDelay = Math.max(500, 1500 - this.score * 2);
+                }
+            }
+            
+            handleShooting(deltaTime) {
+                if (this.shootCooldown > 0) {
+                    this.shootCooldown -= deltaTime;
+                }
+                
+                if (this.keys['Space'] && this.shootCooldown <= 0) {
+                    this.playerShoot();
+                    this.shootCooldown = this.shootDelay;
+                }
+            }
+            
+            playerShoot() {
+                const px = this.player.x;
+                const py = this.player.y;
+                
+                switch (this.weaponType) {
+                    case 'normal':
+                        this.bullets.push(new Bullet(this, px, py - 20, 0, -500));
+                        break;
+                    case 'spread':
+                        // 扇形射击
+                        for (let angle = -30; angle <= 30; angle += 15) {
+                            const rad = angle * Math.PI / 180;
+                            this.bullets.push(new Bullet(this, px, py - 20, Math.sin(rad) * 300, -400));
+                        }
+                        break;
+                    case 'laser':
+                        // 激光射击
+                        this.bullets.push(new LaserBullet(this, px, py - 20));
+                        break;
+                }
+            }
+            
+            checkCollisions() {
+                // 玩家子弹 vs 敌机
+                this.bullets.forEach(bullet => {
+                    this.enemies.forEach(enemy => {
+                        if (this.checkCollision(bullet, enemy)) {
+                            bullet.hit(enemy);
+                        }
+                    });
+                });
+                
+                // 敌机子弹 vs 玩家
+                if (this.player) {
+                    this.enemyBullets.forEach(bullet => {
+                        if (this.checkCollision(bullet, this.player)) {
+                            bullet.hit(this.player);
+                        }
+                    });
+                    
+                    // 敌机 vs 玩家
+                    this.enemies.forEach(enemy => {
+                        if (this.checkCollision(enemy, this.player)) {
+                            enemy.health = 0;
+                            this.playerHit();
+                        }
+                    });
+                    
+                    // 道具 vs 玩家
+                    this.powerUps.forEach(powerUp => {
+                        if (this.checkCollision(powerUp, this.player)) {
+                            powerUp.collect();
+                        }
+                    });
+                }
+            }
+            
+            checkCollision(a, b) {
+                const dx = a.x - b.x;
+                const dy = a.y - b.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                return dist < (a.radius + b.radius);
+            }
+            
+            // 增加分数（核心功能：带安全验证的即时更新最高分）
+            addScore(points) {
+                // 验证分数增量的合法性
+                if (!this.validateScoreIncrement(points)) {
+                    console.warn('[Game] 分数增量验证失败，忽略此次加分:', points);
+                    return;
+                }
+                
+                // 记录分数历史（用于安全审计）
+                this.scoreHistory.push({
+                    from: this.score,
+                    increment: points,
+                    timestamp: Date.now()
+                });
+                
+                // 只保留最近20条记录
+                if (this.scoreHistory.length > 20) {
+                    this.scoreHistory.shift();
+                }
+                
+                this.lastScore = this.score;
+                this.score += points;
+                this.updateUI();
+                
+                // 即时检查并更新最高分
+                this.updateHighScore();
+            }
+            
+            // 玩家被击中
+            playerHit() {
+                this.lives--;
+                this.hitCount++;
+                this.updateUI();
+                
+                // 创建爆炸效果
+                this.explosions.push(new Explosion(this, this.player.x, this.player.y, '#f00'));
+                
+                if (this.lives <= 0) {
+                    this.gameOver();
+                } else {
+                    // 重置玩家位置
+                    this.player.x = this.width / 2;
+                    this.player.y = this.height - 80;
+                }
+            }
+            
+            updateUI() {
+                document.getElementById('score').textContent = this.score;
+                document.getElementById('lives').textContent = this.lives;
+                document.getElementById('hitCount').textContent = this.hitCount;
+            }
+            
+            updateWeaponDisplay() {
+                const display = document.getElementById('weaponDisplay');
+                display.className = 'weapon-info';
+                
+                switch (this.weaponType) {
+                    case 'normal':
+                        display.textContent = '武器: 普通';
+                        display.classList.add('weapon-normal');
+                        break;
+                    case 'spread':
+                        display.textContent = '武器: 扇形';
+                        display.classList.add('weapon-a');
+                        break;
+                    case 'laser':
+                        display.textContent = '武器: 激光';
+                        display.classList.add('weapon-d');
+                        break;
+                }
+            }
+            
+            gameOver() {
+                this.isRunning = false;
+                
+                // 最终检查并更新最高分
+                const isNewRecord = this.updateHighScore();
+                
+                // 确保最高分已保存
+                this.saveHighScore();
+                
+                // 显示游戏结束界面
+                document.getElementById('gameOver').style.display = 'block';
+                document.getElementById('finalScore').textContent = this.score;
+                document.getElementById('finalHighScore').textContent = this.highScore;
+                
+                // 如果是新纪录，显示提示
+                if (isNewRecord || this.isNewRecordTriggered) {
+                    document.getElementById('newRecord').style.display = 'block';
+                } else {
+                    document.getElementById('newRecord').style.display = 'none';
+                }
+            }
+            
+            render() {
+                // 清空画布
+                this.ctx.fillStyle = '#000';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+                
+                // 绘制星空
+                this.renderStars();
+                
+                // 绘制道具
+                this.powerUps.forEach(p => p.render());
+                
+                // 绘制子弹
+                this.bullets.forEach(b => b.render());
+                this.enemyBullets.forEach(b => b.render());
+                
+                // 绘制敌机
+                this.enemies.forEach(e => e.render());
+                
+                // 绘制玩家
+                if (this.player) {
+                    this.player.render();
+                }
+                
+                // 绘制爆炸效果
+                this.explosions.forEach(e => e.render());
+                
+                // 绘制新纪录粒子效果
+                this.newRecordParticles.forEach(p => p.render());
+            }
+            
+            renderStars() {
+                this.ctx.fillStyle = '#fff';
+                this.stars.forEach(star => {
+                    this.ctx.beginPath();
+                    this.ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+            }
+        }
+        
+        // 玩家类
+        class Player {
+            constructor(game) {
+                this.game = game;
+                this.x = game.width / 2;
+                this.y = game.height - 80;
+                this.speed = 300;
+                this.radius = 15;
+            }
+            
+            update(deltaTime) {
+                const moveX = this.speed * deltaTime / 1000;
+                const moveY = this.speed * deltaTime / 1000;
+                
+                if (this.game.keys['ArrowLeft'] || this.game.keys['KeyA']) {
+                    this.x -= moveX;
+                }
+                if (this.game.keys['ArrowRight'] || this.game.keys['KeyD']) {
+                    this.x += moveX;
+                }
+                if (this.game.keys['ArrowUp'] || this.game.keys['KeyW']) {
+                    this.y -= moveY;
+                }
+                if (this.game.keys['ArrowDown'] || this.game.keys['KeyS']) {
+                    this.y += moveY;
+                }
+                
+                // 边界限制
+                this.x = Math.max(20, Math.min(this.game.width - 20, this.x));
+                this.y = Math.max(50, Math.min(this.game.height - 30, this.y));
+            }
+            
+            render() {
+                const ctx = this.game.ctx;
+                
+                // 绘制飞机主体
+                ctx.fillStyle = '#0ff';
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y - 20);
+                ctx.lineTo(this.x - 15, this.y + 15);
+                ctx.lineTo(this.x, this.y + 5);
+                ctx.lineTo(this.x + 15, this.y + 15);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 绘制机翼
+                ctx.fillStyle = '#088';
+                ctx.beginPath();
+                ctx.moveTo(this.x - 5, this.y);
+                ctx.lineTo(this.x - 25, this.y + 10);
+                ctx.lineTo(this.x - 5, this.y + 10);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.moveTo(this.x + 5, this.y);
+                ctx.lineTo(this.x + 25, this.y + 10);
+                ctx.lineTo(this.x + 5, this.y + 10);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 绘制驾驶舱
+                ctx.fillStyle = '#ff0';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - 5, 5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 引擎火焰
+                ctx.fillStyle = `hsl(${30 + Math.random() * 30}, 100%, 50%)`;
+                ctx.beginPath();
+                ctx.moveTo(this.x - 5, this.y + 15);
+                ctx.lineTo(this.x, this.y + 25 + Math.random() * 10);
+                ctx.lineTo(this.x + 5, this.y + 15);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+        
+        // 子弹基类
+        class Bullet {
+            constructor(game, x, y, vx, vy) {
+                this.game = game;
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.radius = 5;
+                this.damage = 1;
+            }
+            
+            update(deltaTime) {
+                this.x += this.vx * deltaTime / 1000;
+                this.y += this.vy * deltaTime / 1000;
+            }
+            
+            hit(enemy) {
+                enemy.health -= this.damage;
+                this.game.bullets = this.game.bullets.filter(b => b !== this);
+                
+                if (enemy.health <= 0) {
+                    this.game.addScore(enemy.points);
+                    this.game.explosions.push(new Explosion(this.game, enemy.x, enemy.y, enemy.color));
+                    
+                    // 概率掉落道具
+                    if (Math.random() < 0.15) {
+                        this.game.powerUps.push(new PowerUp(this.game, enemy.x, enemy.y));
+                    }
+                }
+            }
+            
+            render() {
+                const ctx = this.game.ctx;
+                ctx.fillStyle = '#0f0';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 发光效果
+                ctx.shadowColor = '#0f0';
+                ctx.shadowBlur = 10;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+        
+        // 激光子弹
+        class LaserBullet extends Bullet {
+            constructor(game, x, y) {
+                super(game, x, y, 0, -800);
+                this.radius = 3;
+                this.damage = 3;
+                this.length = 40;
+            }
+            
+            render() {
+                const ctx = this.game.ctx;
+                
+                // 激光光束
+                ctx.strokeStyle = '#0ff';
+                ctx.lineWidth = 4;
+                ctx.shadowColor = '#0ff';
+                ctx.shadowBlur = 15;
+                
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x, this.y - this.length);
+                ctx.stroke();
+                
+                ctx.shadowBlur = 0;
+            }
+        }
+        
+        // 敌机子弹
+        class EnemyBullet {
+            constructor(game, x, y, vx, vy) {
+                this.game = game;
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.radius = 4;
+            }
+            
+            update(deltaTime) {
+                this.x += this.vx * deltaTime / 1000;
+                this.y += this.vy * deltaTime / 1000;
+            }
+            
+            hit(player) {
+                this.game.enemyBullets = this.game.enemyBullets.filter(b => b !== this);
+                this.game.playerHit();
+            }
+            
+            render() {
+                const ctx = this.game.ctx;
+                ctx.fillStyle = '#f00';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.shadowColor = '#f00';
+                ctx.shadowBlur = 8;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+        }
+        
+        // 敌机基类
+        class Enemy {
+            constructor(game, x, y) {
+                this.game = game;
+                this.x = x;
+                this.y = y;
+                this.health = 1;
+                this.points = 10;
+                this.radius = 15;
+                this.speed = 100;
+                this.color = '#f00';
+                this.shootTimer = 0;
+                this.shootDelay = 2000;
+            }
+            
+            update(deltaTime) {
+                this.y += this.speed * deltaTime / 1000;
+                
+                // 射击逻辑
+                this.shootTimer += deltaTime;
+                if (this.shootTimer >= this.shootDelay) {
+                    this.shootTimer = 0;
+                    this.shoot();
+                }
+            }
+            
+            shoot() {
+                // 基础敌机不射击
+            }
+            
+            render() {
+                const ctx = this.game.ctx;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // 小型敌机
+        class SmallEnemy extends Enemy {
+            constructor(game, x, y) {
+                super(game, x, y);
+                this.health = 1;
+                this.points = 10;
+                this.radius = 12;
+                this.speed = 150;
+                this.color = '#f55';
+            }
+            
+            render() {
+                const ctx = this.game.ctx;
+                
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y + 15);
+                ctx.lineTo(this.x - 12, this.y - 10);
+                ctx.lineTo(this.x, this.y);
+                ctx.lineTo(this.x + 12, this.y - 10);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+        
+        // 中型敌机
+        class MediumEnemy extends Enemy {
+            constructor(game, x, y) {
+                super(game, x, y);
+                this.health = 3;
+                this.points = 30;
+                this.radius = 20;
+                this.speed = 80;
+                this.color = '#f80';
+                this.shootDelay = 1500;
+            }
+            
+            shoot() {
+                this.game.enemyBullets.push(new EnemyBullet(this.game, this.x, this.y + 20, 0, 200));
+            }
+            
+            render() {
+                const ctx = this.game.ctx;
+                
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y + 20);
+                ctx.lineTo(this.x - 20, this.y - 10);
+                ctx.lineTo(this.x - 10, this.y - 15);
+                ctx.lineTo(this.x, this.y - 5);
+                ctx.lineTo(this.x + 10, this.y - 15);
+                ctx.lineTo(this.x + 20, this.y - 10);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 血量显示
+                ctx.fillStyle = '#fff';
+                ctx.font = '10px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.health.toString(), this.x, this.y + 5);
+            }
+        }
+        
+        // 精英敌机（追踪型）
+        class EliteEnemy extends Enemy {
+            constructor(game, x, y) {
+                super(game, x, y);
+                this.health = 5;
+                this.points = 50;
+                this.radius = 18;
+                this.speed = 120;
+                this.color = '#f0f';
+                this.shootDelay = 1000;
+            }
+            
+            update(deltaTime) {
+                // 追踪玩家
+                if (this.game.player) {
+                    const dx = this.game.player.x - this.x;
+                    const dy = this.game.player.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist > 0) {
+                        this.x += (dx / dist) * this.speed * 0.3 * deltaTime / 1000;
+                    }
+                }
+                
+                this.y += this.speed * deltaTime / 1000;
+                
+                // 射击
+                this.shootTimer += deltaTime;
+                if (this.shootTimer >= this.shootDelay) {
+                    this.shootTimer = 0;
+                    this.shoot();
+                }
+            }
+            
+            shoot() {
+                if (this.game.player) {
+                    const dx = this.game.player.x - this.x;
+                    const dy = this.game.player.y - this.y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist > 0) {
+                        const speed = 250;
+                        this.game.enemyBullets.push(new EnemyBullet(
+                            this.game, this.x, this.y + 20,
+                            (dx / dist) * speed,
+                            (dy / dist) * speed
+                        ));
+                    }
+                }
+            }
+            
+            render() {
+                const ctx = this.game.ctx;
+                
+                // 精英标记
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y + 18);
+                ctx.lineTo(this.x - 18, this.y);
+                ctx.lineTo(this.x - 10, this.y - 15);
+                ctx.lineTo(this.x, this.y - 8);
+                ctx.lineTo(this.x + 10, this.y - 15);
+                ctx.lineTo(this.x + 18, this.y);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 发光效果
+                ctx.shadowColor = '#f0f';
+                ctx.shadowBlur = 10;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                // 血量显示
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.health.toString(), this.x, this.y + 5);
+            }
+        }
+        
+        // 道具类
+        class PowerUp {
+            constructor(game, x, y) {
+                this.game = game;
+                this.x = x;
+                this.y = y;
+                this.speed = 80;
+                this.radius = 12;
+                
+                // 随机道具类型
+                const types = ['bomb', 'spread', 'laser'];
+                const weights = [0.3, 0.35, 0.35];
+                
+                let rand = Math.random();
+                let sum = 0;
+                this.type = 'spread';
+                
+                for (let i = 0; i < types.length; i++) {
+                    sum += weights[i];
+                    if (rand < sum) {
+                        this.type = types[i];
+                        break;
+                    }
+                }
+            }
+            
+            update(deltaTime) {
+                this.y += this.speed * deltaTime / 1000;
+            }
+            
+            collect() {
+                this.game.powerUps = this.game.powerUps.filter(p => p !== this);
+                
+                switch (this.type) {
+                    case 'bomb':
+                        // 清屏炸弹
+                        this.game.enemies.forEach(enemy => {
+                            this.game.addScore(enemy.points);
+                            this.game.explosions.push(new Explosion(this.game, enemy.x, enemy.y, enemy.color));
+                        });
+                        this.game.enemies = [];
+                        this.game.enemyBullets = [];
+                        break;
+                    case 'spread':
+                        this.game.weaponType = 'spread';
+                        this.game.weaponTimer = 10000;
+                        this.game.updateWeaponDisplay();
+                        break;
+                    case 'laser':
+                        this.game.weaponType = 'laser';
+                        this.game.weaponTimer = 8000;
+                        this.game.updateWeaponDisplay();
+                        break;
+                }
+            }
+            
+            render() {
+                const ctx = this.game.ctx;
+                
+                // 道具背景
+                ctx.fillStyle = this.getTypeColor();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 发光效果
+                ctx.shadowColor = this.getTypeColor();
+                ctx.shadowBlur = 10;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                // 道具文字
+                ctx.fillStyle = '#fff';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.getTypeLetter(), this.x, this.y);
+            }
+            
+            getTypeColor() {
+                switch (this.type) {
+                    case 'bomb': return '#f00';
+                    case 'spread': return '#0a0';
+                    case 'laser': return '#00a';
+                    default: return '#fff';
+                }
+            }
+            
+            getTypeLetter() {
+                switch (this.type) {
+                    case 'bomb': return 'B';
+                    case 'spread': return 'A';
+                    case 'laser': return 'D';
+                    default: return '?';
+                }
+            }
+        }
+        
+        // 爆炸效果
+        class Explosion {
+            constructor(game, x, y, color) {
+                this.game = game;
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.radius = 5;
+                this.maxRadius = 40;
+                this.active = true;
+                this.speed = 150;
+            }
+            
+            update(deltaTime) {
+                this.radius += this.speed * deltaTime / 1000;
+                if (this.radius >= this.maxRadius) {
+                    this.active = false;
+                }
+            }
+            
+            render() {
+                const ctx = this.game.ctx;
+                const alpha = 1 - (this.radius / this.maxRadius);
+                
+                ctx.fillStyle = `rgba(255, 100, 0, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.strokeStyle = this.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 0.7, 0, Math.PI * 2);
+                ctx.stroke();
+            }
+        }
+        
+        // 新纪录粒子效果类
+        class NewRecordParticle {
+            constructor(game, x, y, angle, speed) {
+                this.game = game;
+                this.x = x;
+                this.y = y;
+                this.angle = angle;
+                this.speed = speed;
+                this.radius = 3 + Math.random() * 4;
+                this.active = true;
+                this.life = 1.5 + Math.random() * 0.5; // 生命周期（秒）
+                this.maxLife = this.life;
+                
+                // 随机金色色调
+                const hue = 40 + Math.random() * 20; // 40-60 金色范围
+                this.color = `hsl(${hue}, 100%, 50%)`;
+                this.glowColor = `hsl(${hue}, 100%, 70%)`;
+                
+                // 添加一些旋转和大小变化
+                this.rotation = Math.random() * Math.PI * 2;
+                this.rotationSpeed = (Math.random() - 0.5) * 5;
+                this.shape = Math.random() > 0.5 ? 'circle' : 'star';
+            }
+            
+            update(deltaTime) {
+                // 移动
+                this.x += Math.cos(this.angle) * this.speed * deltaTime / 1000;
+                this.y += Math.sin(this.angle) * this.speed * deltaTime / 1000;
+                
+                // 减速
+                this.speed *= 0.98;
+                
+                // 旋转
+                this.rotation += this.rotationSpeed * deltaTime / 1000;
+                
+                // 减少生命
+                this.life -= deltaTime / 1000;
+                if (this.life <= 0) {
+                    this.active = false;
+                }
+            }
+            
+            render() {
+                const ctx = this.game.ctx;
+                const alpha = Math.max(0, this.life / this.maxLife);
+                const currentRadius = this.radius * (0.5 + alpha * 0.5);
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                
+                // 发光效果
+                ctx.shadowColor = this.glowColor;
+                ctx.shadowBlur = 15;
+                
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = alpha;
+                
+                if (this.shape === 'circle') {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, currentRadius, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // 绘制星形
+                    this.drawStar(ctx, 0, 0, 5, currentRadius, currentRadius * 0.5);
+                }
+                
+                ctx.globalAlpha = 1;
+                ctx.shadowBlur = 0;
+                ctx.restore();
+            }
+            
+            drawStar(ctx, cx, cy, spikes, outerRadius, innerRadius) {
+                let rot = Math.PI / 2 * 3;
+                let step = Math.PI / spikes;
+                
+                ctx.beginPath();
+                ctx.moveTo(cx, cy - outerRadius);
+                
+                for (let i = 0; i < spikes; i++) {
+                    let x = cx + Math.cos(rot) * outerRadius;
+                    let y = cy + Math.sin(rot) * outerRadius;
+                    ctx.lineTo(x, y);
+                    rot += step;
+                    
+                    x = cx + Math.cos(rot) * innerRadius;
+                    y = cy + Math.sin(rot) * innerRadius;
+                    ctx.lineTo(x, y);
+                    rot += step;
+                }
+                
+                ctx.lineTo(cx, cy - outerRadius);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+        
+        // 初始化游戏
+        const game = new Game();
+    </script>
+</body>
+</html>

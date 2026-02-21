@@ -1,0 +1,2 @@
+Key: agent:status:{agent_id}
+   Fields: status, load, last_seen

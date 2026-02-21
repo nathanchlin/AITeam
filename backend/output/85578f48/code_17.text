@@ -1,0 +1,11 @@
+POST /api/v1/friends
+Headers: Authorization: Bearer <token>
+Request Body:
+{
+    "friendId": "string"
+}
+Response:
+{
+    "success": "boolean",
+    "message": "string"
+}

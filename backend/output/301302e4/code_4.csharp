@@ -1,0 +1,95 @@
+public class GameStats
+{
+    public int Score;
+    public int PigsRemaining;
+    public int BirdsUsed;
+    public int DirectHits;
+    public int ComboMultiplier;
+    public int Level;
+    public bool IsPerfectClear;
+}
+
+public class GameEventManager
+{
+    private ScoreSystem scoreSystem;
+    private AchievementSystem achievementSystem;
+    private GameProgress progress;
+    
+    public GameEventManager(ScoreSystem scoreSystem, AchievementSystem achievementSystem, GameProgress progress)
+    {
+        this.scoreSystem = scoreSystem;
+        this.achievementSystem = achievementSystem;
+        this.progress = progress;
+    }
+    
+    public void OnPigEliminated()
+    {
+        progress.TotalPigsKilled++;
+        scoreSystem.RegisterHit();
+        
+        var stats = GetCurrentGameStats();
+        achievementSystem.CheckAchievements(stats);
+    }
+    
+    public void OnLevelComplete(int score, int stars, bool perfectClear)
+    {
+        progress.LevelsCompleted++;
+        progress.TotalScore += score;
+        
+        if (score > progress.HighScore)
+        {
+            progress.HighScore = score;
+        }
+        
+        if (stars == 3)
+        {
+            progress.PerfectLevels++;
+        }
+        
+        if (perfectClear)
+        {
+            progress.OneBirdClears++;
+        }
+        
+        // 保存关卡进度
+        if (!progress.LevelProgressData.ContainsKey(progress.CurrentLevel))
+        {
+            progress.LevelProgressData[progress.CurrentLevel] = new LevelProgress();
+        }
+        
+        var levelProgress = progress.LevelProgressData[progress.CurrentLevel];
+        if (score > levelProgress.BestScore)
+        {
+            levelProgress.BestScore = score;
+        }
+        
+        levelProgress.StarsAchieved = Mathf.Max(levelProgress.StarsAchieved, stars);
+        levelProgress.IsCompleted = true;
+        
+        SaveSystem.SaveGameProgress(progress);
+    }
+    
+    public void OnDirectHit()
+    {
+        progress.ConsecutiveDirectHits++;
+    }
+    
+    public void OnMissedShot()
+    {
+        progress.ConsecutiveDirectHits = 0;
+    }
+    
+    private GameStats GetCurrentGameStats()
+    {
+        return new GameStats
+        {
+            Score = scoreSystem.GetCurrentScore(),
+            PigsRemaining = 0, // 需要根据游戏实际情况更新
+            BirdsUsed = 0,     // 需要根据游戏实际情况更新
+            DirectHits = progress.ConsecutiveDirectHits,
+            ComboMultiplier = scoreSystem.GetComboMultiplier(),
+            Level = progress.CurrentLevel,
+            IsPerfectClear = false // 需要根据游戏实际情况更新
+        };
+    }
+}

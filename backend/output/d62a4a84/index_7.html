@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>球球大作战 - 原生Canvas实现</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  let ball = {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    radius: 30,
+    color: 'red',
+    velocityX: 5,
+    velocityY: 5
+  };
+
+  function drawBall() {
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+    ctx.fillStyle = ball.color;
+    ctx.fill();
+    ctx.closePath();
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawBall();
+    ball.x += ball.velocityX;
+    ball.y += ball.velocityY;
+
+    // Reverse direction when ball hits the canvas wall
+    if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) {
+      ball.velocityX = -ball.velocityX;
+    }
+
+    if (ball.y + ball.radius > canvas.height || ball.y - ball.radius < 0) {
+      ball.velocityY = -ball.velocityY;
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  function handleKeyDown(event) {
+    if (event.key === 'ArrowLeft') {
+      ball.velocityX = -5;
+    } else if (event.key === 'ArrowRight') {
+      ball.velocityX = 5;
+    } else if (event.key === 'ArrowUp') {
+      ball.velocityY = -5;
+    } else if (event.key === 'ArrowDown') {
+      ball.velocityY = 5;
+    }
+  }
+
+  function handleKeyUp(event) {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+      ball.velocityX = 0;
+    } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+      ball.velocityY = 0;
+    }
+  }
+
+  window.onload = function() {
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    requestAnimationFrame(draw);
+  };
+</script>
+</body>
+</html>

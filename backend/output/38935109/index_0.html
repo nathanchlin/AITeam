@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backpack War Game</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 800;
+  canvas.height = 600;
+
+  let gameLoop;
+
+  // Game objects
+  const player = {
+    x: 50,
+    y: 50,
+    width: 30,
+    height: 30,
+    color: 'blue'
+  };
+
+  const backpack = {
+    x: 50,
+    y: 100,
+    width: 100,
+    height: 50,
+    color: 'green'
+  };
+
+  const map = {
+    width: canvas.width,
+    height: canvas.height,
+    color: 'grey'
+  };
+
+  // Draw functions
+  function drawRect(x, y, width, height, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  function drawPlayer() {
+    drawRect(player.x, player.y, player.width, player.height, player.color);
+  }
+
+  function drawBackpack() {
+    drawRect(backpack.x, backpack.y, backpack.width, backpack.height, backpack.color);
+  }
+
+  function drawMap() {
+    drawRect(map.x, map.y, map.width, map.height, map.color);
+  }
+
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawMap();
+    drawPlayer();
+    drawBackpack();
+  }
+
+  // Event listeners
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      player.x -= 5;
+    } else if (e.key === 'ArrowRight') {
+      player.x += 5;
+    } else if (e.key === 'ArrowUp') {
+      player.y -= 5;
+    } else if (e.key === 'ArrowDown') {
+      player.y += 5;
+    }
+  });
+
+  // Initialization
+  window.onload = () => {
+    gameLoop = () => {
+      requestAnimationFrame(gameLoop);
+    };
+    requestAnimationFrame(gameLoop);
+  };
+</script>
+</body>
+</html>

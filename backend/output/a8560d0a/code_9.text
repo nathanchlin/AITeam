@@ -1,0 +1,13 @@
+tank-battle/
+├── index.html          # 游戏主页面
+├── css/
+│   └── style.css       # 样式文件
+├── js/
+│   ├── game.js         # 游戏逻辑
+│   ├── tank.js         # 坦克类
+│   ├── bullet.js       # 子弹类
+│   └── base.js         # 总部类
+├── assets/
+│   ├── images/         # 游戏图片资源
+│   └── sounds/         # 游音效资源
+└── README.md           # 项目说明文档

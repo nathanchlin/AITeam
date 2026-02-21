@@ -1,0 +1,10 @@
+game/
+├── sounds/
+│   ├── background_music.mp3
+│   ├── jump.wav
+│   ├── slash.wav
+│   ├── collect.wav
+│   ├── damage.wav
+│   └── game_over.wav
+├── images/
+└── main.py

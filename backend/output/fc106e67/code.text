@@ -1,0 +1,8 @@
+/public/
+    ├── index.html
+    ├── css/
+    ├── js/
+    ├── assets/
+    │   ├── characters/
+    │   ├── backgrounds/
+    │   └── sounds/

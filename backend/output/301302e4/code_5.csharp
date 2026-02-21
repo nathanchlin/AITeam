@@ -1,0 +1,62 @@
+public class GameUI : MonoBehaviour
+{
+    [SerializeField] private Text scoreText;
+    [SerializeField] private Text comboText;
+    [SerializeField] private Image[] starImages;
+    [SerializeField] private GameObject achievementPopup;
+    [SerializeField] private Text achievementTitle;
+    [SerializeField] private Text achievementDescription;
+    
+    private ScoreSystem scoreSystem;
+    private StarRatingSystem starSystem;
+    private AchievementSystem achievementSystem;
+    
+    private void Start()
+    {
+        scoreSystem = FindObjectOfType<ScoreSystem>();
+        starSystem = FindObjectOfType<StarRatingSystem>();
+        achievementSystem = FindObjectOfType<AchievementSystem>();
+        
+        scoreSystem.OnScoreAdded += UpdateScoreDisplay;
+        achievementSystem.OnAchievementUnlocked += ShowAchievementPopup;
+    }
+    
+    private void UpdateScoreDisplay(int score)
+    {
+        scoreText.text = $"Score: {score}";
+        
+        // 更新连击显示
+        if (scoreSystem.GetComboMultiplier() > 1)
+        {
+            comboText.text = $"x{scoreSystem.GetComboMultiplier()} COMBO!";
+            comboText.gameObject.SetActive(true);
+        }
+        else
+        {
+            comboText.gameObject.SetActive(false);
+        }
+    }
+    
+    public void ShowStars(int stars)
+    {
+        for (int i = 0; i < starImages.Length; i++)
+        {
+            starImages[i].gameObject.SetActive(i < stars);
+        }
+    }
+    
+    private void ShowAchievementPopup(Achievement achievement)
+    {
+        achievementTitle.text = achievement.Title;
+        achievementDescription.text = achievement.Description;
+        achievementPopup.SetActive(true);
+        
+        // 3秒后自动隐藏
+        Invoke("HideAchievementPopup", 3f);
+    }
+    
+    private void HideAchievementPopup()
+    {
+        achievementPopup.SetActive(false);
+    }
+}

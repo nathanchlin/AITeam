@@ -1,0 +1,412 @@
+/* 基础样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+    line-height: 1.6;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* 游戏容器 */
+.game-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 头部样式 */
+.game-header {
+    background-color: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-bottom: 20px;
+}
+
+.game-info {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.score-container, .timer-container, .level-container {
+    display: flex;
+    align-items: center;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.label {
+    color: #666;
+    margin-right: 8px;
+}
+
+.score, .timer, .level {
+    color: #ff6b6b;
+    font-size: 24px;
+    min-width: 60px;
+    text-align: center;
+}
+
+.game-controls {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* 按钮样式 */
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    outline: none;
+}
+
+.btn:active {
+    transform: scale(0.98);
+}
+
+.btn.primary {
+    background-color: #4ecdc4;
+    color: white;
+}
+
+.btn.primary:hover {
+    background-color: #45b7b0;
+}
+
+.btn.secondary {
+    background-color: #f7b731;
+    color: white;
+}
+
+.btn.secondary:hover {
+    background-color: #f0a020;
+}
+
+.btn.danger {
+    background-color: #ff6b6b;
+    color: white;
+}
+
+.btn.danger:hover {
+    background-color: #ff5252;
+}
+
+.btn.share {
+    background-color: #5f27cd;
+    color: white;
+}
+
+.btn.share:hover {
+    background-color: #4c1fa0;
+}
+
+/* 游戏板样式 */
+.game-board {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    position: relative;
+}
+
+.card-deck {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: repeat(7, 1fr);
+    gap: 8px;
+    max-width: 500px;
+    width: 100%;
+    aspect-ratio: 1;
+    perspective: 1000px;
+}
+
+.card {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.6s;
+    cursor: pointer;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.card.flipped {
+    transform: rotateY(180deg);
+}
+
+.card.matched {
+    opacity: 0.3;
+    pointer-events: none;
+}
+
+.card-front, .card-back {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    backface-visibility: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 24px;
+}
+
+.card-front {
+    background-color: #e0e0e0;
+    background-image: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="%23999" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>');
+    background-size: 30px;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+.card-back {
+    background-color: #fff;
+    transform: rotateY(180deg);
+    border: 2px solid #f0f0f0;
+}
+
+/* 游戏消息 */
+.game-message {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: 10;
+}
+
+.game-message.show {
+    opacity: 1;
+}
+
+/* 页脚样式 */
+.game-footer {
+    background-color: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+}
+
+.stats-container {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.stat-item {
+    display: flex;
+    align-items: center;
+    font-size: 16px;
+}
+
+.stat-label {
+    color: #666;
+    margin-right: 8px;
+}
+
+.stat-value {
+    color: #4ecdc4;
+    font-weight: 600;
+}
+
+.share-container {
+    display: flex;
+    justify-content: center;
+}
+
+/* 模态框样式 */
+.modal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 100;
+    justify-content: center;
+    align-items: center;
+}
+
+.modal.show {
+    display: flex;
+}
+
+.modal-content {
+    background-color: white;
+    border-radius: 12px;
+    padding: 30px;
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.modal-content h2 {
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.modal-content p {
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.modal-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+/* 提示消息 */
+.toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 200;
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .game-container {
+        padding: 10px;
+    }
+    
+    .game-header {
+        padding: 15px;
+    }
+    
+    .game-info {
+        gap: 10px;
+    }
+    
+    .score, .timer, .level {
+        font-size: 20px;
+        min-width: 50px;
+    }
+    
+    .card-deck {
+        gap: 5px;
+    }
+    
+    .card-front, .card-back {
+        font-size: 18px;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+    
+    .game-footer {
+        padding: 15px;
+    }
+    
+    .stats-container {
+        gap: 20px;
+    }
+    
+    .stat-label, .stat-value {
+        font-size: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .card-deck {
+        grid-template-columns: repeat(5, 1fr);
+        grid-template-rows: repeat(5, 1fr);
+    }
+    
+    .game-controls {
+        gap: 5px;
+    }
+    
+    .btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+    
+    .modal-content {
+        padding: 20px;
+    }
+    
+    .modal-content h2 {
+        font-size: 20px;
+    }
+    
+    .modal-content p {
+        font-size: 16px;
+    }
+}
+
+/* 横屏模式适配 */
+@media screen and (orientation: landscape) and (max-height: 600px) {
+    .game-container {
+        padding: 10px;
+    }
+    
+    .game-header, .game-footer {
+        padding: 10px;
+    }
+    
+    .game-info {
+        margin-bottom: 10px;
+    }
+    
+    .score, .timer, .level {
+        font-size: 16px;
+        min-width: 40px;
+    }
+    
+    .card-deck {
+        max-height: 300px;
+    }
+}

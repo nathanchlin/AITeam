@@ -1,0 +1,13 @@
+贪吃蛇游戏项目/
+├── README.md              # 项目说明文档
+├── src/                   # 源代码目录
+│   ├── index.html         # 主HTML文件
+│   ├── style.css          # 样式文件
+│   ├── game.js            # 游戏核心逻辑
+│   └── controls.js        # 控制逻辑
+├── docs/                  # 文档目录
+│   ├── API.md             # API文档
+│   └── CHANGELOG.md       # 更新日志
+└── assets/                # 资源目录
+    ├── images/            # 图片资源
+    └── sounds/            # 音效资源

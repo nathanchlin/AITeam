@@ -1,0 +1,13 @@
+typedef enum {
+    GAME_STATE_TITLE,
+    GAME_STATE_PLAYING,
+    GAME_STATE_PAUSED,
+    GAME_STATE_GAME_OVER,
+    GAME_STATE_LEVEL_COMPLETE,
+    GAME_STATE_WORLD_MAP,
+    GAME_STATE_CUTSCENE
+} GameState;
+
+// 全局游戏状态变量
+GameState currentGameState = GAME_STATE_TITLE;
+GameState previousGameState = GAME_STATE_TITLE;

@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>忍者必须死</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #111;
+            color: #fff;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 400px;
+            background: linear-gradient(to bottom, #87CEEB 0%, #87CEEB 70%, #8B4513 70%, #8B4513 100%);
+            border: 3px solid #333;
+            overflow: hidden;
+        }
+
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7);
+            z-index: 10;
+        }
+
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 10px;
+            z-index: 20;
+        }
+
+        #game-over h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #ff5555;
+        }
+
+        #game-over p {
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+
+        #restart-btn {
+            padding: 10px 20px;
+            font-size: 18px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        #restart-btn:hover {
+            background: #45a049;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        #pause-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 8px 15px;
+            font-size: 16px;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        #pause-btn:hover {
+            background: #0b7dda;
+        }
+
+        .particle {
+            position: absolute;
+            width: 5px;
+            height: 5px;
+            background: #ff0;
+            border-radius: 50%;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas" width="800" height="400"></canvas>
+        
+        <div id="ui">
+            <div>得分: <span id="score">0</span></div>
+            <div>最高分: <span id="high-score">0</span></div>
+        </div>
+        
+        <button id="pause-btn">暂停</button>
+        
+        <div id="game-over">
+            <h2>游戏结束</h2>
+            <p>你的得分: <span id="final-score">0</span></p>
+            <p id="new-record" style="display: none; color: #FFD700;">新纪录！</p>
+            <button id="restart-btn">重新开始</button>
+        </div>
+        
+        <div id="instructions">
+            按空格键跳跃，下方向键滑行，躲避障碍物！
+        </div>
+    </div>
+
+    <script>
+        // 游戏配置
+        const config = {
+            gravity: 0.5,
+            jumpForce: -12,
+            slideSpeed: 8,
+            gameSpeed: 5,
+            obstacleInterval: 1500,
+            difficultyIncreaseInterval: 10000,
+            maxSpeed: 15,
+            scoreMultiplier: 1
+        };
+
+        // 游戏状态
+        let gameState = {
+            isRunning: false,
+            isPaused: false,
+            score: 0,
+            highScore: localStorage.getItem('ninjaHighScore') || 0,
+            gameSpeed: config.gameSpeed,
+            lastObstacleTime: 0,
+            difficultyIncreaseTime: 0
+        };
+
+        // 获取DOM元素
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const highScoreElement = document.getElementById('high-score');
+        const gameOverElement = document.getElementById('game-over');
+        const finalScoreElement = document.getElementById('final-score');
+        const newRecordElement = document.getElementById('new-record');
+        const restartBtn = document.getElementById('restart-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+
+        // 更新最高分显示
+        highScoreElement.textContent = gameState.highScore;
+
+        // 忍者类
+        class Ninja {
+            constructor() {
+                this.width = 40;
+                this.height = 60;
+                this.x = 100;
+                this.y = canvas.height - 100; // 初始位置在地面上
+                this.velocityY = 0;
+                this.isJumping = false;
+                this.isSliding = false;
+                this.color = '#00ff00'; // 绿色忍者
+                this.groundY = canvas.height - 100;
+            }
+
+            jump() {
+                if (!this.isJumping && !this.isSliding) {
+                    this.velocityY = config.jumpForce;
+                    this.isJumping = true;
+                }
+            }
+
+            slide() {
+                if (!this.isJumping && !this.isSliding) {
+                    this.isSliding = true;
+                    this.height = 30; // 滑行时高度降低
+                    setTimeout(() => {
+                        this.isSliding = false;
+                        this.height = 60; // 恢复高度
+                    }, 500);
+                }
+            }
+
+            update() {
+                // 应用重力
+                this.velocityY += config.gravity;
+                this.y += this.velocityY;
+
+                // 地面检测
+                if (this.y > this.groundY) {
+                    this.y = this.groundY;
+                    this.velocityY = 0;
+                    this.isJumping = false;
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                
+                // 绘制忍者身体
+                if (this.isSliding) {
+                    // 滑行状态
+                    ctx.fillRect(this.x, this.y + 30, this.width, this.height - 30);
+                    // 绘制头部
+                    ctx.beginPath();
+                    ctx.arc(this.x + this.width / 2, this.y + 15, 15, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // 正常状态
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                    
+                    // 绘制忍者眼睛
+                    ctx.fillStyle = '#fff';
+                    ctx.fillRect(this.x + 10, this.y + 15, 5, 5);
+                    ctx.fillRect(this.x + 25, this.y + 15, 5, 5);
+                }
+                
+                // 绘制忍者标记
+                ctx.fillStyle = '#000';
+                ctx.font = '20px Arial';
+                ctx.fillText('忍', this.x + 12, this.y + 40);
+            }
+
+            getBounds() {
+                return {
+                    x: this.x,
+                    y: this.y,
+                    width: this.width,
+                    height: this.height
+                };
+            }
+        }
+
+        // 障碍物类
+        class Obstacle {
+            constructor() {
+                this.width = 30;
+                this.height = Math.random() > 0.5 ? 40 : 80; // 随机高度
+                this.x = canvas.width;
+                this.y = this.height === 40 ? canvas.height - 40 : canvas.height - 100; // 高障碍物在地面上，低障碍物在空中
+                this.color = '#ff5555';
+                this.passed = false;
+            }
+
+            update() {
+                this.x -= gameState.gameSpeed;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                // 添加一些细节
+                ctx.fillStyle = '#aa0000';
+                ctx.fillRect(this.x + 5, this.y + 5, this.width - 10, 10);
+            }
+
+            getBounds() {
+                return {
+                    x: this.x,
+                    y: this.y,
+                    width: this.width,
+                    height: this.height
+                };
+            }
+
+            isOffScreen() {
+                return this.x + this.width < 0;
+            }
+        }
+
+        // 粒子效果类
+        class Particle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.velocityX = (Math.random() - 0.5) * 4;
+                this.velocityY = (Math.random() - 0.5) * 4;
+                this.size = Math.random() * 5 + 2;
+                this.life = 1.0;
+                this.decay = Math.random() * 0.02 + 0.01;
+            }
+
+            update() {
+                this.x += this.velocityX;
+                this.y += this.velocityY;
+                this.life -= this.decay;
+                this.size *= 0.98;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.life;
+                ctx.fillStyle = '#ff0';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            isDead() {
+                return this.life <= 0;
+            }
+        }
+
+        // 游戏对象
+        const ninja = new Ninja();
+        const obstacles = [];
+        const particles = [];
+
+        // 创建粒子效果
+        function createParticles(x, y, count = 10) {
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle(x, y));
+            }
+        }
+
+        // 碰撞检测函数
+        function checkCollision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        // 生成障碍物
+        function generateObstacle() {
+            const currentTime = Date.now();
+            if (currentTime - gameState.lastObstacleTime > config.obstacleInterval / gameState.gameSpeed) {
+                obstacles.push(new Obstacle());
+                gameState.lastObstacleTime = currentTime;
+            }
+        }
+
+        // 更新游戏难度
+        function updateDifficulty() {
+            const currentTime = Date.now();
+            if (currentTime - gameState.difficultyIncreaseTime > config.difficultyIncreaseInterval) {
+                gameState.gameSpeed = Math.min(gameState.gameSpeed + 1, config.maxSpeed);
+                gameState.difficultyIncreaseTime = currentTime;
+                config.obstacleInterval = Math.max(config.obstacleInterval - 50, 800);
+            }
+        }
+
+        // 更新得分
+        function updateScore() {
+            // 基于时间和障碍物通过计算得分
+            gameState.score += Math.floor(gameState.gameSpeed * config.scoreMultiplier);
+            
+            // 检查是否有障碍物通过
+            obstacles.forEach(obstacle => {
+                if (!obstacle.passed && obstacle.x + obstacle.width < ninja.x) {
+                    obstacle.passed = true;
+                    gameState.score += 50; // 通过障碍物额外加分
+                    createParticles(obstacle.x + obstacle.width / 2, obstacle.y + obstacle.height / 2, 5);
+                }
+            });
+            
+            scoreElement.textContent = gameState.score;
+        }
+
+        // 游戏结束
+        function gameOver() {
+            gameState.isRunning = false;
+            finalScoreElement.textContent = gameState.score;
+            
+            // 检查是否是新纪录
+            if (gameState.score > gameState.highScore) {
+                gameState.highScore = gameState.score;
+                localStorage.setItem('ninjaHighScore', gameState.highScore);
+                highScoreElement.textContent = gameState.highScore;
+                newRecordElement.style.display = 'block';
+            } else {
+                newRecordElement.style.display = 'none';
+            }
+            
+            gameOverElement.style.display = 'block';
+            
+            // 创建爆炸粒子效果
+            createParticles(ninja.x + ninja.width / 2, ninja.y + ninja.height / 2, 30);
+        }
+
+        // 重置游戏
+        function resetGame() {
+            ninja.y = ninja.groundY;
+            ninja.velocityY = 0;
+            ninja.isJumping = false;
+            ninja.isSliding = false;
+            
+            obstacles.length = 0;
+            particles.length = 0;
+            
+            gameState.score = 0;
+            gameState.gameSpeed = config.gameSpeed;
+            gameState.isRunning = true;
+            gameState.isPaused = false;
+            gameState.lastObstacleTime = Date.now();
+            gameState.difficultyIncreaseTime = Date.now();
+            
+            scoreElement.textContent = 0;
+            gameOverElement.style.display = 'none';
+            pauseBtn.textContent = '暂停';
+        }
+
+        // 游戏主循环
+        function gameLoop() {
+            // 清除画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制地面
+            ctx.fillStyle = '#8B4513';
+            ctx.fillRect(0, canvas.height - 40, canvas.width, 40);
+            
+            // 绘制云朵背景
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.beginPath();
+            ctx.arc(100, 80, 30, 0, Math.PI * 2);
+            ctx.arc(130, 70, 35, 0, Math.PI * 2);
+            ctx.arc(160, 80, 30, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.arc(500, 60, 25, 0, Math.PI * 2);
+            ctx.arc(525, 50, 30, 0, Math.PI * 2);
+            ctx.arc(550, 60, 25, 0, Math.PI * 2);
+            ctx.fill();
+            
+            if (gameState.isRunning && !gameState.isPaused) {
+                // 更新忍者
+                ninja.update();
+                
+                // 生成障碍物
+                generateObstacle();
+                
+                // 更新障碍物
+                for (let i = obstacles.length - 1; i >= 0; i--) {
+                    obstacles[i].update();
+                    
+                    // 检测碰撞
+                    if (checkCollision(ninja.getBounds(), obstacles[i].getBounds())) {
+                        gameOver();
+                    }
+                    
+                    // 移除离开屏幕的障碍物
+                    if (obstacles[i].isOffScreen()) {
+                        obstacles.splice(i, 1);
+                    }
+                }
+                
+                // 更新粒子
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    particles[i].update();
+                    if (particles[i].isDead()) {
+                        particles.splice(i, 1);
+                    }
+                }
+                
+                // 更新得分和难度
+                updateScore();
+                updateDifficulty();
+            }
+            
+            // 绘制游戏对象
+            ninja.draw();
+            obstacles.forEach(obstacle => obstacle.draw());
+            particles.forEach(particle => particle.draw());
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 键盘控制
+        document.addEventListener('keydown', (e) => {
+            if (!gameState.isRunning || gameState.isPaused) return;
+            
+            if (e.code === 'Space') {
+                e.preventDefault();
+                ninja.jump();
+            } else if (e.code === 'ArrowDown') {
+                e.preventDefault();
+                ninja.slide();
+            }
+        });
+
+        // 触摸控制
+        let touchStartY = null;
+        
+        canvas.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            if (!gameState.isRunning || gameState.isPaused) return;
+            
+            e.preventDefault();
+            const touchY = e.touches[0].clientY;
+            
+            if (touchStartY !== null) {
+                const diff = touchStartY - touchY;
+                
+                if (Math.abs(diff) > 10) {
+                    if (diff > 0) {
+                        // 向上滑动 - 跳跃
+                        ninja.jump();
+                    } else {
+                        // 向下滑动 - 滑行
+                        ninja.slide();
+                    }
+                }
+            }
+        });
+        
+        canvas.addEventListener('touchend', () => {
+            touchStartY = null;
+        });
+
+        // 暂停按钮
+        pauseBtn.addEventListener('click', () => {
+            if (!gameState.isRunning) return;
+            
+            gameState.isPaused = !gameState.isPaused;
+            pauseBtn.textContent = gameState.isPaused ? '继续' : '暂停';
+        });
+
+        // 重新开始按钮
+        restartBtn.addEventListener('click', resetGame);
+
+        // 初始化游戏
+        resetGame();
+        gameLoop();
+    </script>
+</body>
+</html>

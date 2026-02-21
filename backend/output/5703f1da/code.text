@@ -1,0 +1,4 @@
+hello-world-project/
+├── index.html      # 主HTML文件
+├── style.css       # 样式文件（可选）
+└── README.md       # 项目说明文档

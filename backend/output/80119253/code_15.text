@@ -1,0 +1,15 @@
+gomoku-game/
+├── src/
+│   ├── components/     # 组件
+│   ├── hooks/         # 自定义hooks
+│   ├── utils/         # 工具函数
+│   ├── styles/        # 样式文件
+│   ├── assets/        # 静态资源
+│   ├── App.js         # 主应用组件
+│   └── index.js       # 入口文件
+├── public/            # 公共资源
+├── tests/             # 测试文件
+├── .gitignore         # Git忽略文件
+├── package.json       # 项目配置
+├── webpack.config.js  # Webpack配置
+└── README.md          # 项目说明

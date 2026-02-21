@@ -1,0 +1,7 @@
+/消消乐游戏/
+├── frontend/          # 前端代码
+├── backend/           # 后端代码
+├── database/          # 数据库脚本
+├── docs/              # 文档
+├── scripts/           # 部署脚本
+└── config/            # 配置文件

@@ -1,0 +1,228 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background: #faf8ef;
+    color: #776e65;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 48px;
+    color: #776e65;
+    margin-bottom: 20px;
+}
+
+.score-container {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.score-box {
+    background: #bbada0;
+    padding: 10px 20px;
+    border-radius: 3px;
+    text-align: center;
+    min-width: 100px;
+}
+
+.score-label {
+    font-size: 12px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+
+.score {
+    font-size: 24px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.game-container {
+    background: #bbada0;
+    border-radius: 6px;
+    padding: 10px;
+    position: relative;
+    margin-bottom: 20px;
+}
+
+.game-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.game-controls {
+    display: flex;
+    gap: 10px;
+}
+
+.btn {
+    background: #8f7a66;
+    color: #f9f6f2;
+    border: none;
+    border-radius: 3px;
+    padding: 8px 16px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn:hover {
+    background: #9f8a76;
+}
+
+.btn:disabled {
+    background: #cdc1b4;
+    cursor: not-allowed;
+}
+
+.game-message {
+    font-size: 16px;
+    font-weight: bold;
+    min-height: 20px;
+}
+
+.game-board {
+    position: relative;
+    background: #cdc1b4;
+    border-radius: 6px;
+    padding: 10px;
+    display: grid;
+    gap: 10px;
+    aspect-ratio: 1;
+}
+
+.tile {
+    position: absolute;
+    width: calc(25% - 7.5px);
+    height: calc(25% - 7.5px);
+    background: #eee4da;
+    border-radius: 3px;
+    font-size: 35px;
+    font-weight: bold;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.15s ease-in-out;
+    z-index: 1;
+}
+
+.tile-2 { background: #eee4da; color: #776e65; }
+.tile-4 { background: #ede0c8; color: #776e65; }
+.tile-8 { background: #f2b179; color: #f9f6f2; }
+.tile-16 { background: #f59563; color: #f9f6f2; }
+.tile-32 { background: #f67c5f; color: #f9f6f2; }
+.tile-64 { background: #f65e3b; color: #f9f6f2; }
+.tile-128 { background: #edcf72; color: #f9f6f2; font-size: 30px; }
+.tile-256 { background: #edcc61; color: #f9f6f2; font-size: 30px; }
+.tile-512 { background: #edc850; color: #f9f6f2; font-size: 30px; }
+.tile-1024 { background: #edc53f; color: #f9f6f2; font-size: 25px; }
+.tile-2048 { background: #edc22e; color: #f9f6f2; font-size: 25px; }
+.tile-4096 { background: #3c3a32; color: #f9f6f2; font-size: 20px; }
+.tile-8192 { background: #3c3a32; color: #f9f6f2; font-size: 20px; }
+
+.tile-new {
+    animation: appear 0.2s ease-in-out;
+}
+
+.tile-merged {
+    animation: pop 0.2s ease-in-out;
+}
+
+@keyframes appear {
+    0% {
+        opacity: 0;
+        transform: scale(0);
+    }
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes pop {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.instructions {
+    background: #bbada0;
+    padding: 15px;
+    border-radius: 6px;
+    text-align: center;
+}
+
+.instructions h2 {
+    margin-bottom: 10px;
+    color: #f9f6f2;
+}
+
+.instructions p {
+    margin-bottom: 5px;
+    line-height: 1.4;
+}
+
+/* 响应式设计 */
+@media (max-width: 520px) {
+    .tile {
+        font-size: 24px;
+    }
+    
+    .tile-128, .tile-256, .tile-512 {
+        font-size: 20px;
+    }
+    
+    .tile-1024, .tile-2048 {
+        font-size: 18px;
+    }
+    
+    .tile-4096, .tile-8192 {
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 360px) {
+    .header h1 {
+        font-size: 36px;
+    }
+    
+    .score {
+        font-size: 20px;
+    }
+    
+    .btn {
+        padding: 6px 12px;
+        font-size: 12px;
+    }
+}

@@ -1,0 +1,13 @@
+russian-tetris-battle/
+├── src/
+│   ├── components/     # UI组件
+│   ├── game/          # 游戏逻辑
+│   ├── ai/            # AI逻辑
+│   ├── utils/         # 工具函数
+│   └── styles/        # 样式文件
+├── public/            # 静态资源
+├── tests/             # 测试文件
+├── docs/              # 文档
+├── package.json
+├── webpack.config.js
+└── README.md

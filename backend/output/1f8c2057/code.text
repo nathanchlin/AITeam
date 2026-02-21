@@ -1,0 +1,19 @@
+snake-game/
+├── public/
+│   ├── index.html
+│   └── favicon.ico
+├── src/
+│   ├── components/
+│   │   ├── GameCanvas.js
+│   │   ├── GameControls.js
+│   │   └── ScoreBoard.js
+│   ├── hooks/
+│   │   └── useSnakeGame.js
+│   ├── utils/
+│   │   ├── gameLogic.js
+│   │   └── constants.js
+│   ├── App.css
+│   ├── App.js
+│   └── index.js
+├── package.json
+└── README.md

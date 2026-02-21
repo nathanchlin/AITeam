@@ -1,0 +1,32 @@
+# backend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tetris-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: tetris-backend
+  template:
+    metadata:
+      labels:
+        app: tetris-backend
+    spec:
+      containers:
+      - name: backend
+        image: your-registry/tetris-backend:latest
+        ports:
+        - containerPort: 3000
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        env:
+        - name: DB_HOST
+          value: "postgres-service"
+        - name: REDIS_HOST
+          value: "redis-service"

@@ -1,0 +1,46 @@
+void ChangeState(NinjaState newState)
+{
+    if (currentState == newState) return;
+    
+    currentState = newState;
+    slideTimer = 0f;
+    
+    // 状态进入时的特殊处理
+    switch (newState)
+    {
+        case NinjaState.Jumping:
+            rb.AddForce(Vector2.up * jumpForce, ForceMode2D.Impulse);
+            break;
+            
+        case NinjaState.Sliding:
+            // 滑行时的碰撞体调整
+            GetComponent<BoxCollider2D>().size = new Vector2(1f, 0.5f);
+            break;
+    }
+}
+
+void UpdateState()
+{
+    // 检测地面状态
+    isGrounded = CheckGrounded();
+    
+    // 状态转换逻辑
+    switch (currentState)
+    {
+        case NinjaState.Sliding:
+            slideTimer += Time.deltaTime;
+            if (slideTimer >= slideDuration)
+            {
+                ChangeState(NinjaState.Running);
+                GetComponent<BoxCollider2D>().size = new Vector2(1f, 1f); // 恢复碰撞体
+            }
+            break;
+            
+        case NinjaState.Jumping:
+            if (isGrounded)
+            {
+                ChangeState(NinjaState.Running);
+            }
+            break;
+    }
+}

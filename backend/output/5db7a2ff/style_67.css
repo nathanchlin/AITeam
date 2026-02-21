@@ -1,0 +1,62 @@
+@media screen and (max-width: 520px) {
+    .header h1 {
+        font-size: 60px;
+    }
+    
+    .tile {
+        font-size: 40px;
+    }
+    
+    .tile-128, .tile-256, .tile-512 {
+        font-size: 30px;
+    }
+    
+    .tile-1024, .tile-2048 {
+        font-size: 25px;
+    }
+    
+    .tile-super {
+        font-size: 20px;
+    }
+    
+    .game-message p {
+        font-size: 40px;
+    }
+}
+
+@media screen and (max-width: 360px) {
+    .header h1 {
+        font-size: 40px;
+    }
+    
+    .tile {
+        font-size: 30px;
+    }
+    
+    .tile-128, .tile-256, .tile-512 {
+        font-size: 25px;
+    }
+    
+    .tile-1024, .tile-2048 {
+        font-size: 20px;
+    }
+    
+    .tile-super {
+        font-size: 15px;
+    }
+    
+    .game-message p {
+        font-size: 30px;
+    }
+    
+    .btn {
+        padding: 8px 15px;
+        font-size: 14px;
+    }
+}
+
+@media screen and (max-height: 600px) {
+    .instructions {
+        display: none;
+    }
+}

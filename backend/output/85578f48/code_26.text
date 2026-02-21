@@ -1,0 +1,8 @@
+Server -> All Clients in Room: {
+    "event": "ballEaten",
+    "data": {
+        "eaterId": "string",
+        "eatenId": "string",
+        "sizeGained": "number"
+    }
+}

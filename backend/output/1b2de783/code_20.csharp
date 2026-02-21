@@ -1,0 +1,65 @@
+public class ShootingManager : MonoBehaviour
+{
+    [Header("射击设置")]
+    [SerializeField] private GameObject bulletPrefab;
+    [SerializeField] private Transform firePoint;
+    [SerializeField] private float bulletSpeed = 10f;
+    [SerializeField] private float bulletDamage = 10f;
+    [SerializeField] private float bulletLifetime = 3f;
+    
+    [Header("射击限制")]
+    [SerializeField] private float fireRate = 0.2f;
+    [SerializeField] private int maxBullets = 10;
+    
+    private List<Bullet> activeBullets = new List<Bullet>();
+    private float timeSinceLastFire = 0f;
+    
+    private void Update()
+    {
+        // 更新射击冷却时间
+        timeSinceLastFire += Time.deltaTime;
+        
+        // 更新所有活动子弹
+        for (int i = activeBullets.Count - 1; i >= 0; i--)
+        {
+            activeBullets[i].Update(Time.deltaTime);
+            
+            // 移除不活跃的子弹
+            if (!activeBullets[i].IsActive)
+            {
+                activeBullets[i].Destroy();
+                activeBullets.RemoveAt(i);
+            }
+        }
+    }
+    
+    public bool CanFire()
+    {
+        return timeSinceLastFire >= fireRate && activeBullets.Count < maxBullets;
+    }
+    
+    public void Fire()
+    {
+        if (!CanFire()) return;
+        
+        // 重置射击冷却时间
+        timeSinceLastFire = 0f;
+        
+        // 创建新子弹
+        Vector2 bulletPosition = firePoint.position;
+        Vector2 bulletDirection = firePoint.up; // 假设firePoint的朝向就是射击方向
+        Vector2 bulletVelocity = bulletDirection * bulletSpeed;
+        
+        Bullet newBullet = new Bullet(bulletPosition, bulletVelocity, bulletDamage, bulletLifetime, bulletPrefab);
+        activeBullets.Add(newBullet);
+    }
+    
+    public void ClearAllBullets()
+    {
+        foreach (var bullet in activeBullets)
+        {
+            bullet.Destroy();
+        }
+        activeBullets.Clear();
+    }
+}

@@ -1,0 +1,14 @@
+Client -> Server: {
+    "event": "joinRoom",
+    "data": {
+        "roomId": "string"
+    }
+}
+Server -> Client: {
+    "event": "roomJoined",
+    "data": {
+        "roomId": "string",
+        "players": [player objects],
+        "status": "waiting | starting"
+    }
+}

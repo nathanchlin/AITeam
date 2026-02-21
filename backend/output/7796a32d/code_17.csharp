@@ -1,0 +1,19 @@
+private int jumpCount = 0;
+[SerializeField] private int maxJumps = 2;
+
+private void Jump()
+{
+    if (jumpCount < maxJumps)
+    {
+        rb.velocity = new Vector2(rb.velocity.x, jumpForce);
+        jumpCount++;
+    }
+}
+
+private void OnCollisionEnter2D(Collision2D collision)
+{
+    if (collision.gameObject.layer == groundLayer)
+    {
+        jumpCount = 0;
+    }
+}

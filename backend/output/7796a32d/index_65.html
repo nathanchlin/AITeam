@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>是男人就下100层</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #222;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            height: 600px;
+            margin: 0 auto;
+            border: 2px solid #444;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        #gameUI {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+        }
+        
+        .score {
+            font-size: 20px;
+            font-weight: bold;
+            color: #ffd700;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 8px 16px;
+            font-size: 16px;
+            font-weight: bold;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+        }
+        
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+        
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+            border-radius: 10px;
+        }
+        
+        #gameOverScreen h2 {
+            font-size: 36px;
+            margin-bottom: 20px;
+            color: #ff5252;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        #gameOverScreen p {
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+        
+        .instructions {
+            position: absolute;
+            bottom: 15px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 14px;
+            color: #aaa;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 0;
+        }
+        
+        @media (max-width: 600px) {
+            #gameContainer {
+                height: 500px;
+            }
+            
+            #gameUI {
+                padding: 10px;
+            }
+            
+            .score {
+                font-size: 16px;
+            }
+            
+            button {
+                padding: 6px 12px;
+                font-size: 14px;
+            }
+            
+            .instructions {
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="gameUI">
+            <div class="score">得分: <span id="scoreValue">0</span></div>
+            <div class="controls">
+                <button id="startBtn">开始游戏</button>
+                <button id="pauseBtn" disabled>暂停</button>
+                <button id="restartBtn" disabled>重新开始</button>
+            </div>
+        </div>
+        <div id="gameOverScreen">
+            <h2>游戏结束!</h2>
+            <p>最终得分: <span id="finalScore">0</span></p>
+            <button id="playAgainBtn">再玩一次</button>
+        </div>
+        <div class="instructions">
+            使用 ← → 键移动角色，空格键跳跃
+        </div>
+    </div>
+
+    <script>
+        // 游戏配置
+        const config = {
+            type: Phaser.AUTO,
+            width: 800,
+            height: 600,
+            parent: 'gameContainer',
+            backgroundColor: '#111',
+            physics: {
+                default: 'arcade',
+                arcade: {
+                    gravity: { y: 500 },
+                    debug: false
+                }
+            },
+            scene: {
+                preload: preload,
+                create: create,
+                update: update
+            }
+        };
+
+        // 游戏变量
+        let player;
+        let platforms;
+        let cursors;
+        let score = 0;
+        let gameOver = false;
+        let gameStarted = false;
+        let gamePaused = false;
+        let camera;
+        let platformGenerator;
+        let scoreText;
+        let startBtn, pauseBtn, restartBtn, playAgainBtn;
+        let gameOverScreen;
+        let finalScoreText;
+
+        // 平台类型配置
+        const platformTypes = {
+            normal: {
+                color: 0x4CAF50,
+                width: 120,
+                height: 20,
+                breakable: false,
+                moving: false,
+                speed: 0
+            },
+            moving: {
+                color: 0x2196F3,
+                width: 100,
+                height: 20,
+                breakable: false,
+                moving: true,
+                speed: 100,
+                direction: 1
+            },
+            breakable: {
+                color: 0xFF9800,
+                width: 100,
+                height: 20,
+                breakable: true,
+                moving: false,
+                speed: 0
+            },
+            small: {
+                color: 0x9C27B0,
+                width: 80,
+                height: 20,
+                breakable: false,
+                moving: false,
+                speed: 0
+            }
+        };
+
+        // 平台生成器类
+        class PlatformGenerator {
+            constructor(scene, player) {
+                this.scene = scene;
+                this.player = player;
+                this.platforms = scene.physics.add.group();
+                this.platformWidth = 800;
+                this.platformHeight = 20;
+                this.minPlatformGap = 100;
+                this.maxPlatformGap = 200;
+                this.minPlatformY = 100;
+                this.maxPlatformY = 400;
+                this.currentHighestPlatform = 0;
+                this.platformsCreated = 0;
+                this.maxPlatforms = 50;
+                this.platformSpeed = 2;
+            }
+
+            generateInitialPlatforms() {
+                // 创建初始平台
+                for (let i = 0; i < 5; i++) {
+                    const y = 550 - i * 100;
+                    this.createPlatform(y, 'normal');
+                }
+            }
+
+            createPlatform(y, type = 'normal') {
+                if (this.platformsCreated >= this.maxPlatforms) return;
+
+                const config = platformTypes[type];
+                const x = Phaser.Math.Between(50, this.platformWidth - config.width - 50);
+                
+                let platform;
+                if (config.moving) {
+                    platform = this.platforms.create(x, y, 'platform');
+                    platform.setVelocityX(config.speed * config.direction);
+                    
+                    // 边界检测
+                    platform.body.setCollideWorldBounds(true);
+                    platform.body.onWorldBounds = true;
+                    
+                    platform.onWorldBounds = function () {
+                        this.setVelocityX(-this.body.velocity.x);
+                    };
+                } else {
+                    platform = this.platforms.create(x, y, 'platform');
+                }
+                
+                platform.displayWidth = config.width;
+                platform.displayHeight = config.height;
+                platform.setImmovable(true);
+                platform.body.allowGravity = false;
+                platform.type = type;
+                platform.breakable = config.breakable;
+                
+                this.platformsCreated++;
+                
+                // 更新最高平台
+                if (y < this.currentHighestPlatform) {
+                    this.currentHighestPlatform = y;
+                }
+                
+                return platform;
+            }
+
+            update() {
+                if (gameOver || gamePaused || !gameStarted) return;
+
+                // 移动所有平台
+                this.platforms.children.entries.forEach(platform => {
+                    platform.y += this.platformSpeed;
+                    
+                    // 如果平台移出屏幕底部，移除它
+                    if (platform.y > config.height + 50) {
+                        platform.destroy();
+                        this.platformsCreated--;
+                    }
+                });
+
+                // 检查是否需要生成新平台
+                const highestPlatformY = this.getHighestPlatformY();
+                if (highestPlatformY > this.minPlatformY) {
+                    const gap = Phaser.Math.Between(this.minPlatformGap, this.maxPlatformGap);
+                    const newY = highestPlatformY - gap;
+                    
+                    // 随机选择平台类型
+                    const rand = Math.random();
+                    let platformType;
+                    if (rand < 0.6) {
+                        platformType = 'normal';
+                    } else if (rand < 0.8) {
+                        platformType = 'moving';
+                    } else if (rand < 0.9) {
+                        platformType = 'breakable';
+                    } else {
+                        platformType = 'small';
+                    }
+                    
+                    this.createPlatform(newY, platformType);
+                }
+
+                // 随着分数增加，提高游戏难度
+                if (score > 0 && score % 10 === 0) {
+                    this.platformSpeed = Math.min(5, 2 + Math.floor(score / 10) * 0.2);
+                }
+            }
+
+            getHighestPlatformY() {
+                let minY = config.height;
+                this.platforms.children.entries.forEach(platform => {
+                    if (platform.y < minY) {
+                        minY = platform.y;
+                    }
+                });
+                return minY;
+            }
+
+            reset() {
+                this.platforms.clear(true, true);
+                this.platformsCreated = 0;
+                this.currentHighestPlatform = 0;
+                this.platformSpeed = 2;
+            }
+        }
+
+        // 游戏场景
+        const game = new Phaser.Game(config);
+
+        function preload() {
+            // 创建简单的图形作为精灵
+            this.add.graphics()
+                .fillStyle(0xFF0000)
+                .fillRect(0, 0, 30, 30)
+                .generateTexture('player', 30, 30);
+                
+            this.add.graphics()
+                .fillStyle(0x4CAF50)
+                .fillRect(0, 0, 120, 20)
+                .generateTexture('platform', 120, 20);
+        }
+
+        function create() {
+            // 创建相机
+            camera = this.cameras.main;
+            camera.setBounds(0, 0, config.width, config.height);
+            
+            // 创建玩家
+            player = this.physics.add.sprite(config.width / 2, 100, 'player');
+            player.setBounce(0.2);
+            player.setCollideWorldBounds(true);
+            player.body.setGravityY(500);
+            player.setVelocity(0, 0);
+            
+            // 设置相机跟随玩家
+            camera.startFollow(player);
+            camera.setFollowOffset(0, -200);
+            
+            // 创建平台生成器
+            platformGenerator = new PlatformGenerator(this, player);
+            platformGenerator.generateInitialPlatforms();
+            
+            // 添加碰撞检测
+            this.physics.add.collider(player, platformGenerator.platforms, handleCollision, null, this);
+            
+            // 创建键盘控制
+            cursors = this.input.keyboard.createCursorKeys();
+            this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+            
+            // 创建UI元素
+            scoreText = document.getElementById('scoreValue');
+            startBtn = document.getElementById('startBtn');
+            pauseBtn = document.getElementById('pauseBtn');
+            restartBtn = document.getElementById('restartBtn');
+            gameOverScreen = document.getElementById('gameOverScreen');
+            finalScoreText = document.getElementById('finalScore');
+            playAgainBtn = document.getElementById('playAgainBtn');
+            
+            // 添加按钮事件
+            startBtn.addEventListener('click', startGame);
+            pauseBtn.addEventListener('click', togglePause);
+            restartBtn.addEventListener('click', restartGame);
+            playAgainBtn.addEventListener('click', restartGame);
+            
+            // 添加空格键跳跃
+            this.input.keyboard.on('keydown', function (event) {
+                if (event.keyCode === Phaser.Input.Keyboard.KeyCodes.SPACE) {
+                    jump();
+                }
+            });
+        }
+
+        function update() {
+            if (!gameStarted || gameOver || gamePaused) return;
+            
+            // 更新平台生成器
+            platformGenerator.update();
+            
+            // 玩家控制
+            if (cursors.left.isDown) {
+                player.setVelocityX(-200);
+            } else if (cursors.right.isDown) {
+                player.setVelocityX(200);
+            } else {
+                player.setVelocityX(0);
+            }
+            
+            // 更新分数
+            updateScore();
+            
+            // 检查玩家是否掉出屏幕
+            if (player.y > config.height + 100) {
+                endGame();
+            }
+        }
+
+        function handleCollision(player, platform) {
+            // 如果是可破坏的平台，延迟后销毁
+            if (platform.breakable) {
+                setTimeout(() => {
+                    platform.destroy();
+                    platformGenerator.platformsCreated--;
+                }, 500);
+            }
+            
+            // 如果玩家落在平台上，重置跳跃状态
+            if (player.body.velocity.y > 0) {
+                player.setVelocityY(0);
+            }
+        }
+
+        function jump() {
+            if (!gameStarted || gameOver || gamePaused) return;
+            
+            // 只有在玩家站在平台上时才能跳跃
+            if (player.body.velocity.y === 0 || player.body.blocked.down) {
+                player.setVelocityY(-400);
+            }
+        }
+
+        function startGame() {
+            gameStarted = true;
+            gameOver = false;
+            gamePaused = false;
+            score = 0;
+            
+            // 重置玩家位置
+            player.setPosition(config.width / 2, 100);
+            player.setVelocity(0, 0);
+            
+            // 重置平台
+            platformGenerator.reset();
+            platformGenerator.generateInitialPlatforms();
+            
+            // 更新UI
+            updateScore();
+            startBtn.disabled = true;
+            pauseBtn.disabled = false;
+            restartBtn.disabled = false;
+            gameOverScreen.style.display = 'none';
+        }
+
+        function togglePause() {
+            if (!gameStarted || gameOver) return;
+            
+            gamePaused = !gamePaused;
+            pauseBtn.textContent = gamePaused ? '继续' : '暂停';
+            
+            if (gamePaused) {
+                this.physics.pause();
+            } else {
+                this.physics.resume();
+            }
+        }
+
+        function restartGame() {
+            startGame();
+        }
+
+        function updateScore() {
+            // 根据玩家下落的距离计算分数
+            const playerY = player.y;
+            const newY = Math.max(0, Math.floor((600 - playerY) / 10));
+            score = Math.max(score, newY);
+            scoreText.textContent = score;
+        }
+
+        function endGame() {
+            gameOver = true;
+            gameStarted = false;
+            
+            // 更新UI
+            finalScoreText.textContent = score;
+            gameOverScreen.style.display = 'flex';
+            startBtn.disabled = false;
+            pauseBtn.disabled = true;
+            restartBtn.disabled = true;
+            pauseBtn.textContent = '暂停';
+        }
+    </script>
+</body>
+</html>

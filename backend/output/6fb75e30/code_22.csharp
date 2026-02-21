@@ -1,0 +1,13 @@
+// 自适应帧率控制示例代码
+  void Update() {
+      if (targetFrameRate > 0) {
+          var targetFrameTime = 1000f / targetFrameRate;
+          var elapsedTime = Time.realtimeSinceStartup - lastFrameTime;
+          if (elapsedTime < targetFrameTime) {
+              Thread.Sleep((int)(targetFrameTime - elapsedTime));
+          }
+          lastFrameTime = Time.realtimeSinceStartup;
+      }
+      // 游戏逻辑更新
+      UpdateGameLogic();
+  }

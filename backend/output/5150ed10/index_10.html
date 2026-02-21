@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>男人就要撑过100秒</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #111;
+            font-family: Arial, sans-serif;
+            color: white;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            background-color: #222;
+            border: 2px solid #444;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: linear-gradient(to bottom, #000033, #000066);
+        }
+        
+        #gameUI {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 20px;
+            z-index: 10;
+        }
+        
+        .ui-element {
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+        
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+        }
+        
+        #startScreen h1, #gameOverScreen h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #ffcc00;
+        }
+        
+        #startScreen p, #gameOverScreen p {
+            font-size: 24px;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            font-size: 24px;
+            padding: 10px 30px;
+            background-color: #ffcc00;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #ffd633;
+        }
+        
+        #gameOverScreen {
+            display: none;
+        }
+        
+        #finalTime {
+            font-size: 36px;
+            color: #ffcc00;
+            margin: 20px 0;
+        }
+        
+        #lives {
+            color: #ff6666;
+        }
+        
+        #timer {
+            color: #66ff66;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="gameUI">
+            <div class="ui-element">生命值: <span id="lives">3</span></div>
+            <div class="ui-element">时间: <span id="timer">0</span>秒</div>
+        </div>
+        <div id="startScreen">
+            <h1>男人就要撑过100秒</h1>
+            <p>使用方向键或WASD控制飞机移动</p>
+            <p>躲避障碍物，坚持100秒！</p>
+            <button id="startButton">开始游戏</button>
+        </div>
+        <div id="gameOverScreen">
+            <h1 id="gameOverTitle">游戏结束</h1>
+            <p id="finalTime">你坚持了: 0秒</p>
+            <button id="restartButton">重新开始</button>
+        </div>
+    </div>
+
+    <script>
+        // 玩家类
+        class Player {
+            constructor() {
+                this.x = 100;
+                this.y = 300;
+                this.width = 50;
+                this.height = 50;
+                this.speed = 5;
+                this.color = '#00ff00';
+                this.bullets = [];
+            }
+            
+            draw(ctx) {
+                // 绘制飞机主体
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x + this.width, this.y + this.height / 2);
+                ctx.lineTo(this.x, this.y);
+                ctx.lineTo(this.x + this.width * 0.3, this.y + this.height / 2);
+                ctx.lineTo(this.x, this.y + this.height);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 绘制飞机细节
+                ctx.fillStyle = '#00cc00';
+                ctx.fillRect(this.x + this.width * 0.3, this.y + this.height * 0.3, this.width * 0.4, this.height * 0.4);
+                
+                // 绘制引擎火焰
+                const flameSize = Math.random() * 10 + 5;
+                ctx.fillStyle = '#ff6600';
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y + this.height * 0.3);
+                ctx.lineTo(this.x - flameSize, this.y + this.height * 0.4);
+                ctx.lineTo(this.x, this.y + this.height * 0.5);
+                ctx.closePath();
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y + this.height * 0.5);
+                ctx.lineTo(this.x - flameSize, this.y + this.height * 0.6);
+                ctx.lineTo(this.x, this.y + this.height * 0.7);
+                ctx.closePath();
+                ctx.fill();
+            }
+            
+            move(direction) {
+                switch(direction) {
+                    case 'up':
+                        this.y = Math.max(0, this.y - this.speed);
+                        break;
+                    case 'down':
+                        this.y = Math.min(600 - this.height, this.y + this.speed);
+                        break;
+                    case 'left':
+                        this.x = Math.max(0, this.x - this.speed);
+                        break;
+                    case 'right':
+                        this.x = Math.min(800 - this.width, this.x + this.speed);
+                        break;
+                }
+            }
+            
+            shoot() {
+                this.bullets.push({
+                    x: this.x + this.width,
+                    y: this.y + this.height / 2,
+                    width: 15,
+                    height: 5,
+                    speed: 10
+                });
+            }
+            
+            updateBullets() {
+                for (let i = this.bullets.length - 1; i >= 0; i--) {
+                    const bullet = this.bullets[i];
+                    bullet.x += bullet.speed;
+                    
+                    // 移除超出屏幕的子弹
+                    if (bullet.x > 800) {
+                        this.bullets.splice(i, 1);
+                    }
+                }
+            }
+            
+            drawBullets(ctx) {
+                ctx.fillStyle = '#ffff00';
+                this.bullets.forEach(bullet => {
+                    ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+                });
+            }
+        }
+        
+        // 障碍物类
+        class Obstacle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.width = 30;
+                this.height = 30;
+                this.speed = 3;
+                this.color = '#ff0000';
+            }
+            
+            update() {
+                this.x -= this.speed;
+            }
+            
+            draw(ctx) {
+                // 绘制障碍物
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.moveTo(this.x, this.y);
+                ctx.lineTo(this.x + this.width, this.y);
+                ctx.lineTo(this.x + this.width / 2, this.y + this.height);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 添加细节
+                ctx.fillStyle = '#990000';
+                ctx.fillRect(this.x + this.width * 0.2, this.y + this.height * 0.3, this.width * 0.6, this.height * 0.4);
+            }
+        }
+        
+        // 游戏引擎类
+        class GameEngine {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.player = null;
+                this.obstacles = [];
+                this.bullets = [];
+                this.gameTime = 0;
+                this.lives = 3;
+                this.isRunning = false;
+                this.keys = {};
+                this.lastObstacleTime = 0;
+                this.obstacleInterval = 1500; // 初始障碍物生成间隔(毫秒)
+                this.lastTime = 0;
+                
+                // 初始化事件监听
+                this.initEventListeners();
+            }
+            
+            initEventListeners() {
+                // 键盘事件
+                document.addEventListener('keydown', (e) => {
+                    this.keys[e.key] = true;
+                    
+                    // 空格键射击
+                    if (e.key === ' ' && this.isRunning) {
+                        e.preventDefault();
+                        this.player.shoot();
+                    }
+                });
+                
+                document.addEventListener('keyup', (e) => {
+                    this.keys[e.key] = false;
+                });
+                
+                // 开始按钮
+                document.getElementById('startButton').addEventListener('click', () => {
+                    this.start();
+                });
+                
+                // 重新开始按钮
+                document.getElementById('restartButton').addEventListener('click', () => {
+                    this.restart();
+                });
+            }
+            
+            init() {
+                // 初始化游戏对象
+                this.player = new Player();
+                this.obstacles = [];
+                this.bullets = [];
+                this.gameTime = 0;
+                this.lives = 3;
+                this.isRunning = true;
+                this.lastObstacleTime = 0;
+                this.obstacleInterval = 1500;
+                this.lastTime = performance.now();
+                
+                // 更新UI
+                document.getElementById('lives').textContent = this.lives;
+                document.getElementById('timer').textContent = this.gameTime;
+                document.getElementById('startScreen').style.display = 'none';
+                document.getElementById('gameOverScreen').style.display = 'none';
+            }
+            
+            start() {
+                this.init();
+                this.gameLoop();
+            }
+            
+            restart() {
+                this.init();
+                this.gameLoop();
+            }
+            
+            gameLoop(currentTime) {
+                if (!this.isRunning) return;
+                
+                // 计算时间增量
+                const deltaTime = currentTime - this.lastTime;
+                this.lastTime = currentTime;
+                
+                // 更新游戏状态
+                this.update(deltaTime);
+                
+                // 渲染游戏
+                this.render();
+                
+                // 继续循环
+                requestAnimationFrame((time) => this.gameLoop(time));
+            }
+            
+            update(deltaTime) {
+                // 更新游戏时间
+                this.gameTime += deltaTime / 1000;
+                document.getElementById('timer').textContent = Math.floor(this.gameTime);
+                
+                // 随着时间增加难度
+                if (this.gameTime > 0 && this.gameTime < 100) {
+                    // 每10秒增加难度
+                    const difficultyLevel = Math.floor(this.gameTime / 10) + 1;
+                    this.obstacleInterval = Math.max(500, 1500 - (difficultyLevel * 100));
+                    this.player.speed = Math.min(8, 5 + (difficultyLevel * 0.2));
+                }
+                
+                // 处理玩家输入
+                if (this.keys['ArrowUp'] || this.keys['w'] || this.keys['W']) {
+                    this.player.move('up');
+                }
+                if (this.keys['ArrowDown'] || this.keys['s'] || this.keys['S']) {
+                    this.player.move('down');
+                }
+                if (this.keys['ArrowLeft'] || this.keys['a'] || this.keys['A']) {
+                    this.player.move('left');
+                }
+                if (this.keys['ArrowRight'] || this.keys['d'] || this.keys['D']) {
+                    this.player.move('right');
+                }
+                
+                // 更新子弹
+                this.player.updateBullets();
+                
+                // 生成新障碍物
+                if (currentTime - this.lastObstacleTime > this.obstacleInterval) {
+                    this.generateObstacle();
+                    this.lastObstacleTime = currentTime;
+                }
+                
+                // 更新障碍物
+                for (let i = this.obstacles.length - 1; i >= 0; i--) {
+                    const obstacle = this.obstacles[i];
+                    obstacle.update();
+                    
+                    // 移除超出屏幕的障碍物
+                    if (obstacle.x + obstacle.width < 0) {
+                        this.obstacles.splice(i, 1);
+                        continue;
+                    }
+                    
+                    // 检测碰撞
+                    if (this.checkCollision(this.player, obstacle)) {
+                        this.obstacles.splice(i, 1);
+                        this.lives--;
+                        document.getElementById('lives').textContent = this.lives;
+                        
+                        // 检查游戏结束
+                        if (this.lives <= 0) {
+                            this.gameOver(false);
+                            return;
+                        }
+                    }
+                }
+                
+                // 检测子弹与障碍物的碰撞
+                for (let i = this.player.bullets.length - 1; i >= 0; i--) {
+                    const bullet = this.player.bullets[i];
+                    
+                    for (let j = this.obstacles.length - 1; j >= 0; j--) {
+                        const obstacle = this.obstacles[j];
+                        
+                        if (this.checkBulletCollision(bullet, obstacle)) {
+                            // 移除子弹和障碍物
+                            this.player.bullets.splice(i, 1);
+                            this.obstacles.splice(j, 1);
+                            break;
+                        }
+                    }
+                }
+                
+                // 检查胜利条件
+                if (this.gameTime >= 100) {
+                    this.gameOver(true);
+                }
+            }
+            
+            generateObstacle() {
+                const y = Math.random() * (600 - 30);
+                this.obstacles.push(new Obstacle(800, y));
+            }
+            
+            checkCollision(player, obstacle) {
+                return player.x < obstacle.x + obstacle.width &&
+                       player.x + player.width > obstacle.x &&
+                       player.y < obstacle.y + obstacle.height &&
+                       player.y + player.height > obstacle.y;
+            }
+            
+            checkBulletCollision(bullet, obstacle) {
+                return bullet.x < obstacle.x + obstacle.width &&
+                       bullet.x + bullet.width > obstacle.x &&
+                       bullet.y < obstacle.y + obstacle.height &&
+                       bullet.y + bullet.height > obstacle.y;
+            }
+            
+            render() {
+                // 清空画布
+                this.ctx.clearRect(0, 0, 800, 600);
+                
+                // 绘制星空背景
+                this.drawStars();
+                
+                // 绘制玩家
+                this.player.draw(this.ctx);
+                
+                // 绘制子弹
+                this.player.drawBullets(this.ctx);
+                
+                // 绘制障碍物
+                this.obstacles.forEach(obstacle => obstacle.draw(this.ctx));
+            }
+            
+            drawStars() {
+                // 创建星空效果
+                this.ctx.fillStyle = 'white';
+                
+                // 如果没有星星数组，则创建
+                if (!this.stars) {
+                    this.stars = [];
+                    for (let i = 0; i < 100; i++) {
+                        this.stars.push({
+                            x: Math.random() * 800,
+                            y: Math.random() * 600,
+                            size: Math.random() * 2,
+                            speed: Math.random() * 0.5 + 0.1
+                        });
+                    }
+                }
+                
+                // 更新和绘制星星
+                this.stars.forEach(star => {
+                    star.x -= star.speed;
+                    
+                    // 如果星星移出屏幕，重置位置
+                    if (star.x < 0) {
+                        star.x = 800;
+                        star.y = Math.random() * 600;
+                    }
+                    
+                    this.ctx.beginPath();
+                    this.ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+            }
+            
+            gameOver(isVictory) {
+                this.isRunning = false;
+                
+                // 显示游戏结束界面
+                document.getElementById('gameOverScreen').style.display = 'flex';
+                
+                if (isVictory) {
+                    document.getElementById('gameOverTitle').textContent = '恭喜你成功了！';
+                    document.getElementById('finalTime').textContent = `你坚持了: ${Math.floor(this.gameTime)}秒`;
+                } else {
+                    document.getElementById('gameOverTitle').textContent = '游戏结束';
+                    document.getElementById('finalTime').textContent = `你坚持了: ${Math.floor(this.gameTime)}秒`;
+                }
+            }
+        }
+        
+        // 创建游戏实例
+        const game = new GameEngine();
+    </script>
+</body>
+</html>

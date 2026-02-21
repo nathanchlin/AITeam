@@ -1,0 +1,17 @@
+# 依赖文件夹
+node_modules/
+dist/
+build/
+
+# 环境变量
+.env
+.env.local
+
+# 日志文件
+*.log
+
+# IDE配置
+.vscode/
+.idea/
+*.swp
+*.swo

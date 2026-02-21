@@ -1,0 +1,10 @@
+// 可选：动态改变角色颜色
+public Color ninjaColor = Color.green;
+private Material ninjaMaterial;
+
+void Start()
+{
+    // 获取材质并设置颜色
+    ninjaMaterial = spriteRenderer.material;
+    ninjaMaterial.color = ninjaColor;
+}

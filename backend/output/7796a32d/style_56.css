@@ -1,0 +1,25 @@
+/* 在responsive.css中添加 */
+.game-container {
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    position: relative;
+}
+
+@media (max-width: 768px) {
+    .game-canvas {
+        width: 100%;
+        height: auto;
+    }
+    
+    .control-button {
+        width: 60px;
+        height: 60px;
+    }
+}
+
+@media (max-width: 480px) {
+    .game-canvas {
+        max-height: 400px;
+    }
+}

@@ -1,0 +1,33 @@
+import pygame
+import sys
+import random
+
+# 初始化Pygame
+pygame.init()
+
+# 游戏常量
+SCREEN_WIDTH = 800
+SCREEN_HEIGHT = 600
+FPS = 60
+
+# 颜色定义
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+YELLOW = (255, 255, 0)
+CYAN = (0, 255, 255)
+MAGENTA = (255, 0, 255)
+ORANGE = (255, 165, 0)
+PURPLE = (128, 0, 128)
+
+# 游戏对象尺寸
+BALL_RADIUS = 10
+PADDLE_WIDTH = 100
+PADDLE_HEIGHT = 15
+BRICK_WIDTH = 75
+BRICK_HEIGHT = 20
+BRICK_PADDING = 5
+BRICK_OFFSET_TOP = 60
+BRICK_OFFSET_LEFT = 35

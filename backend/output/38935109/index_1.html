@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backpack War Game</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 800;
+  canvas.height = 600;
+
+  let gameLoop;
+  let playerVelocity = { x: 0, y: 0 };
+  const gravity = 0.5;
+  const jumpForce = -10;
+
+  const player = {
+    x: canvas.width / 2 - 15,
+    y: canvas.height - 30,
+    width: 30,
+    height: 30,
+    color: 'blue',
+    isJumping: false,
+    isGrounded: true
+  };
+
+  const ground = {
+    x: 0,
+    y: canvas.height - 20,
+    width: canvas.width,
+    height: 20,
+    color: 'grey'
+  };
+
+  // Draw functions
+  function drawRect(x, y, width, height, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  function drawPlayer() {
+    drawRect(player.x, player.y, player.width, player.height, player.color);
+  }
+
+  function drawGround() {
+    drawRect(ground.x, ground.y, ground.width, ground.height, ground.color);
+  }
+
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawGround();
+    drawPlayer();
+    updatePlayer();
+  }
+
+  function updatePlayer() {
+    // Apply gravity
+    player.isGrounded = false;
+    player.y += playerVelocity.y;
+    playerVelocity.y += gravity;
+
+    // Check for collision with ground
+    if (player.y + player.height > ground.y) {
+      player.isGrounded = true;
+      playerVelocity.y = 0;
+      player.y = ground.y - player.height;
+    }
+
+    // Apply horizontal velocity
+    player.x += playerVelocity.x;
+
+    // Check for collision with walls (not implemented)
+  }
+
+  // Event listeners
+  window.addEventListener('keydown', (e) => {
+    switch (e.key) {
+      case 'ArrowLeft':
+        playerVelocity.x = -5;
+        break;
+      case 'ArrowRight':
+        playerVelocity.x = 5;
+        break;
+      case 'ArrowUp':
+        if (player.isGrounded) {
+          player.isJumping = true;
+          playerVelocity.y = jumpForce;
+        }
+        break;
+      default:
+        break;
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      playerVelocity.x = 0;
+    }
+  });
+
+  // Initialization
+  window.onload = () => {
+    gameLoop = () => {
+      requestAnimationFrame(gameLoop);
+    };
+    requestAnimationFrame(gameLoop);
+  };
+</script>
+</body>
+</html>

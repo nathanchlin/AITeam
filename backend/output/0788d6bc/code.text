@@ -1,0 +1,15 @@
+坦克大战游戏/
+├── index.html          # 主页面
+├── css/
+│   └── style.css       # 样式文件
+├── js/
+│   ├── game.js         # 游戏主逻辑
+│   ├── tank.js         # 坦克类
+│   ├── bullet.js       # 子弹类
+│   ├── enemy.js        # 敌方坦克类
+│   ├── map.js          # 地图系统
+│   ├── collision.js    # 碰撞检测
+│   └── ui.js           # UI控制
+└── assets/
+    ├── images/         # 像素风格图片资源
+    └── audio/          # 游音效资源

@@ -1,0 +1,22 @@
+{
+  "leaderboard": [
+    {
+      "_id": "6241f3b3e1b2f8c4a3d4c5a6",
+      "username": "Player1",
+      "score": 1500,
+      "level": 10,
+      "timeSpent": 320,
+      "avatar": "avatar1",
+      "completedAt": "2022-03-28T12:34:56.789Z",
+      "createdAt": "2022-03-28T12:34:56.789Z",
+      "updatedAt": "2022-03-28T12:34:56.789Z",
+      "__v": 0
+    }
+  ],
+  "pagination": {
+    "total": 100,
+    "page": 1,
+    "limit": 10,
+    "totalPages": 10
+  }
+}

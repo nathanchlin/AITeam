@@ -1,0 +1,13 @@
+tetris-battle/
+├── index.html          # 主页面
+├── css/
+│   └── style.css       # 样式文件
+├── js/
+│   ├── game.js         # 游戏核心逻辑
+│   ├── ai.js           # AI对手逻辑
+│   ├── controls.js     # 控制处理
+│   └── utils.js        # 工具函数
+├── assets/
+│   ├── sounds/         # 音效文件
+│   └── images/         # 游戏图片资源
+└── README.md           # 项目说明

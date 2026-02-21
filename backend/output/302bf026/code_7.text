@@ -1,0 +1,19 @@
+TankBattle/
+├── Game/
+│   ├── TankBattle.exe (主程序)
+│   ├── Resources/
+│   │   ├── Sprites/ (游戏图像资源)
+│   │   ├── Sounds/ (游戏音效)
+│   │   ├── Maps/ (关卡地图数据)
+│   │   └── Fonts/ (游戏字体)
+│   └── Config/
+│       ├── settings.json (游戏配置)
+│       └── controls.json (控制键位配置)
+├── Documentation/
+│   ├── UserManual.pdf (用户手册)
+│   └── Readme.txt (安装说明)
+├── Server/ (多人游戏服务器)
+│   ├── GameServer.exe
+│   └── Config/
+│       └── server.json (服务器配置)
+└── Uninstall/ (卸载程序)

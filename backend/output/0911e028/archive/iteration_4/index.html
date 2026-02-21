@@ -1,0 +1,3209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>斗地主游戏</title>
+<style>
+:root {
+  /* 主题色彩系统 */
+  --primary-color: #1a5f2a;
+  --secondary-color: #2d8a3e;
+  --accent-color: #ffd700;
+  --accent-glow: rgba(255, 215, 0, 0.6);
+  --background-dark: #0d3d1a;
+  --text-light: #ffffff;
+  --text-dark: #333333;
+  --card-bg: #ffffff;
+  --danger-color: #e74c3c;
+  --success-color: #27ae60;
+  
+  /* 高级阴影系统 */
+  --shadow-soft: 0 4px 15px rgba(0, 0, 0, 0.2);
+  --shadow-strong: 0 8px 30px rgba(0, 0, 0, 0.3);
+  --shadow-card: 
+    0 2px 4px rgba(0,0,0,0.1),
+    0 8px 16px rgba(0,0,0,0.1),
+    0 16px 32px rgba(0,0,0,0.15);
+  --shadow-card-hover:
+    0 8px 16px rgba(0,0,0,0.15),
+    0 16px 32px rgba(0,0,0,0.2),
+    0 24px 48px rgba(0,0,0,0.15);
+  --shadow-glow-gold: 0 0 20px rgba(255, 215, 0, 0.5), 0 0 40px rgba(255, 215, 0, 0.3);
+  --shadow-glow-red: 0 0 15px rgba(220, 53, 69, 0.4);
+  
+  /* 圆角系统 */
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-xl: 32px;
+  
+  /* 过渡动画 - 增强弹性效果 */
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-spring: 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition-bounce: 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --transition-smooth: 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  
+  /* 卡牌尺寸 */
+  --card-width: 75px;
+  --card-height: 105px;
+  
+  /* 卡牌颜色系统 */
+  --card-red: #dc3545;
+  --card-red-light: #ff6b7a;
+  --card-red-dark: #a71d2a;
+  --card-black: #1a1a2e;
+  --card-black-light: #4a4a6a;
+  --card-gold: linear-gradient(135deg, #ffd700, #ffaa00, #ff8c00);
+  --card-silver: linear-gradient(135deg, #e8e8e8, #c0c0c0, #a8a8a8);
+  
+  /* 玻璃态效果 */
+  --glass-bg: rgba(255, 255, 255, 0.1);
+  --glass-border: rgba(255, 255, 255, 0.2);
+  --glass-blur: blur(12px);
+  
+  /* 霓虹效果 */
+  --neon-gold: 0 0 10px #ffd700, 0 0 20px #ffd700;
+  --neon-green: 0 0 10px #27ae60, 0 0 20px #27ae60;
+  --neon-red: 0 0 10px #e74c3c, 0 0 20px #e74c3c;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', 'Microsoft YaHei', -apple-system, BlinkMacSystemFont, sans-serif;
+  overflow: hidden;
+  height: 100vh;
+  background: 
+    /* 动态光效层 */
+    radial-gradient(ellipse at 20% 20%, rgba(45, 138, 62, 0.3) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 80%, rgba(26, 95, 42, 0.3) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 215, 0, 0.05) 0%, transparent 70%),
+    /* 基础渐变 */
+    linear-gradient(160deg, #071a0d 0%, #0f3318 25%, #1a5f2a 50%, #0f3318 75%, #071a0d 100%);
+  user-select: none;
+  position: relative;
+}
+
+/* 背景装饰粒子效果 */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-image: 
+    radial-gradient(1px 1px at 20% 30%, rgba(255, 215, 0, 0.3) 1px, transparent 1px),
+    radial-gradient(1px 1px at 40% 70%, rgba(255, 255, 255, 0.2) 1px, transparent 1px),
+    radial-gradient(1px 1px at 60% 20%, rgba(255, 215, 0, 0.2) 1px, transparent 1px),
+    radial-gradient(1px 1px at 80% 60%, rgba(255, 255, 255, 0.15) 1px, transparent 1px);
+  background-size: 200px 200px;
+  animation: sparkle 8s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes sparkle {
+  0% { transform: translateY(0); }
+  100% { transform: translateY(-200px); }
+}
+
+.game-container {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  perspective: 1200px;
+  z-index: 1;
+}
+
+/* ==================== 精美牌桌设计 ==================== */
+.table {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 72%;
+  height: 52%;
+  background: 
+    /* 中心高光 */
+    radial-gradient(ellipse at center, rgba(34, 139, 34, 0.4) 0%, transparent 60%),
+    /* 主渐变 */
+    radial-gradient(ellipse at center, 
+      rgba(45, 100, 50, 0.8) 0%, 
+      rgba(20, 60, 30, 0.9) 50%, 
+      rgba(10, 40, 20, 0.95) 100%);
+  border-radius: 50%;
+  border: 12px solid transparent;
+  background-clip: padding-box;
+  box-shadow: 
+    /* 内部深度 */
+    inset 0 0 80px rgba(0, 0, 0, 0.5),
+    inset 0 0 30px rgba(0, 0, 0, 0.3),
+    /* 木质边框效果 */
+    0 0 0 4px #8B4513,
+    0 0 0 8px #5D3A1A,
+    0 0 0 12px #3D2510,
+    /* 外部阴影 */
+    0 20px 60px rgba(0, 0, 0, 0.6),
+    0 0 100px rgba(0, 50, 0, 0.3);
+}
+
+/* 牌桌装饰纹理 */
+.table::before {
+  content: '';
+  position: absolute;
+  top: 10%;
+  left: 10%;
+  right: 10%;
+  bottom: 10%;
+  border: 2px solid rgba(255, 215, 0, 0.1);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.table::after {
+  content: '';
+  position: absolute;
+  top: 20%;
+  left: 20%;
+  right: 20%;
+  bottom: 20%;
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+/* ==================== 玩家区域 ==================== */
+.player-area {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+}
+
+.player-area.bottom {
+  bottom: 15px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.player-area.left {
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.player-area.right {
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.player-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 20px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 10px;
+}
+
+.player-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--text-light);
+  box-shadow: var(--shadow-soft);
+  position: relative;
+}
+
+.player-avatar.landlord::after {
+  content: '👑';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  font-size: 18px;
+}
+
+.player-name {
+  color: var(--text-light);
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.player-cards-count {
+  color: var(--accent-color);
+  font-size: 14px;
+}
+
+/* ==================== 卡牌样式 ==================== */
+.cards-container {
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+
+.player-area.bottom .cards-container {
+  min-height: 130px;
+}
+
+#playerHand {
+  display: flex;
+  justify-content: center;
+}
+
+.card {
+  width: var(--card-width);
+  height: var(--card-height);
+  background: var(--card-bg);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+  position: relative;
+  margin-left: -30px;
+  font-weight: bold;
+}
+
+.card:first-child {
+  margin-left: 0;
+}
+
+.card.red {
+  color: var(--card-red);
+}
+
+.card.black {
+  color: var(--card-black);
+}
+
+.card.joker-small {
+  background: var(--card-silver);
+  color: #333;
+}
+
+.card.joker-big {
+  background: var(--card-gold);
+  color: #8B0000;
+}
+
+.card:hover {
+  transform: translateY(-10px);
+  box-shadow: var(--shadow-card-hover);
+  z-index: 100;
+}
+
+.card.selected {
+  transform: translateY(-25px);
+  box-shadow: var(--shadow-glow-gold);
+}
+
+.card.clicking {
+  animation: cardClick 0.15s ease;
+}
+
+@keyframes cardClick {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(0.95); }
+}
+
+.card.shake {
+  animation: cardShake 0.5s ease;
+}
+
+@keyframes cardShake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+
+.card-value {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.card-suit {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.card-back {
+  width: 60px;
+  height: 84px;
+  background: linear-gradient(135deg, #1a5f2a, #0d3d1a);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  margin-left: -40px;
+  position: relative;
+  overflow: hidden;
+}
+
+.card-back::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  right: 5px;
+  bottom: 5px;
+  border: 2px solid rgba(255, 215, 0, 0.3);
+  border-radius: 6px;
+}
+
+.card-back::after {
+  content: '🎴';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 24px;
+}
+
+/* ==================== 底牌区域 ==================== */
+.bottom-cards {
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  z-index: 20;
+}
+
+.bottom-card {
+  width: 50px;
+  height: 70px;
+  background: linear-gradient(135deg, #1a5f2a, #0d3d1a);
+  border-radius: 8px;
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: var(--text-light);
+  transition: transform var(--transition-normal);
+}
+
+.bottom-card.revealed {
+  background: var(--card-bg);
+}
+
+.bottom-card.revealed.red {
+  color: var(--card-red);
+}
+
+.bottom-card.revealed.black {
+  color: var(--card-black);
+}
+
+.bottom-card.flipping {
+  animation: flipCard 0.6s ease;
+}
+
+@keyframes flipCard {
+  0% { transform: rotateY(0deg); }
+  50% { transform: rotateY(90deg); }
+  100% { transform: rotateY(0deg); }
+}
+
+/* ==================== 按钮样式 ==================== */
+.btn {
+  padding: 12px 28px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
+  color: var(--text-light);
+  box-shadow: var(--shadow-soft);
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-strong);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #e74c3c, #c0392b);
+  color: var(--text-light);
+}
+
+.btn-warning {
+  background: linear-gradient(135deg, #f39c12, #d68910);
+  color: var(--text-light);
+}
+
+.btn-secondary {
+  background: linear-gradient(135deg, #95a5a6, #7f8c8d);
+  color: var(--text-light);
+}
+
+.btn.clicking {
+  animation: btnClick 0.3s ease;
+}
+
+@keyframes btnClick {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(0.95); }
+}
+
+.btn-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transform: scale(0);
+  animation: ripple 0.6s ease-out;
+  pointer-events: none;
+}
+
+@keyframes ripple {
+  to {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
+/* ==================== 按钮组 ==================== */
+.button-group {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 15px;
+}
+
+.button-group.hidden {
+  display: none;
+}
+
+.button-group.appearing {
+  animation: fadeInUp 0.5s ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ==================== 状态栏 ==================== */
+.status-bar {
+  position: absolute;
+  bottom: 50%;
+  left: 50%;
+  transform: translate(-50%, 50%);
+  padding: 15px 30px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  color: var(--text-light);
+  font-size: 18px;
+  font-weight: 500;
+  z-index: 30;
+}
+
+.status-bar.updating {
+  animation: statusPulse 0.3s ease;
+}
+
+@keyframes statusPulse {
+  0%, 100% { transform: translate(-50%, 50%) scale(1); }
+  50% { transform: translate(-50%, 50%) scale(1.05); }
+}
+
+/* ==================== 出牌区域 ==================== */
+.play-area {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 25;
+}
+
+#lastPlay {
+  display: flex;
+  justify-content: center;
+  min-height: 100px;
+}
+
+#lastPlay .card {
+  margin-left: -25px;
+  cursor: default;
+}
+
+#lastPlay .card:first-child {
+  margin-left: 0;
+}
+
+#lastPlay.clearing {
+  animation: fadeOut 0.3s ease;
+}
+
+@keyframes fadeOut {
+  to { opacity: 0; transform: scale(0.8); }
+}
+
+.play-info {
+  color: var(--accent-color);
+  font-size: 16px;
+  font-weight: 500;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.play-info.appearing {
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ==================== 玩家出牌显示 ==================== */
+.player-play-area {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.player-play-area.left {
+  left: 180px;
+  top: 45%;
+}
+
+.player-play-area.right {
+  right: 180px;
+  top: 45%;
+}
+
+.player-play-cards {
+  display: flex;
+  justify-content: center;
+}
+
+.player-play-cards .card {
+  width: 55px;
+  height: 77px;
+  margin-left: -20px;
+  font-size: 12px;
+  cursor: default;
+}
+
+.player-play-cards .card .card-value {
+  font-size: 16px;
+}
+
+.player-play-cards .card .card-suit {
+  font-size: 20px;
+}
+
+.player-play-cards .card:first-child {
+  margin-left: 0;
+}
+
+.player-play-text {
+  color: var(--text-light);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ==================== 叫地主结果 ==================== */
+.call-result {
+  padding: 8px 16px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  color: var(--text-light);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.call-result.hidden {
+  display: none;
+}
+
+.call-result.landlord {
+  background: rgba(255, 215, 0, 0.2);
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+/* ==================== 开始界面 ==================== */
+.start-area {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  z-index: 100;
+}
+
+.start-area.hidden {
+  display: none;
+}
+
+.game-title {
+  font-size: 64px;
+  font-weight: 700;
+  color: var(--accent-color);
+  text-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.3),
+    0 0 40px rgba(255, 215, 0, 0.3);
+  letter-spacing: 8px;
+}
+
+/* ==================== 消息弹窗 ==================== */
+.message-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(5px);
+}
+
+.message-modal.hidden {
+  display: none;
+}
+
+.message-box {
+  background: linear-gradient(135deg, #1a5f2a, #0d3d1a);
+  padding: 40px 60px;
+  border-radius: var(--radius-xl);
+  text-align: center;
+  box-shadow: var(--shadow-strong);
+  border: 2px solid var(--accent-color);
+  animation: modalAppear 0.3s ease;
+}
+
+@keyframes modalAppear {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.message-text {
+  color: var(--text-light);
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 30px;
+}
+
+/* ==================== 胜利粒子效果 ==================== */
+.victory-particle {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: particleFall 1s ease-out forwards;
+  z-index: 500;
+}
+
+@keyframes particleFall {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0) translateY(100px);
+  }
+}
+
+/* ==================== 调试信息 ==================== */
+#debugInfo {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.8);
+  color: #0f0;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: monospace;
+  max-width: 300px;
+  max-height: 150px;
+  overflow-y: auto;
+  z-index: 9999;
+  display: none;
+}
+
+/* ==================== 音量控制面板 ==================== */
+.settings-btn {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  color: var(--text-light);
+  font-size: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-normal);
+  z-index: 100;
+}
+
+.settings-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(30deg);
+}
+
+.settings-btn.active {
+  background: var(--accent-color);
+  color: var(--text-dark);
+}
+
+.volume-panel {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  width: 280px;
+  background: linear-gradient(135deg, rgba(26, 95, 42, 0.95), rgba(13, 61, 26, 0.95));
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  z-index: 99;
+  box-shadow: var(--shadow-strong);
+  transform: translateX(320px);
+  transition: transform var(--transition-normal);
+}
+
+.volume-panel.show {
+  transform: translateX(0);
+}
+
+.volume-panel-title {
+  color: var(--accent-color);
+  font-size: 18px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  text-align: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.volume-control {
+  margin-bottom: 20px;
+}
+
+.volume-control:last-child {
+  margin-bottom: 0;
+}
+
+.volume-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-light);
+  font-size: 14px;
+  margin-bottom: 10px;
+}
+
+.volume-label-icon {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-label-icon span {
+  font-size: 18px;
+}
+
+.volume-value {
+  color: var(--accent-color);
+  font-weight: 600;
+  min-width: 40px;
+  text-align: right;
+}
+
+.volume-slider-container {
+  position: relative;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.volume-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+}
+
+.volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transition: transform var(--transition-fast);
+}
+
+.volume-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.volume-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent-color);
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.volume-slider-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--secondary-color), var(--accent-color));
+  border-radius: 4px;
+  pointer-events: none;
+  transition: width var(--transition-fast);
+}
+
+.volume-presets {
+  display: flex;
+  gap: 8px;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid var(--glass-border);
+}
+
+.volume-preset-btn {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg);
+  color: var(--text-light);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.volume-preset-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: var(--accent-color);
+}
+
+.volume-preset-btn.active {
+  background: var(--accent-color);
+  color: var(--text-dark);
+  border-color: var(--accent-color);
+}
+
+/* 电脑玩家手牌容器 */
+#leftHand, #rightHand {
+  display: flex;
+  flex-direction: column;
+}
+
+/* 当前玩家高亮 */
+.player-info.active {
+  box-shadow: 0 0 20px var(--accent-color);
+  border-color: var(--accent-color);
+}
+
+/* 倒计时动画 */
+.countdown {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--text-light);
+  position: relative;
+}
+
+.countdown.urgent {
+  color: var(--danger-color);
+  animation: countdownPulse 0.5s ease infinite;
+}
+
+@keyframes countdownPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+/* 分数显示 */
+.scores-display {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 15px 20px;
+  z-index: 50;
+}
+
+.scores-title {
+  color: var(--accent-color);
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.score-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-light);
+  font-size: 13px;
+  margin-bottom: 5px;
+}
+
+.score-item:last-child {
+  margin-bottom: 0;
+}
+
+.score-avatar {
+  font-size: 16px;
+}
+
+.score-value {
+  color: var(--accent-color);
+  font-weight: 600;
+  margin-left: auto;
+}
+
+</style>
+</head>
+<body>
+
+<div class="game-container">
+  <!-- 牌桌 -->
+  <div class="table"></div>
+  
+  <!-- 底牌区域 -->
+  <div class="bottom-cards">
+    <div id="bottomCard1" class="bottom-card">?</div>
+    <div id="bottomCard2" class="bottom-card">?</div>
+    <div id="bottomCard3" class="bottom-card">?</div>
+  </div>
+  
+  <!-- 分数显示 -->
+  <div class="scores-display">
+    <div class="scores-title">🏆 积分榜</div>
+    <div class="score-item">
+      <span class="score-avatar">😊</span>
+      <span>玩家</span>
+      <span id="playerScore" class="score-value">0</span>
+    </div>
+    <div class="score-item">
+      <span class="score-avatar">🤖</span>
+      <span>左电脑</span>
+      <span id="leftScore" class="score-value">0</span>
+    </div>
+    <div class="score-item">
+      <span class="score-avatar">🤖</span>
+      <span>右电脑</span>
+      <span id="rightScore" class="score-value">0</span>
+    </div>
+  </div>
+  
+  <!-- 设置按钮 -->
+  <button id="settingsBtn" class="settings-btn" onclick="toggleSettingsPanel()">⚙️</button>
+  
+  <!-- 音量控制面板 -->
+  <div id="volumePanel" class="volume-panel">
+    <div class="volume-panel-title">🔊 音量设置</div>
+    
+    <div class="volume-control">
+      <div class="volume-label">
+        <div class="volume-label-icon">
+          <span>🎵</span>
+          <span>音效音量</span>
+        </div>
+        <span id="sfxVolumeValue" class="volume-value">70%</span>
+      </div>
+      <div class="volume-slider-container">
+        <div id="sfxVolumeFill" class="volume-slider-fill" style="width: 70%"></div>
+        <input type="range" id="sfxVolumeSlider" class="volume-slider" min="0" max="100" value="70" oninput="setSfxVolume(this.value)">
+      </div>
+    </div>
+    
+    <div class="volume-control">
+      <div class="volume-label">
+        <div class="volume-label-icon">
+          <span>🎤</span>
+          <span>配音音量</span>
+        </div>
+        <span id="voiceVolumeValue" class="volume-value">80%</span>
+      </div>
+      <div class="volume-slider-container">
+        <div id="voiceVolumeFill" class="volume-slider-fill" style="width: 80%"></div>
+        <input type="range" id="voiceVolumeSlider" class="volume-slider" min="0" max="100" value="80" oninput="setVoiceVolume(this.value)">
+      </div>
+    </div>
+    
+    <div class="volume-presets">
+      <button class="volume-preset-btn" onclick="setVolumePreset('mute')">静音</button>
+      <button class="volume-preset-btn" onclick="setVolumePreset('low')">低</button>
+      <button class="volume-preset-btn active" onclick="setVolumePreset('normal')">正常</button>
+      <button class="volume-preset-btn" onclick="setVolumePreset('high')">高</button>
+    </div>
+  </div>
+  
+  <!-- 左边电脑玩家 -->
+  <div class="player-area left">
+    <div id="leftPlayerInfo" class="player-info">
+      <div id="leftAvatar" class="player-avatar">🤖</div>
+      <div>
+        <div class="player-name">左电脑</div>
+        <div class="player-cards-count">剩余: <span id="leftCount">17</span> 张</div>
+      </div>
+    </div>
+    <div id="leftCallResult" class="call-result hidden"></div>
+    <div id="leftHand" class="cards-container"></div>
+  </div>
+  
+  <!-- 右边电脑玩家 -->
+  <div class="player-area right">
+    <div id="rightPlayerInfo" class="player-info">
+      <div id="rightAvatar" class="player-avatar">🤖</div>
+      <div>
+        <div class="player-name">右电脑</div>
+        <div class="player-cards-count">剩余: <span id="rightCount">17</span> 张</div>
+      </div>
+    </div>
+    <div id="rightCallResult" class="call-result hidden"></div>
+    <div id="rightHand" class="cards-container"></div>
+  </div>
+  
+  <!-- 出牌区域 -->
+  <div class="play-area">
+    <div id="lastPlay"></div>
+    <div id="playInfo" class="play-info"></div>
+  </div>
+  
+  <!-- 左电脑出牌显示 -->
+  <div class="player-play-area left">
+    <div id="leftPlayCards" class="player-play-cards"></div>
+    <div id="leftPlayText" class="player-play-text"></div>
+  </div>
+  
+  <!-- 右电脑出牌显示 -->
+  <div class="player-play-area right">
+    <div id="rightPlayCards" class="player-play-cards"></div>
+    <div id="rightPlayText" class="player-play-text"></div>
+  </div>
+  
+  <!-- 底部玩家 -->
+  <div class="player-area bottom">
+    <div id="playerInfo" class="player-info">
+      <div id="playerAvatar" class="player-avatar">😊</div>
+      <div>
+        <div class="player-name">玩家</div>
+        <div class="player-cards-count">剩余: <span id="playerCount">17</span> 张</div>
+      </div>
+    </div>
+    <div id="playerCallResult" class="call-result hidden"></div>
+    <div id="playerHand" class="cards-container"></div>
+    
+    <!-- 按钮组 -->
+    <div id="startArea" class="button-group">
+      <button class="btn btn-primary" onclick="startGame()">🎮 开始游戏</button>
+    </div>
+    
+    <div id="callBtnGroup" class="button-group hidden">
+      <button class="btn btn-primary" onclick="callLandlord()">👑 叫地主</button>
+      <button class="btn btn-secondary" onclick="notCallLandlord()">不叫</button>
+    </div>
+    
+    <div id="playBtnGroup" class="button-group hidden">
+      <button class="btn btn-primary" onclick="playCards()">出牌</button>
+      <button class="btn btn-warning" onclick="passPlay()" id="passBtn">不出</button>
+      <button class="btn btn-secondary" onclick="hintCards()">提示</button>
+    </div>
+  </div>
+  
+  <!-- 状态栏 -->
+  <div id="statusBar" class="status-bar" style="display: none;"></div>
+</div>
+
+<!-- 消息弹窗 -->
+<div id="messageModal" class="message-modal hidden">
+  <div class="message-box">
+    <div id="messageText" class="message-text"></div>
+    <button class="btn btn-primary" onclick="closeMessage()">确定</button>
+  </div>
+</div>
+
+<!-- 调试信息 -->
+<div id="debugInfo"></div>
+
+<script>
+
+// ==================== 音频管理器 ====================
+const AudioManager = {
+  // 音频上下文
+  context: null,
+  
+  // 音量设置 (0-1)
+  sfxVolume: 0.7,
+  voiceVolume: 0.8,
+  
+  // 初始化音频上下文
+  init: function() {
+    try {
+      this.context = new (window.AudioContext || window.webkitAudioContext)();
+      debug('音频系统初始化成功');
+    } catch (e) {
+      console.error('音频系统初始化失败:', e);
+    }
+    
+    // 从localStorage加载音量设置
+    this.loadSettings();
+  },
+  
+  // 恢复音频上下文（用户交互后调用）
+  resume: function() {
+    if (this.context && this.context.state === 'suspended') {
+      this.context.resume();
+    }
+  },
+  
+  // 设置音效音量
+  setSfxVolume: function(volume) {
+    this.sfxVolume = volume / 100;
+    this.saveSettings();
+    this.updateVolumeUI('sfx', volume);
+  },
+  
+  // 设置配音音量
+  setVoiceVolume: function(volume) {
+    this.voiceVolume = volume / 100;
+    this.saveSettings();
+    this.updateVolumeUI('voice', volume);
+  },
+  
+  // 更新UI显示
+  updateVolumeUI: function(type, volume) {
+    const valueEl = document.getElementById(type + 'VolumeValue');
+    const fillEl = document.getElementById(type + 'VolumeFill');
+    const sliderEl = document.getElementById(type + 'VolumeSlider');
+    
+    if (valueEl) valueEl.textContent = volume + '%';
+    if (fillEl) fillEl.style.width = volume + '%';
+    if (sliderEl) sliderEl.value = volume;
+    
+    // 更新预设按钮状态
+    this.updatePresetButtons();
+  },
+  
+  // 更新预设按钮状态
+  updatePresetButtons: function() {
+    const sfxVol = Math.round(this.sfxVolume * 100);
+    const voiceVol = Math.round(this.voiceVolume * 100);
+    const avgVol = (sfxVol + voiceVol) / 2;
+    
+    document.querySelectorAll('.volume-preset-btn').forEach(btn => {
+      btn.classList.remove('active');
+    });
+    
+    if (sfxVol === 0 && voiceVol === 0) {
+      document.querySelector('.volume-preset-btn:nth-child(1)')?.classList.add('active');
+    } else if (avgVol <= 30) {
+      document.querySelector('.volume-preset-btn:nth-child(2)')?.classList.add('active');
+    } else if (avgVol <= 70) {
+      document.querySelector('.volume-preset-btn:nth-child(3)')?.classList.add('active');
+    } else {
+      document.querySelector('.volume-preset-btn:nth-child(4)')?.classList.add('active');
+    }
+  },
+  
+  // 保存设置到localStorage
+  saveSettings: function() {
+    const settings = {
+      sfxVolume: this.sfxVolume,
+      voiceVolume: this.voiceVolume
+    };
+    localStorage.setItem('doudizhu_audio_settings', JSON.stringify(settings));
+  },
+  
+  // 从localStorage加载设置
+  loadSettings: function() {
+    try {
+      const saved = localStorage.getItem('doudizhu_audio_settings');
+      if (saved) {
+        const settings = JSON.parse(saved);
+        this.sfxVolume = settings.sfxVolume || 0.7;
+        this.voiceVolume = settings.voiceVolume || 0.8;
+        
+        // 更新UI
+        this.updateVolumeUI('sfx', Math.round(this.sfxVolume * 100));
+        this.updateVolumeUI('voice', Math.round(this.voiceVolume * 100));
+      }
+    } catch (e) {
+      console.error('加载音频设置失败:', e);
+    }
+  },
+  
+  // 播放音效
+  playSound: function(type) {
+    if (!this.context || this.sfxVolume === 0) return;
+    
+    this.resume();
+    
+    const oscillator = this.context.createOscillator();
+    const gainNode = this.context.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(this.context.destination);
+    
+    // 根据类型设置不同的音效
+    switch (type) {
+      case 'click':
+        // 点击音效 - 短促的高音
+        oscillator.frequency.setValueAtTime(800, this.context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(600, this.context.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.3 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.1);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.1);
+        break;
+        
+      case 'card':
+        // 出牌音效 - 清脆的音效
+        oscillator.frequency.setValueAtTime(1200, this.context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(800, this.context.currentTime + 0.15);
+        gainNode.gain.setValueAtTime(0.2 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.15);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.15);
+        break;
+        
+      case 'select':
+        // 选牌音效
+        oscillator.frequency.setValueAtTime(600, this.context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(900, this.context.currentTime + 0.08);
+        gainNode.gain.setValueAtTime(0.15 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.08);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.08);
+        break;
+        
+      case 'win':
+        // 胜利音效 - 上升的音阶
+        this.playMelody([523, 659, 784, 1047], 0.15, this.sfxVolume);
+        break;
+        
+      case 'lose':
+        // 失败音效 - 下降的音阶
+        this.playMelody([400, 350, 300, 250], 0.2, this.sfxVolume);
+        break;
+        
+      case 'pass':
+        // 不出音效
+        oscillator.frequency.setValueAtTime(300, this.context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(200, this.context.currentTime + 0.2);
+        gainNode.gain.setValueAtTime(0.2 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.2);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.2);
+        break;
+        
+      case 'deal':
+        // 发牌音效
+        oscillator.frequency.setValueAtTime(1000, this.context.currentTime);
+        gainNode.gain.setValueAtTime(0.1 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.05);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.05);
+        break;
+        
+      case 'bomb':
+        // 炸弹音效
+        this.playBombSound();
+        break;
+        
+      case 'rocket':
+        // 王炸音效
+        this.playRocketSound();
+        break;
+        
+      default:
+        oscillator.frequency.setValueAtTime(440, this.context.currentTime);
+        gainNode.gain.setValueAtTime(0.2 * this.sfxVolume, this.context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.1);
+        oscillator.start(this.context.currentTime);
+        oscillator.stop(this.context.currentTime + 0.1);
+    }
+  },
+  
+  // 播放旋律
+  playMelody: function(frequencies, duration, volume) {
+    frequencies.forEach((freq, index) => {
+      setTimeout(() => {
+        if (!this.context) return;
+        
+        const osc = this.context.createOscillator();
+        const gain = this.context.createGain();
+        
+        osc.connect(gain);
+        gain.connect(this.context.destination);
+        
+        osc.frequency.setValueAtTime(freq, this.context.currentTime);
+        gain.gain.setValueAtTime(0.3 * volume, this.context.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + duration);
+        
+        osc.start(this.context.currentTime);
+        osc.stop(this.context.currentTime + duration);
+      }, index * duration * 1000);
+    });
+  },
+  
+  // 炸弹音效
+  playBombSound: function() {
+    if (!this.context || this.sfxVolume === 0) return;
+    
+    const noise = this.context.createBufferSource();
+    const bufferSize = this.context.sampleRate * 0.3;
+    const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
+    const data = buffer.getChannelData(0);
+    
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    
+    noise.buffer = buffer;
+    
+    const filter = this.context.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(1000, this.context.currentTime);
+    filter.frequency.exponentialRampToValueAtTime(100, this.context.currentTime + 0.3);
+    
+    const gain = this.context.createGain();
+    gain.gain.setValueAtTime(0.5 * this.sfxVolume, this.context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.3);
+    
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.context.destination);
+    
+    noise.start(this.context.currentTime);
+    noise.stop(this.context.currentTime + 0.3);
+  },
+  
+  // 王炸音效
+  playRocketSound: function() {
+    if (!this.context || this.sfxVolume === 0) return;
+    
+    // 上升音效
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+    
+    osc.connect(gain);
+    gain.connect(this.context.destination);
+    
+    osc.frequency.setValueAtTime(200, this.context.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(2000, this.context.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.4 * this.sfxVolume, this.context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.context.currentTime + 0.5);
+    
+    osc.start(this.context.currentTime);
+    osc.stop(this.context.currentTime + 0.5);
+    
+    // 爆炸音效
+    setTimeout(() => this.playBombSound(), 200);
+  },
+  
+  // 播放配音
+  playVoice: function(text) {
+    if (!('speechSynthesis' in window) || this.voiceVolume === 0) return;
+    
+    this.resume();
+    
+    // 取消之前的语音
+    speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'zh-CN';
+    utterance.volume = this.voiceVolume;
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    
+    speechSynthesis.speak(utterance);
+  },
+  
+  // 播放叫地主配音
+  playCallVoice: function(isCall) {
+    const text = isCall ? '叫地主' : '不叫';
+    this.playVoice(text);
+  },
+  
+  // 播放出牌类型配音
+  playCardTypeVoice: function(cardType) {
+    const voiceMap = {
+      'single': '单张',
+      'pair': '对子',
+      'triple': '三张',
+      'tripleWithOne': '三带一',
+      'tripleWithPair': '三带二',
+      'straight': '顺子',
+      'doubleStraight': '连对',
+      'tripleStraight': '飞机',
+      'bomb': '炸弹',
+      'rocket': '王炸',
+      'fourWithTwo': '四带二'
+    };
+    
+    const text = voiceMap[cardType];
+    if (text) {
+      this.playVoice(text);
+    }
+  },
+  
+  // 播放结果配音
+  playResultVoice: function(isWin, isLandlord) {
+    let text = '';
+    if (isWin) {
+      text = isLandlord ? '地主获胜' : '农民获胜';
+    } else {
+      text = isLandlord ? '地主失败' : '农民失败';
+    }
+    this.playVoice(text);
+  }
+};
+
+// ==================== 音量控制函数 ====================
+
+/**
+ * 切换设置面板显示
+ */
+function toggleSettingsPanel() {
+  const panel = document.getElementById('volumePanel');
+  const btn = document.getElementById('settingsBtn');
+  
+  panel.classList.toggle('show');
+  btn.classList.toggle('active');
+  
+  // 点击音效
+  AudioManager.playSound('click');
+}
+
+/**
+ * 设置音效音量
+ */
+function setSfxVolume(value) {
+  AudioManager.setSfxVolume(parseInt(value));
+  AudioManager.playSound('click');
+}
+
+/**
+ * 设置配音音量
+ */
+function setVoiceVolume(value) {
+  AudioManager.setVoiceVolume(parseInt(value));
+  // 播放测试配音
+  AudioManager.playVoice('音量');
+}
+
+/**
+ * 设置音量预设
+ */
+function setVolumePreset(preset) {
+  let sfxVol, voiceVol;
+  
+  switch (preset) {
+    case 'mute':
+      sfxVol = 0;
+      voiceVol = 0;
+      break;
+    case 'low':
+      sfxVol = 30;
+      voiceVol = 30;
+      break;
+    case 'normal':
+      sfxVol = 70;
+      voiceVol = 80;
+      break;
+    case 'high':
+      sfxVol = 100;
+      voiceVol = 100;
+      break;
+  }
+  
+  AudioManager.setSfxVolume(sfxVol);
+  AudioManager.setVoiceVolume(voiceVol);
+  
+  AudioManager.playSound('click');
+}
+
+// ==================== 常量定义 ====================
+const SUITS = ['♠', '♥', '♦', '♣'];
+const VALUES = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
+const CARD_VALUE_MAP = {
+  '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9,
+  '10': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14, '2': 15,
+  '小王': 16, '大王': 17
+};
+
+// ==================== 游戏状态 ====================
+let gameState = {
+  deck: [],
+  playerHand: [],
+  leftHand: [],
+  rightHand: [],
+  bottomCards: [],
+  currentPlayer: 0,
+  landlord: -1,
+  gamePhase: 'waiting',
+  lastPlay: [],
+  lastPlayer: -1,
+  lastPlayType: null,
+  selectedCards: [],
+  passCount: 0,
+  callIndex: 0,
+  callCount: 0,
+  noCallCount: 0,
+  scores: { player: 0, left: 0, right: 0 }
+};
+
+let debugMode = true;
+
+// ==================== 超时机制变量 ====================
+let computerPlaySafetyTimeout = null;
+
+// ==================== 动画辅助函数 ====================
+
+/**
+ * 添加按钮波纹效果
+ */
+function addButtonRipple(event, button) {
+  const ripple = document.createElement('span');
+  ripple.classList.add('btn-ripple');
+  
+  const rect = button.getBoundingClientRect();
+  const size = Math.max(rect.width, rect.height);
+  const x = event.clientX - rect.left - size / 2;
+  const y = event.clientY - rect.top - size / 2;
+  
+  ripple.style.width = ripple.style.height = size + 'px';
+  ripple.style.left = x + 'px';
+  ripple.style.top = y + 'px';
+  
+  button.appendChild(ripple);
+  
+  setTimeout(() => ripple.remove(), 600);
+}
+
+/**
+ * 添加按钮点击动画
+ */
+function triggerButtonClickAnimation(button) {
+  button.classList.remove('clicking');
+  void button.offsetWidth;
+  button.classList.add('clicking');
+  
+  setTimeout(() => button.classList.remove('clicking'), 300);
+}
+
+/**
+ * 触发卡牌点击反馈动画
+ */
+function triggerCardClickAnimation(cardElement) {
+  cardElement.classList.remove('clicking');
+  void cardElement.offsetWidth;
+  cardElement.classList.add('clicking');
+  
+  setTimeout(() => cardElement.classList.remove('clicking'), 150);
+}
+
+/**
+ * 触发卡牌选中动画
+ */
+function triggerCardSelectAnimation(cardElement, selected) {
+  if (selected) {
+    cardElement.classList.remove('deselecting');
+    void cardElement.offsetWidth;
+  } else {
+    cardElement.classList.add('deselecting');
+    setTimeout(() => cardElement.classList.remove('deselecting'), 400);
+  }
+}
+
+/**
+ * 触发卡牌摇晃动画（无效操作）
+ */
+function triggerCardShake(cardElement) {
+  cardElement.classList.remove('shake');
+  void cardElement.offsetWidth;
+  cardElement.classList.add('shake');
+  
+  setTimeout(() => cardElement.classList.remove('shake'), 500);
+}
+
+/**
+ * 触发所有卡牌摇晃
+ */
+function shakeAllCards() {
+  const cards = document.querySelectorAll('#playerHand .card');
+  cards.forEach((card, index) => {
+    setTimeout(() => {
+      triggerCardShake(card);
+    }, index * 30);
+  });
+}
+
+/**
+ * 创建胜利粒子效果
+ */
+function createVictoryParticles(count) {
+  const colors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7'];
+  const container = document.body;
+  
+  for (let i = 0; i < count; i++) {
+    setTimeout(() => {
+      const particle = document.createElement('div');
+      particle.classList.add('victory-particle');
+      particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+      particle.style.left = Math.random() * 100 + 'vw';
+      particle.style.top = Math.random() * 100 + 'vh';
+      particle.style.width = (Math.random() * 10 + 5) + 'px';
+      particle.style.height = particle.style.width;
+      
+      container.appendChild(particle);
+      
+      setTimeout(() => particle.remove(), 1000);
+    }, i * 50);
+  }
+}
+
+/**
+ * 触发牌数更新动画
+ */
+function triggerCountPulse(elementId) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.classList.remove('pulse');
+    void element.offsetWidth;
+    element.classList.add('pulse');
+    setTimeout(() => element.classList.remove('pulse'), 500);
+  }
+}
+
+/**
+ * 触发状态栏更新动画
+ */
+function triggerStatusUpdate() {
+  const statusBar = document.getElementById('statusBar');
+  if (statusBar) {
+    statusBar.classList.remove('updating');
+    void statusBar.offsetWidth;
+    statusBar.classList.add('updating');
+    setTimeout(() => statusBar.classList.remove('updating'), 300);
+  }
+}
+
+/**
+ * 触发出牌信息动画
+ */
+function triggerPlayInfoAppear() {
+  const playInfo = document.getElementById('playInfo');
+  if (playInfo) {
+    playInfo.classList.remove('appearing');
+    void playInfo.offsetWidth;
+    playInfo.classList.add('appearing');
+    setTimeout(() => playInfo.classList.remove('appearing'), 300);
+  }
+}
+
+/**
+ * 清除出牌区域动画
+ */
+function clearLastPlayWithAnimation() {
+  const lastPlayEl = document.getElementById('lastPlay');
+  if (lastPlayEl && lastPlayEl.children.length > 0) {
+    lastPlayEl.classList.add('clearing');
+    setTimeout(() => {
+      lastPlayEl.innerHTML = '';
+      lastPlayEl.classList.remove('clearing');
+    }, 300);
+  }
+}
+
+/**
+ * 按钮组出现动画
+ */
+function showButtonGroupWithAnimation(groupId) {
+  const group = document.getElementById(groupId);
+  if (group) {
+    group.classList.remove('hidden');
+    group.classList.add('appearing');
+    
+    const buttons = group.querySelectorAll('.btn');
+    buttons.forEach(btn => {
+      btn.classList.remove('appearing');
+      void btn.offsetWidth;
+      btn.classList.add('appearing');
+    });
+    
+    setTimeout(() => group.classList.remove('appearing'), 600);
+  }
+}
+
+/**
+ * 隐藏按钮组
+ */
+function hideButtonGroup(groupId) {
+  const group = document.getElementById(groupId);
+  if (group) {
+    group.classList.add('hidden');
+  }
+}
+
+/**
+ * 底牌翻转动画
+ */
+function flipBottomCard(cardIndex, display) {
+  const cardId = 'bottomCard' + (cardIndex + 1);
+  const card = document.getElementById(cardId);
+  
+  if (card) {
+    card.classList.add('flipping');
+    
+    setTimeout(() => {
+      card.innerHTML = display;
+      card.classList.add('revealed');
+    }, 300);
+  }
+}
+
+/**
+ * 发牌动画 - 为手牌添加延迟动画
+ */
+function animateDealCards(containerId, isCardBack) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  
+  const cards = container.querySelectorAll(isCardBack ? '.card-back' : '.card');
+  
+  cards.forEach((card, index) => {
+    card.style.opacity = '0';
+    card.classList.add('dealing');
+    card.style.animationDelay = (index * 0.03) + 's';
+    
+    setTimeout(() => {
+      card.style.opacity = '1';
+      AudioManager.playSound('deal');
+    }, index * 30);
+  });
+  
+  setTimeout(() => {
+    cards.forEach(card => card.classList.remove('dealing'));
+  }, cards.length * 30 + 600);
+}
+
+function debug(msg) {
+  if (debugMode) {
+    console.log('[DEBUG] ' + msg);
+    const debugEl = document.getElementById('debugInfo');
+    if (debugEl) {
+      const time = new Date().toLocaleTimeString();
+      debugEl.innerHTML = '<div>' + time + ' ' + msg + '</div>' + debugEl.innerHTML;
+      if (debugEl.children.length > 5) {
+        debugEl.removeChild(debugEl.lastChild);
+      }
+    }
+  }
+}
+
+// ==================== 清除安全超时 ====================
+function clearSafetyTimeout() {
+  if (computerPlaySafetyTimeout) {
+    clearTimeout(computerPlaySafetyTimeout);
+    computerPlaySafetyTimeout = null;
+    debug('安全超时已清除');
+  }
+}
+
+// ==================== 牌组操作 ====================
+function createDeck() {
+  const deck = [];
+  for (let suit of SUITS) {
+    for (let value of VALUES) {
+      deck.push({
+        suit: suit,
+        value: value,
+        display: suit + value,
+        rank: CARD_VALUE_MAP[value]
+      });
+    }
+  }
+  deck.push({ suit: '', value: '小王', display: '小王', rank: 16 });
+  deck.push({ suit: '', value: '大王', display: '大王', rank: 17 });
+  return deck;
+}
+
+function shuffleDeck(deck) {
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  return deck;
+}
+
+function sortCards(cards) {
+  return cards.slice().sort((a, b) => b.rank - a.rank);
+}
+
+// ==================== 游戏初始化 ====================
+function startGame() {
+  debug('开始新游戏');
+  
+  // 初始化音频
+  AudioManager.init();
+  AudioManager.resume();
+  
+  // 按钮点击动画
+  const btn = event ? event.target : null;
+  if (btn) {
+    addButtonRipple(event, btn);
+    triggerButtonClickAnimation(btn);
+  }
+  
+  // 播放点击音效
+  AudioManager.playSound('click');
+  
+  clearSafetyTimeout();
+  
+  gameState.deck = shuffleDeck(createDeck());
+  gameState.playerHand = sortCards(gameState.deck.slice(0, 17));
+  gameState.leftHand = sortCards(gameState.deck.slice(17, 34));
+  gameState.rightHand = sortCards(gameState.deck.slice(34, 51));
+  gameState.bottomCards = gameState.deck.slice(51, 54);
+  
+  gameState.currentPlayer = 0;
+  gameState.landlord = -1;
+  gameState.gamePhase = 'calling';
+  gameState.lastPlay = [];
+  gameState.lastPlayer = -1;
+  gameState.lastPlayType = null;
+  gameState.selectedCards = [];
+  gameState.passCount = 0;
+  gameState.callIndex = 0;
+  gameState.callCount = 0;
+  gameState.noCallCount = 0;
+  
+  document.getElementById('startArea').classList.add('hidden');
+  showButtonGroupWithAnimation('callBtnGroup');
+  hideButtonGroup('playBtnGroup');
+  
+  renderAllHands(true);
+  renderBottomCards(false);
+  hideAllCallResults();
+  clearLastPlay();
+  clearComputerPlayAreas();
+  
+  updateStatus('请选择是否叫地主');
+  updatePlayerInfo();
+  
+  debug('游戏初始化完成，等待叫地主');
+}
+
+function hideAllCallResults() {
+  document.getElementById('leftCallResult').classList.add('hidden');
+  document.getElementById('rightCallResult').classList.add('hidden');
+  document.getElementById('playerCallResult').classList.add('hidden');
+}
+
+function clearComputerPlayAreas() {
+  document.getElementById('leftPlayCards').innerHTML = '';
+  document.getElementById('leftPlayText').textContent = '';
+  document.getElementById('rightPlayCards').innerHTML = '';
+  document.getElementById('rightPlayText').textContent = '';
+  document.getElementById('playInfo').textContent = '';
+}
+
+// ==================== 叫地主逻辑 ====================
+function callLandlord() {
+  if (gameState.gamePhase !== 'calling' || gameState.currentPlayer !== 0) return;
+  
+  // 按钮动画
+  if (event) {
+    addButtonRipple(event, event.target);
+    triggerButtonClickAnimation(event.target);
+  }
+  
+  // 播放音效和配音
+  AudioManager.playSound('click');
+  AudioManager.playCallVoice(true);
+  
+  debug('玩家叫地主');
+  showCallResult(0, '叫地主');
+  
+  gameState.landlord = 0;
+  gameState.callCount++;
+  
+  setTimeout(() => becomeLandlord(0), 300);
+}
+
+function notCallLandlord() {
+  if (gameState.gamePhase !== 'calling' || gameState.currentPlayer !== 0) return;
+  
+  // 按钮动画
+  if (event) {
+    addButtonRipple(event, event.target);
+    triggerButtonClickAnimation(event.target);
+  }
+  
+  // 播放音效和配音
+  AudioManager.playSound('click');
+  AudioManager.playCallVoice(false);
+  
+  debug('玩家不叫');
+  showCallResult(0, '不叫');
+  gameState.noCallCount++;
+  
+  setTimeout(() => nextCaller(), 300);
+}
+
+function nextCaller() {
+  gameState.callIndex++;
+  
+  if (gameState.callIndex >= 3) {
+    if (gameState.noCallCount >= 3) {
+      debug('所有人都不叫，重新开始');
+      showMessage('所有人都不叫，重新开始', function() {
+        startGame();
+      });
+      return;
+    }
+    return;
+  }
+  
+  gameState.currentPlayer = gameState.callIndex % 3;
+  
+  if (gameState.currentPlayer === 0) {
+    updateStatus('请选择是否叫地主');
+    showButtonGroupWithAnimation('callBtnGroup');
+  } else {
+    hideButtonGroup('callBtnGroup');
+    updateStatus('等待' + getPlayerName(gameState.currentPlayer) + '叫地主...');
+    
+    setTimeout(function() {
+      computerCall(gameState.currentPlayer);
+    }, 1000);
+  }
+}
+
+function computerCall(player) {
+  if (gameState.gamePhase !== 'calling') return;
+  
+  const hand = getHand(player);
+  let score = evaluateHand(hand);
+  
+  let shouldCall = score > 12;
+  
+  if (shouldCall) {
+    debug(getPlayerName(player) + '叫地主');
+    showCallResult(player, '叫地主');
+    
+    // 播放配音
+    AudioManager.playCallVoice(true);
+    
+    gameState.landlord = player;
+    gameState.callCount++;
+    
+    setTimeout(function() {
+      becomeLandlord(player);
+    }, 500);
+  } else {
+    debug(getPlayerName(player) + '不叫');
+    showCallResult(player, '不叫');
+    
+    // 播放配音
+    AudioManager.playCallVoice(false);
+    
+    gameState.noCallCount++;
+    
+    setTimeout(function() {
+      nextCaller();
+    }, 500);
+  }
+}
+
+function showCallResult(player, text) {
+  let resultEl;
+  if (player === 0) {
+    resultEl = document.getElementById('playerCallResult');
+  } else if (player === 1) {
+    resultEl = document.getElementById('leftCallResult');
+  } else {
+    resultEl = document.getElementById('rightCallResult');
+  }
+  
+  if (resultEl) {
+    resultEl.textContent = text;
+    resultEl.classList.remove('hidden', 'landlord');
+    if (text === '叫地主') {
+      resultEl.classList.add('landlord');
+    }
+  }
+}
+
+function becomeLandlord(player) {
+  debug(getPlayerName(player) + '成为地主');
+  
+  gameState.landlord = player;
+  gameState.gamePhase = 'playing';
+  
+  // 地主获得底牌
+  const hand = getHand(player);
+  hand.push(...gameState.bottomCards);
+  setHand(player, sortCards(hand));
+  
+  // 显示底牌
+  revealBottomCards();
+  
+  // 更新头像显示地主标志
+  updateLandlordDisplay();
+  
+  // 渲染手牌
+  renderAllHands(false);
+  updatePlayerInfo();
+  
+  // 清除叫地主按钮
+  hideButtonGroup('callBtnGroup');
+  
+  // 从地主开始出牌
+  gameState.currentPlayer = player;
+  
+  if (player === 0) {
+    updateStatus('你是地主，请出牌');
+    showButtonGroupWithAnimation('playBtnGroup');
+    document.getElementById('passBtn').style.display = 'none';
+  } else {
+    updateStatus(getPlayerName(player) + '是地主，等待出牌...');
+    hideButtonGroup('playBtnGroup');
+    
+    setTimeout(function() {
+      computerPlay(player);
+    }, 1500);
+  }
+}
+
+function revealBottomCards() {
+  for (let i = 0; i < 3; i++) {
+    const card = gameState.bottomCards[i];
+    let display = card.display;
+    let colorClass = '';
+    
+    if (card.suit === '♥' || card.suit === '♦') {
+      colorClass = 'red';
+    } else if (card.value === '小王' || card.value === '大王') {
+      colorClass = card.value === '大王' ? 'red' : 'black';
+    } else {
+      colorClass = 'black';
+    }
+    
+    setTimeout(() => {
+      flipBottomCard(i, '<span class="' + colorClass + '">' + display + '</span>');
+      AudioManager.playSound('card');
+    }, i * 200);
+  }
+}
+
+function updateLandlordDisplay() {
+  // 清除所有地主标志
+  document.getElementById('playerAvatar').classList.remove('landlord');
+  document.getElementById('leftAvatar').classList.remove('landlord');
+  document.getElementById('rightAvatar').classList.remove('landlord');
+  
+  // 添加新的地主标志
+  if (gameState.landlord === 0) {
+    document.getElementById('playerAvatar').classList.add('landlord');
+  } else if (gameState.landlord === 1) {
+    document.getElementById('leftAvatar').classList.add('landlord');
+  } else if (gameState.landlord === 2) {
+    document.getElementById('rightAvatar').classList.add('landlord');
+  }
+}
+
+// ==================== 游戏玩法逻辑 ====================
+function getHand(player) {
+  if (player === 0) return gameState.playerHand;
+  if (player === 1) return gameState.leftHand;
+  return gameState.rightHand;
+}
+
+function setHand(player, hand) {
+  if (player === 0) gameState.playerHand = hand;
+  else if (player === 1) gameState.leftHand = hand;
+  else gameState.rightHand = hand;
+}
+
+function getPlayerName(player) {
+  if (player === 0) return '玩家';
+  if (player === 1) return '左电脑';
+  return '右电脑';
+}
+
+function evaluateHand(hand) {
+  let score = 0;
+  
+  for (let card of hand) {
+    if (card.value === '大王') score += 6;
+    else if (card.value === '小王') score += 5;
+    else if (card.value === '2') score += 3;
+    else if (card.value === 'A') score += 1;
+  }
+  
+  // 检查炸弹
+  const valueCounts = {};
+  for (let card of hand) {
+    valueCounts[card.value] = (valueCounts[card.value] || 0) + 1;
+  }
+  
+  for (let value in valueCounts) {
+    if (valueCounts[value] === 4) score += 6;
+  }
+  
+  return score;
+}
+
+// ==================== 渲染函数 ====================
+function renderAllHands(animate) {
+  renderPlayerHand();
+  renderComputerHand('leftHand', 'leftCount', gameState.leftHand.length, animate);
+  renderComputerHand('rightHand', 'rightCount', gameState.rightHand.length, animate);
+}
+
+function renderPlayerHand() {
+  const container = document.getElementById('playerHand');
+  container.innerHTML = '';
+  
+  gameState.playerHand.forEach((card, index) => {
+    const cardEl = createCardElement(card, index);
+    cardEl.onclick = function() {
+      selectCard(index);
+    };
+    container.appendChild(cardEl);
+  });
+}
+
+function createCardElement(card, index) {
+  const cardEl = document.createElement('div');
+  cardEl.className = 'card';
+  cardEl.dataset.index = index;
+  
+  // 设置颜色类
+  if (card.suit === '♥' || card.suit === '♦') {
+    cardEl.classList.add('red');
+  } else if (card.value === '小王') {
+    cardEl.classList.add('joker-small');
+  } else if (card.value === '大王') {
+    cardEl.classList.add('joker-big');
+  } else {
+    cardEl.classList.add('black');
+  }
+  
+  // 检查是否选中
+  if (gameState.selectedCards.includes(index)) {
+    cardEl.classList.add('selected');
+  }
+  
+  // 创建卡牌内容
+  const valueEl = document.createElement('div');
+  valueEl.className = 'card-value';
+  valueEl.textContent = card.value;
+  
+  const suitEl = document.createElement('div');
+  suitEl.className = 'card-suit';
+  suitEl.textContent = card.suit;
+  
+  cardEl.appendChild(valueEl);
+  cardEl.appendChild(suitEl);
+  
+  return cardEl;
+}
+
+function renderComputerHand(containerId, countId, count, animate) {
+  const container = document.getElementById(containerId);
+  const countEl = document.getElementById(countId);
+  
+  container.innerHTML = '';
+  countEl.textContent = count;
+  
+  for (let i = 0; i < Math.min(count, 10); i++) {
+    const cardBack = document.createElement('div');
+    cardBack.className = 'card-back';
+    container.appendChild(cardBack);
+  }
+  
+  if (animate) {
+    animateDealCards(containerId, true);
+  }
+}
+
+function renderBottomCards(revealed) {
+  for (let i = 0; i < 3; i++) {
+    const cardEl = document.getElementById('bottomCard' + (i + 1));
+    cardEl.classList.remove('revealed', 'flipping');
+    
+    if (revealed) {
+      const card = gameState.bottomCards[i];
+      cardEl.innerHTML = card.display;
+      cardEl.classList.add('revealed');
+    } else {
+      cardEl.innerHTML = '?';
+    }
+  }
+}
+
+function clearLastPlay() {
+  document.getElementById('lastPlay').innerHTML = '';
+  document.getElementById('playInfo').textContent = '';
+}
+
+// ==================== 卡牌选择 ====================
+function selectCard(index) {
+  if (gameState.gamePhase !== 'playing' || gameState.currentPlayer !== 0) return;
+  
+  AudioManager.resume();
+  AudioManager.playSound('select');
+  
+  const cardEl = document.querySelector('#playerHand .card[data-index="' + index + '"]');
+  
+  const selectedIndex = gameState.selectedCards.indexOf(index);
+  
+  if (selectedIndex === -1) {
+    gameState.selectedCards.push(index);
+    cardEl.classList.add('selected');
+    triggerCardClickAnimation(cardEl);
+  } else {
+    gameState.selectedCards.splice(selectedIndex, 1);
+    cardEl.classList.remove('selected');
+  }
+  
+  debug('已选择 ' + gameState.selectedCards.length + ' 张牌');
+}
+
+// ==================== 出牌逻辑 ====================
+function playCards() {
+  if (gameState.gamePhase !== 'playing' || gameState.currentPlayer !== 0) return;
+  if (gameState.selectedCards.length === 0) {
+    shakeAllCards();
+    return;
+  }
+  
+  AudioManager.resume();
+  
+  // 获取选中的牌
+  const selectedCards = gameState.selectedCards.map(i => gameState.playerHand[i]);
+  const playType = getPlayType(selectedCards);
+  
+  if (!playType) {
+    debug('无效的牌型');
+    shakeAllCards();
+    AudioManager.playSound('pass');
+    return;
+  }
+  
+  // 检查是否能压过上家
+  if (gameState.lastPlayer !== -1 && gameState.lastPlayer !== 0) {
+    if (!canBeat(selectedCards, playType, gameState.lastPlay, gameState.lastPlayType)) {
+      debug('打不过上家');
+      shakeAllCards();
+      AudioManager.playSound('pass');
+      return;
+    }
+  }
+  
+  // 按钮动画
+  if (event) {
+    addButtonRipple(event, event.target);
+    triggerButtonClickAnimation(event.target);
+  }
+  
+  // 播放出牌音效和配音
+  AudioManager.playSound('card');
+  if (playType.type === 'bomb') {
+    AudioManager.playSound('bomb');
+    AudioManager.playCardTypeVoice('bomb');
+  } else if (playType.type === 'rocket') {
+    AudioManager.playSound('rocket');
+    AudioManager.playCardTypeVoice('rocket');
+  } else {
+    AudioManager.playCardTypeVoice(playType.type);
+  }
+  
+  // 移除打出的牌
+  const newHand = gameState.playerHand.filter((_, i) => !gameState.selectedCards.includes(i));
+  gameState.playerHand = newHand;
+  gameState.selectedCards = [];
+  
+  // 更新游戏状态
+  gameState.lastPlay = selectedCards;
+  gameState.lastPlayer = 0;
+  gameState.lastPlayType = playType;
+  gameState.passCount = 0;
+  
+  // 渲染
+  renderPlayerHand();
+  showLastPlay(selectedCards, 0, playType);
+  updatePlayerInfo();
+  
+  debug('玩家出牌: ' + selectedCards.map(c => c.display).join(', '));
+  
+  // 检查胜利
+  if (gameState.playerHand.length === 0) {
+    endGame(0);
+    return;
+  }
+  
+  // 下一个玩家
+  nextPlayer();
+}
+
+function passPlay() {
+  if (gameState.gamePhase !== 'playing' || gameState.currentPlayer !== 0) return;
+  if (gameState.lastPlayer === 0 || gameState.lastPlayer === -1) {
+    debug('必须出牌');
+    shakeAllCards();
+    return;
+  }
+  
+  // 按钮动画
+  if (event) {
+    addButtonRipple(event, event.target);
+    triggerButtonClickAnimation(event.target);
+  }
+  
+  AudioManager.resume();
+  AudioManager.playSound('pass');
+  AudioManager.playVoice('不出');
+  
+  debug('玩家不出');
+  
+  gameState.passCount++;
+  gameState.selectedCards = [];
+  
+  showPlayerPass(0);
+  
+  nextPlayer();
+}
+
+function showPlayerPass(player) {
+  if (player === 0) {
+    document.getElementById('playInfo').textContent = '不出';
+    triggerPlayInfoAppear();
+  } else if (player === 1) {
+    document.getElementById('leftPlayCards').innerHTML = '';
+    document.getElementById('leftPlayText').textContent = '不出';
+  } else {
+    document.getElementById('rightPlayCards').innerHTML = '';
+    document.getElementById('rightPlayText').textContent = '不出';
+  }
+}
+
+function showLastPlay(cards, player, playType) {
+  if (player === 0) {
+    const container = document.getElementById('lastPlay');
+    container.innerHTML = '';
+    
+    cards.forEach((card, i) => {
+      const cardEl = createSmallCardElement(card);
+      container.appendChild(cardEl);
+    });
+    
+    document.getElementById('playInfo').textContent = getPlayTypeName(playType);
+    triggerPlayInfoAppear();
+  } else if (player === 1) {
+    const container = document.getElementById('leftPlayCards');
+    container.innerHTML = '';
+    
+    cards.forEach(card => {
+      const cardEl = createSmallCardElement(card);
+      container.appendChild(cardEl);
+    });
+    
+    document.getElementById('leftPlayText').textContent = getPlayTypeName(playType);
+  } else {
+    const container = document.getElementById('rightPlayCards');
+    container.innerHTML = '';
+    
+    cards.forEach(card => {
+      const cardEl = createSmallCardElement(card);
+      container.appendChild(cardEl);
+    });
+    
+    document.getElementById('rightPlayText').textContent = getPlayTypeName(playType);
+  }
+}
+
+function createSmallCardElement(card) {
+  const cardEl = document.createElement('div');
+  cardEl.className = 'card';
+  
+  if (card.suit === '♥' || card.suit === '♦') {
+    cardEl.classList.add('red');
+  } else if (card.value === '小王') {
+    cardEl.classList.add('joker-small');
+  } else if (card.value === '大王') {
+    cardEl.classList.add('joker-big');
+  } else {
+    cardEl.classList.add('black');
+  }
+  
+  const valueEl = document.createElement('div');
+  valueEl.className = 'card-value';
+  valueEl.textContent = card.value;
+  
+  const suitEl = document.createElement('div');
+  suitEl.className = 'card-suit';
+  suitEl.textContent = card.suit;
+  
+  cardEl.appendChild(valueEl);
+  cardEl.appendChild(suitEl);
+  
+  return cardEl;
+}
+
+function getPlayTypeName(playType) {
+  const names = {
+    'single': '单张',
+    'pair': '对子',
+    'triple': '三张',
+    'tripleWithOne': '三带一',
+    'tripleWithPair': '三带二',
+    'straight': '顺子',
+    'doubleStraight': '连对',
+    'tripleStraight': '飞机',
+    'bomb': '炸弹！',
+    'rocket': '王炸！',
+    'fourWithTwo': '四带二'
+  };
+  return names[playType.type] || '';
+}
+
+function nextPlayer() {
+  hideButtonGroup('playBtnGroup');
+  
+  gameState.currentPlayer = (gameState.currentPlayer + 1) % 3;
+  
+  // 检查是否两家都过了
+  if (gameState.passCount >= 2) {
+    gameState.lastPlay = [];
+    gameState.lastPlayer = -1;
+    gameState.lastPlayType = null;
+    gameState.passCount = 0;
+    clearLastPlay();
+    clearComputerPlayAreas();
+  }
+  
+  updatePlayerInfo();
+  
+  if (gameState.currentPlayer === 0) {
+    updateStatus('轮到你出牌');
+    showButtonGroupWithAnimation('playBtnGroup');
+    
+    if (gameState.lastPlayer === 0 || gameState.lastPlayer === -1) {
+      document.getElementById('passBtn').style.display = 'none';
+    } else {
+      document.getElementById('passBtn').style.display = 'block';
+    }
+  } else {
+    updateStatus('等待' + getPlayerName(gameState.currentPlayer) + '出牌...');
+    
+    clearSafetyTimeout();
+    computerPlaySafetyTimeout = setTimeout(function() {
+      computerPlay(gameState.currentPlayer);
+    }, 1000);
+  }
+}
+
+// ==================== 电脑出牌 ====================
+function computerPlay(player) {
+  if (gameState.gamePhase !== 'playing') return;
+  
+  clearSafetyTimeout();
+  
+  const hand = getHand(player);
+  debug(getPlayerName(player) + '思考中，手牌: ' + hand.length);
+  
+  let cardsToPlay = null;
+  let playType = null;
+  
+  if (gameState.lastPlayer === player || gameState.lastPlayer === -1) {
+    // 自由出牌
+    const result = findBestPlay(hand);
+    if (result) {
+      cardsToPlay = result.cards;
+      playType = result.type;
+    }
+  } else {
+    // 需要压过上家
+    const result = findBeatingPlay(hand, gameState.lastPlay, gameState.lastPlayType);
+    if (result) {
+      cardsToPlay = result.cards;
+      playType = result.type;
+    }
+  }
+  
+  if (cardsToPlay) {
+    debug(getPlayerName(player) + '出牌: ' + cardsToPlay.map(c => c.display).join(', '));
+    
+    // 播放音效和配音
+    AudioManager.playSound('card');
+    if (playType.type === 'bomb') {
+      AudioManager.playSound('bomb');
+      AudioManager.playCardTypeVoice('bomb');
+    } else if (playType.type === 'rocket') {
+      AudioManager.playSound('rocket');
+      AudioManager.playCardTypeVoice('rocket');
+    } else {
+      AudioManager.playCardTypeVoice(playType.type);
+    }
+    
+    // 从手牌中移除
+    const newHand = hand.filter(c => !cardsToPlay.includes(c));
+    setHand(player, newHand);
+    
+    gameState.lastPlay = cardsToPlay;
+    gameState.lastPlayer = player;
+    gameState.lastPlayType = playType;
+    gameState.passCount = 0;
+    
+    showLastPlay(cardsToPlay, player, playType);
+    updatePlayerInfo();
+    
+    // 检查胜利
+    if (newHand.length === 0) {
+      endGame(player);
+      return;
+    }
+  } else {
+    debug(getPlayerName(player) + '不出');
+    
+    AudioManager.playSound('pass');
+    AudioManager.playVoice('不出');
+    
+    gameState.passCount++;
+    showPlayerPass(player);
+  }
+  
+  nextPlayer();
+}
+
+// ==================== 牌型判断 ====================
+function getPlayType(cards) {
+  if (!cards || cards.length === 0) return null;
+  
+  const sorted = cards.slice().sort((a, b) => a.rank - b.rank);
+  const ranks = sorted.map(c => c.rank);
+  const valueCounts = {};
+  
+  cards.forEach(c => {
+    valueCounts[c.value] = (valueCounts[c.value] || 0) + 1;
+  });
+  
+  const counts = Object.values(valueCounts).sort((a, b) => b - a);
+  const uniqueValues = Object.keys(valueCounts);
+  
+  // 王炸
+  if (cards.length === 2 && ranks.includes(16) && ranks.includes(17)) {
+    return { type: 'rocket', mainRank: 17 };
+  }
+  
+  // 单张
+  if (cards.length === 1) {
+    return { type: 'single', mainRank: ranks[0] };
+  }
+  
+  // 对子
+  if (cards.length === 2 && counts[0] === 2) {
+    return { type: 'pair', mainRank: ranks[0] };
+  }
+  
+  // 三张
+  if (cards.length === 3 && counts[0] === 3) {
+    return { type: 'triple', mainRank: ranks[0] };
+  }
+  
+  // 炸弹
+  if (cards.length === 4 && counts[0] === 4) {
+    return { type: 'bomb', mainRank: ranks[0] };
+  }
+  
+  // 三带一
+  if (cards.length === 4 && counts[0] === 3 && counts[1] === 1) {
+    const mainValue = Object.keys(valueCounts).find(v => valueCounts[v] === 3);
+    return { type: 'tripleWithOne', mainRank: CARD_VALUE_MAP[mainValue] };
+  }
+  
+  // 三带二
+  if (cards.length === 5 && counts[0] === 3 && counts[1] === 2) {
+    const mainValue = Object.keys(valueCounts).find(v => valueCounts[v] === 3);
+    return { type: 'tripleWithPair', mainRank: CARD_VALUE_MAP[mainValue] };
+  }
+  
+  // 四带二
+  if (cards.length === 6 && counts[0] === 4 && counts.length === 3) {
+    const mainValue = Object.keys(valueCounts).find(v => valueCounts[v] === 4);
+    return { type: 'fourWithTwo', mainRank: CARD_VALUE_MAP[mainValue] };
+  }
+  
+  // 顺子 (5张或更多连续单张，不包括2和王)
+  if (cards.length >= 5 && isConsecutive(ranks) && !ranks.includes(15) && !ranks.includes(16) && !ranks.includes(17)) {
+    return { type: 'straight', mainRank: Math.max(...ranks), length: cards.length };
+  }
+  
+  // 连对 (3对或更多连续对子)
+  if (cards.length >= 6 && cards.length % 2 === 0 && counts.every(c => c === 2)) {
+    const pairRanks = [...new Set(ranks)].sort((a, b) => a - b);
+    if (isConsecutive(pairRanks) && !pairRanks.includes(15)) {
+      return { type: 'doubleStraight', mainRank: Math.max(...pairRanks), length: cards.length / 2 };
+    }
+  }
+  
+  // 飞机 (2组或更多连续三张)
+  if (cards.length >= 6 && counts.filter(c => c >= 3).length >= 2) {
+    const tripleValues = Object.keys(valueCounts)
+      .filter(v => valueCounts[v] >= 3)
+      .map(v => CARD_VALUE_MAP[v])
+      .sort((a, b) => a - b);
+    
+    if (isConsecutive(tripleValues) && tripleValues.length >= 2 && !tripleValues.includes(15)) {
+      // 计算带的牌
+      const tripleCount = tripleValues.length;
+      const extraCount = cards.length - tripleCount * 3;
+      
+      if (extraCount === 0 || extraCount === tripleCount || extraCount === tripleCount * 2) {
+        return { type: 'tripleStraight', mainRank: Math.max(...tripleValues), length: tripleCount };
+      }
+    }
+  }
+  
+  return null;
+}
+
+function isConsecutive(arr) {
+  if (arr.length < 2) return true;
+  const sorted = [...arr].sort((a, b) => a - b);
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] - sorted[i-1] !== 1) return false;
+  }
+  return true;
+}
+
+function canBeat(cards, playType, lastCards, lastPlayType) {
+  if (!playType || !lastPlayType) return false;
+  
+  // 王炸最大
+  if (playType.type === 'rocket') return true;
+  if (lastPlayType.type === 'rocket') return false;
+  
+  // 炸弹可以打非炸弹
+  if (playType.type === 'bomb' && lastPlayType.type !== 'bomb') return true;
+  
+  // 同类型比较
+  if (playType.type !== lastPlayType.type) return false;
+  
+  // 顺子和连对需要长度相同
+  if (playType.type === 'straight' || playType.type === 'doubleStraight' || playType.type === 'tripleStraight') {
+    if (playType.length !== lastPlayType.length) return false;
+  }
+  
+  return playType.mainRank > lastPlayType.mainRank;
+}
+
+// ==================== 寻找出牌 ====================
+function findBestPlay(hand) {
+  // 按优先级尝试各种牌型
+  
+  // 先尝试出炸弹（如果牌少）
+  if (hand.length <= 6) {
+    const bomb = findBomb(hand);
+    if (bomb) return bomb;
+  }
+  
+  // 尝试出三带
+  const tripleWith = findTripleWith(hand);
+  if (tripleWith) return tripleWith;
+  
+  // 尝试出对子
+  const pair = findPair(hand);
+  if (pair) return pair;
+  
+  // 尝试出单张
+  const single = findSingle(hand);
+  if (single) return single;
+  
+  return null;
+}
+
+function findSingle(hand) {
+  if (hand.length === 0) return null;
+  
+  // 优先出小牌
+  const sorted = hand.slice().sort((a, b) => a.rank - b.rank);
+  return { cards: [sorted[0]], type: { type: 'single', mainRank: sorted[0].rank } };
+}
+
+function findPair(hand) {
+  const valueCounts = {};
+  hand.forEach(c => {
+    if (!valueCounts[c.value]) valueCounts[c.value] = [];
+    valueCounts[c.value].push(c);
+  });
+  
+  // 优先出小对子
+  const values = Object.keys(valueCounts).filter(v => valueCounts[v].length >= 2);
+  if (values.length === 0) return null;
+  
+  values.sort((a, b) => CARD_VALUE_MAP[a] - CARD_VALUE_MAP[b]);
+  const cards = valueCounts[values[0]].slice(0, 2);
+  
+  return { cards: cards, type: { type: 'pair', mainRank: cards[0].rank } };
+}
+
+function findTripleWith(hand) {
+  const valueCounts = {};
+  hand.forEach(c => {
+    if (!valueCounts[c.value]) valueCounts[c.value] = [];
+    valueCounts[c.value].push(c);
+  });
+  
+  const tripleValues = Object.keys(valueCounts).filter(v => valueCounts[v].length >= 3);
+  if (tripleValues.length === 0) return null;
+  
+  tripleValues.sort((a, b) => CARD_VALUE_MAP[a] - CARD_VALUE_MAP[b]);
+  const tripleCards = valueCounts[tripleValues[0]].slice(0, 3);
+  
+  // 尝试带一张
+  const otherValues = Object.keys(valueCounts).filter(v => v !== tripleValues[0]);
+  if (otherValues.length > 0) {
+    const extra = valueCounts[otherValues[0]][0];
+    return { 
+      cards: [...tripleCards, extra], 
+      type: { type: 'tripleWithOne', mainRank: tripleCards[0].rank } 
+    };
+  }
+  
+  return { cards: tripleCards, type: { type: 'triple', mainRank: tripleCards[0].rank } };
+}
+
+function findBomb(hand) {
+  const valueCounts = {};
+  hand.forEach(c => {
+    if (!valueCounts[c.value]) valueCounts[c.value] = [];
+    valueCounts[c.value].push(c);
+  });
+  
+  const bombValues = Object.keys(valueCounts).filter(v => valueCounts[v].length === 4);
+  if (bombValues.length === 0) return null;
+  
+  bombValues.sort((a, b) => CARD_VALUE_MAP[a] - CARD_VALUE_MAP[b]);
+  const cards = valueCounts[bombValues[0]];
+  
+  return { cards: cards, type: { type: 'bomb', mainRank: cards[0].rank } };
+}
+
+function findBeatingPlay(hand, lastPlay, lastPlayType) {
+  if (!lastPlayType) return findBestPlay(hand);
+  
+  const type = lastPlayType.type;
+  
+  // 王炸
+  if (type === 'rocket') return null;
+  
+  // 找炸弹
+  const bomb = findBomb(hand);
+  
+  // 找王炸
+  const hasSmallJoker = hand.some(c => c.value === '小王');
+  const hasBigJoker = hand.some(c => c.value === '大王');
+  if (hasSmallJoker && hasBigJoker) {
+    const jokers = hand.filter(c => c.value === '小王' || c.value === '大王');
+    return { cards: jokers, type: { type: 'rocket', mainRank: 17 } };
+  }
+  
+  // 如果上家是炸弹，需要更大的炸弹
+  if (type === 'bomb') {
+    if (bomb && bomb.type.mainRank > lastPlayType.mainRank) {
+      return bomb;
+    }
+    return null;
+  }
+  
+  // 尝试找同类型更大的牌
+  let candidate = null;
+  
+  if (type === 'single') {
+    candidate = findBeatingSingle(hand, lastPlayType.mainRank);
+  } else if (type === 'pair') {
+    candidate = findBeatingPair(hand, lastPlayType.mainRank);
+  } else if (type === 'triple') {
+    candidate = findBeatingTriple(hand, lastPlayType.mainRank);
+  } else if (type === 'tripleWithOne') {
+    candidate = findBeatingTripleWithOne(hand, lastPlayType.mainRank);
+  } else if (type === 'tripleWithPair') {
+    candidate = findBeatingTripleWithPair(hand, lastPlayType.mainRank);
+  } else if (type === 'straight') {
+    candidate = findBeatingStraight(hand, lastPlayType.mainRank, lastPlayType.length);
+  }
+  
+  // 如果找到了，返回
+  if (candidate) return candidate;
+  
+  // 如果没找到，用炸弹
+  if (bomb && type !== 'bomb') return bomb;
+  
+  return null;
+}
+
+function findBeatingSingle(hand, minRank) {
+  const sorted = hand.filter(c => c.rank > minRank).sort((a, b) => a.rank - b.rank);
+  if (sorted.length === 0) return null;
+  return { cards: [sorted[0]], type: { type: 'single', mainRank: sorted[0].rank } };
+}
+
+function findBeatingPair(hand, minRank) {
+  const valueCounts = {};
+  hand.forEach(c => {
+    if (!valueCounts[c.value]) valueCounts[c.value] = [];
+    valueCounts[c.value].push(c);
+  });
+  
+  const values = Object.keys(valueCounts)
+    .filter(v => valueCounts[v].length >= 2 && CARD_VALUE_MAP[v] > minRank)
+    .sort((a, b) => CARD_VALUE_MAP[a] - CARD_VALUE_MAP[b]);
+  
+  if (values.length === 0) return null;
+  
+  const cards = valueCounts[values[0]].slice(0, 2);
+  return { cards: cards, type: { type: 'pair', mainRank: cards[0].rank } };
+}
+
+function findBeatingTriple(hand, minRank) {
+  const valueCounts = {};
+  hand.forEach(c => {
+    if (!valueCounts[c.value]) valueCounts[c.value] = [];
+    valueCounts[c.value].push(c);
+  });
+  
+  const values = Object.keys(valueCounts)
+    .filter(v => valueCounts[v].length >= 3 && CARD_VALUE_MAP[v] > minRank)
+    .sort((a, b) => CARD_VALUE_MAP[a] - CARD_VALUE_MAP[b]);
+  
+  if (values.length === 0) return null;
+  
+  const cards = valueCounts[values[0]].slice(0, 3);
+  return { cards: cards, type: { type: 'triple', mainRank: cards[0].rank } };
+}
+
+function findBeatingTripleWithOne(hand, minRank) {
+  const valueCounts = {};
+  hand.forEach(c => {
+    if (!valueCounts[c.value]) valueCounts[c.value] = [];
+    valueCounts[c.value].push(c);
+  });
+  
+  const tripleValues = Object.keys(valueCounts)
+    .filter(v => valueCounts[v].length >= 3 && CARD_VALUE_MAP[v] > minRank)
+    .sort((a, b) => CARD_VALUE_MAP[a] - CARD_VALUE_MAP[b]);
+  
+  if (tripleValues.length === 0) return null;
+  
+  // 找一张单牌
+  const otherValues = Object.keys(valueCounts).filter(v => v !== tripleValues[0]);
+  if (otherValues.length === 0) {
+    // 没有单牌，只出三张
+    const cards = valueCounts[tripleValues[0]].slice(0, 3);
+    return { cards: cards, type: { type: 'triple', mainRank: cards[0].rank } };
+  }
+  
+  const tripleCards = valueCounts[tripleValues[0]].slice(0, 3);
+  const extra = valueCounts[otherValues[0]][0];
+  
+  return { 
+    cards: [...tripleCards, extra], 
+    type: { type: 'tripleWithOne', mainRank: tripleCards[0].rank } 
+  };
+}
+
+function findBeatingTripleWithPair(hand, minRank) {
+  const valueCounts = {};
+  hand.forEach(c => {
+    if (!valueCounts[c.value]) valueCounts[c.value] = [];
+    valueCounts[c.value].push(c);
+  });
+  
+  const tripleValues = Object.keys(valueCounts)
+    .filter(v => valueCounts[v].length >= 3 && CARD_VALUE_MAP[v] > minRank)
+    .sort((a, b) => CARD_VALUE_MAP[a] - CARD_VALUE_MAP[b]);
+  
+  if (tripleValues.length === 0) return null;
+  
+  // 找一对
+  const pairValues = Object.keys(valueCounts)
+    .filter(v => v !== tripleValues[0] && valueCounts[v].length >= 2);
+  
+  if (pairValues.length === 0) return null;
+  
+  const tripleCards = valueCounts[tripleValues[0]].slice(0, 3);
+  const pairCards = valueCounts[pairValues[0]].slice(0, 2);
+  
+  return { 
+    cards: [...tripleCards, ...pairCards], 
+    type: { type: 'tripleWithPair', mainRank: tripleCards[0].rank } 
+  };
+}
+
+function findBeatingStraight(hand, minRank, length) {
+  // 按点数分组
+  const rankGroups = {};
+  hand.forEach(c => {
+    if (!rankGroups[c.rank]) rankGroups[c.rank] = [];
+    rankGroups[c.rank].push(c);
+  });
+  
+  // 排除2和王
+  const validRanks = Object.keys(rankGroups)
+    .map(Number)
+    .filter(r => r < 15)
+    .sort((a, b) => a - b);
+  
+  // 寻找顺子
+  for (let i = 0; i <= validRanks.length - length; i++) {
+    const startRank = validRanks[i];
+    
+    if (startRank <= minRank) continue;
+    
+    // 检查是否连续
+    let isConsecutive = true;
+    for (let j = 1; j < length; j++) {
+      if (!validRanks.includes(startRank + j)) {
+        isConsecutive = false;
+        break;
+      }
+    }
+    
+    if (isConsecutive && startRank + length - 1 < 15) {
+      const cards = [];
+      for (let j = 0; j < length; j++) {
+        cards.push(rankGroups[startRank + j][0]);
+      }
+      return { 
+        cards: cards, 
+        type: { type: 'straight', mainRank: startRank + length - 1, length: length } 
+      };
+    }
+  }
+  
+  return null;
+}
+
+// ==================== 提示功能 ====================
+function hintCards() {
+  if (gameState.gamePhase !== 'playing' || gameState.currentPlayer !== 0) return;
+  
+  AudioManager.resume();
+  AudioManager.playSound('click');
+  
+  // 清除当前选择
+  gameState.selectedCards = [];
+  
+  const hand = gameState.playerHand;
+  let result = null;
+  
+  if (gameState.lastPlayer === 0 || gameState.lastPlayer === -1) {
+    result = findBestPlay(hand);
+  } else {
+    result = findBeatingPlay(hand, gameState.lastPlay, gameState.lastPlayType);
+  }
+  
+  if (result) {
+    // 找到对应的手牌索引
+    result.cards.forEach(card => {
+      const index = hand.findIndex((c, i) => 
+        c.value === card.value && c.suit === card.suit && !gameState.selectedCards.includes(i)
+      );
+      if (index !== -1) {
+        gameState.selectedCards.push(index);
+      }
+    });
+    
+    renderPlayerHand();
+    debug('提示: ' + result.cards.map(c => c.display).join(', '));
+  } else {
+    debug('没有可出的牌');
+    shakeAllCards();
+  }
+}
+
+// ==================== 更新显示 ====================
+function updateStatus(text) {
+  const statusBar = document.getElementById('statusBar');
+  statusBar.textContent = text;
+  statusBar.style.display = 'block';
+  triggerStatusUpdate();
+}
+
+function updatePlayerInfo() {
+  document.getElementById('playerCount').textContent = gameState.playerHand.length;
+  document.getElementById('leftCount').textContent = gameState.leftHand.length;
+  document.getElementById('rightCount').textContent = gameState.rightHand.length;
+  
+  // 更新当前玩家高亮
+  document.getElementById('playerInfo').classList.remove('active');
+  document.getElementById('leftPlayerInfo').classList.remove('active');
+  document.getElementById('rightPlayerInfo').classList.remove('active');
+  
+  if (gameState.currentPlayer === 0) {
+    document.getElementById('playerInfo').classList.add('active');
+  } else if (gameState.currentPlayer === 1) {
+    document.getElementById('leftPlayerInfo').classList.add('active');
+  } else {
+    document.getElementById('rightPlayerInfo').classList.add('active');
+  }
+}
+
+// ==================== 游戏结束 ====================
+function endGame(winner) {
+  gameState.gamePhase = 'ended';
+  clearSafetyTimeout();
+  hideButtonGroup('playBtnGroup');
+  
+  const isLandlordWin = winner === gameState.landlord;
+  const playerIsLandlord = gameState.landlord === 0;
+  const playerWins = (winner === 0) || (!playerIsLandlord && winner !== gameState.landlord);
+  
+  let message = '';
+  
+  if (playerWins) {
+    message = '🎉 恭喜你赢了！';
+    gameState.scores.player += isLandlordWin ? 3 : 1;
+    createVictoryParticles(50);
+    AudioManager.playSound('win');
+  } else {
+    message = '😢 很遗憾，你输了';
+    gameState.scores.player -= playerIsLandlord ? 3 : 1;
+    AudioManager.playSound('lose');
+  }
+  
+  // 播放结果配音
+  AudioManager.playResultVoice(playerWins, playerIsLandlord);
+  
+  // 更新分数显示
+  document.getElementById('playerScore').textContent = gameState.scores.player;
+  
+  showMessage(message, function() {
+    document.getElementById('startArea').classList.remove('hidden');
+  });
+}
+
+function showMessage(text, callback) {
+  const modal = document.getElementById('messageModal');
+  const textEl = document.getElementById('messageText');
+  
+  textEl.textContent = text;
+  modal.classList.remove('hidden');
+  
+  window.messageCallback = callback;
+}
+
+function closeMessage() {
+  const modal = document.getElementById('messageModal');
+  modal.classList.add('hidden');
+  
+  AudioManager.playSound('click');
+  
+  if (window.messageCallback) {
+    window.messageCallback();
+    window.messageCallback = null;
+  }
+}
+
+// ==================== 初始化 ====================
+document.addEventListener('DOMContentLoaded', function() {
+  debug('游戏加载完成');
+  
+  // 点击任意位置恢复音频上下文
+  document.addEventListener('click', function() {
+    AudioManager.resume();
+  }, { once: true });
+});
+
+</script>
+</body>
+</html>

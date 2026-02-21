@@ -1,0 +1,14 @@
+{
+  "title": "贪吃蛇游戏Web应用开发计划",
+  "original_request": "我需要做一个贪吃蛇的游戏",
+  "discussion": [
+    {
+      "id": "f211e40a-83f8-482e-87dd-05e1dd4cadd4",
+      "plan_id": "c13e4d05-fc2d-4fb7-a1f6-7d60e6b28170",
+      "agent_id": "8a4c8ac8-d7ad-4bec-8a02-5cb42a9caeb7",
+      "agent_name": "Coordinator",
+      "agent_type": "assistant",
+      "content": "我来分析一下需求：我需要做一个贪吃蛇的游戏",
+      "message_type": "comment",
+      "reply_to": null,
+      "timestamp": 

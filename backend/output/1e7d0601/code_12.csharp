@@ -1,0 +1,17 @@
+public class ConfigManager {
+    private Dictionary<string, GameConfig> configs = new Dictionary<string, GameConfig>();
+    
+    public void LoadConfig(string configName) {
+        // 从JSON或二进制文件加载配置
+        string json = File.ReadAllText($"Config/{configName}.json");
+        var config = JsonUtility.FromJson<GameConfig>(json);
+        configs[configName] = config;
+    }
+    
+    public T GetConfigSection<T>(string configName) where T : class {
+        if (configs.TryGetValue(configName, out var config)) {
+            return config as T;
+        }
+        return null;
+    }
+}

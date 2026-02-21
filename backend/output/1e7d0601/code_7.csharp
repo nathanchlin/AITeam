@@ -1,0 +1,32 @@
+// 输入管理接口
+public interface IInputManager {
+    void Initialize();
+    void Update();
+    bool IsKeyPressed(KeyCode key);
+    Vector2 GetStickDirection(int playerIndex);
+}
+
+// 场景管理接口
+public interface ISceneManager {
+    void Initialize();
+    void LoadScene(string sceneName);
+    void UnloadScene(string sceneName);
+    Scene GetCurrentScene();
+}
+
+// 资源管理接口
+public interface IResourceManager {
+    void Initialize();
+    T LoadResource<T>(string path) where T : Object;
+    void UnloadResource(string path);
+    void PreloadResources();
+}
+
+// 事件系统接口
+public interface IEventSystem {
+    void Initialize();
+    void Subscribe<T>(string eventName, Action<T> handler);
+    void Unsubscribe<T>(string eventName, Action<T> handler);
+    void Publish<T>(string eventName, T eventData);
+    void ProcessEvents();
+}

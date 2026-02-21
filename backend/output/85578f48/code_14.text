@@ -1,0 +1,19 @@
+GET /api/v1/users/:userId
+Headers: Authorization: Bearer <token>
+Response:
+{
+    "userId": "string",
+    "username": "string",
+    "avatar": "string",
+    "level": "number",
+    "experience": "number",
+    "coins": "number",
+    "gems": "number",
+    "stats": {
+        "totalPlayTime": "number",
+        "totalEaten": "number",
+        "totalDeaths": "number",
+        "largestSize": "number",
+        "rank": "number"
+    }
+}

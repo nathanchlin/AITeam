@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2046 - 数字游戏</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/responsive.css">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>2046</h1>
+            <div class="score-container">
+                <div class="score-box">
+                    <div class="score-label">分数</div>
+                    <div id="score" class="score">0</div>
+                </div>
+                <div class="score-box">
+                    <div class="score-label">最高分</div>
+                    <div id="best-score" class="score">0</div>
+                </div>
+            </div>
+        </header>
+        
+        <main>
+            <div class="game-container">
+                <div class="game-message">
+                    <p></p>
+                    <div class="lower">
+                        <a class="retry-button">新游戏</a>
+                    </div>
+                </div>
+                
+                <div class="grid-container">
+                    <div class="grid-row">
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                    </div>
+                    <div class="grid-row">
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                        <div class="grid-cell"></div>
+                    </div>
+                </div>
+                
+                <div class="tile-container"></div>
+            </div>
+            
+            <div class="game-explanation">
+                <p><strong>游戏说明:</strong> 使用方向键移动方块。当两个相同数字的方块碰撞时，它们会合并成一个！</p>
+                <p><strong>目标:</strong> 创造一个值为 <strong>2046</strong> 的方块！</p>
+            </div>
+        </main>
+        
+        <footer>
+            <button id="new-game-button" class="new-game-button">新游戏</button>
+            <div class="controls">
+                <p>使用 <strong>方向键</strong> 或 <strong>滑动</strong> 来移动方块</p>
+            </div>
+        </footer>
+    </div>
+    
+    <script src="js/app.js"></script>
+    <script src="js/grid.js"></script>
+    <script src="js/tile.js"></script>
+    <script src="js/game-controller.js"></script>
+</body>
+</html>

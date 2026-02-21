@@ -1,0 +1,11 @@
+{
+    "status": "success",
+    "data": {
+        "agent_id": "uuid",
+        "name": "string",
+        "capabilities": [],
+        "location": "string",
+        "estimated_availability": "timestamp",
+        "score": 0.95
+    }
+}

@@ -1,0 +1,13 @@
+POST /api/v1/chat
+Headers: Authorization: Bearer <token>
+Request Body:
+{
+    "receiverId": "string",
+    "message": "string",
+    "type": "text | emoji | image"
+}
+Response:
+{
+    "success": "boolean",
+    "messageId": "string"
+}

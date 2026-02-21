@@ -1,0 +1,23 @@
+public interface IGamePlugin {
+    string Name { get; }
+    string Version { get; }
+    void Initialize(IGameContext context);
+    void Update(float deltaTime);
+    void Shutdown();
+}
+
+public class PluginManager {
+    private List<IGamePlugin> plugins = new List<IGamePlugin>();
+    
+    public void LoadPlugin(string pluginPath) {
+        var assembly = Assembly.LoadFrom(pluginPath);
+        var pluginType = assembly.GetTypes().FirstOrDefault(t => 
+            typeof(IGamePlugin).IsAssignableFrom(t) && !t.IsAbstract);
+            
+        if (pluginType != null) {
+            var plugin = (IGamePlugin)Activator.CreateInstance(pluginType);
+            plugins.Add(plugin);
+            plugin.Initialize(GameContext.Instance);
+        }
+    }
+}

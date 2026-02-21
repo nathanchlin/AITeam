@@ -1,0 +1,17 @@
+{
+    "status": "success",
+    "data": {
+        "id": "uuid",
+        "name": "string",
+        "description": "string",
+        "capabilities": [],
+        "status": "AVAILABLE",
+        "location": "string",
+        "tags": [],
+        "metadata": {},
+        "performance_metrics": {},
+        "created_at": "timestamp",
+        "updated_at": "timestamp",
+        "last_activity": "timestamp"
+    }
+}

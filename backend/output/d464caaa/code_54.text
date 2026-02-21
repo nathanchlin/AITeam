@@ -1,0 +1,3 @@
+前端(Nginx) → 后端API服务器 → 数据库
+    ↑            ↑
+CDN加速      WebSocket服务器

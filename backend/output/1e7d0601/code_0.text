@@ -1,0 +1,7 @@
+GameEngine (核心引擎)
+├── GameLoop (游戏主循环)
+├── SceneManager (场景管理)
+├── InputManager (输入管理)
+├── ResourceManager (资源管理)
+├── TimeManager (时间管理)
+└── EventSystem (事件系统)

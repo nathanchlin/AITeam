@@ -1,0 +1,4 @@
+"scripts": {
+  // ... 其他脚本
+  "deploy": "npm run build && gh-pages -d dist"
+}

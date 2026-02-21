@@ -1,0 +1,2809 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>球球大作战 - 星辰觉醒版</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    overflow: hidden;
+    font-family: 'Microsoft YaHei', Arial, sans-serif;
+    background: #0a0a1a;
+  }
+  
+  canvas {
+    display: block;
+  }
+  
+  .game-ui {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 100;
+    color: #fff;
+    pointer-events: none;
+  }
+  
+  .score-display {
+    font-size: 32px;
+    font-weight: bold;
+    background: linear-gradient(135deg, #ffd700, #ff6b6b, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 15px rgba(255, 215, 0, 0.6));
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .combo-display {
+    font-size: 20px;
+    color: #ffd700;
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.8), 0 0 30px rgba(255, 107, 107, 0.5);
+    opacity: 0;
+    transition: opacity 0.3s;
+    animation: none;
+  }
+  
+  .combo-display.active {
+    opacity: 1;
+    animation: comboPulse 0.5s ease-in-out infinite;
+  }
+  
+  @keyframes comboPulse {
+    0%, 100% { transform: scale(1); filter: brightness(1); }
+    50% { transform: scale(1.3); filter: brightness(1.3); }
+  }
+  
+  .evolution-display {
+    font-size: 16px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.4), rgba(236, 72, 153, 0.4));
+    border: 2px solid rgba(168, 85, 247, 0.6);
+    border-radius: 20px;
+    margin-bottom: 10px;
+    text-shadow: 0 0 10px rgba(168, 85, 247, 0.8);
+    backdrop-filter: blur(10px);
+  }
+  
+  .difficulty-display {
+    font-size: 16px;
+    color: #a5b4fc;
+    text-shadow: 0 0 10px rgba(165, 180, 252, 0.5);
+    margin-bottom: 5px;
+  }
+  
+  .speed-display {
+    font-size: 14px;
+    color: #4ade80;
+    text-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+    margin-bottom: 10px;
+  }
+  
+  .position-display {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-bottom: 10px;
+  }
+  
+  .performance-display {
+    font-size: 11px;
+    color: #64748b;
+    margin-bottom: 5px;
+    font-family: monospace;
+  }
+  
+  .energy-bar-container {
+    width: 220px;
+    height: 14px;
+    background: linear-gradient(90deg, rgba(0,0,0,0.6), rgba(30,30,60,0.6));
+    border-radius: 7px;
+    border: 2px solid rgba(139, 92, 246, 0.5);
+    overflow: hidden;
+    margin-top: 10px;
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3), inset 0 0 10px rgba(0,0,0,0.5);
+  }
+  
+  .energy-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+    background-size: 200% 100%;
+    animation: energyFlow 2s linear infinite;
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.8);
+    transition: width 0.3s ease;
+  }
+  
+  @keyframes energyFlow {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 200% 50%; }
+  }
+  
+  .energy-label {
+    font-size: 12px;
+    color: #c4b5fd;
+    margin-top: 4px;
+    text-shadow: 0 0 5px rgba(196, 181, 253, 0.5);
+  }
+  
+  .sound-control {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 100;
+  }
+  
+  .sound-btn {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(168, 85, 247, 0.3));
+    border: 2px solid rgba(139, 92, 246, 0.5);
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 25px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(15px);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+  }
+  
+  .sound-btn:hover {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.5), rgba(168, 85, 247, 0.5));
+    transform: scale(1.05) translateY(-2px);
+    box-shadow: 0 5px 25px rgba(139, 92, 246, 0.5);
+  }
+  
+  .sound-btn.muted {
+    opacity: 0.5;
+    border-color: #ef4444;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+  }
+  
+  .minimap-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  
+  .minimap {
+    width: 180px;
+    height: 180px;
+    background: rgba(10, 10, 30, 0.8);
+    border: 2px solid rgba(139, 92, 246, 0.5);
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+    backdrop-filter: blur(10px);
+  }
+  
+  .minimap-label {
+    font-size: 12px;
+    color: #c4b5fd;
+    text-align: center;
+    margin-top: 5px;
+    text-shadow: 0 0 5px rgba(196, 181, 253, 0.5);
+  }
+  
+  .skills-panel {
+    position: fixed;
+    bottom: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 18px;
+    z-index: 100;
+    pointer-events: auto;
+  }
+  
+  .skill-slot {
+    width: 75px;
+    height: 75px;
+    background: linear-gradient(145deg, rgba(20, 20, 40, 0.8), rgba(40, 40, 80, 0.6));
+    border: 3px solid;
+    border-radius: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .skill-slot:hover {
+    transform: translateY(-5px);
+  }
+  
+  .skill-slot.dash {
+    border-color: #3b82f6;
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
+  }
+  
+  .skill-slot.split {
+    border-color: #ef4444;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+  }
+  
+  .skill-slot.shield {
+    border-color: #22c55e;
+    box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+  }
+  
+  .skill-slot.attract {
+    border-color: #a855f7;
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+  }
+  
+  .skill-slot .skill-icon {
+    font-size: 28px;
+    margin-bottom: 5px;
+  }
+  
+  .skill-slot .skill-name {
+    font-size: 10px;
+    color: #fff;
+    text-align: center;
+    opacity: 0.8;
+  }
+  
+  .skill-slot .cooldown-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(0, 0, 0, 0.7);
+    height: 0%;
+    transition: height 0.1s linear;
+    border-radius: 0 0 12px 12px;
+  }
+  
+  .skill-slot .cooldown-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 18px;
+    font-weight: bold;
+    color: #fff;
+    opacity: 0;
+  }
+  
+  .skill-slot.on-cooldown .cooldown-text {
+    opacity: 1;
+  }
+  
+  .skill-key {
+    position: absolute;
+    top: -10px;
+    right: -10px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: #fff;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: bold;
+    box-shadow: 0 2px 10px rgba(99, 102, 241, 0.5);
+  }
+  
+  .start-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3a 50%, #0a0a2a 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  
+  .start-screen.hidden {
+    display: none;
+  }
+  
+  .game-title {
+    font-size: 64px;
+    font-weight: bold;
+    background: linear-gradient(135deg, #ffd700, #ff6b6b, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    text-shadow: none;
+    filter: drop-shadow(0 0 30px rgba(255, 215, 0, 0.5));
+    margin-bottom: 20px;
+    animation: titlePulse 2s ease-in-out infinite;
+  }
+  
+  @keyframes titlePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+  }
+  
+  .game-subtitle {
+    font-size: 24px;
+    color: #a5b4fc;
+    margin-bottom: 40px;
+    text-shadow: 0 0 20px rgba(165, 180, 252, 0.5);
+  }
+  
+  .difficulty-select {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 30px;
+  }
+  
+  .difficulty-btn {
+    padding: 15px 30px;
+    border: 2px solid;
+    border-radius: 15px;
+    background: rgba(20, 20, 40, 0.8);
+    color: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+  }
+  
+  .difficulty-btn.easy {
+    border-color: #4ade80;
+    box-shadow: 0 0 15px rgba(74, 222, 128, 0.3);
+  }
+  
+  .difficulty-btn.normal {
+    border-color: #3b82f6;
+    box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+  }
+  
+  .difficulty-btn.hard {
+    border-color: #f59e0b;
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
+  }
+  
+  .difficulty-btn.hell {
+    border-color: #ef4444;
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+  }
+  
+  .difficulty-btn:hover {
+    transform: translateY(-3px);
+  }
+  
+  .difficulty-btn.selected {
+    transform: scale(1.1);
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .character-select {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 40px;
+  }
+  
+  .character-btn {
+    width: 100px;
+    height: 100px;
+    border: 3px solid rgba(139, 92, 246, 0.5);
+    border-radius: 50%;
+    background: rgba(20, 20, 40, 0.8);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(10px);
+  }
+  
+  .character-btn:hover {
+    transform: translateY(-5px);
+  }
+  
+  .character-btn.selected {
+    border-color: #ffd700;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.5);
+    transform: scale(1.1);
+  }
+  
+  .character-btn .char-preview {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    margin-bottom: 5px;
+  }
+  
+  .character-btn .char-name {
+    font-size: 12px;
+    color: #fff;
+  }
+  
+  .start-btn {
+    padding: 20px 60px;
+    font-size: 24px;
+    font-weight: bold;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+    border: none;
+    border-radius: 30px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.5);
+  }
+  
+  .start-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 50px rgba(139, 92, 246, 0.7);
+  }
+  
+  .game-over-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+  }
+  
+  .game-over-screen.show {
+    display: flex;
+  }
+  
+  .game-over-title {
+    font-size: 48px;
+    font-weight: bold;
+    color: #ef4444;
+    margin-bottom: 20px;
+    text-shadow: 0 0 30px rgba(239, 68, 68, 0.8);
+  }
+  
+  .final-score {
+    font-size: 36px;
+    color: #ffd700;
+    margin-bottom: 30px;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.6);
+  }
+  
+  .game-stats {
+    font-size: 18px;
+    color: #a5b4fc;
+    margin-bottom: 30px;
+    text-align: center;
+    line-height: 1.8;
+  }
+  
+  .restart-btn {
+    padding: 15px 40px;
+    font-size: 20px;
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    border: none;
+    border-radius: 25px;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .restart-btn:hover {
+    transform: scale(1.05);
+  }
+  
+  .event-notification {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 20px 40px;
+    background: linear-gradient(135deg, rgba(168, 85, 247, 0.9), rgba(236, 72, 153, 0.9));
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 15px;
+    color: #fff;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: center;
+    z-index: 500;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    box-shadow: 0 0 50px rgba(168, 85, 247, 0.8);
+  }
+  
+  .event-notification.show {
+    opacity: 1;
+    animation: eventPopIn 0.5s ease-out;
+  }
+  
+  @keyframes eventPopIn {
+    0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+    50% { transform: translate(-50%, -50%) scale(1.1); }
+    100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+  
+  .quest-notification {
+    position: fixed;
+    top: 120px;
+    right: 20px;
+    padding: 15px 25px;
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.9), rgba(255, 107, 107, 0.9));
+    border-radius: 10px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    z-index: 500;
+    opacity: 0;
+    transform: translateX(100px);
+    transition: all 0.5s ease;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
+  }
+  
+  .quest-notification.show {
+    opacity: 1;
+    transform: translateX(0);
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<canvas id="minimapCanvas" class="minimap" width="180" height="180"></canvas>
+
+<div class="game-ui">
+  <div class="score-display">得分: <span id="score">0</span></div>
+  <div class="combo-display" id="comboDisplay">连击: 0</div>
+  <div class="evolution-display" id="evolutionDisplay">初始球球</div>
+  <div class="difficulty-display" id="difficultyDisplay">难度: 新手冒险</div>
+  <div class="speed-display" id="speedDisplay">速度: 1.0x</div>
+  <div class="position-display" id="positionDisplay">位置: 5000, 5000</div>
+  <div class="performance-display" id="fpsDisplay">FPS: 60</div>
+  <div class="performance-display" id="objectCountDisplay">对象数: 0</div>
+  <div class="energy-bar-container">
+    <div class="energy-bar" id="energyBar" style="width: 100%"></div>
+  </div>
+  <div class="energy-label">能量: <span id="energyValue">100</span>/100</div>
+</div>
+
+<div class="sound-control">
+  <button class="sound-btn" id="soundBtn">🔊 音效开启</button>
+</div>
+
+<div class="minimap-container">
+  <canvas id="minimapCanvas" class="minimap" width="180" height="180"></canvas>
+  <div class="minimap-label">小地图</div>
+</div>
+
+<div class="skills-panel">
+  <div class="skill-slot dash" id="skillDash" onclick="useSkill('dash')">
+    <span class="skill-icon">⚡</span>
+    <span class="skill-name">闪电冲刺</span>
+    <div class="cooldown-overlay" id="dashCooldown"></div>
+    <span class="cooldown-text" id="dashCooldownText"></span>
+    <span class="skill-key">Q</span>
+  </div>
+  <div class="skill-slot split" id="skillSplit" onclick="useSkill('split')">
+    <span class="skill-icon">💥</span>
+    <span class="skill-name">分裂打击</span>
+    <div class="cooldown-overlay" id="splitCooldown"></div>
+    <span class="cooldown-text" id="splitCooldownText"></span>
+    <span class="skill-key">W</span>
+  </div>
+  <div class="skill-slot shield" id="skillShield" onclick="useSkill('shield')">
+    <span class="skill-icon">🛡️</span>
+    <span class="skill-name">星辰护盾</span>
+    <div class="cooldown-overlay" id="shieldCooldown"></div>
+    <span class="cooldown-text" id="shieldCooldownText"></span>
+    <span class="skill-key">E</span>
+  </div>
+  <div class="skill-slot attract" id="skillAttract" onclick="useSkill('attract')">
+    <span class="skill-icon">🌀</span>
+    <span class="skill-name">引力漩涡</span>
+    <div class="cooldown-overlay" id="attractCooldown"></div>
+    <span class="cooldown-text" id="attractCooldownText"></span>
+    <span class="skill-key">R</span>
+  </div>
+</div>
+
+<div class="start-screen" id="startScreen">
+  <h1 class="game-title">球球大作战</h1>
+  <p class="game-subtitle">星辰觉醒版</p>
+  
+  <div class="difficulty-select">
+    <button class="difficulty-btn easy selected" data-difficulty="easy">🌱 新手冒险</button>
+    <button class="difficulty-btn normal" data-difficulty="normal">⚔️ 勇者挑战</button>
+    <button class="difficulty-btn hard" data-difficulty="hard">🔥 史诗征途</button>
+    <button class="difficulty-btn hell" data-difficulty="hell">💀 传奇降临</button>
+  </div>
+  
+  <div class="character-select">
+    <div class="character-btn selected" data-character="blaze">
+      <div class="char-preview" style="background: radial-gradient(circle, #ff9a9e, #ff6b6b)"></div>
+      <span class="char-name">烈焰球</span>
+    </div>
+    <div class="character-btn" data-character="frost">
+      <div class="char-preview" style="background: radial-gradient(circle, #a8edea, #60a5fa)"></div>
+      <span class="char-name">寒冰球</span>
+    </div>
+    <div class="character-btn" data-character="nature">
+      <div class="char-preview" style="background: radial-gradient(circle, #a8e6cf, #4ade80)"></div>
+      <span class="char-name">生命球</span>
+    </div>
+    <div class="character-btn" data-character="cosmic">
+      <div class="char-preview" style="background: radial-gradient(circle, #dda0dd, #a855f7)"></div>
+      <span class="char-name">星辰球</span>
+    </div>
+  </div>
+  
+  <button class="start-btn" id="startBtn">开始游戏</button>
+</div>
+
+<div class="game-over-screen" id="gameOverScreen">
+  <h1 class="game-over-title">游戏结束</h1>
+  <div class="final-score">最终得分: <span id="finalScore">0</span></div>
+  <div class="game-stats">
+    <div>吞噬敌人: <span id="finalEnemies">0</span></div>
+    <div>最高连击: <span id="finalCombo">0</span></div>
+    <div>游戏时长: <span id="finalTime">0</span>秒</div>
+    <div>进化阶段: <span id="finalEvolution">初始球球</span></div>
+  </div>
+  <button class="restart-btn" id="restartBtn">重新开始</button>
+</div>
+
+<div class="event-notification" id="eventNotification"></div>
+<div class="quest-notification" id="questNotification"></div>
+
+<script>
+  // ========== 音效系统修复 ==========
+  let audioContext = null;
+  let soundEnabled = true;
+
+  // 初始化音频上下文
+  function initAudioContext() {
+    if (!audioContext) {
+      try {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        console.log('音频系统初始化成功');
+      } catch (e) {
+        console.error('音频系统初始化失败:', e);
+        return false;
+      }
+    }
+    // 确保音频上下文处于运行状态
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume().then(() => {
+        console.log('音频上下文已恢复');
+      }).catch(e => {
+        console.warn('音频上下文恢复失败:', e);
+      });
+    }
+    return true;
+  }
+
+  // 播放音效通用函数 - 修复音效库完整性检查
+  function playSound(type) {
+    // 音效库完整性检查 - 首先检查音效是否启用
+    if (!soundEnabled) return;
+    
+    // 确保音频上下文已初始化（尝试初始化）
+    if (!audioContext) {
+      if (!initAudioContext()) {
+        console.warn('音效播放失败：无法初始化音频上下文');
+        return;
+      }
+    }
+    
+    // 再次检查音频上下文是否可用
+    if (!audioContext) {
+      console.warn('音效播放失败：音频上下文不可用');
+      return;
+    }
+    
+    // 【BUG修复】确保音频上下文处于运行状态 - 使用异步等待
+    if (audioContext.state === 'suspended') {
+      audioContext.resume().then(() => {
+        // 恢复成功后重新播放音效
+        playSoundInternal(type);
+      }).catch(e => {
+        console.warn('音频上下文恢复失败:', e);
+      });
+      return;
+    }
+    
+    // 音频上下文已就绪，直接播放
+    playSoundInternal(type);
+  }
+
+  // 内部音效播放函数
+  function playSoundInternal(type) {
+    if (!audioContext || audioContext.state !== 'running') return;
+    
+    const now = audioContext.currentTime;
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    switch(type) {
+      case 'eat':
+        // 吃食物音效 - 短促上升音
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(400, now);
+        oscillator.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+        gainNode.gain.setValueAtTime(0.15, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        oscillator.start(now);
+        oscillator.stop(now + 0.1);
+        break;
+        
+      case 'eatEnemy':
+        // 吃敌人音效 - 更强烈的上升音
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(200, now);
+        oscillator.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+        gainNode.gain.setValueAtTime(0.12, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        oscillator.start(now);
+        oscillator.stop(now + 0.15);
+        
+        // 添加第二个音层
+        const osc2 = audioContext.createOscillator();
+        const gain2 = audioContext.createGain();
+        osc2.connect(gain2);
+        gain2.connect(audioContext.destination);
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(600, now);
+        osc2.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+        gain2.gain.setValueAtTime(0.08, now);
+        gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        osc2.start(now);
+        osc2.stop(now + 0.1);
+        break;
+        
+      case 'dash':
+        // 冲刺音效 - 快速滑动音
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(300, now);
+        oscillator.frequency.exponentialRampToValueAtTime(150, now + 0.2);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+        oscillator.start(now);
+        oscillator.stop(now + 0.2);
+        break;
+        
+      case 'split':
+        // 分裂音效 - 爆裂音
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(800, now);
+        oscillator.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+        gainNode.gain.setValueAtTime(0.15, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+        oscillator.start(now);
+        oscillator.stop(now + 0.15);
+        break;
+        
+      case 'shield':
+        // 护盾音效 - 金属共鸣音
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(800, now);
+        oscillator.frequency.setValueAtTime(1000, now + 0.05);
+        oscillator.frequency.setValueAtTime(800, now + 0.1);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        oscillator.start(now);
+        oscillator.stop(now + 0.3);
+        break;
+        
+      case 'attract':
+        // 引力漩涡音效 - 漩涡音
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(400, now);
+        oscillator.frequency.linearRampToValueAtTime(200, now + 0.3);
+        gainNode.gain.setValueAtTime(0.08, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+        oscillator.start(now);
+        oscillator.stop(now + 0.3);
+        break;
+        
+      case 'evolve':
+        // 进化音效 - 上升和弦
+        const frequencies = [523, 659, 784, 1047]; // C5, E5, G5, C6
+        frequencies.forEach((freq, i) => {
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + i * 0.1);
+          gain.gain.setValueAtTime(0.1, now + i * 0.1);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.1 + 0.3);
+          osc.start(now + i * 0.1);
+          osc.stop(now + i * 0.1 + 0.3);
+        });
+        return; // 提前返回，不需要停止主oscillator
+        
+      case 'combo':
+        // 连击音效 - 快速上升音
+        oscillator.type = 'triangle';
+        oscillator.frequency.setValueAtTime(500, now);
+        oscillator.frequency.exponentialRampToValueAtTime(1000, now + 0.08);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+        oscillator.start(now);
+        oscillator.stop(now + 0.08);
+        break;
+        
+      case 'death':
+        // 死亡音效 - 下降音
+        oscillator.type = 'sawtooth';
+        oscillator.frequency.setValueAtTime(400, now);
+        oscillator.frequency.exponentialRampToValueAtTime(50, now + 0.5);
+        gainNode.gain.setValueAtTime(0.15, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        oscillator.start(now);
+        oscillator.stop(now + 0.5);
+        break;
+        
+      case 'event':
+        // 事件触发音效 - 魔法音
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(600, now);
+        oscillator.frequency.setValueAtTime(800, now + 0.1);
+        oscillator.frequency.setValueAtTime(600, now + 0.2);
+        oscillator.frequency.setValueAtTime(1000, now + 0.3);
+        gainNode.gain.setValueAtTime(0.12, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+        oscillator.start(now);
+        oscillator.stop(now + 0.4);
+        break;
+        
+      case 'quest':
+        // 任务完成音效 - 胜利音
+        const questFreqs = [523, 659, 784];
+        questFreqs.forEach((freq, i) => {
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          osc.connect(gain);
+          gain.connect(audioContext.destination);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + i * 0.15);
+          gain.gain.setValueAtTime(0.12, now + i * 0.15);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.15 + 0.2);
+          osc.start(now + i * 0.15);
+          osc.stop(now + i * 0.15 + 0.2);
+        });
+        return;
+        
+      default:
+        // 默认音效
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(440, now);
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+        oscillator.start(now);
+        oscillator.stop(now + 0.1);
+    }
+  }
+
+  // ========== 世界地图配置 ==========
+  const WORLD_WIDTH = 10000;
+  const WORLD_HEIGHT = 10000;
+  const BOUNDARY_PADDING = 100;
+
+  // ========== BUG修复：玩家最大尺寸限制 ==========
+  const MAX_PLAYER_RADIUS = 150;
+
+  // ========== 区块系统配置（资源优化） ==========
+  const CHUNK_SIZE = 1000;
+  const CHUNKS_X = Math.ceil(WORLD_WIDTH / CHUNK_SIZE);
+  const CHUNKS_Y = Math.ceil(WORLD_HEIGHT / CHUNK_SIZE);
+  const LOAD_RADIUS = 2;
+  const UNLOAD_RADIUS = 3;
+
+  // ========== 视口剔除配置 ==========
+  const FRUSTUM_CULLING_MARGIN = 100;
+
+  // ========== 边缘拉动配置 ==========
+  const EDGE_PULL_THRESHOLD = 200;
+  const EDGE_PULL_STRENGTH = 0.5;
+  const MAX_EDGE_OVERREACH = 300;
+  const EDGE_PULL_RECOVERY = 0.05;
+
+  // ========== 难度配置 ==========
+  const DIFFICULTY_CONFIG = {
+    easy: {
+      name: '新手冒险',
+      playerSpeed: 12,
+      enemySpeed: 2.5,
+      enemyCount: 20,
+      foodCount: 150,
+      enemySizeMin: 15,
+      enemySizeMax: 35
+    },
+    normal: {
+      name: '勇者挑战',
+      playerSpeed: 14,
+      enemySpeed: 3.5,
+      enemyCount: 35,
+      foodCount: 120,
+      enemySizeMin: 18,
+      enemySizeMax: 45
+    },
+    hard: {
+      name: '史诗征途',
+      playerSpeed: 17,
+      enemySpeed: 4.5,
+      enemyCount: 50,
+      foodCount: 100,
+      enemySizeMin: 22,
+      enemySizeMax: 55
+    },
+    hell: {
+      name: '传奇降临',
+      playerSpeed: 20,
+      enemySpeed: 6,
+      enemyCount: 70,
+      foodCount: 80,
+      enemySizeMin: 25,
+      enemySizeMax: 65
+    }
+  };
+
+  // ========== 角色配置 ==========
+  const CHARACTER_CONFIG = {
+    blaze: {
+      name: '烈焰球',
+      color: '#ff6b6b',
+      gradient: ['#ff9a9e', '#ff6b6b', '#c0392b'],
+      attackBonus: 1.15,
+      speedBonus: 1,
+      healBonus: 1,
+      energyDiscount: 1
+    },
+    frost: {
+      name: '寒冰球',
+      color: '#60a5fa',
+      gradient: ['#a8edea', '#60a5fa', '#3b82f6'],
+      attackBonus: 1,
+      speedBonus: 1.1,
+      healBonus: 1,
+      energyDiscount: 1
+    },
+    nature: {
+      name: '生命球',
+      color: '#4ade80',
+      gradient: ['#a8e6cf', '#4ade80', '#22c55e'],
+      attackBonus: 1,
+      speedBonus: 1,
+      healBonus: 1.2,
+      energyDiscount: 1
+    },
+    cosmic: {
+      name: '星辰球',
+      color: '#a855f7',
+      gradient: ['#dda0dd', '#a855f7', '#7c3aed'],
+      attackBonus: 1,
+      speedBonus: 1,
+      healBonus: 1,
+      energyDiscount: 0.85
+    }
+  };
+
+  // ========== 进化配置 ==========
+  const EVOLUTION_CONFIG = [
+    { score: 0, name: '初始球球', sizeBonus: 1, glowColor: 'rgba(255,255,255,0.3)' },
+    { score: 50, name: '觉醒球球', sizeBonus: 1.1, glowColor: 'rgba(255, 215, 0, 0.4)' },
+    { score: 150, name: '精英球球', sizeBonus: 1.2, glowColor: 'rgba(168, 85, 247, 0.5)' },
+    { score: 300, name: '史诗球球', sizeBonus: 1.35, glowColor: 'rgba(236, 72, 153, 0.5)' },
+    { score: 500, name: '传说球球', sizeBonus: 1.5, glowColor: 'rgba(255, 107, 107, 0.6)' },
+    { score: 800, name: '神话球球', sizeBonus: 1.7, glowColor: 'rgba(255, 215, 0, 0.7)' }
+  ];
+
+  // ========== 技能配置 ==========
+  const SKILL_CONFIG = {
+    dash: { name: '闪电冲刺', cooldown: 5000, duration: 800, energyCost: 20 },
+    split: { name: '分裂打击', cooldown: 8000, duration: 0, energyCost: 30 },
+    shield: { name: '星辰护盾', cooldown: 12000, duration: 3000, energyCost: 35 },
+    attract: { name: '引力漩涡', cooldown: 6000, duration: 2000, energyCost: 25 }
+  };
+
+  // ========== 随机事件配置 ==========
+  const EVENTS = [
+    { type: 'golden', name: '金色狂潮', duration: 8000, message: '金色狂潮！双倍得分！' },
+    { type: 'crazy', name: '疯狂时刻', duration: 6000, message: '疯狂时刻！敌人减速！' },
+    { type: 'heal', name: '治愈光环', duration: 0, message: '治愈光环！恢复体积！' },
+    { type: 'meteor', name: '陨石雨', duration: 5000, message: '陨石来袭！小心躲避！' }
+  ];
+
+  // ========== 游戏状态 ==========
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const minimapCanvas = document.getElementById('minimapCanvas');
+  const minimapCtx = minimapCanvas.getContext('2d');
+
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  let currentDifficulty = 'easy';
+  let currentCharacter = 'blaze';
+  let currentEvolution = 0;
+  let gameRunning = false;
+  let score = 0;
+  let speedMultiplier = 1;
+
+  // ========== BUG修复：添加已处理对象集合 ==========
+  let processedFoods = new Set();
+  let processedEnemies = new Set();
+
+  // ========== 区块管理器（资源优化核心） ==========
+  const chunkManager = {
+    loadedChunks: new Set(),
+    chunkData: new Map(),
+    
+    getChunkKey: function(cx, cy) {
+      return `${cx},${cy}`;
+    },
+    
+    getChunkCoords: function(x, y) {
+      return {
+        cx: Math.floor(x / CHUNK_SIZE),
+        cy: Math.floor(y / CHUNK_SIZE)
+      };
+    },
+    
+    isChunkLoaded: function(cx, cy) {
+      return this.loadedChunks.has(this.getChunkKey(cx, cy));
+    },
+    
+    loadChunk: function(cx, cy) {
+      const key = this.getChunkKey(cx, cy);
+      if (this.loadedChunks.has(key)) return;
+      
+      if (cx < 0 || cx >= CHUNKS_X || cy < 0 || cy >= CHUNKS_Y) return;
+      
+      this.loadedChunks.add(key);
+      
+      if (!this.chunkData.has(key)) {
+        this.chunkData.set(key, {
+          foods: [],
+          enemies: [],
+          initialized: false
+        });
+      }
+      
+      const chunk = this.chunkData.get(key);
+      if (!chunk.initialized) {
+        initializeChunkData(cx, cy, chunk);
+        chunk.initialized = true;
+      }
+    },
+    
+    unloadChunk: function(cx, cy) {
+      const key = this.getChunkKey(cx, cy);
+      if (!this.loadedChunks.has(key)) return;
+      
+      this.loadedChunks.delete(key);
+      
+      const chunk = this.chunkData.get(key);
+      if (chunk) {
+        chunk.foods = [];
+        chunk.enemies = [];
+        chunk.initialized = false;
+      }
+    },
+    
+    getLoadedFoods: function() {
+      let allFoods = [];
+      this.loadedChunks.forEach(key => {
+        const chunk = this.chunkData.get(key);
+        if (chunk && chunk.foods) {
+          allFoods = allFoods.concat(chunk.foods);
+        }
+      });
+      return allFoods;
+    },
+    
+    getLoadedEnemies: function() {
+      let allEnemies = [];
+      this.loadedChunks.forEach(key => {
+        const chunk = this.chunkData.get(key);
+        if (chunk && chunk.enemies) {
+          allEnemies = allEnemies.concat(chunk.enemies);
+        }
+      });
+      return allEnemies;
+    },
+    
+    removeFood: function(food) {
+      const coords = this.getChunkCoords(food.x, food.y);
+      const key = this.getChunkKey(coords.cx, coords.cy);
+      const chunk = this.chunkData.get(key);
+      if (chunk) {
+        const index = chunk.foods.indexOf(food);
+        if (index > -1) {
+          chunk.foods.splice(index, 1);
+        }
+      }
+    },
+    
+    removeEnemy: function(enemy) {
+      const coords = this.getChunkCoords(enemy.x, enemy.y);
+      const key = this.getChunkKey(coords.cx, coords.cy);
+      const chunk = this.chunkData.get(key);
+      if (chunk) {
+        const index = chunk.enemies.indexOf(enemy);
+        if (index > -1) {
+          chunk.enemies.splice(index, 1);
+        }
+      }
+    },
+    
+    getTotalObjectCount: function() {
+      let count = 0;
+      this.loadedChunks.forEach(key => {
+        const chunk = this.chunkData.get(key);
+        if (chunk) {
+          count += chunk.foods.length + chunk.enemies.length;
+        }
+      });
+      return count;
+    }
+  };
+
+  // ========== 性能监控器 ==========
+  const performanceMonitor = {
+    fps: 60,
+    frameCount: 0,
+    lastTime: performance.now(),
+    updateInterval: 500,
+    
+    update: function() {
+      this.frameCount++;
+      const now = performance.now();
+      const elapsed = now - this.lastTime;
+      
+      if (elapsed >= this.updateInterval) {
+        this.fps = Math.round((this.frameCount * 1000) / elapsed);
+        this.frameCount = 0;
+        this.lastTime = now;
+      }
+    },
+    
+    getStats: function() {
+      return {
+        fps: this.fps,
+        objectCount: chunkManager.getTotalObjectCount(),
+        loadedChunks: chunkManager.loadedChunks.size,
+        particleCount: particles.length
+      };
+    }
+  };
+
+  // ========== 粒子类 ==========
+  class Particle {
+    constructor(x, y, color, size, velocityX, velocityY, life) {
+      this.x = x;
+      this.y = y;
+      this.color = color;
+      this.size = size;
+      this.velocityX = velocityX;
+      this.velocityY = velocityY;
+      this.life = life;
+      this.maxLife = life;
+      this.active = true;
+    }
+    
+    update() {
+      this.x += this.velocityX;
+      this.y += this.velocityY;
+      this.velocityX *= 0.98;
+      this.velocityY *= 0.98;
+      this.life--;
+      if (this.life <= 0) {
+        this.active = false;
+      }
+    }
+    
+    draw(ctx, cameraX, cameraY) {
+      if (!this.active) return;
+      const screenX = this.x - cameraX;
+      const screenY = this.y - cameraY;
+      const alpha = this.life / this.maxLife;
+      
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, this.size * alpha, 0, Math.PI * 2);
+      ctx.fillStyle = this.color.replace(')', `, ${alpha})`).replace('rgb', 'rgba');
+      ctx.fill();
+    }
+  }
+
+  // ========== 粒子对象池 ==========
+  const particlePool = {
+    pool: [],
+    maxPoolSize: 200,
+    
+    get: function(x, y, color, size, velocityX, velocityY, life) {
+      let particle;
+      if (this.pool.length > 0) {
+        particle = this.pool.pop();
+        particle.x = x;
+        particle.y = y;
+        particle.color = color;
+        particle.size = size;
+        particle.velocityX = velocityX;
+        particle.velocityY = velocityY;
+        particle.life = life;
+        particle.maxLife = life;
+        particle.active = true;
+      } else {
+        particle = new Particle(x, y, color, size, velocityX, velocityY, life);
+        particle.active = true;
+      }
+      return particle;
+    },
+    
+    release: function(particle) {
+      if (this.pool.length < this.maxPoolSize) {
+        particle.active = false;
+        this.pool.push(particle);
+      }
+    }
+  };
+
+  // 相机系统
+  let camera = {
+    x: 0,
+    y: 0,
+    targetX: 0,
+    targetY: 0,
+    smoothing: 0.08,
+    overreachX: 0,
+    overreachY: 0,
+    isPullingEdge: false,
+    pullDirection: ''
+  };
+
+  // 星空背景
+  let stars = [];
+  
+  // 波纹效果
+  let ripples = [];
+
+  // 玩家球
+  let player = {
+    x: WORLD_WIDTH / 2,
+    y: WORLD_HEIGHT / 2,
+    radius: 30,
+    baseRadius: 30,
+    color: '#ff6b6b',
+    velocityX: 0,
+    velocityY: 0,
+    energy: 100,
+    hasShield: false,
+    isAttracting: false,
+    isDashing: false,
+    expression: 'normal',
+    isPullingEdge: false,
+    edgePullDirection: ''
+  };
+
+  // 分裂球数组
+  let splitBalls = [];
+
+  // 食物球数组
+  let foods = [];
+  // 敌人球数组
+  let enemies = [];
+  // 陨石数组
+  let meteors = [];
+  // 粒子效果数组
+  let particles = [];
+
+  // 技能冷却状态
+  let skillCooldowns = {
+    dash: 0,
+    split: 0,
+    shield: 0,
+    attract: 0
+  };
+
+  // 技能持续时间
+  let skillDurations = {
+    dash: 0,
+    shield: 0,
+    attract: 0
+  };
+
+  // 连击系统
+  let combo = 0;
+  let comboTimer = 0;
+  const COMBO_TIMEOUT = 2000;
+
+  // 隐藏任务
+  let quests = {
+    combo: { target: 10, current: 0, completed: false, reward: 50 },
+    speed: { target: 50, current: 0, completed: false, reward: 30, timeLimit: 30000, startTime: 0 },
+    hunter: { target: 5, current: 0, completed: false, reward: 100 }
+  };
+
+  // 成就系统
+  let achievements = {
+    firstEvolution: false,
+    comboMaster: false,
+    hunterInstinct: false,
+    survivor: false
+  };
+
+  // 统计数据
+  let stats = {
+    enemiesEaten: 0,
+    questsCompleted: 0,
+    maxCombo: 0,
+    gameTime: 0
+  };
+
+  // 当前随机事件
+  let currentEvent = null;
+  let eventTimer = 0;
+  let lastEventTime = 0;
+  const EVENT_INTERVAL = 30000;
+
+  // 按键状态
+  let keys = {
+    up: false,
+    down: false,
+    left: false,
+    right: false
+  };
+
+  // 移动音效计数器
+  let moveSoundCounter = 0;
+  
+  // 游戏时间追踪
+  let gameStartTime = 0;
+  let lastFrameTime = 0;
+
+  // ========== 视口剔除检测 ==========
+  function isInViewport(x, y, radius) {
+    radius = radius || 0;
+    const margin = FRUSTUM_CULLING_MARGIN + radius;
+    return x >= camera.x - margin &&
+           x <= camera.x + canvas.width + margin &&
+           y >= camera.y - margin &&
+           y <= camera.y + canvas.height + margin;
+  }
+
+  // ========== 初始化区块数据 ==========
+  function initializeChunkData(cx, cy, chunk) {
+    const diffConfig = DIFFICULTY_CONFIG[currentDifficulty];
+    const baseX = cx * CHUNK_SIZE;
+    const baseY = cy * CHUNK_SIZE;
+    
+    const foodsPerChunk = Math.floor(diffConfig.foodCount / (CHUNKS_X * CHUNKS_Y)) + 2;
+    const enemiesPerChunk = Math.floor(diffConfig.enemyCount / (CHUNKS_X * CHUNKS_Y)) + 1;
+    
+    for (let i = 0; i < foodsPerChunk; i++) {
+      const food = createFood(
+        baseX + Math.random() * CHUNK_SIZE,
+        baseY + Math.random() * CHUNK_SIZE
+      );
+      if (food.x > BOUNDARY_PADDING && food.x < WORLD_WIDTH - BOUNDARY_PADDING &&
+          food.y > BOUNDARY_PADDING && food.y < WORLD_HEIGHT - BOUNDARY_PADDING) {
+        chunk.foods.push(food);
+      }
+    }
+    
+    for (let i = 0; i < enemiesPerChunk; i++) {
+      const enemy = createEnemy(
+        baseX + Math.random() * CHUNK_SIZE,
+        baseY + Math.random() * CHUNK_SIZE
+      );
+      if (enemy.x > BOUNDARY_PADDING && enemy.x < WORLD_WIDTH - BOUNDARY_PADDING &&
+          enemy.y > BOUNDARY_PADDING && enemy.y < WORLD_HEIGHT - BOUNDARY_PADDING) {
+        chunk.enemies.push(enemy);
+      }
+    }
+  }
+
+  // ========== 创建食物 ==========
+  function createFood(x, y) {
+    const types = [
+      { color: '#ff6b6b', size: 8, points: 1 },
+      { color: '#4ade80', size: 10, points: 2 },
+      { color: '#60a5fa', size: 12, points: 3 },
+      { color: '#ffd700', size: 15, points: 5, isGolden: true }
+    ];
+    const type = types[Math.floor(Math.random() * types.length)];
+    return {
+      x: x,
+      y: y,
+      radius: type.size,
+      color: type.color,
+      points: type.points,
+      isGolden: type.isGolden || false,
+      pulsePhase: Math.random() * Math.PI * 2
+    };
+  }
+
+  // ========== 创建敌人 ==========
+  function createEnemy(x, y) {
+    const diffConfig = DIFFICULTY_CONFIG[currentDifficulty];
+    const radius = diffConfig.enemySizeMin + Math.random() * (diffConfig.enemySizeMax - diffConfig.enemySizeMin);
+    const hue = Math.random() * 360;
+    return {
+      x: x,
+      y: y,
+      radius: radius,
+      baseRadius: radius,
+      color: `hsl(${hue}, 70%, 50%)`,
+      velocityX: (Math.random() - 0.5) * 2,
+      velocityY: (Math.random() - 0.5) * 2,
+      changeTimer: Math.random() * 2000,
+      isChasing: false,
+      isFleeing: false,
+      expression: 'normal'
+    };
+  }
+
+  // ========== 创建粒子效果 ==========
+  function createParticles(x, y, color, count, spread) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * spread + 1;
+      const particle = particlePool.get(
+        x, y,
+        color,
+        Math.random() * 4 + 2,
+        Math.cos(angle) * speed,
+        Math.sin(angle) * speed,
+        30 + Math.random() * 30
+      );
+      particles.push(particle);
+    }
+  }
+
+  // ========== 创建波纹效果 ==========
+  function createRipple(x, y, color) {
+    ripples.push({
+      x: x,
+      y: y,
+      radius: 10,
+      maxRadius: 100,
+      color: color,
+      alpha: 1
+    });
+  }
+
+  // ========== 更新区块加载 ==========
+  function updateChunks() {
+    const playerChunk = chunkManager.getChunkCoords(player.x, player.y);
+    
+    // 卸载远处的区块
+    chunkManager.loadedChunks.forEach(key => {
+      const [cx, cy] = key.split(',').map(Number);
+      const dx = Math.abs(cx - playerChunk.cx);
+      const dy = Math.abs(cy - playerChunk.cy);
+      if (dx > UNLOAD_RADIUS || dy > UNLOAD_RADIUS) {
+        chunkManager.unloadChunk(cx, cy);
+      }
+    });
+    
+    // 加载附近的区块
+    for (let dx = -LOAD_RADIUS; dx <= LOAD_RADIUS; dx++) {
+      for (let dy = -LOAD_RADIUS; dy <= LOAD_RADIUS; dy++) {
+        chunkManager.loadChunk(playerChunk.cx + dx, playerChunk.cy + dy);
+      }
+    }
+  }
+
+  // ========== 初始化星空背景 ==========
+  function initStars() {
+    stars = [];
+    for (let i = 0; i < 300; i++) {
+      stars.push({
+        x: Math.random() * WORLD_WIDTH,
+        y: Math.random() * WORLD_HEIGHT,
+        size: Math.random() * 2 + 0.5,
+        brightness: Math.random(),
+        twinkleSpeed: Math.random() * 0.02 + 0.01
+      });
+    }
+  }
+
+  // ========== 更新玩家位置 ==========
+  function updatePlayer() {
+    const diffConfig = DIFFICULTY_CONFIG[currentDifficulty];
+    const charConfig = CHARACTER_CONFIG[currentCharacter];
+    let speed = diffConfig.playerSpeed * charConfig.speedBonus * speedMultiplier;
+    
+    // 冲刺加速
+    if (player.isDashing) {
+      speed *= 2.5;
+    }
+    
+    // 根据大小调整速度
+    speed *= Math.sqrt(30 / Math.max(player.radius, 15));
+    
+    let moveX = 0;
+    let moveY = 0;
+    
+    if (keys.left) moveX -= 1;
+    if (keys.right) moveX += 1;
+    if (keys.up) moveY -= 1;
+    if (keys.down) moveY += 1;
+    
+    // 标准化对角线移动
+    if (moveX !== 0 && moveY !== 0) {
+      moveX *= 0.707;
+      moveY *= 0.707;
+    }
+    
+    // 应用边缘拉动效果
+    if (player.isPullingEdge) {
+      if (player.edgePullDirection.includes('left')) moveX += EDGE_PULL_STRENGTH;
+      if (player.edgePullDirection.includes('right')) moveX -= EDGE_PULL_STRENGTH;
+      if (player.edgePullDirection.includes('top')) moveY += EDGE_PULL_STRENGTH;
+      if (player.edgePullDirection.includes('bottom')) moveY -= EDGE_PULL_STRENGTH;
+    }
+    
+    player.velocityX = moveX * speed;
+    player.velocityY = moveY * speed;
+    
+    player.x += player.velocityX;
+    player.y += player.velocityY;
+    
+    // 边界限制
+    const boundaryLimit = player.radius + BOUNDARY_PADDING;
+    player.x = Math.max(boundaryLimit, Math.min(WORLD_WIDTH - boundaryLimit, player.x));
+    player.y = Math.max(boundaryLimit, Math.min(WORLD_HEIGHT - boundaryLimit, player.y));
+    
+    // 检测边缘拉动
+    player.isPullingEdge = false;
+    player.edgePullDirection = '';
+    
+    if (player.x < EDGE_PULL_THRESHOLD) {
+      player.isPullingEdge = true;
+      player.edgePullDirection += 'left';
+    }
+    if (player.x > WORLD_WIDTH - EDGE_PULL_THRESHOLD) {
+      player.isPullingEdge = true;
+      player.edgePullDirection += 'right';
+    }
+    if (player.y < EDGE_PULL_THRESHOLD) {
+      player.isPullingEdge = true;
+      player.edgePullDirection += 'top';
+    }
+    if (player.y > WORLD_HEIGHT - EDGE_PULL_THRESHOLD) {
+      player.isPullingEdge = true;
+      player.edgePullDirection += 'bottom';
+    }
+    
+    // 能量恢复
+    if (!player.isDashing && !player.hasShield && !player.isAttracting) {
+      player.energy = Math.min(100, player.energy + 0.1);
+    }
+    
+    // 更新表情
+    if (player.isDashing) {
+      player.expression = 'excited';
+    } else if (player.hasShield) {
+      player.expression = 'confident';
+    } else if (player.isPullingEdge) {
+      player.expression = 'struggling';
+    } else {
+      player.expression = 'normal';
+    }
+    
+    // 更新速度显示
+    const actualSpeed = Math.sqrt(player.velocityX ** 2 + player.velocityY ** 2);
+    speedMultiplier = 1 + actualSpeed / 100;
+    document.getElementById('speedDisplay').textContent = `速度: ${speedMultiplier.toFixed(1)}x`;
+  }
+
+  // ========== 更新敌人 ==========
+  function updateEnemies(deltaTime) {
+    const enemies = chunkManager.getLoadedEnemies();
+    const diffConfig = DIFFICULTY_CONFIG[currentDifficulty];
+    
+    enemies.forEach(enemy => {
+      // 敌人AI
+      const dx = player.x - enemy.x;
+      const dy = player.y - enemy.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      enemy.changeTimer -= deltaTime;
+      
+      if (enemy.changeTimer <= 0) {
+        enemy.changeTimer = 1000 + Math.random() * 2000;
+        enemy.isChasing = false;
+        enemy.isFleeing = false;
+        
+        if (distance < 300) {
+          if (enemy.radius > player.radius * 1.2) {
+            enemy.isChasing = true;
+          } else if (enemy.radius < player.radius * 0.8) {
+            enemy.isFleeing = true;
+          }
+        }
+        
+        if (!enemy.isChasing && !enemy.isFleeing) {
+          enemy.velocityX = (Math.random() - 0.5) * 2;
+          enemy.velocityY = (Math.random() - 0.5) * 2;
+        }
+      }
+      
+      let speed = diffConfig.enemySpeed;
+      
+      // 事件影响
+      if (currentEvent && currentEvent.type === 'crazy') {
+        speed *= 0.5;
+      }
+      
+      // 根据大小调整速度
+      speed *= Math.sqrt(30 / Math.max(enemy.radius, 15));
+      
+      if (enemy.isChasing) {
+        enemy.velocityX = (dx / distance) * speed * 1.5;
+        enemy.velocityY = (dy / distance) * speed * 1.5;
+        enemy.expression = 'angry';
+      } else if (enemy.isFleeing) {
+        enemy.velocityX = -(dx / distance) * speed * 2;
+        enemy.velocityY = -(dy / distance) * speed * 2;
+        enemy.expression = 'scared';
+      } else {
+        enemy.expression = 'normal';
+      }
+      
+      enemy.x += enemy.velocityX;
+      enemy.y += enemy.velocityY;
+      
+      // 边界限制
+      const boundaryLimit = enemy.radius + BOUNDARY_PADDING;
+      enemy.x = Math.max(boundaryLimit, Math.min(WORLD_WIDTH - boundaryLimit, enemy.x));
+      enemy.y = Math.max(boundaryLimit, Math.min(WORLD_HEIGHT - boundaryLimit, enemy.y));
+    });
+  }
+
+  // ========== 更新分裂球 ==========
+  function updateSplitBalls() {
+    for (let i = splitBalls.length - 1; i >= 0; i--) {
+      const ball = splitBalls[i];
+      ball.x += ball.velocityX;
+      ball.y += ball.velocityY;
+      ball.velocityX *= 0.95;
+      ball.velocityY *= 0.95;
+      ball.life--;
+      
+      if (ball.life <= 0) {
+        splitBalls.splice(i, 1);
+      }
+    }
+  }
+
+  // ========== 更新陨石 ==========
+  function updateMeteors() {
+    for (let i = meteors.length - 1; i >= 0; i--) {
+      const meteor = meteors[i];
+      meteor.x += meteor.velocityX;
+      meteor.y += meteor.velocityY;
+      meteor.life--;
+      
+      // 检测与玩家的碰撞
+      const dx = player.x - meteor.x;
+      const dy = player.y - meteor.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance < player.radius + meteor.radius && !player.hasShield) {
+        player.radius = Math.max(15, player.radius - 5);
+        createParticles(meteor.x, meteor.y, '#ff6b6b', 10, 3);
+        playSound('death');
+        meteors.splice(i, 1);
+        continue;
+      }
+      
+      if (meteor.life <= 0 || meteor.x < 0 || meteor.x > WORLD_WIDTH || 
+          meteor.y < 0 || meteor.y > WORLD_HEIGHT) {
+        meteors.splice(i, 1);
+      }
+    }
+  }
+
+  // ========== 更新粒子 ==========
+  function updateParticles() {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      particles[i].update();
+      if (!particles[i].active) {
+        particlePool.release(particles[i]);
+        particles.splice(i, 1);
+      }
+    }
+  }
+
+  // ========== 更新波纹 ==========
+  function updateRipples() {
+    for (let i = ripples.length - 1; i >= 0; i--) {
+      ripples[i].radius += 3;
+      ripples[i].alpha -= 0.02;
+      if (ripples[i].alpha <= 0) {
+        ripples.splice(i, 1);
+      }
+    }
+  }
+
+  // ========== 更新连击 ==========
+  function updateCombo(deltaTime) {
+    if (combo > 0) {
+      comboTimer -= deltaTime;
+      if (comboTimer <= 0) {
+        combo = 0;
+        document.getElementById('comboDisplay').classList.remove('active');
+      }
+    }
+  }
+
+  // ========== 更新技能 ==========
+  function updateSkills(deltaTime) {
+    const now = Date.now();
+    
+    // 更新冷却
+    for (let skill in skillCooldowns) {
+      if (skillCooldowns[skill] > 0) {
+        skillCooldowns[skill] -= deltaTime;
+      }
+    }
+    
+    // 更新持续时间
+    if (skillDurations.dash > 0) {
+      skillDurations.dash -= deltaTime;
+      if (skillDurations.dash <= 0) {
+        player.isDashing = false;
+      }
+    }
+    
+    if (skillDurations.shield > 0) {
+      skillDurations.shield -= deltaTime;
+      if (skillDurations.shield <= 0) {
+        player.hasShield = false;
+      }
+    }
+    
+    if (skillDurations.attract > 0) {
+      skillDurations.attract -= deltaTime;
+      if (skillDurations.attract <= 0) {
+        player.isAttracting = false;
+      }
+    }
+    
+    // 更新UI
+    updateSkillUI();
+  }
+
+  // ========== 更新技能UI ==========
+  function updateSkillUI() {
+    const skills = ['dash', 'split', 'shield', 'attract'];
+    
+    skills.forEach(skill => {
+      const overlay = document.getElementById(`${skill}Cooldown`);
+      const text = document.getElementById(`${skill}CooldownText`);
+      const slot = document.getElementById(`skill${skill.charAt(0).toUpperCase() + skill.slice(1)}`);
+      
+      const config = SKILL_CONFIG[skill];
+      const cooldownLeft = Math.max(0, skillCooldowns[skill]);
+      
+      if (cooldownLeft > 0) {
+        const percent = (cooldownLeft / config.cooldown) * 100;
+        overlay.style.height = `${percent}%`;
+        text.textContent = Math.ceil(cooldownLeft / 1000);
+        slot.classList.add('on-cooldown');
+      } else {
+        overlay.style.height = '0%';
+        slot.classList.remove('on-cooldown');
+      }
+    });
+  }
+
+  // ========== 使用技能 ==========
+  function useSkill(skillName) {
+    // 首次交互时初始化音频
+    initAudioContext();
+    
+    const config = SKILL_CONFIG[skillName];
+    const charConfig = CHARACTER_CONFIG[currentCharacter];
+    const energyCost = config.energyCost * charConfig.energyDiscount;
+    
+    if (skillCooldowns[skillName] > 0 || player.energy < energyCost) {
+      return;
+    }
+    
+    player.energy -= energyCost;
+    skillCooldowns[skillName] = config.cooldown;
+    
+    switch(skillName) {
+      case 'dash':
+        player.isDashing = true;
+        skillDurations.dash = config.duration;
+        createRipple(player.x, player.y, '#3b82f6');
+        playSound('dash');
+        break;
+        
+      case 'split':
+        fireSplitBalls();
+        playSound('split');
+        break;
+        
+      case 'shield':
+        player.hasShield = true;
+        skillDurations.shield = config.duration;
+        createRipple(player.x, player.y, '#22c55e');
+        playSound('shield');
+        break;
+        
+      case 'attract':
+        player.isAttracting = true;
+        skillDurations.attract = config.duration;
+        createRipple(player.x, player.y, '#a855f7');
+        playSound('attract');
+        break;
+    }
+  }
+
+  // ========== 发射分裂球 ==========
+  function fireSplitBalls() {
+    const charConfig = CHARACTER_CONFIG[currentCharacter];
+    const directions = [
+      { x: 1, y: 0 },
+      { x: -1, y: 0 },
+      { x: 0, y: 1 },
+      { x: 0, y: -1 },
+      { x: 0.707, y: 0.707 },
+      { x: -0.707, y: 0.707 },
+      { x: 0.707, y: -0.707 },
+      { x: -0.707, y: -0.707 }
+    ];
+    
+    directions.forEach(dir => {
+      splitBalls.push({
+        x: player.x,
+        y: player.y,
+        radius: 8,
+        color: charConfig.color,
+        velocityX: dir.x * 15,
+        velocityY: dir.y * 15,
+        damage: 0.3 * charConfig.attackBonus,
+        life: 60
+      });
+    });
+  }
+
+  // ========== 检测碰撞 ==========
+  function checkCollisions() {
+    // 清空已处理集合
+    processedFoods.clear();
+    processedEnemies.clear();
+    
+    const foods = chunkManager.getLoadedFoods();
+    const enemies = chunkManager.getLoadedEnemies();
+    const charConfig = CHARACTER_CONFIG[currentCharacter];
+    
+    // 玩家与食物碰撞
+    foods.forEach(food => {
+      if (processedFoods.has(food)) return;
+      
+      const dx = player.x - food.x;
+      const dy = player.y - food.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance < player.radius + food.radius) {
+        processedFoods.add(food);
+        
+        let points = food.points;
+        if (currentEvent && currentEvent.type === 'golden') {
+          points *= 2;
+        }
+        
+        score += points;
+        player.radius = Math.min(MAX_PLAYER_RADIUS, player.radius + food.points * 0.5);
+        
+        chunkManager.removeFood(food);
+        createParticles(food.x, food.y, food.color, 5, 2);
+        
+        // 连击
+        combo++;
+        comboTimer = COMBO_TIMEOUT;
+        if (combo > 1) {
+          playSound('combo');
+        }
+        
+        // 吃食物音效
+        playSound('eat');
+        
+        // 更新任务
+        quests.combo.current = Math.max(quests.combo.current, combo);
+        stats.maxCombo = Math.max(stats.maxCombo, combo);
+      }
+    });
+    
+    // 玩家与敌人碰撞
+    enemies.forEach(enemy => {
+      if (processedEnemies.has(enemy)) return;
+      
+      const dx = player.x - enemy.x;
+      const dy = player.y - enemy.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // 引力漩涡效果
+      if (player.isAttracting && distance < 300 && enemy.radius < player.radius) {
+        const pullStrength = 0.05;
+        enemy.x += dx * pullStrength;
+        enemy.y += dy * pullStrength;
+      }
+      
+      if (distance < player.radius + enemy.radius) {
+        if (player.radius > enemy.radius * 1.1) {
+          // 玩家吃掉敌人
+          processedEnemies.add(enemy);
+          
+          let points = Math.floor(enemy.radius * 2);
+          if (currentEvent && currentEvent.type === 'golden') {
+            points *= 2;
+          }
+          
+          score += points;
+          player.radius = Math.min(MAX_PLAYER_RADIUS, player.radius + enemy.radius * 0.3 * charConfig.healBonus);
+          
+          chunkManager.removeEnemy(enemy);
+          createParticles(enemy.x, enemy.y, enemy.color, 15, 4);
+          createRipple(enemy.x, enemy.y, enemy.color);
+          
+          // 吃敌人音效
+          playSound('eatEnemy');
+          
+          // 更新统计和任务
+          stats.enemiesEaten++;
+          quests.hunter.current++;
+          
+          combo++;
+          comboTimer = COMBO_TIMEOUT;
+          
+        } else if (enemy.radius > player.radius * 1.1 && !player.hasShield) {
+          // 敌人吃掉玩家
+          gameOver();
+        }
+      }
+    });
+    
+    // 分裂球与敌人碰撞
+    splitBalls.forEach(ball => {
+      enemies.forEach(enemy => {
+        const dx = ball.x - enemy.x;
+        const dy = ball.y - enemy.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < ball.radius + enemy.radius) {
+          enemy.radius -= ball.damage * enemy.baseRadius;
+          createParticles(ball.x, ball.y, '#fff', 3, 2);
+          
+          if (enemy.radius < 10) {
+            chunkManager.removeEnemy(enemy);
+            createParticles(enemy.x, enemy.y, enemy.color, 10, 3);
+          }
+        }
+      });
+    });
+  }
+
+  // ========== 更新事件 ==========
+  function updateEvents(deltaTime) {
+    const now = Date.now();
+    
+    // 触发新事件
+    if (!currentEvent && now - lastEventTime > EVENT_INTERVAL) {
+      if (Math.random() < 0.3) {
+        triggerRandomEvent();
+        lastEventTime = now;
+      }
+    }
+    
+    // 更新当前事件
+    if (currentEvent) {
+      eventTimer -= deltaTime;
+      if (eventTimer <= 0) {
+        currentEvent = null;
+      }
+    }
+  }
+
+  // ========== 触发随机事件 ==========
+  function triggerRandomEvent() {
+    const event = EVENTS[Math.floor(Math.random() * EVENTS.length)];
+    currentEvent = { ...event };
+    eventTimer = event.duration;
+    
+    showEventNotification(event.message);
+    playSound('event');
+    
+    // 特殊事件效果
+    if (event.type === 'heal') {
+      player.radius = Math.min(MAX_PLAYER_RADIUS, player.radius + 10);
+    } else if (event.type === 'meteor') {
+      for (let i = 0; i < 10; i++) {
+        setTimeout(() => {
+          if (gameRunning) {
+            meteors.push({
+              x: player.x + (Math.random() - 0.5) * 1000,
+              y: -100,
+              radius: 15 + Math.random() * 10,
+              velocityX: (Math.random() - 0.5) * 3,
+              velocityY: 8 + Math.random() * 4,
+              life: 300
+            });
+          }
+        }, i * 500);
+      }
+    }
+  }
+
+  // ========== 显示事件通知 ==========
+  function showEventNotification(message) {
+    const notification = document.getElementById('eventNotification');
+    notification.textContent = message;
+    notification.classList.add('show');
+    
+    setTimeout(() => {
+      notification.classList.remove('show');
+    }, 3000);
+  }
+
+  // ========== 显示任务完成通知 ==========
+  function showQuestNotification(message) {
+    const notification = document.getElementById('questNotification');
+    notification.textContent = message;
+    notification.classList.add('show');
+    playSound('quest');
+    
+    setTimeout(() => {
+      notification.classList.remove('show');
+    }, 3000);
+  }
+
+  // ========== 检查任务 ==========
+  function checkQuests() {
+    // 连击任务
+    if (!quests.combo.completed && quests.combo.current >= quests.combo.target) {
+      quests.combo.completed = true;
+      score += quests.combo.reward;
+      stats.questsCompleted++;
+      showQuestNotification(`连击大师！奖励 ${quests.combo.reward} 分！`);
+    }
+    
+    // 猎人任务
+    if (!quests.hunter.completed && quests.hunter.current >= quests.hunter.target) {
+      quests.hunter.completed = true;
+      score += quests.hunter.reward;
+      stats.questsCompleted++;
+      showQuestNotification(`狩猎本能！奖励 ${quests.hunter.reward} 分！`);
+    }
+  }
+
+  // ========== 更新进化 ==========
+  function updateEvolution() {
+    const prevEvolution = currentEvolution;
+    
+    for (let i = EVOLUTION_CONFIG.length - 1; i >= 0; i--) {
+      if (score >= EVOLUTION_CONFIG[i].score) {
+        currentEvolution = i;
+        break;
+      }
+    }
+    
+    if (currentEvolution > prevEvolution) {
+      playSound('evolve');
+      createRipple(player.x, player.y, '#ffd700');
+      achievements.firstEvolution = true;
+    }
+    
+    const evolution = EVOLUTION_CONFIG[currentEvolution];
+    document.getElementById('evolutionDisplay').textContent = evolution.name;
+  }
+
+  // ========== 更新相机 ==========
+  function updateCamera() {
+    camera.targetX = player.x - canvas.width / 2;
+    camera.targetY = player.y - canvas.height / 2;
+    
+    // 边界限制
+    camera.targetX = Math.max(0, Math.min(WORLD_WIDTH - canvas.width, camera.targetX));
+    camera.targetY = Math.max(0, Math.min(WORLD_HEIGHT - canvas.height, camera.targetY));
+    
+    // 平滑跟随
+    camera.x += (camera.targetX - camera.x) * camera.smoothing;
+    camera.y += (camera.targetY - camera.y) * camera.smoothing;
+  }
+
+  // ========== 更新UI ==========
+  function updateUI() {
+    document.getElementById('score').textContent = score;
+    document.getElementById('energyBar').style.width = `${player.energy}%`;
+    document.getElementById('energyValue').textContent = Math.floor(player.energy);
+    document.getElementById('positionDisplay').textContent = `位置: ${Math.floor(player.x)}, ${Math.floor(player.y)}`;
+    
+    // 更新连击显示
+    const comboDisplay = document.getElementById('comboDisplay');
+    if (combo > 1) {
+      comboDisplay.textContent = `连击: ${combo}`;
+      comboDisplay.classList.add('active');
+    } else {
+      comboDisplay.classList.remove('active');
+    }
+    
+    // 更新性能显示
+    const stats = performanceMonitor.getStats();
+    document.getElementById('fpsDisplay').textContent = `FPS: ${stats.fps}`;
+    document.getElementById('objectCountDisplay').textContent = `对象数: ${stats.objectCount} | 区块: ${stats.loadedChunks}`;
+  }
+
+  // ========== 绘制星空背景 ==========
+  function drawBackground() {
+    // 深空渐变
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, '#0a0a1a');
+    gradient.addColorStop(0.5, '#0f0f2e');
+    gradient.addColorStop(1, '#0a0a1a');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // 绘制星星
+    const time = Date.now() * 0.001;
+    stars.forEach(star => {
+      const screenX = star.x - camera.x * 0.3;
+      const screenY = star.y - camera.y * 0.3;
+      
+      // 环绕处理
+      const wrappedX = ((screenX % canvas.width) + canvas.width) % canvas.width;
+      const wrappedY = ((screenY % canvas.height) + canvas.height) % canvas.height;
+      
+      const twinkle = Math.sin(time * star.twinkleSpeed * 10 + star.brightness * 10) * 0.3 + 0.7;
+      
+      ctx.beginPath();
+      ctx.arc(wrappedX, wrappedY, star.size * twinkle, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255, 255, 255, ${star.brightness * twinkle})`;
+      ctx.fill();
+    });
+  }
+
+  // ========== 绘制边界 ==========
+  function drawBoundary() {
+    ctx.strokeStyle = 'rgba(139, 92, 246, 0.5)';
+    ctx.lineWidth = 5;
+    ctx.setLineDash([20, 10]);
+    
+    const boundaryX = BOUNDARY_PADDING - camera.x;
+    const boundaryY = BOUNDARY_PADDING - camera.y;
+    const boundaryW = WORLD_WIDTH - BOUNDARY_PADDING * 2;
+    const boundaryH = WORLD_HEIGHT - BOUNDARY_PADDING * 2;
+    
+    ctx.strokeRect(boundaryX, boundaryY, boundaryW, boundaryH);
+    ctx.setLineDash([]);
+  }
+
+  // ========== 绘制玩家 ==========
+  function drawPlayer() {
+    const screenX = player.x - camera.x;
+    const screenY = player.y - camera.y;
+    const charConfig = CHARACTER_CONFIG[currentCharacter];
+    const evolution = EVOLUTION_CONFIG[currentEvolution];
+    
+    // 外发光效果
+    const glowGradient = ctx.createRadialGradient(
+      screenX, screenY, player.radius * 0.5,
+      screenX, screenY, player.radius * 2
+    );
+    glowGradient.addColorStop(0, evolution.glowColor);
+    glowGradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = glowGradient;
+    ctx.beginPath();
+    ctx.arc(screenX, screenY, player.radius * 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 护盾效果
+    if (player.hasShield) {
+      ctx.strokeStyle = 'rgba(34, 197, 94, 0.8)';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, player.radius + 15, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // 护盾光晕
+      const shieldGlow = ctx.createRadialGradient(
+        screenX, screenY, player.radius,
+        screenX, screenY, player.radius + 20
+      );
+      shieldGlow.addColorStop(0, 'rgba(34, 197, 94, 0.3)');
+      shieldGlow.addColorStop(1, 'transparent');
+      ctx.fillStyle = shieldGlow;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, player.radius + 20, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // 引力漩涡效果
+    if (player.isAttracting) {
+      const time = Date.now() * 0.01;
+      for (let i = 0; i < 3; i++) {
+        const radius = player.radius + 30 + i * 30 + Math.sin(time + i) * 10;
+        ctx.strokeStyle = `rgba(168, 85, 247, ${0.5 - i * 0.15})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+    
+    // 主体渐变
+    const bodyGradient = ctx.createRadialGradient(
+      screenX - player.radius * 0.3, screenY - player.radius * 0.3, 0,
+      screenX, screenY, player.radius
+    );
+    bodyGradient.addColorStop(0, charConfig.gradient[0]);
+    bodyGradient.addColorStop(0.5, charConfig.gradient[1]);
+    bodyGradient.addColorStop(1, charConfig.gradient[2]);
+    
+    ctx.fillStyle = bodyGradient;
+    ctx.beginPath();
+    ctx.arc(screenX, screenY, player.radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 高光
+    const highlightGradient = ctx.createRadialGradient(
+      screenX - player.radius * 0.3, screenY - player.radius * 0.3, 0,
+      screenX - player.radius * 0.3, screenY - player.radius * 0.3, player.radius * 0.5
+    );
+    highlightGradient.addColorStop(0, 'rgba(255, 255, 255, 0.6)');
+    highlightGradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    ctx.fillStyle = highlightGradient;
+    ctx.beginPath();
+    ctx.arc(screenX, screenY, player.radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 表情
+    drawExpression(screenX, screenY, player.radius, player.expression);
+  }
+
+  // ========== 绘制表情 ==========
+  function drawExpression(x, y, radius, expression) {
+    const eyeOffset = radius * 0.25;
+    const eyeSize = radius * 0.15;
+    const mouthY = y + radius * 0.2;
+    
+    ctx.fillStyle = '#fff';
+    
+    // 眼睛
+    ctx.beginPath();
+    ctx.arc(x - eyeOffset, y - eyeSize, eyeSize, 0, Math.PI * 2);
+    ctx.arc(x + eyeOffset, y - eyeSize, eyeSize, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 瞳孔
+    ctx.fillStyle = '#333';
+    ctx.beginPath();
+    ctx.arc(x - eyeOffset, y - eyeSize, eyeSize * 0.5, 0, Math.PI * 2);
+    ctx.arc(x + eyeOffset, y - eyeSize, eyeSize * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 嘴巴
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    
+    switch(expression) {
+      case 'happy':
+      case 'excited':
+        ctx.arc(x, mouthY, radius * 0.2, 0.1 * Math.PI, 0.9 * Math.PI);
+        break;
+      case 'confident':
+        ctx.moveTo(x - radius * 0.15, mouthY);
+        ctx.lineTo(x + radius * 0.15, mouthY);
+        break;
+      case 'scared':
+        ctx.arc(x, mouthY - radius * 0.1, radius * 0.1, 0, Math.PI * 2);
+        ctx.stroke();
+        return;
+      case 'angry':
+        ctx.moveTo(x - radius * 0.15, mouthY + radius * 0.1);
+        ctx.lineTo(x + radius * 0.15, mouthY - radius * 0.1);
+        break;
+      case 'struggling':
+        ctx.moveTo(x - radius * 0.15, mouthY);
+        ctx.lineTo(x + radius * 0.15, mouthY);
+        break;
+      default:
+        ctx.arc(x, mouthY, radius * 0.15, 0.1 * Math.PI, 0.9 * Math.PI);
+    }
+    ctx.stroke();
+  }
+
+  // ========== 绘制食物 ==========
+  function drawFoods() {
+    const foods = chunkManager.getLoadedFoods();
+    const time = Date.now() * 0.005;
+    
+    foods.forEach(food => {
+      if (!isInViewport(food.x, food.y, food.radius)) return;
+      
+      const screenX = food.x - camera.x;
+      const screenY = food.y - camera.y;
+      const pulse = Math.sin(time + food.pulsePhase) * 0.1 + 1;
+      
+      // 发光效果
+      if (food.isGolden) {
+        const glow = ctx.createRadialGradient(
+          screenX, screenY, 0,
+          screenX, screenY, food.radius * 2
+        );
+        glow.addColorStop(0, 'rgba(255, 215, 0, 0.5)');
+        glow.addColorStop(1, 'transparent');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, food.radius * 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      const gradient = ctx.createRadialGradient(
+        screenX - food.radius * 0.3, screenY - food.radius * 0.3, 0,
+        screenX, screenY, food.radius
+      );
+      gradient.addColorStop(0, '#fff');
+      gradient.addColorStop(0.3, food.color);
+      gradient.addColorStop(1, food.color);
+      
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, food.radius * pulse, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // ========== 绘制敌人 ==========
+  function drawEnemies() {
+    const enemies = chunkManager.getLoadedEnemies();
+    
+    enemies.forEach(enemy => {
+      if (!isInViewport(enemy.x, enemy.y, enemy.radius)) return;
+      
+      const screenX = enemy.x - camera.x;
+      const screenY = enemy.y - camera.y;
+      
+      // 主体渐变
+      const gradient = ctx.createRadialGradient(
+        screenX - enemy.radius * 0.3, screenY - enemy.radius * 0.3, 0,
+        screenX, screenY, enemy.radius
+      );
+      gradient.addColorStop(0, '#fff');
+      gradient.addColorStop(0.3, enemy.color);
+      gradient.addColorStop(1, enemy.color);
+      
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, enemy.radius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 表情
+      drawExpression(screenX, screenY, enemy.radius, enemy.expression);
+    });
+  }
+
+  // ========== 绘制分裂球 ==========
+  function drawSplitBalls() {
+    splitBalls.forEach(ball => {
+      const screenX = ball.x - camera.x;
+      const screenY = ball.y - camera.y;
+      
+      if (!isInViewport(ball.x, ball.y, ball.radius)) return;
+      
+      const gradient = ctx.createRadialGradient(
+        screenX, screenY, 0,
+        screenX, screenY, ball.radius
+      );
+      gradient.addColorStop(0, '#fff');
+      gradient.addColorStop(0.5, ball.color);
+      gradient.addColorStop(1, ball.color);
+      
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, ball.radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // ========== 绘制陨石 ==========
+  function drawMeteors() {
+    meteors.forEach(meteor => {
+      const screenX = meteor.x - camera.x;
+      const screenY = meteor.y - camera.y;
+      
+      if (!isInViewport(meteor.x, meteor.y, meteor.radius * 2)) return;
+      
+      // 尾迹
+      const trailGradient = ctx.createLinearGradient(
+        screenX, screenY,
+        screenX - meteor.velocityX * 5, screenY - meteor.velocityY * 5
+      );
+      trailGradient.addColorStop(0, 'rgba(255, 100, 50, 0.8)');
+      trailGradient.addColorStop(1, 'transparent');
+      
+      ctx.strokeStyle = trailGradient;
+      ctx.lineWidth = meteor.radius * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(screenX, screenY);
+      ctx.lineTo(screenX - meteor.velocityX * 5, screenY - meteor.velocityY * 5);
+      ctx.stroke();
+      
+      // 主体
+      const gradient = ctx.createRadialGradient(
+        screenX, screenY, 0,
+        screenX, screenY, meteor.radius
+      );
+      gradient.addColorStop(0, '#fff');
+      gradient.addColorStop(0.3, '#ff6b6b');
+      gradient.addColorStop(1, '#c0392b');
+      
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, meteor.radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  // ========== 绘制粒子 ==========
+  function drawParticles() {
+    particles.forEach(particle => {
+      particle.draw(ctx, camera.x, camera.y);
+    });
+  }
+
+  // ========== 绘制波纹 ==========
+  function drawRipples() {
+    ripples.forEach(ripple => {
+      const screenX = ripple.x - camera.x;
+      const screenY = ripple.y - camera.y;
+      
+      ctx.strokeStyle = ripple.color;
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = ripple.alpha;
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, ripple.radius, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+  }
+
+  // ========== 绘制小地图 ==========
+  function drawMinimap() {
+    minimapCtx.fillStyle = 'rgba(10, 10, 30, 0.9)';
+    minimapCtx.fillRect(0, 0, 180, 180);
+    
+    const scale = 180 / WORLD_WIDTH;
+    
+    // 绘制边界
+    minimapCtx.strokeStyle = 'rgba(139, 92, 246, 0.5)';
+    minimapCtx.lineWidth = 1;
+    minimapCtx.strokeRect(
+      BOUNDARY_PADDING * scale,
+      BOUNDARY_PADDING * scale,
+      (WORLD_WIDTH - BOUNDARY_PADDING * 2) * scale,
+      (WORLD_HEIGHT - BOUNDARY_PADDING * 2) * scale
+    );
+    
+    // 绘制食物
+    const foods = chunkManager.getLoadedFoods();
+    minimapCtx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    foods.forEach(food => {
+      minimapCtx.beginPath();
+      minimapCtx.arc(food.x * scale, food.y * scale, 1, 0, Math.PI * 2);
+      minimapCtx.fill();
+    });
+    
+    // 绘制敌人
+    const enemies = chunkManager.getLoadedEnemies();
+    enemies.forEach(enemy => {
+      minimapCtx.fillStyle = enemy.radius > player.radius ? 'rgba(255, 100, 100, 0.8)' : 'rgba(100, 255, 100, 0.8)';
+      minimapCtx.beginPath();
+      minimapCtx.arc(enemy.x * scale, enemy.y * scale, 2, 0, Math.PI * 2);
+      minimapCtx.fill();
+    });
+    
+    // 绘制玩家
+    minimapCtx.fillStyle = '#ffd700';
+    minimapCtx.beginPath();
+    minimapCtx.arc(player.x * scale, player.y * scale, 4, 0, Math.PI * 2);
+    minimapCtx.fill();
+    
+    // 绘制视口
+    minimapCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+    minimapCtx.lineWidth = 1;
+    minimapCtx.strokeRect(
+      camera.x * scale,
+      camera.y * scale,
+      canvas.width * scale,
+      canvas.height * scale
+    );
+  }
+
+  // ========== 游戏结束 ==========
+  function gameOver() {
+    gameRunning = false;
+    playSound('death');
+    
+    document.getElementById('finalScore').textContent = score;
+    document.getElementById('finalEnemies').textContent = stats.enemiesEaten;
+    document.getElementById('finalCombo').textContent = stats.maxCombo;
+    document.getElementById('finalTime').textContent = Math.floor((Date.now() - gameStartTime) / 1000);
+    document.getElementById('finalEvolution').textContent = EVOLUTION_CONFIG[currentEvolution].name;
+    
+    document.getElementById('gameOverScreen').classList.add('show');
+  }
+
+  // ========== 重置游戏 ==========
+  function resetGame() {
+    // 重置玩家
+    player.x = WORLD_WIDTH / 2;
+    player.y = WORLD_HEIGHT / 2;
+    player.radius = 30;
+    player.baseRadius = 30;
+    player.velocityX = 0;
+    player.velocityY = 0;
+    player.energy = 100;
+    player.hasShield = false;
+    player.isAttracting = false;
+    player.isDashing = false;
+    player.expression = 'normal';
+    player.isPullingEdge = false;
+    player.edgePullDirection = '';
+    
+    // 更新玩家颜色
+    const charConfig = CHARACTER_CONFIG[currentCharacter];
+    player.color = charConfig.color;
+    
+    // 重置游戏状态
+    score = 0;
+    currentEvolution = 0;
+    speedMultiplier = 1;
+    combo = 0;
+    comboTimer = 0;
+    
+    // 重置技能
+    skillCooldowns = { dash: 0, split: 0, shield: 0, attract: 0 };
+    skillDurations = { dash: 0, shield: 0, attract: 0 };
+    
+    // 重置任务
+    quests = {
+      combo: { target: 10, current: 0, completed: false, reward: 50 },
+      speed: { target: 50, current: 0, completed: false, reward: 30, timeLimit: 30000, startTime: 0 },
+      hunter: { target: 5, current: 0, completed: false, reward: 100 }
+    };
+    
+    // 重置统计
+    stats = {
+      enemiesEaten: 0,
+      questsCompleted: 0,
+      maxCombo: 0,
+      gameTime: 0
+    };
+    
+    // 重置事件
+    currentEvent = null;
+    eventTimer = 0;
+    lastEventTime = 0;
+    
+    // 清空数组
+    splitBalls = [];
+    meteors = [];
+    particles = [];
+    ripples = [];
+    
+    // 清空区块
+    chunkManager.loadedChunks.clear();
+    chunkManager.chunkData.clear();
+    
+    // 初始化星空
+    initStars();
+    
+    // 重置相机
+    camera.x = player.x - canvas.width / 2;
+    camera.y = player.y - canvas.height / 2;
+    
+    gameStartTime = Date.now();
+    gameRunning = true;
+  }
+
+  // ========== 主游戏循环 ==========
+  function gameLoop(timestamp) {
+    if (!gameRunning) {
+      requestAnimationFrame(gameLoop);
+      return;
+    }
+    
+    const deltaTime = timestamp - lastFrameTime;
+    lastFrameTime = timestamp;
+    
+    // 更新
+    updatePlayer();
+    updateEnemies(deltaTime);
+    updateSplitBalls();
+    updateMeteors();
+    updateParticles();
+    updateRipples();
+    updateCombo(deltaTime);
+    updateSkills(deltaTime);
+    updateEvents(deltaTime);
+    updateChunks();
+    checkCollisions();
+    checkQuests();
+    updateEvolution();
+    updateCamera();
+    updateUI();
+    performanceMonitor.update();
+    
+    // 绘制
+    drawBackground();
+    drawBoundary();
+    drawRipples();
+    drawFoods();
+    drawEnemies();
+    drawSplitBalls();
+    drawMeteors();
+    drawParticles();
+    drawPlayer();
+    drawMinimap();
+    
+    requestAnimationFrame(gameLoop);
+  }
+
+  // ========== 事件监听器 ==========
+  
+  // 键盘控制
+  document.addEventListener('keydown', (e) => {
+    // 初始化音频上下文（用户交互触发）
+    initAudioContext();
+    
+    switch(e.key.toLowerCase()) {
+      case 'w':
+      case 'arrowup':
+        keys.up = true;
+        break;
+      case 's':
+      case 'arrowdown':
+        keys.down = true;
+        break;
+      case 'a':
+      case 'arrowleft':
+        keys.left = true;
+        break;
+      case 'd':
+      case 'arrowright':
+        keys.right = true;
+        break;
+      case 'q':
+        useSkill('dash');
+        break;
+      case 'e':
+        useSkill('shield');
+        break;
+      case 'r':
+        useSkill('attract');
+        break;
+      case ' ':
+        useSkill('split');
+        break;
+    }
+  });
+  
+  document.addEventListener('keyup', (e) => {
+    switch(e.key.toLowerCase()) {
+      case 'w':
+      case 'arrowup':
+        keys.up = false;
+        break;
+      case 's':
+      case 'arrowdown':
+        keys.down = false;
+        break;
+      case 'a':
+      case 'arrowleft':
+        keys.left = false;
+        break;
+      case 'd':
+      case 'arrowright':
+        keys.right = false;
+        break;
+    }
+  });
+  
+  // 难度选择
+  document.querySelectorAll('.difficulty-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      // 初始化音频上下文
+      initAudioContext();
+      
+      document.querySelectorAll('.difficulty-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      currentDifficulty = btn.dataset.difficulty;
+    });
+  });
+  
+  // 角色选择
+  document.querySelectorAll('.character-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      // 初始化音频上下文
+      initAudioContext();
+      
+      document.querySelectorAll('.character-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      currentCharacter = btn.dataset.character;
+    });
+  });
+  
+  // 开始游戏
+  document.getElementById('startBtn').addEventListener('click', () => {
+    // 初始化音频上下文
+    initAudioContext();
+    
+    document.getElementById('startScreen').classList.add('hidden');
+    resetGame();
+    requestAnimationFrame(gameLoop);
+  });
+  
+  // 重新开始
+  document.getElementById('restartBtn').addEventListener('click', () => {
+    // 初始化音频上下文
+    initAudioContext();
+    
+    document.getElementById('gameOverScreen').classList.remove('show');
+    resetGame();
+  });
+  
+  // 音效控制
+  document.getElementById('soundBtn').addEventListener('click', () => {
+    // 初始化音频上下文
+    initAudioContext();
+    
+    soundEnabled = !soundEnabled;
+    const btn = document.getElementById('soundBtn');
+    if (soundEnabled) {
+      btn.textContent = '🔊 音效开启';
+      btn.classList.remove('muted');
+    } else {
+      btn.textContent = '🔇 音效关闭';
+      btn.classList.add('muted');
+    }
+  });
+  
+  // 窗口大小调整
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
+
+  // 初始化星空
+  initStars();
+  
+  // 初始化游戏循环（等待开始）
+  lastFrameTime = performance.now();
+  requestAnimationFrame(gameLoop);
+</script>
+</body>
+</html>

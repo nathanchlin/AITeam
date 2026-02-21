@@ -1,0 +1,23 @@
+public class AutoAim : MonoBehaviour
+   {
+       public float aimRadius = 10f;
+       public float aimSpeed = 5f;
+       
+       private void Update()
+       {
+           // 找到最近的敌人
+           Enemy nearestEnemy = FindNearestEnemy();
+           if (nearestEnemy != null)
+           {
+               // 平滑调整射击方向朝向敌人
+               Vector2 direction = (nearestEnemy.Position - transform.position).normalized;
+               transform.up = Vector2.Lerp(transform.up, direction, Time.deltaTime * aimSpeed);
+           }
+       }
+       
+       private Enemy FindNearestEnemy()
+       {
+           // 实现查找最近敌人的逻辑
+           return null;
+       }
+   }

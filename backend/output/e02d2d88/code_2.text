@@ -1,0 +1,30 @@
+project-root/
+│
+├── config/                 # 配置文件
+│   ├── environments.yaml   # 环境配置
+│   └── test_data.yaml      # 测试数据配置
+│
+├── tests/                  # 测试用例
+│   ├── api/               # API测试
+│   │   ├── test_login.py
+│   │   └── test_user_api.py
+│   │
+│   ├── ui/                # UI测试
+│   │   ├── pages/         # 页面对象
+│   │   │   ├── login_page.py
+│   │   │   └── dashboard_page.py
+│   │   └── tests/
+│   │       ├── test_login.py
+│   │       └── test_dashboard.py
+│   │
+│   └── performance/       # 性能测试
+│       └── test_load.py
+│
+├── utils/                 # 工具函数
+│   ├── api_client.py      # API封装
+│   ├── ui_helpers.py      # UI辅助函数
+│   └── report_generator.py # 报告生成
+│
+├── conftest.py            # PyTest配置
+├── requirements.txt       # 依赖包列表
+└── README.md              # 项目说明

@@ -1,0 +1,4 @@
+{
+    "status": "AVAILABLE|BUSY|OFFLINE|MAINTENANCE",
+    "metadata": {}
+}

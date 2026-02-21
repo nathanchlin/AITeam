@@ -1,0 +1,4 @@
+Controller → GameLogic (方向输入)
+GameLogic → Renderer (游戏状态数据)
+GameLogic → ScoreSystem (分数更新)
+GameLogic → Controller (游戏状态变化通知)

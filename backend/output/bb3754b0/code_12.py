@@ -1,0 +1,204 @@
+import pygame
+import sys
+
+# 初始化Pygame
+pygame.init()
+
+# 游戏常量
+SCREEN_WIDTH = 400
+SCREEN_HEIGHT = 600
+FPS = 60
+GRAVITY = 0.5
+JUMP_STRENGTH = -8
+PIPE_WIDTH = 70
+PIPE_GAP = 150
+PIPE_SPEED = 3
+
+# 颜色定义
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
+RED = (255, 0, 0)
+
+class GameState:
+    MENU = "menu"
+    PLAYING = "playing"
+    GAME_OVER = "game_over"
+
+class Bird:
+    def __init__(self):
+        self.x = 100
+        self.y = SCREEN_HEIGHT // 2
+        self.velocity = 0
+        self.radius = 20
+        
+    def jump(self):
+        self.velocity = JUMP_STRENGTH
+        
+    def update(self):
+        self.velocity += GRAVITY
+        self.y += self.velocity
+        
+    def draw(self, screen):
+        pygame.draw.circle(screen, BLUE, (int(self.x), int(self.y)), self.radius)
+        
+    def get_rect(self):
+        return pygame.Rect(self.x - self.radius, self.y - self.radius, 
+                          self.radius * 2, self.radius * 2)
+
+class Pipe:
+    def __init__(self, x):
+        self.x = x
+        self.height = pygame.Rect(0, 0, PIPE_WIDTH, 0).height
+        self.random_height = pygame.Rect(0, 0, PIPE_WIDTH, SCREEN_HEIGHT).height
+        self.passed = False
+        
+    def update(self):
+        self.x -= PIPE_SPEED
+        
+    def draw(self, screen):
+        # 上管道
+        pygame.draw.rect(screen, GREEN, (self.x, 0, PIPE_WIDTH, self.height))
+        # 下管道
+        pygame.draw.rect(screen, GREEN, (self.x, self.height + PIPE_GAP, PIPE_WIDTH, 
+                                       SCREEN_HEIGHT - self.height - PIPE_GAP))
+        
+    def get_rects(self):
+        top_rect = pygame.Rect(self.x, 0, PIPE_WIDTH, self.height)
+        bottom_rect = pygame.Rect(self.x, self.height + PIPE_GAP, PIPE_WIDTH, 
+                                SCREEN_HEIGHT - self.height - PIPE_GAP)
+        return top_rect, bottom_rect
+
+class Game:
+    def __init__(self):
+        self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Flappy Bird")
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.SysFont(None, 36)
+        self.big_font = pygame.font.SysFont(None, 72)
+        
+        self.reset_game()
+        
+    def reset_game(self):
+        self.state = GameState.MENU
+        self.bird = Bird()
+        self.pipes = []
+        self.score = 0
+        self.pipe_timer = 0
+        
+    def start_game(self):
+        self.state = GameState.PLAYING
+        self.bird = Bird()
+        self.pipes = []
+        self.score = 0
+        self.pipe_timer = 0
+        
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+                
+            if event.type == pygame.KEYDOWN:
+                if self.state == GameState.MENU:
+                    if event.key == pygame.K_SPACE:
+                        self.start_game()
+                elif self.state == GameState.PLAYING:
+                    if event.key == pygame.K_SPACE:
+                        self.bird.jump()
+                elif self.state == GameState.GAME_OVER:
+                    if event.key == pygame.K_SPACE:
+                        self.reset_game()
+                        
+    def update(self):
+        if self.state == GameState.PLAYING:
+            # 更新小鸟
+            self.bird.update()
+            
+            # 检查小鸟是否撞到上下边界
+            if self.bird.y - self.bird.radius < 0 or self.bird.y + self.bird.radius > SCREEN_HEIGHT:
+                self.state = GameState.GAME_OVER
+                
+            # 生成新管道
+            self.pipe_timer += 1
+            if self.pipe_timer > 90:  # 每90帧生成一个新管道
+                self.pipes.append(Pipe(SCREEN_WIDTH))
+                self.pipe_timer = 0
+                
+            # 更新管道
+            for pipe in self.pipes[:]:
+                pipe.update()
+                
+                # 检查碰撞
+                bird_rect = self.bird.get_rect()
+                top_rect, bottom_rect = pipe.get_rects()
+                
+                if bird_rect.colliderect(top_rect) or bird_rect.colliderect(bottom_rect):
+                    self.state = GameState.GAME_OVER
+                    
+                # 计分
+                if not pipe.passed and pipe.x + PIPE_WIDTH < self.bird.x:
+                    pipe.passed = True
+                    self.score += 1
+                    
+                # 移除屏幕外的管道
+                if pipe.x + PIPE_WIDTH < 0:
+                    self.pipes.remove(pipe)
+                    
+    def draw(self):
+        self.screen.fill(WHITE)
+        
+        if self.state == GameState.MENU:
+            # 绘制开始界面
+            title = self.big_font.render("Flappy Bird", True, BLACK)
+            title_rect = title.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3))
+            self.screen.blit(title, title_rect)
+            
+            start_text = self.font.render("Press SPACE to Start", True, BLACK)
+            start_rect = start_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+            self.screen.blit(start_text, start_rect)
+            
+            # 绘制示例小鸟
+            example_bird = Bird()
+            example_bird.y = SCREEN_HEIGHT // 2 + 100
+            example_bird.draw(self.screen)
+            
+        elif self.state == GameState.PLAYING:
+            # 绘制游戏元素
+            self.bird.draw(self.screen)
+            
+            for pipe in self.pipes:
+                pipe.draw(self.screen)
+                
+            # 绘制分数
+            score_text = self.font.render(f"Score: {self.score}", True, BLACK)
+            self.screen.blit(score_text, (10, 10))
+            
+        elif self.state == GameState.GAME_OVER:
+            # 绘制游戏结束界面
+            game_over_text = self.big_font.render("Game Over", True, RED)
+            game_over_rect = game_over_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 3))
+            self.screen.blit(game_over_text, game_over_rect)
+            
+            score_text = self.font.render(f"Final Score: {self.score}", True, BLACK)
+            score_rect = score_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT // 2))
+            self.screen.blit(score_text, score_rect)
+            
+            restart_text = self.font.render("Press SPACE to Restart", True, BLACK)
+            restart_rect = restart_text.get_rect(center=(SCREEN_WIDTH // 2, SCREEN_HEIGHT * 2 // 3))
+            self.screen.blit(restart_text, restart_rect)
+            
+        pygame.display.flip()
+        
+    def run(self):
+        while True:
+            self.handle_events()
+            self.update()
+            self.draw()
+            self.clock.tick(FPS)
+
+# 运行游戏
+if __name__ == "__main__":
+    game = Game()
+    game.run()

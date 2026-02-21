@@ -1,0 +1,10 @@
+tetris-game/
+├── index.html          # 游戏主页面
+├── css/
+│   └── style.css      # 样式文件
+├── js/
+│   ├── game.js        # 游戏逻辑
+│   └── controls.js    # 控制逻辑
+├── assets/
+│   └── tetris.png     # 游戏图标(可选)
+└── README.md          # 使用说明文档

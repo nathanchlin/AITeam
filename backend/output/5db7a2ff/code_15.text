@@ -1,0 +1,16 @@
+2046-game/
+├── src/
+│   ├── components/
+│   ├── assets/
+│   ├── styles/
+│   ├── utils/
+│   ├── index.js
+│   ├── index.html
+│   └── __tests__/
+├── dist/
+├── node_modules/
+├── .gitignore
+├── package.json
+├── webpack.config.js
+├── jest.config.js
+└── README.md

@@ -1,0 +1,1 @@
+pip install tushare pandas numpy matplotlib seaborn sqlalchemy

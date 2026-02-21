@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Backpack War Game</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = 800;
+  canvas.height = 600;
+
+  let gameLoop;
+  let score = 0;
+
+  const player = {
+    x: 50,
+    y: 50,
+    width: 30,
+    height: 30,
+    color: 'blue',
+    velocity: { x: 0, y: 0 },
+    isJumping: false,
+    isGrounded: true
+  };
+
+  const enemies = [];
+  const enemy = {
+    x: canvas.width - 50,
+    y: 50,
+    width: 30,
+    height: 30,
+    color: 'red',
+    velocity: { x: -2, y: 0 }
+  };
+
+  const ground = {
+    x: 0,
+    y: canvas.height - 20,
+    width: canvas.width,
+    height: 20,
+    color: 'grey'
+  };
+
+  // Draw functions
+  function drawRect(x, y, width, height, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  function drawPlayer() {
+    drawRect(player.x, player.y, player.width, player.height, player.color);
+  }
+
+  function drawEnemies() {
+    enemies.forEach((enemy, index) => {
+      drawRect(enemy.x, enemy.y, enemy.width, enemy.height, enemy.color);
+    });
+  }
+
+  function drawGround() {
+    drawRect(ground.x, ground.y, ground.width, ground.height, ground.color);
+  }
+
+  function drawScore() {
+    ctx.fillStyle = 'black';
+    ctx.font = '20px Arial';
+    ctx.fillText(`Score: ${score}`, 10, 25);
+  }
+
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawGround();
+    drawPlayer();
+    drawEnemies();
+    drawScore();
+    update();
+    requestAnimationFrame(gameLoop);
+  }
+
+  function update() {
+    // Update player position
+    player.x += player.velocity.x;
+    player.y += player.velocity.y;
+
+    // Apply gravity
+    player.isGrounded = false;
+    player.velocity.y += 0.5;
+
+    // Check for collision with ground
+    if (player.y + player.height > ground.y) {
+      player.isGrounded = true;
+      player.velocity.y = 0;
+      player.y = ground.y - player.height;
+    }
+
+    // Update enemy positions
+    enemies.forEach((enemy, index) => {
+      enemy.x += enemy.velocity.x;
+
+      // Check for collision with player
+      if (player.x < enemy.x + enemy.width &&
+          player.x + player.width > enemy.x &&
+          player.y < enemy.y + enemy.height &&
+          player.y + player.height > enemy.y) {
+        // Collision detected, end the game
+        endGame();
+      }
+
+      // Remove enemy if it goes off screen
+      if (enemy.x < 0) {
+        enemies.splice(index, 1);
+        score += 10; // Increase score for each enemy killed
+      }
+    });
+
+    // Add new enemies periodically
+    if (Math.random() < 0.01) {
+      enemies.push({ ...enemy });
+    }
+  }
+
+  function endGame() {
+    ctx.fillStyle = 'white';
+    ctx.font = '40px Arial';
+    ctx.fillText('Game Over', canvas.width / 2 - 100, canvas.height / 2);
+    cancelAnimationFrame(gameLoop);
+  }
+
+  // Event listeners
+  window.addEventListener('keydown', (e) => {
+    switch (e.key) {
+      case 'ArrowLeft':
+        player.velocity.x = -5;
+        break;
+      case 'ArrowRight':
+        player.velocity.x = 5;
+        break;
+      case 'ArrowUp':
+        if (player.isGrounded) {
+          player.velocity.y = -10;
+          player.isGrounded = false;
+        }
+        break;
+      default:
+        break;
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+      player.velocity.x = 0;
+    }
+  });
+
+  // Initialization
+  window.onload = () => {
+    gameLoop = () => {
+      requestAnimationFrame(gameLoop);
+    };
+    requestAnimationFrame(gameLoop);
+  };
+</script>
+</body>
+</html>

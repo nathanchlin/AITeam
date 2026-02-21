@@ -1,0 +1,88 @@
+public class GameLoop {
+    private enum GameLoopState {
+        INIT,
+        UPDATE,
+        FIXED_UPDATE,
+        RENDER,
+        SHUTDOWN
+    }
+    
+    private GameLoopState currentState = GameLoopState.INIT;
+    private float accumulatedTime = 0f;
+    
+    public void Run() {
+        while (currentState != GameLoopState.SHUTDOWN) {
+            switch (currentState) {
+                case GameLoopState.INIT:
+                    Initialize();
+                    currentState = GameLoopState.UPDATE;
+                    break;
+                    
+                case GameLoopState.UPDATE:
+                    Update();
+                    break;
+                    
+                case GameLoopState.FIXED_UPDATE:
+                    FixedUpdate();
+                    break;
+                    
+                case GameLoopState.RENDER:
+                    Render();
+                    break;
+            }
+        }
+    }
+    
+    private void Initialize() {
+        // 初始化所有系统
+        EventSystem.Instance.Initialize();
+        SceneManager.Instance.Initialize();
+        InputManager.Instance.Initialize();
+        // ...其他系统初始化
+    }
+    
+    private void Update() {
+        float deltaTime = TimeManager.Instance.GetDeltaTime();
+        accumulatedTime += deltaTime;
+        
+        // 处理输入
+        InputManager.Instance.Update();
+        
+        // 更新游戏逻辑
+        GameStateManager.Instance.Update(deltaTime);
+        PlayerController.Instance.Update(deltaTime);
+        EnemyAI.Instance.Update(deltaTime);
+        BulletSystem.Instance.Update(deltaTime);
+        
+        // 处理事件
+        EventSystem.Instance.ProcessEvents();
+        
+        // 如果达到固定时间间隔，执行物理更新
+        if (accumulatedTime >= TimeManager.Instance.fixedDeltaTime) {
+            currentState = GameLoopState.FIXED_UPDATE;
+        }
+    }
+    
+    private void FixedUpdate() {
+        // 固定时间步长的物理更新
+        float fixedDeltaTime = TimeManager.Instance.fixedDeltaTime;
+        
+        CollisionSystem.Instance.Update(fixedDeltaTime);
+        PowerUpSystem.Instance.Update(fixedDeltaTime);
+        
+        accumulatedTime -= TimeManager.Instance.fixedDeltaTime;
+        if (accumulatedTime < TimeManager.Instance.fixedDeltaTime) {
+            currentState = GameLoopState.RENDER;
+        }
+    }
+    
+    private void Render() {
+        // 渲染更新
+        RenderSystem.Instance.Update();
+        AnimationSystem.Instance.Update();
+        EffectSystem.Instance.Update();
+        UIManager.Instance.Update();
+        
+        currentState = GameLoopState.UPDATE;
+    }
+}

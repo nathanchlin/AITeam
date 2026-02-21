@@ -1,0 +1,1 @@
+docker-compose exec mongo mongorestore --db tetris-battle /data/backup

@@ -1,0 +1,11 @@
+// server.json
+   {
+     "port": 8080,
+     "maxPlayers": 10,
+     "roomTimeout": 300,
+     "logLevel": "Info",
+     "database": {
+       "type": "SQLite",
+       "path": "GameData/game.db"
+     }
+   }

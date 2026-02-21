@@ -1,0 +1,7 @@
+Server -> All Clients in Room: {
+    "event": "gameOver",
+    "data": {
+        "finalRankings": [ranking objects],
+        "rewards": [reward objects]
+    }
+}

@@ -1,0 +1,14 @@
+{
+  "title": "贪吃蛇游戏开发执行计划",
+  "original_request": "制作一个简单的贪吃蛇游戏，使用方向键控制蛇移动，吃到食物变长，撞墙或撞到自己游戏结束",
+  "discussion": [
+    {
+      "id": "624598f9-c725-4f5d-bbdb-1d968baec3e8",
+      "plan_id": "bb8c5c06-2d3d-4fd6-b09e-1d4cf01ef86a",
+      "agent_id": "1b9489b0-1468-45dc-ad33-b9f41e85e620",
+      "agent_name": "Coordinator",
+      "agent_type": "assistant",
+      "content": "我来分析一下需求：制作一个简单的贪吃蛇游戏，使用方向键控制蛇移动，吃到食物变长，撞墙或撞到自己游戏结束",
+      "message_type": "comment",
+      "reply_to": null,
+      "timestamp": 

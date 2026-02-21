@@ -1,0 +1,57 @@
+[System.Serializable]
+public class GameProgress
+{
+    public int CurrentLevel = 1;
+    public int TotalScore = 0;
+    public int HighScore = 0;
+    public int LevelsCompleted = 0;
+    public int TotalPigsKilled = 0;
+    public int MaxComboMultiplier = 1;
+    public int PerfectLevels = 0;
+    public int ConsecutiveDirectHits = 0;
+    public int OneBirdClears = 0;
+    public List<string> UnlockedAchievements = new List<string>();
+    public Dictionary<int, LevelProgress> LevelProgressData = new Dictionary<int, LevelProgress>();
+}
+
+[System.Serializable]
+public class LevelProgress
+{
+    public int BestScore = 0;
+    public int StarsAchieved = 0;
+    public bool IsCompleted = false;
+}
+
+public class SaveSystem
+{
+    private const string SaveFileName = "AngryBirds_Save.json";
+    
+    public static void SaveGameProgress(GameProgress progress)
+    {
+        string jsonData = JsonUtility.ToJson(progress, true);
+        string savePath = Path.Combine(Application.persistentDataPath, SaveFileName);
+        File.WriteAllText(savePath, jsonData);
+    }
+    
+    public static GameProgress LoadGameProgress()
+    {
+        string savePath = Path.Combine(Application.persistentDataPath, SaveFileName);
+        
+        if (File.Exists(savePath))
+        {
+            string jsonData = File.ReadAllText(savePath);
+            return JsonUtility.FromJson<GameProgress>(jsonData);
+        }
+        
+        return new GameProgress(); // 返回新进度
+    }
+    
+    public static void ResetProgress()
+    {
+        string savePath = Path.Combine(Application.persistentDataPath, SaveFileName);
+        if (File.Exists(savePath))
+        {
+            File.Delete(savePath);
+        }
+    }
+}

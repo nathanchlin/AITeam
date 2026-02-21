@@ -1,0 +1,8 @@
+Key: player:{playerId}:position
+Value: {
+  x: Number,
+  y: Number,
+  size: Number,
+  color: String
+}
+TTL: 60 // 1分钟

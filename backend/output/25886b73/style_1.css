@@ -1,0 +1,81 @@
+/* 基础样式 */
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    background-color: #f5f5f5;
+    font-family: Arial, sans-serif;
+}
+
+/* 计算器容器 */
+.calculator {
+    background-color: #333;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* 显示屏 */
+.display {
+    background-color: #222;
+    color: white;
+    padding: 10px;
+    text-align: right;
+    border-radius: 5px;
+    margin-bottom: 15px;
+    min-height: 60px;
+}
+
+#previous-operation {
+    font-size: 1.2rem;
+    color: #aaa;
+    min-height: 20px;
+}
+
+#current-operation {
+    font-size: 2rem;
+    min-height: 30px;
+}
+
+/* 按钮容器 */
+.buttons {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+/* 按钮样式 */
+.btn {
+    background-color: #555;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    padding: 20px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn:hover {
+    background-color: #666;
+}
+
+.btn:active {
+    background-color: #777;
+}
+
+/* 运算符按钮 */
+.btn.operator {
+    background-color: #ff9500;
+}
+
+.btn.operator:hover {
+    background-color: #ffb143;
+}
+
+/* 特殊按钮样式 */
+.span-two {
+    grid-column: span 2;
+}

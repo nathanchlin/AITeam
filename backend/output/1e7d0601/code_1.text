@@ -1,0 +1,8 @@
+GameLogic (游戏逻辑)
+├── GameStateManager (游戏状态管理)
+├── PlayerController (玩家控制)
+├── EnemyAI (敌机AI)
+├── BulletSystem (子弹系统)
+├── CollisionSystem (碰撞检测)
+├── ScoreSystem (计分系统)
+└── PowerUpSystem (道具系统)

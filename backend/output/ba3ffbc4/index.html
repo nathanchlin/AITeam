@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>消消乐游戏</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        #gameCanvas {
+            border: 2px solid #333;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+        
+        .game-info {
+            margin-top: 20px;
+            display: flex;
+            gap: 30px;
+            font-size: 18px;
+        }
+        
+        .score, .moves {
+            color: #333;
+            font-weight: bold;
+        }
+        
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+        
+        .restart-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        .restart-btn:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>消消乐游戏</h1>
+    <canvas id="gameCanvas" width="600" height="600"></canvas>
+    <div class="game-info">
+        <div class="score">得分: <span id="scoreValue">0</span></div>
+        <div class="moves">剩余步数: <span id="movesValue">30</span></div>
+    </div>
+    
+    <div class="game-over" id="gameOver">
+        <h2>游戏结束!</h2>
+        <p>最终得分: <span id="finalScore">0</span></p>
+        <button class="restart-btn" onclick="restartGame()">重新开始</button>
+    </div>
+
+    <script>
+        // 游戏配置
+        const ROWS = 8;
+        const COLS = 8;
+        const CELL_SIZE = 70;
+        const MARGIN = 5;
+        const MIN_MATCH = 3;
+        const INITIAL_MOVES = 30;
+        
+        // 游戏状态
+        let canvas, ctx;
+        let grid = [];
+        let score = 0;
+        let moves = INITIAL_MOVES;
+        let selectedCell = null;
+        let isAnimating = false;
+        let animationQueue = [];
+        
+        // 元素类型（不同颜色）
+        const ELEMENT_TYPES = [
+            { color: '#FF6B6B', name: '红色' },
+            { color: '#4ECDC4', name: '青色' },
+            { color: '#FFE66D', name: '黄色' },
+            { color: '#1A535C', name: '深蓝' },
+            { color: '#FF9F1C', name: '橙色' },
+            { color: '#6A0572', name: '紫色' }
+        ];
+        
+        // 初始化游戏
+        function initGame() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            
+            // 初始化网格
+            initGrid();
+            
+            // 绑定事件
+            canvas.addEventListener('click', handleClick);
+            
+            // 开始游戏循环
+            gameLoop();
+        }
+        
+        // 初始化网格
+        function initGrid() {
+            grid = [];
+            for (let row = 0; row < ROWS; row++) {
+                grid[row] = [];
+                for (let col = 0; col < COLS; col++) {
+                    let element;
+                    do {
+                        element = Math.floor(Math.random() * ELEMENT_TYPES.length);
+                    } while (wouldCreateMatch(row, col, element));
+                    
+                    grid[row][col] = {
+                        type: element,
+                        x: col * (CELL_SIZE + MARGIN) + MARGIN,
+                        y: row * (CELL_SIZE + MARGIN) + MARGIN,
+                        targetX: col * (CELL_SIZE + MARGIN) + MARGIN,
+                        targetY: row * (CELL_SIZE + MARGIN) + MARGIN,
+                        scale: 1,
+                        isMatched: false,
+                        isFalling: false
+                    };
+                }
+            }
+        }
+        
+        // 检查是否会创建匹配
+        function wouldCreateMatch(row, col, type) {
+            // 检查水平方向
+            let horizontalCount = 1;
+            
+            // 向左检查
+            for (let c = col - 1; c >= 0 && grid[row] && grid[row][c] && grid[row][c].type === type; c--) {
+                horizontalCount++;
+            }
+            
+            // 向右检查
+            for (let c = col + 1; c < COLS && grid[row] && grid[row][c] && grid[row][c].type === type; c++) {
+                horizontalCount++;
+            }
+            
+            if (horizontalCount >= MIN_MATCH) return true;
+            
+            // 检查垂直方向
+            let verticalCount = 1;
+            
+            // 向上检查
+            for (let r = row - 1; r >= 0 && grid[r] && grid[r][col] && grid[r][col].type === type; r--) {
+                verticalCount++;
+            }
+            
+            // 向下检查
+            for (let r = row + 1; r < ROWS && grid[r] && grid[r][col] && grid[r][col].type === type; r++) {
+                verticalCount++;
+            }
+            
+            if (verticalCount >= MIN_MATCH) return true;
+            
+            return false;
+        }
+        
+        // 游戏主循环
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // 更新游戏状态
+        function update() {
+            if (isAnimating) {
+                let allAnimationsComplete = true;
+                
+                // 更新动画队列
+                for (let i = 0; i < animationQueue.length; i++) {
+                    const anim = animationQueue[i];
+                    anim.progress += 0.1;
+                    
+                    if (anim.progress >= 1) {
+                        anim.callback();
+                        animationQueue.splice(i, 1);
+                        i--;
+                    } else {
+                        allAnimationsComplete = false;
+                    }
+                }
+                
+                // 更新元素位置和缩放
+                for (let row = 0; row < ROWS; row++) {
+                    for (let col = 0; col < COLS; col++) {
+                        const cell = grid[row][col];
+                        if (cell) {
+                            // 平滑移动到目标位置
+                            cell.x += (cell.targetX - cell.x) * 0.2;
+                            cell.y += (cell.targetY - cell.y) * 0.2;
+                            
+                            // 缩放动画
+                            if (cell.isMatched) {
+                                cell.scale = Math.max(0, cell.scale - 0.05);
+                            }
+                        }
+                    }
+                }
+                
+                isAnimating = !allAnimationsComplete;
+            }
+        }
+        
+        // 渲染游戏
+        function render() {
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制网格背景
+            ctx.fillStyle = '#f8f8f8';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制所有元素
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const cell = grid[row][col];
+                    if (cell && cell.scale > 0) {
+                        drawCell(cell, row, col);
+                    }
+                }
+            }
+            
+            // 绘制选中效果
+            if (selectedCell) {
+                const { row, col } = selectedCell;
+                const cell = grid[row][col];
+                if (cell) {
+                    ctx.strokeStyle = '#FFD700';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(
+                        cell.x - 2,
+                        cell.y - 2,
+                        CELL_SIZE + 4,
+                        CELL_SIZE + 4
+                    );
+                }
+            }
+        }
+        
+        // 绘制单个元素
+        function drawCell(cell, row, col) {
+            const element = ELEMENT_TYPES[cell.type];
+            
+            ctx.save();
+            ctx.translate(cell.x + CELL_SIZE / 2, cell.y + CELL_SIZE / 2);
+            ctx.scale(cell.scale, cell.scale);
+            
+            // 绘制圆形元素
+            ctx.beginPath();
+            ctx.arc(0, 0, CELL_SIZE / 2 - 5, 0, Math.PI * 2);
+            ctx.fillStyle = element.color;
+            ctx.fill();
+            
+            // 添加高光效果
+            ctx.beginPath();
+            ctx.arc(-CELL_SIZE / 6, -CELL_SIZE / 6, CELL_SIZE / 6, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        // 处理点击事件
+        function handleClick(event) {
+            if (isAnimating || moves <= 0) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            
+            const col = Math.floor(x / (CELL_SIZE + MARGIN));
+            const row = Math.floor(y / (CELL_SIZE + MARGIN));
+            
+            if (row >= 0 && row < ROWS && col >= 0 && col < COLS) {
+                if (!selectedCell) {
+                    // 选择第一个元素
+                    selectedCell = { row, col };
+                } else {
+                    // 尝试交换元素
+                    const { row: selectedRow, col: selectedCol } = selectedCell;
+                    
+                    // 检查是否相邻
+                    if (isAdjacent(selectedRow, selectedCol, row, col)) {
+                        swapElements(selectedRow, selectedCol, row, col);
+                    }
+                    
+                    // 取消选择
+                    selectedCell = null;
+                }
+            }
+        }
+        
+        // 检查两个单元格是否相邻
+        function isAdjacent(row1, col1, row2, col2) {
+            const rowDiff = Math.abs(row1 - row2);
+            const colDiff = Math.abs(col1 - col2);
+            return (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1);
+        }
+        
+        // 交换两个元素
+        function swapElements(row1, col1, row2, col2) {
+            const temp = grid[row1][col1];
+            grid[row1][col1] = grid[row2][col2];
+            grid[row2][col2] = temp;
+            
+            // 更新目标位置
+            updateCellPositions();
+            
+            // 检查匹配
+            setTimeout(() => {
+                const matches = findMatches();
+                if (matches.length > 0) {
+                    // 有匹配，处理消除
+                    moves--;
+                    updateUI();
+                    processMatches(matches);
+                } else {
+                    // 没有匹配，交换回来
+                    const temp = grid[row1][col1];
+                    grid[row1][col1] = grid[row2][col2];
+                    grid[row2][col2] = temp;
+                    updateCellPositions();
+                }
+            }, 300);
+        }
+        
+        // 更新单元格位置
+        function updateCellPositions() {
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    if (grid[row][col]) {
+                        grid[row][col].targetX = col * (CELL_SIZE + MARGIN) + MARGIN;
+                        grid[row][col].targetY = row * (CELL_SIZE + MARGIN) + MARGIN;
+                    }
+                }
+            }
+        }
+        
+        // 查找所有匹配
+        function findMatches() {
+            const matches = [];
+            
+            // 检查水平匹配
+            for (let row = 0; row < ROWS; row++) {
+                let count = 1;
+                let currentType = grid[row][0].type;
+                
+                for (let col = 1; col < COLS; col++) {
+                    if (grid[row][col].type === currentType) {
+                        count++;
+                    } else {
+                        if (count >= MIN_MATCH) {
+                            for (let i = col - count; i < col; i++) {
+                                matches.push({ row, col: i });
+                            }
+                        }
+                        count = 1;
+                        currentType = grid[row][col].type;
+                    }
+                }
+                
+                if (count >= MIN_MATCH) {
+                    for (let i = COLS - count; i < COLS; i++) {
+                        matches.push({ row, col: i });
+                    }
+                }
+            }
+            
+            // 检查垂直匹配
+            for (let col = 0; col < COLS; col++) {
+                let count = 1;
+                let currentType = grid[0][col].type;
+                
+                for (let row = 1; row < ROWS; row++) {
+                    if (grid[row][col].type === currentType) {
+                        count++;
+                    } else {
+                        if (count >= MIN_MATCH) {
+                            for (let i = row - count; i < row; i++) {
+                                matches.push({ row: i, col });
+                            }
+                        }
+                        count = 1;
+                        currentType = grid[row][col].type;
+                    }
+                }
+                
+                if (count >= MIN_MATCH) {
+                    for (let i = ROWS - count; i < ROWS; i++) {
+                        matches.push({ row: i, col });
+                    }
+                }
+            }
+            
+            // 去重
+            const uniqueMatches = [];
+            const matchSet = new Set();
+            
+            for (const match of matches) {
+                const key = `${match.row},${match.col}`;
+                if (!matchSet.has(key)) {
+                    matchSet.add(key);
+                    uniqueMatches.push(match);
+                }
+            }
+            
+            return uniqueMatches;
+        }
+        
+        // 处理匹配
+        function processMatches(matches) {
+            isAnimating = true;
+            
+            // 标记匹配的元素
+            for (const match of matches) {
+                grid[match.row][match.col].isMatched = true;
+            }
+            
+            // 添加消除动画
+            animationQueue.push({
+                progress: 0,
+                callback: () => {
+                    // 计算得分
+                    score += matches.length * 10;
+                    updateUI();
+                    
+                    // 移除匹配的元素
+                    for (const match of matches) {
+                        grid[match.row][match.col] = null;
+                    }
+                    
+                    // 元素下落
+                    dropElements();
+                    
+                    // 填充新元素
+                    fillEmptyCells();
+                    
+                    // 继续检查新的匹配
+                    setTimeout(() => {
+                        const newMatches = findMatches();
+                        if (newMatches.length > 0) {
+                            processMatches(newMatches);
+                        } else {
+                            // 检查游戏是否结束
+                            if (moves <= 0) {
+                                endGame();
+                            }
+                        }
+                    }, 300);
+                }
+            });
+        }
+        
+        // 元素下落
+        function dropElements() {
+            for (let col = 0; col < COLS; col++) {
+                let emptyRow = ROWS - 1;
+                
+                // 从底部向上扫描
+                for (let row = ROWS - 1; row >= 0; row--) {
+                    if (grid[row][col] !== null) {
+                        if (row !== emptyRow) {
+                            grid[emptyRow][col] = grid[row][col];
+                            grid[row][col] = null;
+                        }
+                        emptyRow--;
+                    }
+                }
+            }
+            
+            updateCellPositions();
+        }
+        
+        // 填充空单元格
+        function fillEmptyCells() {
+            for (let col = 0; col < COLS; col++) {
+                for (let row = 0; row < ROWS; row++) {
+                    if (grid[row][col] === null) {
+                        grid[row][col] = {
+                            type: Math.floor(Math.random() * ELEMENT_TYPES.length),
+                            x: col * (CELL_SIZE + MARGIN) + MARGIN,
+                            y: row * (CELL_SIZE + MARGIN) + MARGIN,
+                            targetX: col * (CELL_SIZE + MARGIN) + MARGIN,
+                            targetY: row * (CELL_SIZE + MARGIN) + MARGIN,
+                            scale: 0,
+                            isMatched: false,
+                            isFalling: true
+                        };
+                        
+                        // 从顶部开始下落
+                        grid[row][col].y = -CELL_SIZE;
+                        grid[row][col].targetY = row * (CELL_SIZE + MARGIN) + MARGIN;
+                        
+                        // 添加缩放动画
+                        animationQueue.push({
+                            progress: 0,
+                            callback: () => {
+                                grid[row][col].scale = 1;
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        
+        // 更新UI
+        function updateUI() {
+            document.getElementById('scoreValue').textContent = score;
+            document.getElementById('movesValue').textContent = moves;
+        }
+        
+        // 结束游戏
+        function endGame() {
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOver').style.display = 'block';
+        }
+        
+        // 重新开始游戏
+        function restartGame() {
+            score = 0;
+            moves = INITIAL_MOVES;
+            selectedCell = null;
+            isAnimating = false;
+            animationQueue = [];
+            
+            document.getElementById('gameOver').style.display = 'none';
+            
+            initGrid();
+            updateUI();
+        }
+        
+        // 页面加载完成后初始化游戏
+        window.onload = initGame;
+    </script>
+</body>
+</html>

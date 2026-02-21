@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>斗地主游戏规则遵循与执行</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  .card {
+    width: 50px;
+    height: 70px;
+    background-color: #c0c0c0;
+    margin: 5px;
+    color: black;
+    text-align: center;
+    line-height: 70px;
+    font-size: 16px;
+  }
+  #playerHand {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="400" height="300"></canvas>
+<div id="playerHand"></div>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scale = 1;
+canvas.width = window.innerWidth * scale;
+canvas.height = window.innerHeight * scale;
+
+const cardTable = {
+  x: 50,
+  y: 50,
+  width: 300,
+  height: 200
+};
+
+const cardWidth = 50;
+const cardHeight = 70;
+const playerHand = [];
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+function drawCard(x, y, card) {
+  ctx.fillStyle = '#c0c0c0';
+  ctx.fillRect(x, y, cardWidth, cardHeight);
+  ctx.fillStyle = 'black';
+  ctx.fillText(card, x + cardWidth / 2, y + cardHeight / 2);
+}
+
+function drawTable() {
+  ctx.fillStyle = 'gray';
+  ctx.fillRect(cardTable.x, cardTable.y, cardTable.width, cardTable.height);
+}
+
+function drawPlayerHand() {
+  const playerHandElement = document.getElementById('playerHand');
+  playerHandElement.innerHTML = '';
+  playerHand.forEach((card, index) => {
+    const cardDiv = document.createElement('div');
+    cardDiv.className = 'card';
+    cardDiv.textContent = card;
+    cardDiv.style.left = `${cardWidth + 10}px * ${index % 3} + 100px`;
+    cardDiv.style.top = `${cardHeight + 10}px * Math.floor(index / 3) + 100px`;
+    playerHandElement.appendChild(cardDiv);
+  });
+}
+
+function dealCards() {
+  const cards = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
+  shuffleArray(cards);
+  playerHand = cards.slice(0, 17);
+  drawPlayerHand();
+}
+
+function playCard(cardIndex) {
+  if (cardIndex >= 0 && cardIndex < playerHand.length) {
+    const card = playerHand.splice(cardIndex, 1)[0];
+    console.log(`Card played: ${card}`);
+    drawPlayerHand();
+  }
+}
+
+function handleCardClick(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const clickX = (e.clientX - rect.left) * scaleX;
+  const clickY = (e.clientY - rect.top) * scaleY;
+  const index = Math.floor((clickX - 100) / (cardWidth + 10));
+  if (index >= 0 && index < playerHand.length) {
+    playCard(index);
+  }
+}
+
+function isStraight(hand) {
+  hand.sort((a, b) => a - b);
+  for (let i = 1; i < hand.length; i++) {
+    if (hand[i] - hand[i - 1] !== 1) return false;
+  }
+  return true;
+}
+
+function isPlane(hand) {
+  const counts = {};
+  hand.forEach(card => {
+    counts[card] = (counts[card] || 0) + 1;
+  });
+
+  let planePairs = 0;
+  for (let count of Object.values(counts)) {
+    if (count === 3) planePairs++;
+  }
+
+  return planePairs === 1 && hand.length % 3 === 0;
+}
+
+function getCardType(hand) {
+  if (isStraight(hand)) {
+    return 'Straight';
+  } else if (isPlane(hand)) {
+    return 'Plane';
+  }
+  return 'Unknown';
+}
+
+function handleCardClick(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  const clickX = (e.clientX - rect.left) * scaleX;
+  const clickY = (e.clientY - rect.top) * scaleY;
+  const index = Math.floor((clickX - 100) / (cardWidth + 10));
+  if (index >= 0 && index < playerHand.length) {
+    const cardType = getCardType(playerHand);
+    console.log(`Card type: ${cardType}`);
+    playCard(index);
+  }
+}
+
+function render() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawTable();
+  playerHand.forEach((card, index) => {
+    const x = cardTable.x + (cardWidth + 10) * (index % 3);
+    const y = cardTable.y + (cardHeight + 10) * Math.floor(index / 3);
+    drawCard(x, y, card);
+  });
+}
+
+function init() {
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth * scale;
+    canvas.height = window.innerHeight * scale;
+    render();
+  });
+
+  canvas.addEventListener('click', handleCardClick);
+
+  dealCards();
+  render();
+}
+
+window.onload = init;
+</script>
+</body>
+</html>

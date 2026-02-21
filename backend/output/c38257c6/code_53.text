@@ -1,0 +1,13 @@
+/game-root
+  /index.html
+  /css
+    /game.min.css
+  /js
+    /game.min.js
+  /images
+    /bricks.png
+    /paddle.png
+    /ball.png
+  /assets
+    /sounds
+  /favicon.ico

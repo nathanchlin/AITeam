@@ -1,0 +1,6 @@
+gem-match-3-game/
+├── index.html          # 主HTML文件
+├── css/
+│   └── style.css      # 样式表
+└── js/
+    └── game.js        # 游戏逻辑

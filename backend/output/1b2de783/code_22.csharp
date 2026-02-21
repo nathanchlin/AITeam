@@ -1,0 +1,55 @@
+public class PlayerShooting : MonoBehaviour
+{
+    private ShootingManager shootingManager;
+    
+    private void Awake()
+    {
+        shootingManager = GetComponent<ShootingManager>();
+    }
+    
+    private void Update()
+    {
+        // 检测射击输入
+        if (Input.GetButton("Fire1")) // 默认是鼠标左键
+        {
+            shootingManager.Fire();
+        }
+        
+        // 可以添加其他射击方式，比如空格键
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            shootingManager.Fire();
+        }
+    }
+    
+    // 可以添加特殊射击模式
+    public void FireSpreadShot(int bulletCount, float spreadAngle)
+    {
+        if (!shootingManager.CanFire()) return;
+        
+        float angleStep = spreadAngle / (bulletCount - 1);
+        float startAngle = -spreadAngle / 2;
+        
+        for (int i = 0; i < bulletCount; i++)
+        {
+            float angle = startAngle + angleStep * i;
+            Vector2 direction = Quaternion.Euler(0, 0, angle) * transform.up;
+            
+            // 创建散弹中的每颗子弹
+            Vector2 bulletPosition = shootingManager.FirePoint.position;
+            Vector2 bulletVelocity = direction * shootingManager.BulletSpeed;
+            
+            Bullet newBullet = new Bullet(
+                bulletPosition, 
+                bulletVelocity, 
+                shootingManager.BulletDamage * 0.7f, // 散弹伤害较低
+                shootingManager.BulletLifetime,
+                shootingManager.BulletPrefab
+            );
+            
+            // 这里需要修改ShootingManager来支持添加自定义子弹
+            // 或者创建一个临时方法
+            shootingManager.AddCustomBullet(newBullet);
+        }
+    }
+}

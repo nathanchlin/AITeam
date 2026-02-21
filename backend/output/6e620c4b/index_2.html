@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>坦克大战</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #333;
+            font-family: Arial, sans-serif;
+        }
+        .game-container {
+            text-align: center;
+            background-color: #444;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+        canvas {
+            background-color: #111;
+            border: 2px solid #666;
+            display: block;
+            margin: 0 auto;
+        }
+        .controls {
+            margin-top: 15px;
+            color: #fff;
+            display: flex;
+            justify-content: space-around;
+        }
+        .player-controls {
+            background-color: #555;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        h1 {
+            color: #fff;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>坦克大战</h1>
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div class="controls">
+            <div class="player-controls">
+                <h3>玩家1 (蓝色)</h3>
+                <p>移动: W A S D</p>
+                <p>射击: 空格键</p>
+            </div>
+            <div class="player-controls">
+                <h3>玩家2 (红色)</h3>
+                <p>移动: ↑ ← ↓ →</p>
+                <p>射击: 回车键</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 游戏常量
+        const CANVAS_WIDTH = 800;
+        const CANVAS_HEIGHT = 600;
+        const TANK_SIZE = 30;
+        const TANK_SPEED = 3;
+        const TANK_ROTATION_SPEED = 0.05;
+        const BULLET_SPEED = 8;
+        const BULLET_SIZE = 5;
+        const MAX_HEALTH = 100;
+        
+        // 方向常量
+        const DIRECTIONS = {
+            UP: 0,
+            RIGHT: Math.PI / 2,
+            DOWN: Math.PI,
+            LEFT: Math.PI * 1.5
+        };
+        
+        // 坦克类
+        class Tank {
+            constructor(x, y, color, controls) {
+                this.x = x;
+                this.y = y;
+                this.width = TANK_SIZE;
+                this.height = TANK_SIZE;
+                this.color = color;
+                this.direction = DIRECTIONS.UP;
+                this.speed = TANK_SPEED;
+                this.health = MAX_HEALTH;
+                this.controls = controls;
+                this.isMoving = false;
+                this.lastShotTime = 0;
+                this.shotCooldown = 500; // 射击冷却时间（毫秒）
+                this.isAlive = true;
+            }
+            
+            // 绘制坦克
+            draw(ctx) {
+                if (!this.isAlive) return;
+                
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.direction);
+                
+                // 绘制坦克主体
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+                
+                // 绘制坦克炮管
+                ctx.fillStyle = this.color;
+                ctx.fillRect(0, -3, this.width * 0.8, 6);
+                
+                // 绘制坦克中心
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.arc(0, 0, this.width/4, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 绘制生命值条
+                ctx.restore();
+                ctx.fillStyle = '#ff0000';
+                ctx.fillRect(this.x - this.width/2, this.y - this.height/2 - 15, this.width, 5);
+                ctx.fillStyle = '#00ff00';
+                ctx.fillRect(this.x - this.width/2, this.y - this.height/2 - 15, 
+                            this.width * (this.health / MAX_HEALTH), 5);
+            }
+            
+            // 移动坦克
+            move(keys, obstacles) {
+                if (!this.isAlive) return;
+                
+                let dx = 0;
+                let dy = 0;
+                this.isMoving = false;
+                
+                // 根据按键更新移动方向
+                if (keys[this.controls.up]) {
+                    this.direction = DIRECTIONS.UP;
+                    dy = -this.speed;
+                    this.isMoving = true;
+                }
+                if (keys[this.controls.down]) {
+                    this.direction = DIRECTIONS.DOWN;
+                    dy = this.speed;
+                    this.isMoving = true;
+                }
+                if (keys[this.controls.left]) {
+                    this.direction = DIRECTIONS.LEFT;
+                    dx = -this.speed;
+                    this.isMoving = true;
+                }
+                if (keys[this.controls.right]) {
+                    this.direction = DIRECTIONS.RIGHT;
+                    dx = this.speed;
+                    this.isMoving = true;
+                }
+                
+                // 检查碰撞
+                const newX = this.x + dx;
+                const newY = this.y + dy;
+                
+                if (!this.checkCollision(newX, newY, obstacles)) {
+                    this.x = newX;
+                    this.y = newY;
+                }
+                
+                // 边界检测
+                this.x = Math.max(this.width/2, Math.min(CANVAS_WIDTH - this.width/2, this.x));
+                this.y = Math.max(this.height/2, Math.min(CANVAS_HEIGHT - this.height/2, this.y));
+            }
+            
+            // 检查碰撞
+            checkCollision(x, y, obstacles) {
+                // 检查与障碍物的碰撞
+                for (let obstacle of obstacles) {
+                    if (x - this.width/2 < obstacle.x + obstacle.width &&
+                        x + this.width/2 > obstacle.x &&
+                        y - this.height/2 < obstacle.y + obstacle.height &&
+                        y + this.height/2 > obstacle.y) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            
+            // 旋转坦克
+            rotate(keys) {
+                if (!this.isAlive) return;
+                
+                if (keys[this.controls.rotateLeft]) {
+                    this.direction -= TANK_ROTATION_SPEED;
+                }
+                if (keys[this.controls.rotateRight]) {
+                    this.direction += TANK_ROTATION_SPEED;
+                }
+            }
+            
+            // 发射子弹
+            shoot(keys, currentTime, bullets) {
+                if (!this.isAlive) return;
+                
+                if (keys[this.controls.shoot] && currentTime - this.lastShotTime > this.shotCooldown) {
+                    const bulletX = this.x + Math.cos(this.direction) * (this.width/2 + 10);
+                    const bulletY = this.y + Math.sin(this.direction) * (this.height/2 + 10);
+                    
+                    bullets.push(new Bullet(
+                        bulletX, 
+                        bulletY, 
+                        this.direction, 
+                        this.color,
+                        this
+                    ));
+                    
+                    this.lastShotTime = currentTime;
+                }
+            }
+            
+            // 受到伤害
+            takeDamage(amount) {
+                this.health -= amount;
+                if (this.health <= 0) {
+                    this.health = 0;
+                    this.isAlive = false;
+                }
+            }
+        }
+        
+        // 子弹类
+        class Bullet {
+            constructor(x, y, direction, color, owner) {
+                this.x = x;
+                this.y = y;
+                this.direction = direction;
+                this.speed = BULLET_SPEED;
+                this.size = BULLET_SIZE;
+                this.color = color;
+                this.owner = owner;
+                this.isAlive = true;
+            }
+            
+            // 更新子弹位置
+            update() {
+                if (!this.isAlive) return;
+                
+                this.x += Math.cos(this.direction) * this.speed;
+                this.y += Math.sin(this.direction) * this.speed;
+                
+                // 检查是否超出边界
+                if (this.x < 0 || this.x > CANVAS_WIDTH || 
+                    this.y < 0 || this.y > CANVAS_HEIGHT) {
+                    this.isAlive = false;
+                }
+            }
+            
+            // 绘制子弹
+            draw(ctx) {
+                if (!this.isAlive) return;
+                
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // 检查子弹与坦克的碰撞
+            checkCollision(tank) {
+                if (!this.isAlive || !tank.isAlive || tank === this.owner) return false;
+                
+                const distance = Math.sqrt(
+                    Math.pow(this.x - tank.x, 2) + 
+                    Math.pow(this.y - tank.y, 2)
+                );
+                
+                return distance < this.size + tank.width/2;
+            }
+            
+            // 检查子弹与障碍物的碰撞
+            checkObstacleCollision(obstacle) {
+                if (!this.isAlive) return false;
+                
+                return this.x > obstacle.x && 
+                       this.x < obstacle.x + obstacle.width &&
+                       this.y > obstacle.y && 
+                       this.y < obstacle.y + obstacle.height;
+            }
+        }
+        
+        // 障碍物类
+        class Obstacle {
+            constructor(x, y, width, height) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+            }
+            
+            // 绘制障碍物
+            draw(ctx) {
+                ctx.fillStyle = '#666';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                // 添加边框
+                ctx.strokeStyle = '#999';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+            }
+        }
+        
+        // 爆炸效果类
+        class Explosion {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = 5;
+                this.maxRadius = 30;
+                this.isAlive = true;
+            }
+            
+            // 更新爆炸效果
+            update() {
+                this.radius += 2;
+                if (this.radius >= this.maxRadius) {
+                    this.isAlive = false;
+                }
+            }
+            
+            // 绘制爆炸效果
+            draw(ctx) {
+                if (!this.isAlive) return;
+                
+                const alpha = 1 - (this.radius / this.maxRadius);
+                ctx.fillStyle = `rgba(255, 100, 0, ${alpha})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = `rgba(255, 255, 0, ${alpha * 0.7})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius * 0.6, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        
+        // 游戏主类
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.keys = {};
+                this.tanks = [];
+                this.bullets = [];
+                this.obstacles = [];
+                this.explosions = [];
+                this.gameOver = false;
+                this.winner = null;
+                
+                this.init();
+            }
+            
+            // 初始化游戏
+            init() {
+                // 创建玩家1坦克
+                const player1 = new Tank(
+                    100, 
+                    100, 
+                    '#3498db', 
+                    {
+                        up: 'KeyW',
+                        down: 'KeyS',
+                        left: 'KeyA',
+                        right: 'KeyD',
+                        rotateLeft: 'KeyQ',
+                        rotateRight: 'KeyE',
+                        shoot: 'Space'
+                    }
+                );
+                
+                // 创建玩家2坦克
+                const player2 = new Tank(
+                    CANVAS_WIDTH - 100, 
+                    CANVAS_HEIGHT - 100, 
+                    '#e74c3c', 
+                    {
+                        up: 'ArrowUp',
+                        down: 'ArrowDown',
+                        left: 'ArrowLeft',
+                        right: 'ArrowRight',
+                        rotateLeft: 'Comma',
+                        rotateRight: 'Period',
+                        shoot: 'Enter'
+                    }
+                );
+                
+                this.tanks.push(player1, player2);
+                
+                // 创建障碍物
+                this.createObstacles();
+                
+                // 绑定键盘事件
+                this.bindEvents();
+                
+                // 开始游戏循环
+                this.gameLoop();
+            }
+            
+            // 创建障碍物
+            createObstacles() {
+                // 创建一些随机障碍物
+                for (let i = 0; i < 8; i++) {
+                    const width = 50 + Math.random() * 100;
+                    const height = 50 + Math.random() * 100;
+                    const x = Math.random() * (CANVAS_WIDTH - width);
+                    const y = Math.random() * (CANVAS_HEIGHT - height);
+                    
+                    // 确保障碍物不会生成在坦克起始位置附近
+                    if (!this.isNearTankSpawn(x, y, width, height)) {
+                        this.obstacles.push(new Obstacle(x, y, width, height));
+                    }
+                }
+                
+                // 添加一些固定障碍物
+                this.obstacles.push(new Obstacle(200, 200, 100, 30));
+                this.obstacles.push(new Obstacle(500, 300, 30, 100));
+                this.obstacles.push(new Obstacle(350, 450, 150, 30));
+            }
+            
+            // 检查是否靠近坦克生成点
+            isNearTankSpawn(x, y, width, height) {
+                // 检查是否靠近玩家1起始位置
+                if (x < 200 && y < 200) return true;
+                
+                // 检查是否靠近玩家2起始位置
+                if (x + width > CANVAS_WIDTH - 200 && y + height > CANVAS_HEIGHT - 200) return true;
+                
+                return false;
+            }
+            
+            // 绑定事件
+            bindEvents() {
+                window.addEventListener('keydown', (e) => {
+                    this.keys[e.code] = true;
+                    e.preventDefault();
+                });
+                
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.code] = false;
+                    e.preventDefault();
+                });
+            }
+            
+            // 游戏主循环
+            gameLoop() {
+                const currentTime = Date.now();
+                
+                // 清空画布
+                this.ctx.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                
+                // 更新和绘制障碍物
+                for (let obstacle of this.obstacles) {
+                    obstacle.draw(this.ctx);
+                }
+                
+                // 更新和绘制坦克
+                for (let tank of this.tanks) {
+                    tank.move(this.keys, this.obstacles);
+                    tank.rotate(this.keys);
+                    tank.shoot(this.keys, currentTime, this.bullets);
+                    tank.draw(this.ctx);
+                }
+                
+                // 更新和绘制子弹
+                for (let i = this.bullets.length - 1; i >= 0; i--) {
+                    const bullet = this.bullets[i];
+                    bullet.update();
+                    bullet.draw(this.ctx);
+                    
+                    // 检查子弹是否击中坦克
+                    for (let tank of this.tanks) {
+                        if (bullet.checkCollision(tank)) {
+                            tank.takeDamage(20);
+                            bullet.isAlive = false;
+                            
+                            // 创建爆炸效果
+                            this.explosions.push(new Explosion(bullet.x, bullet.y));
+                            
+                            // 检查坦克是否被摧毁
+                            if (!tank.isAlive) {
+                                this.checkGameOver();
+                            }
+                        }
+                    }
+                    
+                    // 检查子弹是否击中障碍物
+                    for (let obstacle of this.obstacles) {
+                        if (bullet.checkObstacleCollision(obstacle)) {
+                            bullet.isAlive = false;
+                            this.explosions.push(new Explosion(bullet.x, bullet.y));
+                        }
+                    }
+                    
+                    // 移除死亡的子弹
+                    if (!bullet.isAlive) {
+                        this.bullets.splice(i, 1);
+                    }
+                }
+                
+                // 更新和绘制爆炸效果
+                for (let i = this.explosions.length - 1; i >= 0; i--) {
+                    const explosion = this.explosions[i];
+                    explosion.update();
+                    explosion.draw(this.ctx);
+                    
+                    // 移除已完成的爆炸效果
+                    if (!explosion.isAlive) {
+                        this.explosions.splice(i, 1);
+                    }
+                }
+                
+                // 绘制游戏结束信息
+                if (this.gameOver) {
+                    this.drawGameOver();
+                }
+                
+                // 继续游戏循环
+                requestAnimationFrame(() => this.gameLoop());
+            }
+            
+            // 检查游戏是否结束
+            checkGameOver() {
+                const aliveTanks = this.tanks.filter(tank => tank.isAlive);
+                if (aliveTanks.length === 1) {
+                    this.gameOver = true;
+                    this.winner = aliveTanks[0];
+                } else if (aliveTanks.length === 0) {
+                    this.gameOver = true;
+                    this.winner = null; // 平局
+                }
+            }
+            
+            // 绘制游戏结束信息
+            drawGameOver() {
+                this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                this.ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+                
+                this.ctx.fillStyle = '#fff';
+                this.ctx.font = '48px Arial';
+                this.ctx.textAlign = 'center';
+                
+                if (this.winner) {
+                    const winnerText = this.winner.color === '#3498db' ? '玩家1 (蓝色)' : '玩家2 (红色)';
+                    this.ctx.fillText(`${winnerText} 获胜!`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 30);
+                } else {
+                    this.ctx.fillText('平局!', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 30);
+                }
+                
+                this.ctx.font = '24px Arial';
+                this.ctx.fillText('按 F5 重新开始', CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 30);
+            }
+        }
+        
+        // 页面加载完成后启动游戏
+        window.onload = () => {
+            new Game();
+        };
+    </script>
+</body>
+</html>

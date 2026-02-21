@@ -1,0 +1,1663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Backpack War Game - Combat & Strategy Edition</title>
+<style>
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  #gameContainer {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    background: #1a1a2e;
+    image-rendering: optimizeSpeed; 
+    border: 4px solid #00d4ff;
+    border-radius: 12px;
+    box-shadow: 0 0 50px rgba(0, 212, 255, 0.3), 
+                0 0 100px rgba(79, 172, 254, 0.1),
+                inset 0 0 50px rgba(0, 0, 0, 0.3);
+    touch-action: none;
+  }
+  
+  #gameTitle {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    font-size: clamp(18px, 4vw, 28px);
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.8),
+                 0 0 30px rgba(0, 212, 255, 0.6),
+                 3px 3px 0px #000;
+    letter-spacing: 3px;
+    z-index: 100;
+    white-space: nowrap;
+    user-select: none;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, #fff, #00d4ff, #fff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-size: 200% auto;
+    animation: shine 3s linear infinite;
+  }
+
+  @keyframes shine {
+    to { background-position: 200% center; }
+  }
+  
+  /* Notification System */
+  #notification {
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(0, 212, 255, 0.9));
+    color: #000;
+    padding: 12px 30px;
+    border-radius: 30px;
+    font-weight: bold;
+    font-size: 14px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 212, 255, 0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    z-index: 500;
+    letter-spacing: 0.5px;
+    border: 1px solid rgba(255,255,255,0.4);
+  }
+  #notification.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* Tooltip System */
+  #tooltip {
+    position: fixed;
+    background: rgba(10, 20, 40, 0.98);
+    border: 1px solid rgba(0, 212, 255, 0.8);
+    border-radius: 8px;
+    padding: 12px;
+    color: white;
+    pointer-events: none;
+    z-index: 1000;
+    display: none;
+    max-width: 220px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7), 0 0 10px rgba(0, 212, 255, 0.2);
+    font-size: 13px;
+    line-height: 1.4;
+    backdrop-filter: blur(10px);
+  }
+  #tooltip .tip-title {
+    color: #00d4ff;
+    font-weight: bold;
+    margin-bottom: 5px;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding-bottom: 5px;
+  }
+  #tooltip .tip-desc {
+    color: #ccc;
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+  #tooltip .tip-stats {
+    color: #aaffaa;
+  }
+
+  #inventory {
+    position: absolute;
+    top: 70px;
+    left: 20px;
+    background: linear-gradient(180deg, rgba(40, 40, 60, 0.7) 0%, rgba(10, 10, 30, 0.85) 100%);
+    backdrop-filter: blur(15px);
+    color: white;
+    padding: 18px;
+    border-radius: 16px;
+    border: 2px solid rgba(0, 212, 255, 0.4);
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6), 0 0 30px rgba(0, 212, 255, 0.1);
+    width: 320px; 
+    max-width: 90vw;
+    pointer-events: auto;
+    opacity: 0;
+    transform: scale(0.9) translateX(-20px);
+    z-index: 200;
+    visibility: hidden;
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  
+  #inventory.visible {
+    visibility: visible;
+    opacity: 1;
+    transform: scale(1) translateX(0);
+  }
+
+  #inventoryTitle {
+    margin: 0 0 15px 0;
+    padding-bottom: 12px;
+    border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    text-shadow: 0 0 5px rgba(0,212,255,0.5);
+  }
+  #inventoryTitle::before,
+  #inventoryTitle::after {
+    content: '✦';
+    font-size: 10px;
+    color: rgba(0, 212, 255, 0.8);
+  }
+  
+  #inventoryHint {
+    font-size: 11px;
+    text-align: center;
+    color: rgba(255,255,255,0.5);
+    margin-bottom: 10px;
+  }
+  
+  #inventoryActions {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+  
+  .action-btn {
+    flex: 1;
+    background: linear-gradient(180deg, #4facfe 0%, #00f2fe 100%);
+    border: none;
+    padding: 8px;
+    border-radius: 6px;
+    color: #000;
+    font-weight: bold;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    font-size: 12px;
+    text-transform: uppercase;
+  }
+  
+  .action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 212, 255, 0.4);
+  }
+  
+  .action-btn:active {
+    transform: translateY(0);
+  }
+  
+  #inventoryGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 5px;
+  }
+  
+  /* Scrollbar Styling */
+  #inventoryGrid::-webkit-scrollbar {
+    width: 6px;
+  }
+  #inventoryGrid::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 3px;
+  }
+  #inventoryGrid::-webkit-scrollbar-thumb {
+    background: rgba(0, 212, 255, 0.4);
+    border-radius: 3px;
+  }
+  
+  .item-slot {
+    aspect-ratio: 1;
+    background: linear-gradient(145deg, rgba(20, 20, 30, 0.6) 0%, rgba(0, 0, 0, 0.8) 100%);
+    border-radius: 10px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    overflow: hidden;
+    opacity: 0; 
+    transform: scale(0.5);
+  }
+
+  .item-slot.pop-in {
+    opacity: 1;
+    transform: scale(1);
+  }
+  
+  .item-slot:hover {
+    transform: translateY(-5px) scale(1.05);
+    border-color: rgba(255, 255, 255, 0.8);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.5), 0 0 10px rgba(0, 212, 255, 0.3);
+    background: linear-gradient(145deg, rgba(40, 50, 70, 0.8) 0%, rgba(20, 30, 50, 0.9) 100%);
+  }
+  
+  .item-slot.empty {
+    background: rgba(0,0,0,0.2);
+    border: 2px dashed rgba(255, 255, 255, 0.05);
+    cursor: default;
+    opacity: 1;
+    transform: scale(1);
+  }
+  .item-slot.empty:hover {
+    transform: none;
+    border-color: rgba(255, 255, 255, 0.05);
+    box-shadow: none;
+  }
+  
+  .item-slot .item-icon {
+    font-size: 28px;
+    margin-bottom: 2px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+    transition: transform 0.3s;
+  }
+  .item-slot:hover .item-icon {
+    transform: scale(1.2) rotate(5deg);
+  }
+  
+  .item-slot .item-name {
+    font-size: 9px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.9);
+    text-align: center;
+    line-height: 1.1;
+    max-width: 90%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+  }
+  
+  /* Rarity Styles */
+  .item-slot.rarity-common { border-color: rgba(200, 200, 200, 0.6); }
+  .item-slot.rarity-rare { 
+    border-color: rgba(0, 150, 255, 0.8); 
+    box-shadow: inset 0 0 15px rgba(0, 100, 255, 0.3);
+  }
+  .item-slot.rarity-epic { 
+    border-color: rgba(200, 0, 255, 0.8); 
+    box-shadow: inset 0 0 15px rgba(180, 0, 255, 0.3);
+  }
+  .item-slot.rarity-legendary { 
+    border-color: rgba(255, 200, 0, 1.0); 
+    box-shadow: inset 0 0 20px rgba(255, 150, 0, 0.5);
+    animation: legendaryPulse 2s infinite;
+  }
+
+  @keyframes legendaryPulse {
+    0%, 100% { box-shadow: inset 0 0 20px rgba(255, 150, 0, 0.3), 0 0 5px rgba(255, 200, 0, 0.2); }
+    50% { box-shadow: inset 0 0 25px rgba(255, 150, 0, 0.6), 0 0 15px rgba(255, 200, 0, 0.6); }
+  }
+
+  /* UI Controls Info */
+  #controls {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.7);
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 50;
+    text-align: center;
+    background: rgba(0,0,0,0.4);
+    padding: 8px 15px;
+    border-radius: 20px;
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  
+  #statusBar {
+    position: absolute;
+    top: 60px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 100;
+    background: rgba(0,0,0,0.6);
+    padding: 10px 15px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    min-width: 150px;
+  }
+  
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    color: #fff;
+    font-weight: bold;
+  }
+  
+  .hp-bar-bg {
+    width: 100%;
+    height: 12px;
+    background: #333;
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid #555;
+  }
+  
+  .hp-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #ff4e50, #fc913a);
+    width: 100%;
+    transition: width 0.2s;
+  }
+  
+  .stat-icon {
+    margin-right: 5px;
+  }
+
+  /* Mobile Touch Controls */
+  #mobileControls {
+    position: absolute;
+    bottom: 20px;
+    width: 100%;
+    display: none; 
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 150;
+  }
+  .touch-btn {
+    width: 60px;
+    height: 60px;
+    background: rgba(255,255,255,0.1);
+    border: 2px solid rgba(0, 212, 255, 0.5);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: white;
+    font-size: 24px;
+    user-select: none;
+    box-shadow: 0 0 10px rgba(0,0,0,0.3);
+  }
+  .touch-btn:active {
+    background: rgba(0, 212, 255, 0.4);
+    transform: scale(0.95);
+  }
+  
+  #jumpBtn {
+    margin-right: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <div id="gameTitle">BACKPACK WAR</div>
+  <canvas id="gameCanvas"></canvas>
+  
+  <div id="statusBar">
+     <div class="stat-row">
+        <span>HP</span>
+        <span id="hpText">100/100</span>
+     </div>
+     <div class="hp-bar-bg">
+        <div class="hp-bar-fill" id="hpFill"></div>
+     </div>
+     <div class="stat-row" style="margin-top:5px;">
+        <span><span class="stat-icon">💰</span> Gold</span>
+        <span id="goldText">0</span>
+     </div>
+     <div class="stat-row">
+        <span><span class="stat-icon">🌊</span> Wave</span>
+        <span id="waveText">1</span>
+     </div>
+  </div>
+  
+  <div id="notification"></div>
+  <div id="tooltip">
+    <div class="tip-title"></div>
+    <div class="tip-desc"></div>
+    <div class="tip-stats"></div>
+  </div>
+
+  <div id="inventory">
+    <div id="inventoryTitle">INVENTORY</div>
+    <div id="inventoryHint">Stats are applied automatically</div>
+    <div id="inventoryActions">
+        <button class="action-btn" id="mergeBtn">Merge Items (x3)</button>
+    </div>
+    <div id="inventoryGrid">
+      <!-- Slots generated by JS -->
+    </div>
+  </div>
+
+  <div id="controls">
+    A/D: Move | SPACE: Jump | B: Backpack | Auto-Attack Enabled
+  </div>
+
+  <div id="mobileControls">
+    <div style="display: flex; gap: 20px;">
+       <button class="touch-btn" id="leftBtn">◀</button>
+       <button class="touch-btn" id="rightBtn">▶</button>
+    </div>
+    <button class="touch-btn" id="jumpBtn">▲</button>
+  </div>
+</div>
+
+<script>
+  // ============ 核心配置与常量 ============
+  const MAX_INVENTORY_SLOTS = 12;
+  const GRAVITY = 1200;
+  const GROUND_Y_RATIO = 0.85; 
+  const NOTIFICATION_DURATION = 2000; 
+  
+  // ============ 全局状态 ============
+  let inventory = [];
+  let selectedItemIndex = -1;
+  let isInventoryOpen = false;
+  let gold = 0;
+  let wave = 1;
+  let enemies = [];
+  let projectiles = [];
+  let floatingTexts = [];
+  let lootDrops = [];
+  
+  // Player Stats
+  let playerStats = {
+      maxHp: 100,
+      hp: 100,
+      attack: 10,
+      defense: 5,
+      speed: 300,
+      critChance: 0.05,
+      attackCooldown: 0.8, // seconds per attack
+      attackTimer: 0
+  };
+
+  // Canvas & Context Optimization
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d', { alpha: false }); 
+  let canvasWidth, canvasHeight, groundY;
+
+  // Input State
+  const keys = { left: false, right: false, jump: false };
+
+  // UI Elements
+  const notificationEl = document.getElementById('notification');
+  const tooltipEl = document.getElementById('tooltip');
+  const inventoryEl = document.getElementById('inventory');
+  const hpFill = document.getElementById('hpFill');
+  const hpText = document.getElementById('hpText');
+  const goldText = document.getElementById('goldText');
+  const waveText = document.getElementById('waveText');
+
+  // ============ 性能优化：离屏渲染 ============
+  let bgBuffer = document.createElement('canvas');
+  let bgCtx = bgBuffer.getContext('2d');
+  let lastBgUpdate = 0;
+  const BG_UPDATE_INTERVAL = 100; 
+
+  // ============ 资源与对象定义 ============
+  
+  // 动画系统
+  const AnimationSystem = {
+    lastTime: 0,
+    deltaTime: 0,
+    totalTime: 0,
+    
+    easing: {
+      linear: t => t,
+      easeInOut: t => t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2,
+      easeOut: t => 1 - Math.pow(1 - t, 3),
+      easeOutElastic: t => {
+        const c4 = (2 * Math.PI) / 3;
+        return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1;
+      }
+    },
+    
+    lerp: (start, end, t) => start + (end - start) * t,
+    
+    smoothDamp: (current, target, velocity, smoothTime, maxSpeed, deltaTime) => {
+      smoothTime = Math.max(0.0001, smoothTime);
+      const omega = 2 / smoothTime;
+      const x = omega * deltaTime;
+      const exp = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+      let change = current - target;
+      const originalTo = target;
+      const maxChange = maxSpeed * smoothTime;
+      change = Math.max(-maxChange, Math.min(maxChange, change));
+      target = current - change;
+      const temp = (velocity + omega * change) * deltaTime;
+      velocity = (velocity - omega * temp) * exp;
+      let output = target + (change + temp) * exp;
+      if (originalTo - current > 0 === output > originalTo) {
+        output = originalTo;
+        velocity = (output - originalTo) / deltaTime;
+      }
+      return { value: output, velocity: velocity };
+    },
+    
+    updateTime(currentTime) {
+      if (!this.lastTime) this.lastTime = currentTime;
+      this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.1); 
+      this.lastTime = currentTime;
+      this.totalTime += this.deltaTime;
+    }
+  };
+
+  // 动画状态机
+  class AnimationStateMachine {
+    constructor() {
+      this.currentState = 'idle';
+      this.stateTime = 0;
+    }
+    
+    setState(newState) {
+      if (this.currentState !== newState) {
+        this.currentState = newState;
+        this.stateTime = 0;
+      }
+    }
+    
+    update(deltaTime) {
+      this.stateTime += deltaTime;
+    }
+  }
+
+  // 玩家对象
+  const player = {
+    x: 100,
+    y: 300,
+    width: 48,
+    height: 64,
+    velocityX: 0,
+    velocityY: 0,
+    speed: 300,
+    direction: 1,
+    isMoving: false,
+    isGrounded: true,
+    animState: new AnimationStateMachine(),
+    smoothX: 100,
+    smoothY: 300,
+    vSmoothX: 0,
+    vSmoothY: 0,
+    jumpForce: -500,
+    colors: {
+      skin: '#ffcc99',
+      hair: '#4a3728',
+      shirt: '#00d4ff',
+      pants: '#2c3e50',
+      outline: '#1a1a2e'
+    }
+  };
+
+  // 背包对象
+  const backpack = {
+    x: 150,
+    y: 150,
+    width: 130,
+    height: 70,
+    isHovered: false,
+    bounceOffset: 0
+  };
+
+  // 环境对象
+  let stars = [];
+  let clouds = [];
+  let particles = [];
+  let mountains = [];
+  let spawnTimer = 0;
+
+  // 物品数据库
+  const itemDatabase = [
+    { id: 1, name: 'Iron Sword', icon: '⚔️', rarity: 'common', stats: { attack: 5 }, desc: 'A basic iron sword.' },
+    { id: 2, name: 'Steel Shield', icon: '🛡️', rarity: 'common', stats: { defense: 8 }, desc: 'Sturdy steel shield.' },
+    { id: 3, name: 'Potion', icon: '💊', rarity: 'common', stats: { heal: 20 }, desc: 'Restores HP.' },
+    { id: 4, name: 'Elven Bow', icon: '🏹', rarity: 'rare', stats: { attack: 12, speed: 3 }, desc: 'Fast and accurate.' },
+    { id: 5, name: 'Magic Staff', icon: '🔮', rarity: 'rare', stats: { magic: 15 }, desc: 'Glows with power.' },
+    { id: 6, name: 'Shadow Dagger', icon: '🗡️', rarity: 'epic', stats: { attack: 18, crit: 10 }, desc: 'Strikes from shadows.' },
+    { id: 7, name: 'Holy Sword', icon: '✨', rarity: 'legendary', stats: { attack: 35, holy: 20 }, desc: 'Legendary blade.' },
+    { id: 8, name: 'Time Boots', icon: '👟', rarity: 'legendary', stats: { speed: 25 }, desc: 'Distorts time.' }
+  ];
+  
+  const rarityOrder = ['common', 'rare', 'epic', 'legendary'];
+
+  // ============ 初始化逻辑 ============
+  
+  function init() {
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    
+    generateEnvironment();
+    renderInventorySlots();
+    
+    addItemToInventory(itemDatabase[0]);
+    addItemToInventory(itemDatabase[3]);
+    addItemToInventory(itemDatabase[6]);
+    
+    calculateStats();
+
+    setupInputListeners();
+    
+    if ('ontouchstart' in window) {
+      document.getElementById('mobileControls').style.display = 'flex';
+      document.getElementById('controls').style.display = 'none';
+    }
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  function resizeCanvas() {
+    const container = document.getElementById('gameContainer');
+    const ratio = 16 / 9; 
+    let w = window.innerWidth;
+    let h = window.innerHeight;
+    
+    if (w / h > ratio) {
+      canvas.height = h * 0.9;
+      canvas.width = canvas.height * ratio;
+    } else {
+      canvas.width = w * 0.9;
+      canvas.height = canvas.width / ratio;
+    }
+    
+    canvasWidth = canvas.width;
+    canvasHeight = canvas.height;
+    groundY = canvasHeight * GROUND_Y_RATIO;
+    
+    player.y = groundY - player.height; 
+    
+    bgBuffer.width = canvasWidth;
+    bgBuffer.height = canvasHeight;
+    
+    generateEnvironment();
+    drawBackgroundToBuffer(AnimationSystem.totalTime);
+  }
+
+  function generateEnvironment() {
+    stars = [];
+    clouds = [];
+    mountains = [];
+    
+    for(let i=0; i<3; i++) {
+        mountains.push({
+            x: i * canvasWidth/2 - 100, 
+            width: canvasWidth,
+            height: 200 + i*50,
+            color: i === 0 ? '#1a1a2e' : (i === 1 ? '#16162b' : '#121224')
+        });
+    }
+    
+    for (let i = 0; i < 80; i++) {
+      stars.push({
+        x: Math.random() * canvasWidth,
+        y: Math.random() * (groundY - 50),
+        size: Math.random() * 2.5 + 0.5,
+        twinkle: Math.random() * Math.PI * 2,
+        brightness: Math.random() * 0.5 + 0.5
+      });
+    }
+    
+    for (let i = 0; i < 5; i++) {
+      clouds.push({
+        x: Math.random() * canvasWidth,
+        y: 30 + Math.random() * 100,
+        width: 80 + Math.random() * 60,
+        speed: 20 + Math.random() * 20
+      });
+    }
+  }
+
+  // ============ 输入处理 ============
+  
+  function setupInputListeners() {
+    window.addEventListener('keydown', e => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+      if (e.code === 'Space') { 
+        keys.jump = true; 
+        e.preventDefault(); 
+      }
+      if (e.code === 'KeyB' || e.code === 'KeyI') {
+        toggleInventory();
+        e.preventDefault();
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+      if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+      if (e.code === 'Space') keys.jump = false;
+    });
+
+    canvas.addEventListener('click', handleCanvasClick);
+    canvas.addEventListener('mousemove', handleCanvasHover);
+
+    const leftBtn = document.getElementById('leftBtn');
+    const rightBtn = document.getElementById('rightBtn');
+    const jumpBtn = document.getElementById('jumpBtn');
+
+    const handleTouch = (btn, key, val) => {
+      btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = val; });
+      btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = !val; });
+    };
+
+    handleTouch(leftBtn, 'left', true);
+    handleTouch(rightBtn, 'right', true);
+    handleTouch(jumpBtn, 'jump', true);
+    
+    leftBtn.addEventListener('touchend', () => keys.left = false);
+    rightBtn.addEventListener('touchend', () => keys.right = false);
+    jumpBtn.addEventListener('touchend', () => keys.jump = false);
+
+    window.addEventListener('mousemove', handleInventoryHover);
+    
+    // Merge Button
+    document.getElementById('mergeBtn').addEventListener('click', attemptMerge);
+  }
+
+  function handleCanvasClick(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    if (x > backpack.x && x < backpack.x + backpack.width &&
+        y > backpack.y && y < backpack.y + backpack.height) {
+      toggleInventory();
+    }
+  }
+
+  function handleCanvasHover(e) {
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+    
+    const wasHovered = backpack.isHovered;
+    backpack.isHovered = (x > backpack.x && x < backpack.x + backpack.width &&
+                          y > backpack.y && y < backpack.y + backpack.height);
+    
+    if (backpack.isHovered) canvas.style.cursor = 'pointer';
+    else canvas.style.cursor = 'default';
+  }
+
+  // ============ 游戏逻辑 ============
+
+  function update() {
+    const dt = AnimationSystem.deltaTime;
+    const p = player;
+
+    // Movement
+    if (keys.left) {
+      p.velocityX = -playerStats.speed;
+      p.direction = -1;
+      p.isMoving = true;
+    } else if (keys.right) {
+      p.velocityX = playerStats.speed;
+      p.direction = 1;
+      p.isMoving = true;
+    } else {
+      p.velocityX *= 0.8; 
+      if (Math.abs(p.velocityX) < 1) p.velocityX = 0;
+      p.isMoving = false;
+    }
+
+    if (keys.jump && p.isGrounded) {
+      p.velocityY = p.jumpForce;
+      p.isGrounded = false;
+      createParticles(p.x + p.width/2, p.y + p.height, 8, 'jump');
+    }
+
+    p.velocityY += GRAVITY * dt;
+
+    p.x += p.velocityX * dt;
+    p.y += p.velocityY * dt;
+
+    if (p.x < 0) p.x = 0;
+    if (p.x + p.width > canvasWidth) p.x = canvasWidth - p.width;
+    
+    if (p.y + p.height > groundY) {
+      p.y = groundY - p.height;
+      p.velocityY = 0;
+      if(!p.isGrounded) createParticles(p.x + p.width/2, p.y + p.height, 5, 'land');
+      p.isGrounded = true;
+    }
+
+    // Animation
+    if (!p.isGrounded) p.animState.setState('jump');
+    else if (p.isMoving) p.animState.setState('walk');
+    else p.animState.setState('idle');
+    
+    p.animState.update(dt);
+
+    if (p.isMoving && p.isGrounded && Math.random() < 0.3) {
+        createParticles(p.x + p.width/2, p.y + p.height, 1, 'dust');
+    }
+
+    updateParticles(dt);
+    updateCombat(dt);
+    updateEnemies(dt);
+    updateProjectiles(dt);
+    updateLoot(dt);
+    updateFloatingTexts(dt);
+    
+    backpack.bounceOffset = Math.sin(AnimationSystem.totalTime * 3) * 3;
+    if (backpack.isHovered) backpack.bounceOffset *= 1.5;
+  }
+  
+  // ============ NEW: Combat & RPG Logic ============
+  
+  function calculateStats() {
+      // Reset to base
+      playerStats.maxHp = 100;
+      playerStats.attack = 10;
+      playerStats.defense = 5;
+      playerStats.speed = 300;
+      playerStats.critChance = 0.05;
+      
+      inventory.forEach(item => {
+          if(!item) return;
+          if(item.stats.attack) playerStats.attack += item.stats.attack;
+          if(item.stats.defense) playerStats.defense += item.stats.defense;
+          if(item.stats.speed) playerStats.speed += item.stats.speed;
+          if(item.stats.crit) playerStats.critChance += (item.stats.crit / 100);
+      });
+      
+      player.speed = playerStats.speed;
+      updateUI();
+  }
+  
+  function updateUI() {
+      const percent = Math.max(0, (playerStats.hp / playerStats.maxHp) * 100);
+      hpFill.style.width = percent + '%';
+      hpText.innerText = Math.ceil(playerStats.hp) + '/' + playerStats.maxHp;
+      goldText.innerText = gold;
+      waveText.innerText = wave;
+  }
+
+  function updateCombat(dt) {
+      playerStats.attackTimer -= dt;
+      
+      if(playerStats.attackTimer <= 0) {
+          // Find closest enemy
+          let closestDist = 400; // Range
+          let target = null;
+          
+          enemies.forEach(en => {
+              const dist = Math.hypot(en.x - player.x, en.y - player.y);
+              if(dist < closestDist) {
+                  closestDist = dist;
+                  target = en;
+              }
+          });
+          
+          if(target) {
+              fireProjectile(target);
+              playerStats.attackTimer = playerStats.attackCooldown; // Reset cooldown
+          }
+      }
+  }
+  
+  function fireProjectile(target) {
+      const angle = Math.atan2(target.y - player.y, target.x - player.x);
+      const proj = {
+          x: player.x + player.width/2,
+          y: player.y + player.height/2,
+          vx: Math.cos(angle) * 600,
+          vy: Math.sin(angle) * 600,
+          damage: playerStats.attack,
+          size: 6,
+          color: '#00ffff'
+      };
+      
+      // Check for crit
+      if(Math.random() < playerStats.critChance) {
+          proj.damage *= 2;
+          proj.size = 10;
+          proj.color = '#ffff00';
+      }
+      
+      projectiles.push(proj);
+  }
+  
+  function updateProjectiles(dt) {
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+          const p = projectiles[i];
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          
+          // Out of bounds
+          if(p.x < 0 || p.x > canvasWidth || p.y < 0 || p.y > canvasHeight) {
+              projectiles.splice(i, 1);
+              continue;
+          }
+          
+          // Collision with enemies
+          for(let j = enemies.length - 1; j >= 0; j--) {
+              const en = enemies[j];
+              if(checkCollision(p, en)) {
+                  en.hp -= p.damage;
+                  createParticles(p.x, p.y, 3, 'hit');
+                  floatingTexts.push({
+                      x: en.x, y: en.y - 10,
+                      text: Math.floor(p.damage),
+                      vy: -80, life: 1, color: p.color
+                  });
+                  projectiles.splice(i, 1);
+                  
+                  if(en.hp <= 0) {
+                      killEnemy(j);
+                  }
+                  break;
+              }
+          }
+      }
+  }
+  
+  function updateEnemies(dt) {
+      // Spawning Logic
+      spawnTimer -= dt;
+      if(spawnTimer <= 0) {
+          spawnEnemy();
+          spawnTimer = 3.0 - (wave * 0.2); // Faster spawns at higher waves
+          if(spawnTimer < 0.8) spawnTimer = 0.8;
+      }
+      
+      for (let i = enemies.length - 1; i >= 0; i--) {
+          const en = enemies[i];
+          
+          // Move towards player
+          const dir = player.x > en.x ? 1 : -1;
+          en.x += en.speed * dir * dt;
+          
+          // Gravity
+          en.vy += GRAVITY * dt;
+          en.y += en.vy * dt;
+          
+          if (en.y + en.height > groundY) {
+              en.y = groundY - en.height;
+              en.vy = 0;
+              // Small jump logic for slimes
+              if(Math.random() < 0.02) en.vy = -300;
+          }
+          
+          // Collision with player
+          if(checkCollision(player, en)) {
+              const dmg = Math.max(1, en.damage - playerStats.defense);
+              playerStats.hp -= dmg * dt * 2; // DPS
+              
+              if(playerStats.hp <= 0) {
+                  playerStats.hp = 0;
+                  showNotification("YOU DIED! Resetting...");
+                  setTimeout(resetGame, 2000);
+              }
+              updateUI();
+          }
+      }
+  }
+  
+  function spawnEnemy() {
+      const side = Math.random() > 0.5 ? 1 : 0;
+      const en = {
+          x: side ? canvasWidth + 20 : -20,
+          y: 100,
+          width: 40, height: 40,
+          vy: 0,
+          hp: 30 + (wave * 10),
+          maxHp: 30 + (wave * 10),
+          speed: 60 + (wave * 5),
+          damage: 5 + wave,
+          color: '#ff4e50'
+      };
+      enemies.push(en);
+  }
+  
+  function killEnemy(index) {
+      const en = enemies[index];
+      createParticles(en.x, en.y, 10, 'death');
+      
+      // Drop Gold
+      const goldAmt = 5 + Math.floor(Math.random() * 5);
+      gold += goldAmt;
+      floatingTexts.push({
+          x: en.x, y: en.y,
+          text: "+" + goldAmt + " 💰",
+          vy: -50, life: 1.5, color: '#ffd700'
+      });
+      
+      // Chance to drop Item
+      if(Math.random() < 0.2) {
+          lootDrops.push({
+              x: en.x, y: en.y,
+              vy: -200,
+              item: getRandomItem(), 
+              size: 20,
+              life: 10
+          });
+      }
+      
+      enemies.splice(index, 1);
+      updateUI();
+      
+      // Wave Logic
+      if(enemies.length === 0 && Math.random() < 0.3) { // Randomize next wave trigger a bit
+          wave++;
+          showNotification("Wave " + wave + " Incoming!");
+      }
+  }
+  
+  function updateLoot(dt) {
+      for(let i = lootDrops.length - 1; i >= 0; i--) {
+          const l = lootDrops[i];
+          
+          // Physics
+          l.vy += GRAVITY * dt;
+          l.y += l.vy * dt;
+          if(l.y + l.size > groundY) {
+              l.y = groundY - l.size;
+              l.vy = 0;
+          }
+          
+          l.life -= dt;
+          
+          // Pickup
+          const dist = Math.hypot(player.x - l.x, player.y - l.y);
+          if(dist < 50) {
+              // Magnetic pull
+              const angle = Math.atan2(player.y - l.y, player.x - l.x);
+              l.x += Math.cos(angle) * 300 * dt;
+              l.y += Math.sin(angle) * 300 * dt;
+              
+              if(dist < 30) {
+                  if(addItemToInventory(l.item)) {
+                      calculateStats();
+                      lootDrops.splice(i, 1);
+                      continue;
+                  }
+              }
+          }
+          
+          if(l.life <= 0) lootDrops.splice(i, 1);
+      }
+  }
+  
+  function updateFloatingTexts(dt) {
+      for(let i = floatingTexts.length - 1; i >= 0; i--) {
+          const ft = floatingTexts[i];
+          ft.y += ft.vy * dt;
+          ft.life -= dt;
+          if(ft.life <= 0) floatingTexts.splice(i, 1);
+      }
+  }
+  
+  function resetGame() {
+      playerStats.hp = playerStats.maxHp;
+      player.x = 100;
+      player.y = groundY - player.height;
+      enemies = [];
+      projectiles = [];
+      wave = 1;
+      gold = 0;
+      updateUI();
+  }
+  
+  function attemptMerge() {
+      // Group items by rarity
+      const groups = {
+          'common': [],
+          'rare': [],
+          'epic': [],
+          'legendary': []
+      };
+      
+      // Identify indices
+      inventory.forEach((item, index) => {
+          if(item) groups[item.rarity].push(index);
+      });
+      
+      // Check for merges
+      for(let r = 0; r < rarityOrder.length - 1; r++) { // Don't merge legendary
+          const rarity = rarityOrder[r];
+          const nextRarity = rarityOrder[r+1];
+          
+          if(groups[rarity].length >= 3) {
+              // Remove 3 items
+              const idx1 = groups[rarity][0];
+              const idx2 = groups[rarity][1];
+              const idx3 = groups[rarity][2];
+              
+              inventory[idx1] = null;
+              inventory[idx2] = null;
+              inventory[idx3] = null;
+              
+              // Add new item
+              const newItem = getRandomItem(nextRarity);
+              addItemToInventory(newItem);
+              calculateStats();
+              showNotification("Merged 3 " + rarity + " items into " + newItem.name + "!");
+              return; // Do one merge per click
+          }
+      }
+      
+      showNotification("Need 3 same-rarity items to merge!");
+  }
+  
+  function getRandomItem(forceRarity = null) {
+      // Simple weighted random
+      let roll = Math.random();
+      let rarity = 'common';
+      
+      if(forceRarity) {
+          rarity = forceRarity;
+      } else {
+          if(roll > 0.95) rarity = 'legendary';
+          else if(roll > 0.85) rarity = 'epic';
+          else if(roll > 0.70) rarity = 'rare';
+      }
+      
+      const pool = itemDatabase.filter(i => i.rarity === rarity);
+      if(pool.length === 0) return itemDatabase[0]; // Fallback
+      return {...pool[Math.floor(Math.random() * pool.length)]}; // Clone
+  }
+  
+  function checkCollision(a, b) {
+      return a.x < b.x + b.width &&
+             a.x + a.width > b.x &&
+             a.y < b.y + b.height &&
+             a.y + a.height > b.y;
+  }
+
+  function createParticles(x, y, count, type) {
+    for(let i=0; i<count; i++) {
+      let p = {
+        x: x,
+        y: y,
+        vx: (Math.random() - 0.5) * 200,
+        vy: -Math.random() * 200,
+        life: 1.0,
+        color: '#fff',
+        size: 3
+      };
+      
+      if(type === 'jump' || type === 'land') {
+          p.vx = (Math.random() - 0.5) * 300;
+          p.vy = -Math.random() * (type === 'jump' ? 400 : 200);
+          p.color = `rgba(255, 255, 255, 0.8)`;
+          p.size = 4;
+      } else if (type === 'dust') {
+          p.vx = (Math.random() - 0.5) * 50;
+          p.vy = -Math.random() * 50;
+          p.color = `rgba(200, 200, 200, 0.5)`;
+          p.life = 0.6;
+          p.size = 2;
+      } else if (type === 'hit') {
+          p.color = `rgba(255, 0, 0, 0.8)`;
+          p.size = 4;
+      } else if (type === 'death') {
+          p.color = `rgba(255, 100, 50, 0.9)`;
+          p.size = 5;
+          p.vx = (Math.random() - 0.5) * 400;
+          p.vy = -Math.random() * 400;
+      }
+      
+      particles.push(p);
+    }
+  }
+
+  function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      let p = particles[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vy += 500 * dt; 
+      p.life -= dt * 2;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+  }
+
+  // ============ 渲染逻辑 ============
+
+  function draw() {
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    drawBackgroundToBuffer(AnimationSystem.totalTime);
+    ctx.drawImage(bgBuffer, 0, 0);
+
+    drawBackpack();
+    drawLoot();
+    drawEnemies();
+    drawPlayer();
+    drawProjectiles();
+    drawParticles();
+    drawFloatingTexts();
+  }
+  
+  function drawProjectiles() {
+      projectiles.forEach(p => {
+          ctx.fillStyle = p.color;
+          ctx.shadowBlur = 10;
+          ctx.shadowColor = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+          ctx.fill();
+          ctx.shadowBlur = 0;
+      });
+  }
+  
+  function drawEnemies() {
+      enemies.forEach(en => {
+          // Body
+          ctx.fillStyle = en.color;
+          ctx.beginPath();
+          ctx.ellipse(en.x + en.width/2, en.y + en.height/2, en.width/2, en.height/2, 0, 0, Math.PI*2);
+          ctx.fill();
+          
+          // Outline
+          ctx.strokeStyle = "#000";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+          
+          // Eyes
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(en.x + 10, en.y + 10, 8, 8);
+          ctx.fillRect(en.x + 25, en.y + 10, 8, 8);
+          
+          // HP Bar
+          const hpPercent = en.hp / en.maxHp;
+          ctx.fillStyle = "#333";
+          ctx.fillRect(en.x, en.y - 10, en.width, 5);
+          ctx.fillStyle = "#ff4e50";
+          ctx.fillRect(en.x, en.y - 10, en.width * hpPercent, 5);
+      });
+  }
+  
+  function drawLoot() {
+      lootDrops.forEach(l => {
+          ctx.font = "20px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText(l.item.icon, l.x, l.y);
+          
+          // Glow
+          ctx.beginPath();
+          ctx.arc(l.x, l.y - 5, 15, 0, Math.PI*2);
+          ctx.fillStyle = `rgba(255, 215, 0, ${0.2 + Math.sin(AnimationSystem.totalTime * 5) * 0.1})`;
+          ctx.fill();
+      });
+  }
+  
+  function drawFloatingTexts() {
+      ctx.font = "bold 16px Arial";
+      ctx.textAlign = "center";
+      ctx.strokeStyle = "#000";
+      ctx.lineWidth = 3;
+      
+      floatingTexts.forEach(ft => {
+          ctx.globalAlpha = ft.life;
+          ctx.fillStyle = ft.color;
+          ctx.strokeText(ft.text, ft.x, ft.y);
+          ctx.fillText(ft.text, ft.x, ft.y);
+      });
+      ctx.globalAlpha = 1.0;
+  }
+
+  function drawBackgroundToBuffer(time) {    
+    const skyGradient = bgCtx.createLinearGradient(0, 0, 0, groundY);
+    skyGradient.addColorStop(0, '#0f0c29');
+    skyGradient.addColorStop(0.5, '#302b63');
+    skyGradient.addColorStop(1, '#24243e');
+    bgCtx.fillStyle = skyGradient;
+    bgCtx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+    // Moon
+    bgCtx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+    bgCtx.beginPath();
+    bgCtx.arc(canvasWidth - 80, 80, 30, 0, Math.PI*2);
+    bgCtx.fill();
+    bgCtx.fillStyle = '#302b63'; 
+    bgCtx.beginPath();
+    bgCtx.arc(canvasWidth - 70, 75, 25, 0, Math.PI*2);
+    bgCtx.fill();
+
+    // Stars
+    stars.forEach(star => {
+      const twinkle = Math.sin(time * 2 + star.twinkle) * 0.5 + 0.5;
+      bgCtx.fillStyle = `rgba(255, 255, 255, ${star.brightness * twinkle})`;
+      bgCtx.beginPath();
+      bgCtx.arc(star.x, star.y, star.size * twinkle, 0, Math.PI * 2);
+      bgCtx.fill();
+    });
+
+    mountains.forEach(m => {
+        bgCtx.fillStyle = m.color;
+        bgCtx.beginPath();
+        bgCtx.moveTo(m.x, groundY);
+        bgCtx.lineTo(m.x + m.width/2, groundY - m.height);
+        bgCtx.lineTo(m.x + m.width, groundY);
+        bgCtx.fill();
+    });
+
+    bgCtx.fillStyle = 'rgba(255, 255, 255, 0.03)';
+    clouds.forEach(cloud => {
+        cloud.x += cloud.speed * AnimationSystem.deltaTime;
+        if (cloud.x > canvasWidth + cloud.width) cloud.x = -cloud.width;
+        
+        bgCtx.beginPath();
+        bgCtx.ellipse(cloud.x, cloud.y, cloud.width/2, 20, 0, 0, Math.PI*2);
+        bgCtx.fill();
+    });
+
+    const groundGradient = bgCtx.createLinearGradient(0, groundY, 0, canvasHeight);
+    groundGradient.addColorStop(0, '#2d2016');
+    groundGradient.addColorStop(0.1, '#201510');
+    groundGradient.addColorStop(1, '#100a08');
+    
+    bgCtx.fillStyle = groundGradient;
+    bgCtx.fillRect(0, groundY, canvasWidth, canvasHeight - groundY);
+    
+    const grassGradient = bgCtx.createLinearGradient(0, groundY-5, 0, groundY+5);
+    grassGradient.addColorStop(0, '#4a3728');
+    grassGradient.addColorStop(1, '#2d2016');
+    bgCtx.fillStyle = grassGradient;
+    bgCtx.fillRect(0, groundY-2, canvasWidth, 4);
+  }
+
+  function drawPlayer() {
+    const p = player;
+    const dt = AnimationSystem.deltaTime;
+    
+    let squashY = 1;
+    let squashX = 1;
+    
+    if (p.animState.currentState === 'jump') {
+      if (p.velocityY < 0) { squashY = 1.15; squashX = 0.9; } 
+      else { squashY = 0.9; squashX = 1.15; } 
+    } else if (p.animState.currentState === 'walk') {
+       const walkCycle = Math.sin(AnimationSystem.totalTime * 12);
+       squashY = 1 + walkCycle * 0.03;
+       squashX = 1 - walkCycle * 0.02;
+    }
+
+    ctx.save();
+    ctx.translate(p.x + p.width/2, p.y + p.height); 
+    ctx.scale(p.direction, 1); 
+    ctx.scale(squashX, squashY); 
+    
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.width * 0.4, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Body (Shirt)
+    const shirtGrad = ctx.createLinearGradient(-p.width/2, -p.height, p.width/2, 0);
+    shirtGrad.addColorStop(0, '#00d4ff');
+    shirtGrad.addColorStop(1, '#0077aa');
+    ctx.fillStyle = shirtGrad;
+    ctx.fillRect(-p.width/2 + 8, -p.height + 20, p.width - 16, p.height - 30);
+    
+    // Head
+    ctx.fillStyle = p.colors.skin;
+    ctx.beginPath();
+    ctx.arc(0, -p.height + 12, 12, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Hair
+    ctx.fillStyle = p.colors.hair;
+    ctx.beginPath();
+    ctx.arc(0, -p.height + 8, 12, Math.PI, 0);
+    ctx.fill();
+    
+    // Eyes
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-4, -p.height + 12, 3, 3);
+    ctx.fillRect(2, -p.height + 12, 3, 3);
+
+    // Outline Glow
+    ctx.strokeStyle = 'rgba(0, 212, 255, 0.3)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.rect(-p.width/2 + 8, -p.height + 20, p.width - 16, p.height - 30);
+    ctx.stroke();
+    
+    // Legs
+    const legOffset = (p.animState.currentState === 'walk') ? Math.sin(AnimationSystem.totalTime * 12) * 5 : 0;
+    ctx.fillStyle = p.colors.pants;
+    ctx.fillRect(-12, -10, 8, 10 + legOffset); 
+    ctx.fillRect(4, -10, 8, 10 - legOffset); 
+
+    ctx.restore();
+  }
+
+  function drawBackpack() {
+    const bp = backpack;
+    const hoverScale = bp.isHovered ? 1.08 : 1;
+    
+    ctx.save();
+    ctx.translate(bp.x + bp.width/2, bp.y + bp.height/2 + bp.bounceOffset);
+    ctx.scale(hoverScale, hoverScale);
+    
+    // Shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    ctx.ellipse(0, bp.height/2 - 5, bp.width * 0.4, 10, 0, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // Main Body
+    ctx.fillStyle = '#5d4037';
+    ctx.beginPath();
+    ctx.roundRect(-bp.width/2, -bp.height/2, bp.width, bp.height, 15);
+    ctx.fill();
+
+    // Front Pocket
+    ctx.fillStyle = '#8d6e63';
+    ctx.beginPath();
+    ctx.roundRect(-bp.width/3, -bp.height/4, bp.width*0.66, bp.height*0.5, 8);
+    ctx.fill();
+
+    // Straps
+    ctx.strokeStyle = '#d7ccc8';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-bp.width/2 + 10, -bp.height/2 + 5);
+    ctx.lineTo(bp.width/2 - 10, -bp.height/2 + 5);
+    ctx.stroke();
+
+    if (bp.isHovered) {
+        ctx.strokeStyle = 'rgba(0, 212, 255, 0.6)';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.roundRect(-bp.width/2, -bp.height/2, bp.width, bp.height, 15);
+        ctx.stroke();
+    }
+
+    if (bp.isHovered) {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.beginPath();
+        ctx.roundRect(-30, -bp.height/2 - 25, 60, 20, 5);
+        ctx.fill();
+        ctx.fillStyle = '#00d4ff';
+        ctx.font = "bold 12px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText("Press B", 0, -bp.height/2 - 11);
+    }
+
+    ctx.restore();
+  }
+
+  function drawParticles() {
+    particles.forEach(p => {
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = p.life;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1.0;
+  }
+
+  // ============ 库存系统 ============
+  
+  function toggleInventory() {
+    isInventoryOpen = !isInventoryOpen;
+    if (isInventoryOpen) {
+      inventoryEl.classList.add('visible');
+      setTimeout(() => {
+        const slots = document.querySelectorAll('.item-slot');
+        slots.forEach((slot, i) => {
+            setTimeout(() => {
+                slot.classList.add('pop-in');
+            }, i * 40);
+        });
+      }, 50);
+    } else {
+      inventoryEl.classList.remove('visible');
+      hideTooltip();
+      const slots = document.querySelectorAll('.item-slot');
+      slots.forEach(slot => slot.classList.remove('pop-in'));
+    }
+  }
+  
+  function showNotification(msg) {
+    notificationEl.textContent = msg;
+    notificationEl.classList.add('show');
+    setTimeout(() => {
+      notificationEl.classList.remove('show');
+    }, NOTIFICATION_DURATION);
+  }
+
+  function renderInventorySlots() {
+    const grid = document.getElementById('inventoryGrid');
+    grid.innerHTML = '';
+    for (let i = 0; i < MAX_INVENTORY_SLOTS; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'item-slot empty pop-in';
+      slot.dataset.index = i;
+      grid.appendChild(slot);
+    }
+    updateInventoryUI();
+  }
+
+  function addItemToInventory(item) {
+    if (inventory.length < MAX_INVENTORY_SLOTS) {
+      inventory.push(item);
+      updateInventoryUI();
+      showNotification(`Found: ${item.name}`);
+      return true;
+    }
+    showNotification("Inventory Full!");
+    return false;
+  }
+
+  function updateInventoryUI() {
+    const slots = document.querySelectorAll('.item-slot');
+    slots.forEach((slot, index) => {
+      slot.classList.remove('pop-in');
+      
+      if (inventory[index]) {
+        const item = inventory[index];
+        slot.className = `item-slot rarity-${item.rarity}`; 
+        slot.innerHTML = `
+          <div class="item-icon">${item.icon}</div>
+          <div class="item-name">${item.name}</div>
+        `;
+        
+        slot.onmouseenter = (e) => showTooltip(item, e.clientX, e.clientY);
+        slot.onmousemove = (e) => moveTooltip(e.clientX, e.clientY);
+        slot.onmouseleave = hideTooltip;
+        
+        if (isInventoryOpen) {
+            setTimeout(() => slot.classList.add('pop-in'), index * 40 + 50);
+        } else {
+            slot.classList.add('pop-in');
+        }
+        
+      } else {
+        slot.className = 'item-slot empty pop-in';
+        slot.innerHTML = '';
+        slot.onmouseenter = null;
+        slot.onmouseleave = null;
+      }
+    });
+  }
+
+  function showTooltip(item, x, y) {
+    const tipTitle = tooltipEl.querySelector('.tip-title');
+    const tipDesc = tooltipEl.querySelector('.tip-desc');
+    const tipStats = tooltipEl.querySelector('.tip-stats');
+    
+    tipTitle.innerText = `${item.icon} ${item.name}`;
+    tipDesc.innerText = item.desc;
+    
+    let statsHtml = '';
+    for (const [key, value] of Object.entries(item.stats)) {
+      statsHtml += `<div style="margin-bottom:2px;">+${value} ${key}</div>`;
+    }
+    tipStats.innerHTML = statsHtml;
+    
+    let posX = x + 15;
+    let posY = y + 15;
+    
+    if (posX + 220 > window.innerWidth) posX = x - 230;
+    if (posY + 150 > window.innerHeight) posY = y - 160;
+    
+    tooltipEl.style.left = posX + 'px';
+    tooltipEl.style.top = posY + 'px';
+    tooltipEl.style.display = 'block';
+  }
+
+  function moveTooltip(x, y) {
+    let posX = x + 15;
+    let posY = y + 15;
+    if (posX + 220 > window.innerWidth) posX = x - 230;
+    if (posY + 150 > window.innerHeight) posY = y - 160;
+    
+    tooltipEl.style.left = posX + 'px';
+    tooltipEl.style.top = posY + 'px';
+  }
+
+  function hideTooltip() {
+    tooltipEl.style.display = 'none';
+  }
+
+  // ============ 主循环 ============
+  
+  function gameLoop(timestamp) {
+    AnimationSystem.updateTime(timestamp);
+    
+    update();
+    draw();
+    
+    requestAnimationFrame(gameLoop);
+  }
+
+  // 启动游戏
+  init();
+
+</script>
+</body>
+</html>

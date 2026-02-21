@@ -1,0 +1,13 @@
+2046-game/
+├── index.html          # 主HTML文件
+├── css/
+│   ├── style.css       # 主样式文件
+│   └── responsive.css  # 响应式样式
+├── js/
+│   ├── app.js          # 主应用逻辑
+│   ├── grid.js         # 网格管理
+│   ├── tile.js         # 方块管理
+│   └── game-controller.js # 游戏控制器
+├── assets/
+│   └── images/         # 图片资源目录
+└── README.md           # 项目说明文档

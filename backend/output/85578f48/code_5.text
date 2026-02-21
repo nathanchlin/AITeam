@@ -1,0 +1,4 @@
+Key: leaderboard:global
+Type: Sorted Set
+Score: 玩家分数 (基于大小、吃球数等)
+Value: playerId

@@ -1,0 +1,24 @@
+# .github/workflows/deploy.yml
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Build Docker images
+      run: |
+        docker build -t your-registry/tetris-backend:${{ github.sha }} -f backend/Dockerfile .
+        docker build -t your-registry/tetris-ai:${{ github.sha }} -f ai/Dockerfile .
+        docker push your-registry/tetris-backend:${{ github.sha }}
+        docker push your-registry/tetris-ai:${{ github.sha }}
+    
+    - name: Deploy to Kubernetes
+      run: |
+        kubectl set image deployment/tetris-backend backend=your-registry/tetris-backend:${{ github.sha }}
+        kubectl set image deployment/tetris-ai ai-service=your-registry/tetris-ai:${{ github.sha }}

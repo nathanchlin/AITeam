@@ -1,0 +1,11 @@
+/* 原始代码 */
+.gem {
+  transition: transform 0.3s ease;
+}
+
+/* 修改后 */
+.gem {
+  transition: transform 0.3s ease-in-out;
+  -webkit-transition: transform 0.3s ease-in-out;
+  will-change: transform;
+}
