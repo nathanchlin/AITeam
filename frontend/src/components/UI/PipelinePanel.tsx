@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
-import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers } from 'lucide-react';
+import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2 } from 'lucide-react';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
 
@@ -38,6 +38,9 @@ export function PipelinePanel() {
   const [restartMessage, setRestartMessage] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [iterating, setIterating] = useState(false);
+  const [archives, setArchives] = useState<Array<{ round_number: number; label: string; archive_path: string; modified_at: string }>>([]);
+  const [restoring, setRestoring] = useState(false);
+  const [restoreMessage, setRestoreMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -153,6 +156,60 @@ export function PipelinePanel() {
       console.error('Fetch plans error:', e);
     }
   };
+
+  // Fetch archives for current plan
+  const fetchArchives = async () => {
+    if (!currentPlanId) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/archives/${currentPlanId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setArchives(data.archives || []);
+      }
+    } catch (e) {
+      console.error('Fetch archives error:', e);
+    }
+  };
+
+  // Restore to a specific archive
+  const handleRestoreArchive = async (roundNumber: number) => {
+    if (!currentPlanId || restoring) return;
+
+    const confirmMsg = roundNumber === 0
+      ? '确定要还原到初始版本吗？当前代码将被覆盖。'
+      : `确定要还原到迭代${roundNumber}版本吗？当前代码将被覆盖。`;
+    if (!confirm(confirmMsg)) return;
+
+    setRestoring(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/archives/${currentPlanId}/restore/${roundNumber}`, {
+        method: 'POST',
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (res.ok) {
+        const label = roundNumber === 0 ? '初始版本' : `迭代${roundNumber}`;
+        setRestoreMessage(`已成功还原到${label}`);
+        setTimeout(() => setRestoreMessage(''), 3000);
+        console.log('Archive restored:', data);
+      } else {
+        const msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || '还原失败');
+        alert(msg);
+      }
+    } catch (e) {
+      console.error('Restore archive error:', e);
+      alert('还原失败：' + (e instanceof Error ? e.message : '网络或服务器错误'));
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  // Fetch archives when plan changes or completes
+  useEffect(() => {
+    if (currentPlanId && currentPlan?.status === 'completed') {
+      fetchArchives();
+    }
+  }, [currentPlanId, currentPlan?.status]);
 
   // Poll for plan updates when plan is active
   // Also polls when WebSocket is disconnected (fallback sync)
@@ -712,34 +769,107 @@ export function PipelinePanel() {
                 <Layers size={14} className="text-gray-400 flex-shrink-0" />
                 <button
                   onClick={() => setActiveIterationTab(0)}
-                  className={`px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors ${
+                  className={`px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
                     activeIterationTab === 0
                       ? 'bg-purple-600 text-white'
                       : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                   }`}
                 >
                   初始版本
+                  {archives.some(a => a.round_number === 0) && (
+                    <span title="已存档"><Archive size={10} className="text-blue-400 ml-1" /></span>
+                  )}
                 </button>
                 {currentPlan.iterations.map((iteration) => {
                   const isActive = activeIterationTab === iteration.round_number;
                   const isCompleted = iteration.status === 'completed';
                   const isExecuting = iteration.status === 'executing';
+                  const hasArchive = iteration.archive_path || archives.some(a => a.round_number === iteration.round_number);
                   return (
-                    <button
-                      key={iteration.round_number}
-                      onClick={() => setActiveIterationTab(iteration.round_number)}
-                      className={`px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
-                        isActive
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                      }`}
-                    >
-                      {isCompleted && <CheckCircle size={10} className="text-green-400" />}
-                      {isExecuting && <Loader2 size={10} className="animate-spin text-yellow-400" />}
-                      迭代{iteration.round_number}
-                    </button>
+                    <div key={iteration.round_number} className="relative group">
+                      <button
+                        onClick={() => setActiveIterationTab(iteration.round_number)}
+                        className={`px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
+                          isActive
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        {isCompleted && <CheckCircle size={10} className="text-green-400" />}
+                        {isExecuting && <Loader2 size={10} className="animate-spin text-yellow-400" />}
+                        迭代{iteration.round_number}
+                        {hasArchive && (
+                          <span title="已存档"><Archive size={10} className="text-blue-400 ml-1" /></span>
+                        )}
+                      </button>
+                      {/* Restore dropdown for completed iterations with archive */}
+                      {isCompleted && hasArchive && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRestoreArchive(iteration.round_number);
+                          }}
+                          disabled={restoring}
+                          className="absolute -top-1 -right-1 w-5 h-5 bg-gray-600 hover:bg-blue-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          title={`还原到迭代${iteration.round_number}版本`}
+                        >
+                          {restoring ? (
+                            <Loader2 size={10} className="animate-spin text-white" />
+                          ) : (
+                            <Undo2 size={10} className="text-white" />
+                          )}
+                        </button>
+                      )}
+                    </div>
                   );
                 })}
+                {/* Restore message */}
+                {restoreMessage && (
+                  <div className="ml-auto flex items-center gap-1 px-2 py-1 bg-blue-500/20 rounded text-xs text-blue-300">
+                    <CheckCircle size={12} />
+                    {restoreMessage}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Archive Restore Section for Initial Version */}
+            {currentPlan?.status === 'completed' && archives.length > 0 && activeIterationTab === 0 && archives.some(a => a.round_number === 0) && (
+              <div className="px-4 py-2 border-b border-gray-700 bg-gray-800/10">
+                <div className="flex items-center gap-2">
+                  <Archive size={12} className="text-blue-400" />
+                  <span className="text-xs text-gray-400">初始版本已存档</span>
+                  <button
+                    onClick={() => handleRestoreArchive(0)}
+                    disabled={restoring}
+                    className="ml-auto px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {restoring ? <Loader2 size={10} className="animate-spin" /> : <Undo2 size={10} />}
+                    还原到此版本
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Archive Restore Section for Iteration */}
+            {currentPlan?.status === 'completed' && activeIterationTab > 0 && (() => {
+              const iteration = currentPlan.iterations?.find(i => i.round_number === activeIterationTab);
+              const hasArchive = iteration?.archive_path || archives.some(a => a.round_number === activeIterationTab);
+              return hasArchive && iteration?.status === 'completed';
+            })() && (
+              <div className="px-4 py-2 border-b border-gray-700 bg-gray-800/10">
+                <div className="flex items-center gap-2">
+                  <Archive size={12} className="text-blue-400" />
+                  <span className="text-xs text-gray-400">迭代{activeIterationTab}版本已存档</span>
+                  <button
+                    onClick={() => handleRestoreArchive(activeIterationTab)}
+                    disabled={restoring}
+                    className="ml-auto px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {restoring ? <Loader2 size={10} className="animate-spin" /> : <Undo2 size={10} />}
+                    还原到此版本
+                  </button>
+                </div>
               </div>
             )}
 

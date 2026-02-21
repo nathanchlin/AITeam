@@ -512,3 +512,57 @@ async def iterate_plan(plan_id: str, request: IterationRequest, background_tasks
         "plan_id": plan_id,
         "iteration_request": request.iteration_request,
     }
+
+
+@router.get("/archives/{plan_id}")
+async def list_archives(plan_id: str):
+    """获取 plan 的所有存档版本"""
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    archives = output_manager.list_archives(plan_id)
+    return {
+        "plan_id": plan_id,
+        "archives": archives,
+        "total": len(archives),
+    }
+
+
+@router.post("/archives/{plan_id}/restore/{round_number}")
+async def restore_archive(plan_id: str, round_number: int):
+    """还原到指定存档版本
+
+    Args:
+        plan_id: 计划 ID
+        round_number: 迭代轮次（0 表示初始版本）
+    """
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # 检查存档是否存在
+    archives = output_manager.list_archives(plan_id)
+    target_archive = next((a for a in archives if a["round_number"] == round_number), None)
+
+    if not target_archive:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Archive for round {round_number} not found"
+        )
+
+    # 执行还原
+    success = output_manager.restore_iteration_archive(plan_id, round_number)
+
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to restore archive for round {round_number}"
+        )
+
+    return {
+        "message": f"Successfully restored to {'initial version' if round_number == 0 else f'iteration {round_number}'}",
+        "plan_id": plan_id,
+        "restored_round": round_number,
+        "archive_info": target_archive,
+    }

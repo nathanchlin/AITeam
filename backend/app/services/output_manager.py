@@ -496,6 +496,164 @@ document.addEventListener('DOMContentLoaded', function() {
             print(f"[OutputManager] Error reading existing code: {e}")
             return None
 
+    # ==================== Archive Management ====================
+
+    def save_iteration_archive(self, plan_id: str, round_number: int) -> Optional[str]:
+        """保存当前 index.html 到存档目录
+
+        Args:
+            plan_id: 计划 ID
+            round_number: 迭代轮次（0 表示初始版本）
+
+        Returns:
+            存档相对路径（如 "archive/initial" 或 "archive/iteration_1"），失败返回 None
+        """
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+        index_path = os.path.join(plan_dir, "index.html")
+
+        if not os.path.exists(index_path):
+            print(f"[OutputManager] Archive failed: index.html not found for plan {plan_id[:8]}")
+            return None
+
+        # 确定存档目录名
+        if round_number == 0:
+            archive_name = "initial"
+        else:
+            archive_name = f"iteration_{round_number}"
+
+        archive_dir = os.path.join(plan_dir, "archive", archive_name)
+        self.ensure_dir(archive_dir)
+
+        archive_path = os.path.join(archive_dir, "index.html")
+
+        try:
+            import shutil
+            shutil.copy2(index_path, archive_path)
+            print(f"[OutputManager] Archive saved: {archive_path}")
+            return f"archive/{archive_name}"
+        except Exception as e:
+            print(f"[OutputManager] Archive failed: {e}")
+            return None
+
+    def restore_iteration_archive(self, plan_id: str, round_number: int) -> bool:
+        """从存档还原 index.html
+
+        Args:
+            plan_id: 计划 ID
+            round_number: 迭代轮次（0 表示初始版本）
+
+        Returns:
+            是否还原成功
+        """
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+
+        # 确定存档目录名
+        if round_number == 0:
+            archive_name = "initial"
+        else:
+            archive_name = f"iteration_{round_number}"
+
+        archive_path = os.path.join(plan_dir, "archive", archive_name, "index.html")
+        index_path = os.path.join(plan_dir, "index.html")
+
+        if not os.path.exists(archive_path):
+            print(f"[OutputManager] Restore failed: archive not found at {archive_path}")
+            return False
+
+        try:
+            import shutil
+            shutil.copy2(archive_path, index_path)
+            print(f"[OutputManager] Restored from archive: {archive_path}")
+            return True
+        except Exception as e:
+            print(f"[OutputManager] Restore failed: {e}")
+            return False
+
+    def list_archives(self, plan_id: str) -> List[Dict[str, Any]]:
+        """列出所有存档版本
+
+        Args:
+            plan_id: 计划 ID
+
+        Returns:
+            存档列表，包含轮次、路径、创建时间等信息
+        """
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+        archive_base_dir = os.path.join(plan_dir, "archive")
+
+        archives = []
+
+        if not os.path.exists(archive_base_dir):
+            return archives
+
+        try:
+            for name in sorted(os.listdir(archive_base_dir)):
+                archive_dir = os.path.join(archive_base_dir, name)
+                if not os.path.isdir(archive_dir):
+                    continue
+
+                index_path = os.path.join(archive_dir, "index.html")
+                if not os.path.exists(index_path):
+                    continue
+
+                # 解析轮次号
+                if name == "initial":
+                    round_number = 0
+                    label = "初始版本"
+                elif name.startswith("iteration_"):
+                    round_number = int(name.split("_")[1])
+                    label = f"迭代 {round_number}"
+                else:
+                    continue
+
+                # 获取文件修改时间
+                stat = os.stat(index_path)
+                modified_time = datetime.fromtimestamp(stat.st_mtime).isoformat()
+
+                archives.append({
+                    "round_number": round_number,
+                    "label": label,
+                    "archive_name": name,
+                    "archive_path": f"archive/{name}",
+                    "size": stat.st_size,
+                    "modified_at": modified_time,
+                })
+        except Exception as e:
+            print(f"[OutputManager] List archives error: {e}")
+
+        return archives
+
+    def get_archive_content(self, plan_id: str, round_number: int) -> Optional[str]:
+        """获取存档内容
+
+        Args:
+            plan_id: 计划 ID
+            round_number: 迭代轮次
+
+        Returns:
+            存档的 HTML 内容，失败返回 None
+        """
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+
+        if round_number == 0:
+            archive_name = "initial"
+        else:
+            archive_name = f"iteration_{round_number}"
+
+        archive_path = os.path.join(plan_dir, "archive", archive_name, "index.html")
+
+        if not os.path.exists(archive_path):
+            return None
+
+        try:
+            with open(archive_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            print(f"[OutputManager] Read archive error: {e}")
+            return None
+
+    # ==================== End Archive Management ====================
+
     def pre_test_validation(self, plan_id: str) -> Dict[str, Any]:
         """Pre-test validation to ensure code is complete and error-free"""
         plan_dir = os.path.join(self.base_dir, plan_id[:8])

@@ -154,6 +154,7 @@ class IterationRound(BaseModel):
     discussion: List[DiscussionMessage] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=datetime.utcnow)
     completed_at: Optional[datetime] = None
+    archive_path: Optional[str] = None  # 存档路径（相对于 output 目录）
 
 
 class PlanBase(BaseModel):

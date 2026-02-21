@@ -1119,6 +1119,15 @@ class CoordinatorService:
         # Final status
         plan.status = PlanStatus.COMPLETED
         plan.completed_at = datetime.utcnow()
+
+        # 保存初始版本存档
+        try:
+            archive_path = output_manager.save_iteration_archive(plan_id, 0)
+            if archive_path:
+                print(f"[Coordinator] Initial version archived at: {archive_path}")
+        except Exception as e:
+            print(f"[Coordinator] Failed to archive initial version: {e}")
+
         self._save_plans()  # Persist completion
 
         # Post final result to discussion
@@ -1975,6 +1984,16 @@ class CoordinatorService:
         # 迭代完成
         iteration_round.status = PlanStatus.COMPLETED
         iteration_round.completed_at = datetime.utcnow()
+
+        # 保存迭代存档
+        try:
+            archive_path = output_manager.save_iteration_archive(plan_id, iteration_round.round_number)
+            if archive_path:
+                iteration_round.archive_path = archive_path
+                print(f"[Coordinator] Iteration {iteration_round.round_number} archived at: {archive_path}")
+        except Exception as e:
+            print(f"[Coordinator] Failed to archive iteration: {e}")
+
         plan.status = PlanStatus.COMPLETED
         plan.updated_at = datetime.utcnow()
         self._save_plans()

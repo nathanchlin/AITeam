@@ -91,6 +91,7 @@ export interface IterationRound {
   discussion: DiscussionMessage[];
   created_at: string;
   completed_at?: string;
+  archive_path?: string | null;  // 存档路径
 }
 
 export interface Plan {
