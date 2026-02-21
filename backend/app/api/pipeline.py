@@ -470,6 +470,9 @@ async def restart_iteration(plan_id: str, round_number: int, background_tasks: B
 @router.post("/stop/{plan_id}/iteration/{round_number}")
 async def stop_iteration(plan_id: str, round_number: int):
     """停止正在执行的迭代"""
+    from app.main import websocket_manager
+    from datetime import datetime
+
     plan = coordinator.get_plan(plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found")
@@ -484,20 +487,45 @@ async def stop_iteration(plan_id: str, round_number: int):
     if not iteration:
         raise HTTPException(status_code=404, detail=f"Iteration {round_number} not found")
 
-    if iteration.status != PlanStatus.EXECUTING:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Iteration is not executing (status: {iteration.status}). Only executing iterations can be stopped."
-        )
+    # 如果已经在执行中，设置停止标志
+    if iteration.status == PlanStatus.EXECUTING:
+        coordinator.request_stop_iteration(plan_id, round_number)
+        return {
+            "message": f"Stop request sent for iteration {round_number}",
+            "plan_id": plan_id,
+            "iteration_round": round_number,
+        }
 
-    # 设置停止标志
-    coordinator.request_stop_iteration(plan_id, round_number)
+    # 如果不是执行中，直接强制完成
+    if iteration.status in [PlanStatus.APPROVED, PlanStatus.DISCUSSING, PlanStatus.DRAFT]:
+        iteration.status = PlanStatus.COMPLETED
+        iteration.completed_at = datetime.utcnow()
+        coordinator._save_plans()
 
-    return {
-        "message": f"Stop request sent for iteration {round_number}",
-        "plan_id": plan_id,
-        "iteration_round": round_number,
-    }
+        # 广播更新
+        if websocket_manager:
+            await websocket_manager.broadcast({
+                "type": "plan_update",
+                "data": {
+                    "plan_id": plan_id,
+                    "plan": plan.model_dump(),
+                    "status": "completed",
+                    "iteration_round": round_number,
+                    "stopped": True,
+                }
+            })
+
+        return {
+            "message": f"Iteration {round_number} force stopped",
+            "plan_id": plan_id,
+            "iteration_round": round_number,
+        }
+
+    # 已完成或其他状态
+    raise HTTPException(
+        status_code=400,
+        detail=f"Iteration is already {iteration.status}"
+    )
 
 
 @router.get("/task/{task_id}")
