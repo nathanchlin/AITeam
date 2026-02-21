@@ -23,8 +23,26 @@ class CoordinatorService:
         self.plans: Dict[str, Plan] = {}
         self.websocket_manager = None
         self.broadcast_manager = None
+        # 停止迭代标志：{plan_id: set(round_numbers)}
+        self._stop_flags: Dict[str, set] = {}
         # Load persisted plans on initialization
         self._load_plans()
+
+    def request_stop_iteration(self, plan_id: str, round_number: int):
+        """请求停止指定迭代"""
+        if plan_id not in self._stop_flags:
+            self._stop_flags[plan_id] = set()
+        self._stop_flags[plan_id].add(round_number)
+        print(f"[Coordinator] Stop requested for iteration {plan_id}/{round_number}")
+
+    def should_stop_iteration(self, plan_id: str, round_number: int) -> bool:
+        """检查是否应该停止迭代"""
+        return plan_id in self._stop_flags and round_number in self._stop_flags[plan_id]
+
+    def clear_stop_flag(self, plan_id: str, round_number: int):
+        """清除停止标志"""
+        if plan_id in self._stop_flags and round_number in self._stop_flags[plan_id]:
+            self._stop_flags[plan_id].discard(round_number)
 
     def _load_plans(self):
         """Load plans from persistent storage"""
@@ -1815,6 +1833,33 @@ class CoordinatorService:
         current_code = existing_code
 
         for task in sorted_tasks:
+            # 检查是否请求停止迭代
+            if self.should_stop_iteration(plan_id, iteration_round.round_number):
+                print(f"[Coordinator] Iteration {iteration_round.round_number} stopped by user request")
+                iteration_round.status = PlanStatus.COMPLETED
+                iteration_round.completed_at = datetime.utcnow()
+                self._save_plans()
+                await self._add_iteration_discussion_message(
+                    plan_id, iteration_round.round_number,
+                    agent_id="system",
+                    agent_name="系统",
+                    agent_type="assistant",
+                    content=f"⏹️ 迭代已被用户停止",
+                    message_type="comment",
+                )
+                await self.broadcast({
+                    "type": "plan_update",
+                    "data": {
+                        "plan_id": plan_id,
+                        "plan": plan.model_dump(),
+                        "status": "completed",
+                        "iteration_round": iteration_round.round_number,
+                        "stopped": True,
+                    }
+                })
+                self.clear_stop_flag(plan_id, iteration_round.round_number)
+                return
+
             if not task.assigned_agent_id:
                 continue
 

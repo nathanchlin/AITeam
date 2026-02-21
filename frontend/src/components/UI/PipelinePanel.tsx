@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
-import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2 } from 'lucide-react';
+import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square } from 'lucide-react';
 import { ArchivePanel } from './ArchivePanel';
 
 const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
@@ -35,6 +35,7 @@ export function PipelinePanel() {
   const [starting, setStarting] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [restarting, setRestarting] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [restartMessage, setRestartMessage] = useState('');
   const [copiedUrl, setCopiedUrl] = useState(false);
@@ -401,6 +402,33 @@ export function PipelinePanel() {
     }
   };
 
+  const handleStopIteration = async () => {
+    if (!currentPlanId || stopping || activeIterationTab <= 0) return;
+
+    if (!confirm(`确定要停止迭代${activeIterationTab}吗？`)) return;
+
+    setStopping(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/stop/${currentPlanId}/iteration/${activeIterationTab}`, {
+        method: 'POST',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setRestartMessage(`已发送停止请求，迭代${activeIterationTab}将在当前任务完成后停止…`);
+        setTimeout(() => setRestartMessage(''), 4000);
+        console.log('Stop iteration requested:', data);
+      } else {
+        const msg = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail || '停止失败');
+        alert(msg);
+      }
+    } catch (e) {
+      console.error('Stop iteration error:', e);
+      alert('停止失败：' + (e instanceof Error ? e.message : '网络或服务器错误'));
+    } finally {
+      setStopping(false);
+    }
+  };
+
   const handleDeletePipeline = async () => {
     if (!currentPlanId || deleting) return;
     if (!confirm('确定要删除该流水线吗？删除后无法恢复。')) return;
@@ -725,6 +753,20 @@ export function PipelinePanel() {
                     {restarting ? <Loader2 size={12} className="animate-spin" /> : <RotateCw size={12} />}
                     {activeIterationTab > 0 ? `重启迭代${activeIterationTab}` : '重启流水线'}
                   </button>
+                  {activeIterationTab > 0 && (() => {
+                    const iteration = currentPlan.iterations?.find(i => i.round_number === activeIterationTab);
+                    return iteration?.status === 'executing';
+                  })() && (
+                    <button
+                      onClick={handleStopIteration}
+                      disabled={stopping}
+                      title={`强制停止迭代${activeIterationTab}`}
+                      className="px-3 py-1 text-xs font-medium rounded bg-orange-600 hover:bg-orange-500 text-white disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {stopping ? <Loader2 size={12} className="animate-spin" /> : <Square size={12} />}
+                      {stopping ? '停止中...' : '停止迭代'}
+                    </button>
+                  )}
                   <button
                     onClick={handleDeletePipeline}
                     disabled={deleting}

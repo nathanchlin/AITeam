@@ -467,6 +467,39 @@ async def restart_iteration(plan_id: str, round_number: int, background_tasks: B
     }
 
 
+@router.post("/stop/{plan_id}/iteration/{round_number}")
+async def stop_iteration(plan_id: str, round_number: int):
+    """停止正在执行的迭代"""
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # 查找指定迭代
+    iteration = None
+    for it in plan.iterations:
+        if it.round_number == round_number:
+            iteration = it
+            break
+
+    if not iteration:
+        raise HTTPException(status_code=404, detail=f"Iteration {round_number} not found")
+
+    if iteration.status != PlanStatus.EXECUTING:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Iteration is not executing (status: {iteration.status}). Only executing iterations can be stopped."
+        )
+
+    # 设置停止标志
+    coordinator.request_stop_iteration(plan_id, round_number)
+
+    return {
+        "message": f"Stop request sent for iteration {round_number}",
+        "plan_id": plan_id,
+        "iteration_round": round_number,
+    }
+
+
 @router.get("/task/{task_id}")
 async def get_task_status_endpoint(task_id: str):
     """Get the status of a task (deprecated - Celery no longer used)"""
