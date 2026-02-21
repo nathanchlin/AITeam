@@ -2012,9 +2012,11 @@ class CoordinatorService:
             "type": "plan_update",
             "data": {
                 "plan_id": plan_id,
+                "plan": plan.model_dump(),  # 发送完整 plan 数据以更新迭代状态
                 "status": "completed",
                 "iteration_round": iteration_round.round_number,
                 "output_url": preview_url,
+                "archive_created": True,  # 通知前端存档已创建
             }
         })
 

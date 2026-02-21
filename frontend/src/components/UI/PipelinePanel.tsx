@@ -213,6 +213,18 @@ export function PipelinePanel() {
     }
   }, [currentPlanId, currentPlan?.status]);
 
+  // Also fetch archives when any iteration completes
+  useEffect(() => {
+    if (!currentPlan?.iterations) return;
+    // Check if any iteration just completed (has archive_path)
+    const completedIterations = currentPlan.iterations.filter(
+      iter => iter.status === 'completed' && iter.archive_path
+    );
+    if (completedIterations.length > 0 && currentPlanId) {
+      fetchArchives();
+    }
+  }, [currentPlan?.iterations?.map(i => `${i.round_number}:${i.status}:${i.archive_path}`).join(',')]);
+
   // Poll for plan updates when plan is active
   // Also polls when WebSocket is disconnected (fallback sync)
   useEffect(() => {

@@ -9,6 +9,7 @@ from app.models.schemas import (
     DiscussionMessage, DiscussionMessageCreate,
     PlanStatus, TaskStatus,
     ArchiveDiffRequest,
+    CreateArchiveRequest,
 )
 from app.services.coordinator import coordinator
 from app.services.output_manager import output_manager
@@ -512,6 +513,69 @@ async def iterate_plan(plan_id: str, request: IterationRequest, background_tasks
         "message": "Iteration started",
         "plan_id": plan_id,
         "iteration_request": request.iteration_request,
+    }
+
+
+@router.post("/archives/{plan_id}/create")
+async def create_archive(plan_id: str, request: CreateArchiveRequest = CreateArchiveRequest()):
+    """手动创建当前版本的存档
+
+    Args:
+        plan_id: 计划 ID
+        request: 存档创建请求，包含可选的自定义名称和描述
+    """
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # 检查是否有生成的代码
+    plan_dir = os.path.join(output_manager.base_dir, plan_id[:8])
+    index_path = os.path.join(plan_dir, "index.html")
+    if not os.path.exists(index_path):
+        raise HTTPException(
+            status_code=400,
+            detail="No code generated yet. Please complete at least one task first."
+        )
+
+    # 确定存档轮次
+    if request.round_number is not None:
+        round_number = request.round_number
+    else:
+        # 使用当前迭代轮次，如果没有迭代则使用0
+        round_number = plan.current_iteration_round if plan.current_iteration_round > 0 else 0
+
+    # 检查是否已存在该轮次的存档，如果存在则生成新的轮次号
+    existing_archives = output_manager.list_archives(plan_id)
+    existing_rounds = {a["round_number"] for a in existing_archives}
+
+    original_round = round_number
+    suffix = 1
+    while round_number in existing_rounds:
+        # 对于手动存档，使用 special naming
+        round_number = 10000 + original_round * 100 + suffix  # 手动存档使用10000+的编号
+        suffix += 1
+
+    # 创建存档
+    archive_path = output_manager.save_iteration_archive(
+        plan_id,
+        round_number,
+        custom_name=request.custom_name,
+        description=request.description or f"手动存档 - {request.custom_name or f'Version {round_number}'}"
+    )
+
+    if not archive_path:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create archive"
+        )
+
+    return {
+        "message": "Archive created successfully",
+        "plan_id": plan_id,
+        "round_number": round_number,
+        "archive_path": archive_path,
+        "custom_name": request.custom_name,
+        "description": request.description,
     }
 
 

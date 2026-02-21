@@ -272,6 +272,18 @@ export const useAgentStore = create<AgentState>((set, get) => ({
                 t.id === data.task_id ? { ...t, status: data.task_status as Plan['tasks'][0]['status'] } : t
               );
             }
+            // 处理迭代状态的部分更新
+            if (data.iteration_round !== undefined && data.status) {
+              const iterRoundNum = data.iteration_round as number;
+              if (plan.iterations) {
+                updates.iterations = plan.iterations.map(iter => {
+                  if (iter.round_number === iterRoundNum) {
+                    return { ...iter, status: data.status as Plan['status'] };
+                  }
+                  return iter;
+                });
+              }
+            }
             if (Object.keys(updates).length > 0) {
               get().updatePlan(data.plan_id as string, updates);
             }

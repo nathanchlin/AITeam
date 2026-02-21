@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   X, Archive, Download, Trash2, Undo2, CheckCircle, AlertCircle,
-  FileCode, GitCompare, Loader2, Info
+  FileCode, GitCompare, Loader2, Info, Plus, Save
 } from 'lucide-react';
 import type { ArchiveInfo, ArchiveDiffResult, ArchiveValidationResult } from '../../types';
 
@@ -27,6 +27,10 @@ export function ArchivePanel({ planId, onClose, onRestore }: ArchivePanelProps) 
   const [diffToRound, setDiffToRound] = useState<number>(0);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createDesc, setCreateDesc] = useState('');
+  const [creating, setCreating] = useState(false);
 
   // Fetch archives
   const fetchArchives = async () => {
@@ -181,6 +185,37 @@ export function ArchivePanel({ planId, onClose, onRestore }: ArchivePanelProps) 
     }
   };
 
+  // Create manual archive
+  const handleCreateArchive = async () => {
+    setCreating(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/archives/${planId}/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          custom_name: createName || undefined,
+          description: createDesc || undefined,
+        }),
+      });
+      if (res.ok) {
+        await res.json(); // Consume response
+        await fetchArchives(); // Refresh list
+        setShowCreateModal(false);
+        setCreateName('');
+        setCreateDesc('');
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setError(data.detail || 'Failed to create archive');
+      }
+    } catch (e) {
+      console.error('Create archive error:', e);
+      setError('Failed to create archive');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   // Format file size
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
@@ -200,8 +235,16 @@ export function ArchivePanel({ planId, onClose, onRestore }: ArchivePanelProps) 
   };
 
   // Get label for round
-  const getRoundLabel = (roundNumber: number) => {
-    return roundNumber === 0 ? '初始版本' : `迭代 ${roundNumber}`;
+  const getRoundLabel = (roundNumber: number, customName?: string) => {
+    if (customName) return customName;
+    if (roundNumber === 0) return '初始版本';
+    if (roundNumber >= 10000) {
+      // 手动存档
+      const originalRound = Math.floor((roundNumber - 10000) / 100);
+      const suffix = (roundNumber - 10000) % 100;
+      return `手动存档 ${originalRound > 0 ? `迭代${originalRound}` : '初始'}-${suffix}`;
+    }
+    return `迭代 ${roundNumber}`;
   };
 
   // Clear error after 3 seconds
@@ -222,12 +265,21 @@ export function ArchivePanel({ planId, onClose, onRestore }: ArchivePanelProps) 
             <h2 className="text-white font-bold">存档管理</h2>
             <span className="text-xs text-gray-400">({archives.length} 个版本)</span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-700 rounded transition-colors text-gray-400"
-          >
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-500 flex items-center gap-1"
+            >
+              <Plus size={14} />
+              手动存档
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-gray-700 rounded transition-colors text-gray-400"
+            >
+              <X size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Error message */}
@@ -522,6 +574,69 @@ export function ArchivePanel({ planId, onClose, onRestore }: ArchivePanelProps) 
           </button>
         </div>
       </div>
+
+      {/* Create Archive Modal */}
+      {showCreateModal && (
+        <div className="absolute inset-0 bg-black/60 flex items-center justify-center z-10">
+          <div className="bg-gray-800 rounded-lg p-5 w-[400px] border border-gray-600">
+            <div className="flex items-center gap-2 mb-4">
+              <Save size={18} className="text-blue-400" />
+              <h3 className="text-white font-medium">创建手动存档</h3>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">存档名称（可选）</label>
+                <input
+                  type="text"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  placeholder="例如：修复Bug后的版本"
+                  className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 text-white text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">描述（可选）</label>
+                <textarea
+                  value={createDesc}
+                  onChange={(e) => setCreateDesc(e.target.value)}
+                  placeholder="描述这个版本的变更内容..."
+                  rows={3}
+                  className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 text-white text-sm focus:outline-none focus:border-blue-500 resize-none"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setCreateName('');
+                  setCreateDesc('');
+                }}
+                className="px-4 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 text-sm"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateArchive}
+                disabled={creating}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 text-sm flex items-center gap-1 disabled:opacity-50"
+              >
+                {creating ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    创建中...
+                  </>
+                ) : (
+                  <>
+                    <Save size={14} />
+                    创建存档
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

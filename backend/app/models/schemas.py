@@ -242,6 +242,13 @@ class ArchiveInfo(BaseModel):
     checksum: Optional[str] = None
 
 
+class CreateArchiveRequest(BaseModel):
+    """手动创建存档请求"""
+    round_number: Optional[int] = None  # 不指定则使用当前迭代轮次+1
+    custom_name: Optional[str] = None
+    description: Optional[str] = None
+
+
 class ArchiveDiffRequest(BaseModel):
     """差异对比请求"""
     from_round: int
