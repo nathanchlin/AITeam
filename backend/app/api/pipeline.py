@@ -454,7 +454,7 @@ async def restart_iteration(plan_id: str, round_number: int, background_tasks: B
             await coordinator._analyze_iteration_request(plan_id, iteration, existing_code, iteration.iteration_request)
             await coordinator._organize_iteration_discussion(plan_id, iteration, existing_code, iteration.iteration_request)
             await coordinator._generate_iteration_plan(plan_id, iteration, existing_code, iteration.iteration_request)
-            await coordinator._execute_iteration(plan_id, iteration, existing_code)
+            await coordinator._execute_iteration_plan(plan_id, iteration, existing_code)
         except Exception as e:
             print(f"[Pipeline] Error in restarted iteration {plan_id}/{round_number}: {e}")
 
@@ -589,7 +589,7 @@ async def resume_iteration(plan_id: str, round_number: int, background_tasks: Ba
                 pass  # Will execute below
 
             # Execute the iteration
-            await coordinator._execute_iteration(plan_id, iteration, existing_code)
+            await coordinator._execute_iteration_plan(plan_id, iteration, existing_code)
         except Exception as e:
             print(f"[Pipeline] Error resuming iteration {plan_id}/{round_number}: {e}")
 
