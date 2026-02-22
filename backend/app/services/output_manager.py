@@ -979,7 +979,12 @@ document.addEventListener('DOMContentLoaded', function() {
             builtin_classes = {'Object', 'Array', 'String', 'Number', 'Boolean', 'Function',
                                'Date', 'RegExp', 'Error', 'Map', 'Set', 'Promise', 'Image', 'Audio',
                                'XMLHttpRequest', 'WebSocket', 'JSON', 'Math', 'Intl', 'Proxy', 'Reflect',
-                               'Animation', 'CanvasGradient', 'CanvasPattern', 'Path2D', 'BigInt'}
+                               'Animation', 'CanvasGradient', 'CanvasPattern', 'Path2D', 'BigInt',
+                               # Typed Arrays
+                               'ArrayBuffer', 'DataView',
+                               'Int8Array', 'Uint8Array', 'Uint8ClampedArray',
+                               'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array',
+                               'Float32Array', 'Float64Array', 'BigInt64Array', 'BigUint64Array'}
             undefined_classes = used_classes - defined_classes - builtin_classes
 
             # Filter Phaser classes if CDN is included
