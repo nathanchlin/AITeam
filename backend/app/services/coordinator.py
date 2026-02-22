@@ -2131,33 +2131,58 @@ function 函数名(参数) {{
 
                 # 验证并保存代码
                 if code_updated:
-                    is_valid_html = current_code.strip().lower().startswith('<!doctype') or \
+                    # 检查是否是 HTML 内容
+                    is_html_content = current_code.strip().lower().startswith('<!doctype') or \
                                    current_code.strip().lower().startswith('<html')
 
-                    if is_valid_html:
-                        task.status = TaskStatus.COMPLETED
+                    if is_html_content:
+                        # 验证 HTML 结构完整性
+                        is_complete, error_msg = self._validate_html_completeness(current_code)
+                        if is_complete:
+                            task.status = TaskStatus.COMPLETED
 
-                        # 保存到输出目录
-                        try:
-                            plan_dir = output_manager.get_output_path(plan_id)
-                            index_path = os.path.join(plan_dir, "index.html")
-                            with open(index_path, 'w', encoding='utf-8') as f:
-                                f.write(current_code)
-                        except Exception as e:
-                            print(f"[Coordinator] Error saving iteration code: {e}")
+                            # 保存到输出目录
+                            try:
+                                plan_dir = output_manager.get_output_path(plan_id)
+                                index_path = os.path.join(plan_dir, "index.html")
+                                with open(index_path, 'w', encoding='utf-8') as f:
+                                    f.write(current_code)
+                            except Exception as e:
+                                print(f"[Coordinator] Error saving iteration code: {e}")
+
+                            await self._add_iteration_discussion_message(
+                                plan_id, iteration_round.round_number,
+                                agent_id=agent.id,
+                                agent_name=agent.name,
+                                agent_type=agent.type.value,
+                                content=f"✅ 完成任务：{task.title}",
+                                message_type="comment",
+                            )
+                        else:
+                            # HTML 不完整，标记失败并请求重试
+                            task.status = TaskStatus.FAILED
+                            print(f"[Coordinator] HTML validation failed: {error_msg}")
+                            await self._add_iteration_discussion_message(
+                                plan_id, iteration_round.round_number,
+                                agent_id=agent.id,
+                                agent_name=agent.name,
+                                agent_type=agent.type.value,
+                                content=f"❌ HTML 生成不完整：{error_msg}\n\n请重新生成完整的 HTML 代码，确保包含所有必要的闭合标签（</head>, </body>, </html> 等）。",
+                                message_type="comment",
+                            )
                     else:
                         # 测试报告等非代码输出，标记完成但不更新代码
                         task.status = TaskStatus.COMPLETED
                         print(f"[Coordinator] Task output is not valid HTML, skipping index.html update")
 
-                    await self._add_iteration_discussion_message(
-                        plan_id, iteration_round.round_number,
-                        agent_id=agent.id,
-                        agent_name=agent.name,
-                        agent_type=agent.type.value,
-                        content=f"✅ 完成任务：{task.title}",
-                        message_type="comment",
-                    )
+                        await self._add_iteration_discussion_message(
+                            plan_id, iteration_round.round_number,
+                            agent_id=agent.id,
+                            agent_name=agent.name,
+                            agent_type=agent.type.value,
+                            content=f"✅ 完成任务：{task.title}",
+                            message_type="comment",
+                        )
                 else:
                     # 没有检测到有效代码，但可能是纯文本回复（如分析说明）
                     if full_response.strip():
@@ -2226,6 +2251,38 @@ function 函数名(参数) {{
                 "archive_created": True,  # 通知前端存档已创建
             }
         })
+
+    def _validate_html_completeness(self, html: str) -> tuple:
+        """验证 HTML 结构完整性
+
+        Returns:
+            (is_valid, error_message)
+        """
+        html_lower = html.lower().strip()
+
+        # 检查必要的开始标签
+        if not (html_lower.startswith('<!doctype') or html_lower.startswith('<html')):
+            return False, "缺少 DOCTYPE 或 <html> 开始标签"
+
+        # 检查必要的结束标签
+        required_end_tags = ['</html>', '</body>', '</head>']
+        for tag in required_end_tags:
+            if tag not in html_lower:
+                return False, f"缺少 {tag} 标签"
+
+        # 检查 <style> 标签配对
+        style_opens = html_lower.count('<style')
+        style_closes = html_lower.count('</style>')
+        if style_opens != style_closes:
+            return False, f"<style> 标签不配对: {style_opens} 个开始, {style_closes} 个结束"
+
+        # 检查 <script> 标签配对
+        script_opens = html_lower.count('<script')
+        script_closes = html_lower.count('</script>')
+        if script_opens != script_closes:
+            return False, f"<script> 标签不配对: {script_opens} 个开始, {script_closes} 个结束"
+
+        return True, ""
 
     # 保留旧方法作为兼容
     async def iterate_plan(self, plan_id: str, iteration_request: str) -> str:
