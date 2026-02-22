@@ -1082,11 +1082,35 @@ document.addEventListener('DOMContentLoaded', function() {
             filepath = filepath.strip()
             file_content = file_content.strip()
 
+            # Strip markdown code fences if present
+            # Handles ```gdscript, ```python, ``` etc.
+            file_content = re.sub(r'^```[\w]*\n?', '', file_content)
+            file_content = re.sub(r'\n?```$', '', file_content)
+
             if filepath and file_content:
-                files.append({
-                    'path': filepath,
-                    'content': file_content
-                })
+                # Validate file format
+                is_valid = True
+
+                # .tscn files must start with [gd_scene
+                if filepath.endswith('.tscn'):
+                    if not file_content.strip().startswith('[gd_scene'):
+                        print(f"[OutputManager] Skipping invalid .tscn file: {filepath} (missing [gd_scene)")
+                        is_valid = False
+
+                # project.godot must be INI format (not GDScript)
+                if filepath == 'project.godot':
+                    if file_content.strip().startswith('extends') or 'func ' in file_content:
+                        print(f"[OutputManager] Skipping invalid project.godot (appears to be GDScript)")
+                        is_valid = False
+                    elif not ('config_version=' in file_content or '[application]' in file_content):
+                        print(f"[OutputManager] Skipping invalid project.godot (missing INI sections)")
+                        is_valid = False
+
+                if is_valid:
+                    files.append({
+                        'path': filepath,
+                        'content': file_content
+                    })
 
         return files
 
@@ -1120,7 +1144,7 @@ document.addEventListener('DOMContentLoaded', function() {
     def consolidate_godot_project(self, plan_id: str, plan_title: str) -> bool:
         """Consolidate Godot project files from multiple tasks
 
-        Creates a complete project.godot if not present
+        Creates a complete project.godot if not present or invalid
         """
         plan_dir = os.path.join(self.base_dir, plan_id[:8])
         godot_dir = os.path.join(plan_dir, "godot_project")
@@ -1128,13 +1152,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if not os.path.exists(godot_dir):
             return False
 
-        # Check if project.godot exists, create default if not
-        project_file = os.path.join(godot_dir, "project.godot")
-        if not os.path.exists(project_file):
-            # Godot 3.6 format for Douyin Mini Game compatibility
-            default_project = f'''; Engine configuration file.
+        # Godot 3.6 format for Douyin Mini Game compatibility
+        default_project = f'''; Engine configuration file.
 ; It's best edited using the editor UI and not directly,
 ; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=4
 
@@ -1159,8 +1184,31 @@ window/stretch/aspect="keep"
 quality/driver/driver_name="GLES2"
 vram_compression/import_etc=true
 '''
+
+        project_file = os.path.join(godot_dir, "project.godot")
+        needs_create = True
+
+        # Check if project.godot exists and is valid
+        if os.path.exists(project_file):
+            try:
+                with open(project_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                # Valid project.godot should start with config_version or be INI format
+                # It should NOT be GDScript (extends, func, etc.)
+                if content.strip().startswith('config_version=') or '[application]' in content:
+                    # Looks like valid INI format, keep it
+                    needs_create = False
+                    print(f"[OutputManager] project.godot exists and appears valid")
+                else:
+                    # Invalid format (likely GDScript), will overwrite
+                    print(f"[OutputManager] project.godot has invalid format, will regenerate")
+            except Exception as e:
+                print(f"[OutputManager] Error reading project.godot: {e}")
+
+        if needs_create:
             with open(project_file, 'w', encoding='utf-8') as f:
                 f.write(default_project)
+            print(f"[OutputManager] Created project.godot for Godot 3.6")
 
         return True
 
