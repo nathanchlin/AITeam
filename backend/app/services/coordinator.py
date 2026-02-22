@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from app.services.agent_manager import agent_manager
 from app.services.output_manager import output_manager
+from app.services.code_merger import code_merger
 from app.models.schemas import (
     AgentType, AgentStatus, TaskStatus, PlanStatus,
     Plan, PlanTask, PlanCreate, DiscussionMessage, IterationTask, IterationRound
@@ -1968,8 +1969,14 @@ class CoordinatorService:
                 }
             })
 
-            # 构建迭代任务描述
-            iteration_prompt = f"""你是专业的开发工程师。现在需要基于现有代码进行迭代修改。
+            # 截断代码以节省 token（只显示前后部分）
+            code_preview = current_code
+            if len(current_code) > 8000:
+                # 显示前 4000 和后 3000 字符
+                code_preview = current_code[:4000] + "\n\n... [代码已截断，中间部分省略] ...\n\n" + current_code[-3000:]
+
+            # 构建迭代任务描述 - 使用增量修改格式
+            iteration_prompt = f"""你是专业的开发工程师。现在需要对现有代码进行**增量修改**。
 
 ## 原始需求
 {plan.original_request}
@@ -1981,47 +1988,63 @@ class CoordinatorService:
 {task.title}
 {task.description or ''}
 
-## 现有代码
+## 现有代码（仅供参考，理解结构即可）
 ```
-{current_code}
+{code_preview}
 ```
 
-## 任务要求
-1. 保持现有代码的核心功能和结构
-2. 只修改必要的部分以满足迭代需求中的当前任务
-3. 确保修改后的代码仍然是完整的单文件 HTML
-4. 所有 CSS 和 JS 必须内联
-5. 代码必须可以直接在浏览器中运行
-6. 不要删除现有功能，只添加或修改
+## 🎯 输出格式要求（必须严格遵守）
 
-## 重要：代码输出要求
-- 必须输出完整的 HTML 代码，不能省略任何部分
-- 禁止使用 "// ... 其余代码不变" 或类似的省略注释
-- 禁止使用 "// ... (rest of the code remains unchanged)" 等占位符
-- 每个方法、每个函数都必须完整输出
-- 即使代码很长，也要完整输出
+### 第一步：分析（必须）
+简要说明：
+- 你要修改哪些函数/CSS规则
+- 修改的目的
+- 修改后如何满足迭代需求
 
-## ⚠️ 迭代修改验证要求（必须遵守）
+### 第二步：输出修改块
+只输出需要修改的部分，使用以下格式：
 
-### 1. 修改说明
-在输出代码之前，先用2-3句话说明：
-- 你要修改哪个函数/代码块（包含行号或上下文）
-- 修改前是什么样的
-- 修改后是什么样的
-- 这个修改如何满足迭代需求
+**修改现有函数：**
+<<<MODIFY: 函数名>>>
+function 函数名(参数) {{
+    // 完整的新函数代码
+}}
+<<<END>>>
 
-### 2. 功能验证清单
-在输出代码后，必须列出：
-- [ ] 迭代需求中的核心功能已添加
-- [ ] 相关的变量/函数调用已正确实现
-- [ ] 没有遗漏任何必要的逻辑分支
+**在某个函数后新增代码：**
+<<<ADD: after:现有函数名>>>
+// 新增的代码
+<<<END>>>
 
-### 3. 常见错误提醒
+**在某个函数前新增代码：**
+<<<ADD: before:现有函数名>>>
+// 新增的代码
+<<<END>>>
+
+**删除函数：**
+<<<DELETE: 函数名>>>
+<<<END>>>
+
+**修改 CSS 规则：**
+<<<CSS: .selector>>>
+    property: value;
+    another-property: value;
+<<<END>>>
+
+### ⚠️ 重要规则
+1. **只输出需要修改的块**，不要输出未改动的代码
+2. 每个修改块必须**完整**（函数体不能省略）
+3. **未列出的函数/CSS规则保持不变**
+4. 如果需要大范围重构（超过5个函数），可以输出完整 HTML（用 ```html 包裹）
+5. 所有 CSS 和 JS 必须内联
+6. 代码必须可以直接在浏览器中运行
+
+### 常见错误提醒
 - 如果迭代需求是"当X发生时执行Y"，确保代码中同时包含X的检测和Y的执行
 - 如果迭代需求涉及UI更新，确保DOM元素正确引用
 - 如果迭代需求涉及状态变化，确保状态变量和显示都更新
 
-请按以上格式输出，然后输出完整的更新后的 HTML 代码。"""
+请先分析，然后输出修改块。"""
 
             full_response = ""
             task_timeout = 600  # 10 分钟超时
@@ -2052,58 +2075,96 @@ class CoordinatorService:
             finally:
                 agent.update_status(AgentStatus.IDLE)
 
-            # 检查是否有有效代码
-            if full_response and '<html' in full_response.lower() and "错误" not in full_response[:100]:
-                # 先尝试从 markdown 代码块中提取
-                code_block_match = re.search(
-                    r'```(?:html)?\s*\n(.*?)```',
-                    full_response,
-                    re.IGNORECASE | re.DOTALL
-                )
-                extract_from = code_block_match.group(1) if code_block_match else full_response
+            # 检查是否有有效代码或修改块
+            if full_response and "错误" not in full_response[:100]:
+                code_updated = False
 
-                # 提取 HTML 代码
-                html_match = re.search(
-                    r'(<(!DOCTYPE\s+)?html.*?</html>)',
-                    extract_from,
-                    re.IGNORECASE | re.DOTALL
-                )
-                if html_match:
-                    current_code = html_match.group(1)
-                elif code_block_match:
-                    # 如果代码块中没有完整的html标签，使用代码块内容
-                    current_code = code_block_match.group(1).strip()
+                # 优先检查是否使用了增量修改格式
+                if code_merger.has_modifications(full_response):
+                    # 使用增量合并模式
+                    modifications = code_merger.parse_modifications(full_response)
+                    if modifications:
+                        merge_result = code_merger.merge_html(current_code, modifications)
+                        current_code = merge_result.code
+                        code_updated = merge_result.applied > 0
+
+                        print(f"[Iteration] Applied {merge_result.applied}/{len(modifications)} modifications")
+                        if merge_result.failed:
+                            print(f"[Iteration] Failed modifications: {merge_result.failed}")
+
+                        # 记录修改内容
+                        mod_summary = ", ".join([f"{m.type}:{m.target}" for m in modifications])
+                        status_emoji = "✅" if not merge_result.failed else "⚠️"
+                        await self._add_iteration_discussion_message(
+                            plan_id, iteration_round.round_number,
+                            agent_id=agent.id,
+                            agent_name=agent.name,
+                            agent_type=agent.type.value,
+                            content=f"{status_emoji} 增量修改 ({merge_result.applied}个)：{mod_summary}",
+                            message_type="comment",
+                        )
+
+                # 如果没有修改块，检查是否输出完整 HTML（兼容模式）
+                if not code_updated and '<html' in full_response.lower():
+                    # 先尝试从 markdown 代码块中提取
+                    code_block_match = re.search(
+                        r'```(?:html)?\s*\n(.*?)```',
+                        full_response,
+                        re.IGNORECASE | re.DOTALL
+                    )
+                    extract_from = code_block_match.group(1) if code_block_match else full_response
+
+                    # 提取 HTML 代码
+                    html_match = re.search(
+                        r'(<(!DOCTYPE\s+)?html.*?</html>)',
+                        extract_from,
+                        re.IGNORECASE | re.DOTALL
+                    )
+                    if html_match:
+                        current_code = html_match.group(1)
+                        code_updated = True
+                        print(f"[Iteration] Using full HTML replacement (fallback mode)")
+                    elif code_block_match:
+                        # 如果代码块中没有完整的html标签，使用代码块内容
+                        current_code = code_block_match.group(1).strip()
+                        code_updated = True
+
+                # 验证并保存代码
+                if code_updated:
+                    is_valid_html = current_code.strip().lower().startswith('<!doctype') or \
+                                   current_code.strip().lower().startswith('<html')
+
+                    if is_valid_html:
+                        task.status = TaskStatus.COMPLETED
+
+                        # 保存到输出目录
+                        try:
+                            plan_dir = output_manager.get_output_path(plan_id)
+                            index_path = os.path.join(plan_dir, "index.html")
+                            with open(index_path, 'w', encoding='utf-8') as f:
+                                f.write(current_code)
+                        except Exception as e:
+                            print(f"[Coordinator] Error saving iteration code: {e}")
+                    else:
+                        # 测试报告等非代码输出，标记完成但不更新代码
+                        task.status = TaskStatus.COMPLETED
+                        print(f"[Coordinator] Task output is not valid HTML, skipping index.html update")
+
+                    await self._add_iteration_discussion_message(
+                        plan_id, iteration_round.round_number,
+                        agent_id=agent.id,
+                        agent_name=agent.name,
+                        agent_type=agent.type.value,
+                        content=f"✅ 完成任务：{task.title}",
+                        message_type="comment",
+                    )
                 else:
-                    current_code = full_response
-
-                # 只有当提取的内容是有效的 HTML 时才更新
-                is_valid_html = current_code.strip().lower().startswith('<!doctype') or \
-                               current_code.strip().lower().startswith('<html')
-
-                if is_valid_html:
-                    task.status = TaskStatus.COMPLETED
-
-                    # 保存到输出目录
-                    try:
-                        plan_dir = output_manager.get_output_path(plan_id)
-                        index_path = os.path.join(plan_dir, "index.html")
-                        with open(index_path, 'w', encoding='utf-8') as f:
-                            f.write(current_code)
-                    except Exception as e:
-                        print(f"[Coordinator] Error saving iteration code: {e}")
-                else:
-                    # 测试报告等非代码输出，标记完成但不更新代码
-                    task.status = TaskStatus.COMPLETED
-                    print(f"[Coordinator] Task output is not valid HTML, skipping index.html update")
-
-                await self._add_iteration_discussion_message(
-                    plan_id, iteration_round.round_number,
-                    agent_id=agent.id,
-                    agent_name=agent.name,
-                    agent_type=agent.type.value,
-                    content=f"✅ 完成任务：{task.title}",
-                    message_type="comment",
-                )
+                    # 没有检测到有效代码，但可能是纯文本回复（如分析说明）
+                    if full_response.strip():
+                        task.status = TaskStatus.COMPLETED
+                        print(f"[Coordinator] Task completed without code changes")
+                    else:
+                        task.status = TaskStatus.FAILED
             else:
                 task.status = TaskStatus.FAILED
                 await self._add_iteration_discussion_message(
