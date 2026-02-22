@@ -44,6 +44,8 @@ export function PipelinePanel() {
   const [restoring, setRestoring] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState('');
   const [showArchivePanel, setShowArchivePanel] = useState(false);
+  const [godotProjectInfo, setGodotProjectInfo] = useState<any>(null);
+  const [godotDownloading, setGodotDownloading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -174,6 +176,48 @@ export function PipelinePanel() {
     }
   };
 
+  // Fetch Godot project info
+  const fetchGodotProjectInfo = async () => {
+    if (!currentPlanId || currentPlan?.target_output !== 'godot-game') return;
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/output/${currentPlanId}/godot`);
+      if (res.ok) {
+        const data = await res.json();
+        setGodotProjectInfo(data.project);
+      }
+    } catch (e) {
+      console.error('Fetch Godot project info error:', e);
+    }
+  };
+
+  // Download Godot project as zip
+  const handleDownloadGodot = async () => {
+    if (!currentPlanId || godotDownloading) return;
+    setGodotDownloading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/output/${currentPlanId}/godot/download`);
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `godot_project_${currentPlanId.slice(0, 8)}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.detail || '下载失败');
+      }
+    } catch (e) {
+      console.error('Download Godot project error:', e);
+      alert('下载失败：' + (e instanceof Error ? e.message : '网络错误'));
+    } finally {
+      setGodotDownloading(false);
+    }
+  };
+
   // Restore to a specific archive
   const handleRestoreArchive = async (roundNumber: number) => {
     if (!currentPlanId || restoring) return;
@@ -225,6 +269,13 @@ export function PipelinePanel() {
       fetchArchives();
     }
   }, [currentPlan?.iterations?.map(i => `${i.round_number}:${i.status}:${i.archive_path}`).join(',')]);
+
+  // Fetch Godot project info when plan completes
+  useEffect(() => {
+    if (currentPlanId && currentPlan?.status === 'completed' && currentPlan?.target_output === 'godot-game') {
+      fetchGodotProjectInfo();
+    }
+  }, [currentPlanId, currentPlan?.status, currentPlan?.target_output]);
 
   // Poll for plan updates when plan is active
   // Also polls when WebSocket is disconnected (fallback sync)
@@ -591,7 +642,9 @@ export function PipelinePanel() {
             onChange={(e) => setRequest(e.target.value)}
             placeholder={
               currentPlan?.status === 'completed'
-                ? "输入迭代需求，例如：我想添加一个规则，当敌机穿过屏幕底部时，生命值减1..."
+                ? currentPlan?.target_output === 'godot-game'
+                  ? "输入迭代需求，例如：添加关卡系统..."
+                  : "输入迭代需求，例如：我想添加一个规则，当敌机穿过屏幕底部时，生命值减1..."
                 : "输入你的需求，例如：我需要做一个贪吃蛇游戏..."
             }
             className="w-full px-3 py-2 bg-gray-700 rounded-lg text-white text-sm border border-gray-600 focus:border-purple-500 focus:outline-none resize-none"
@@ -670,6 +723,7 @@ export function PipelinePanel() {
                 className="px-2 py-1 bg-gray-700 rounded text-white text-xs border border-gray-600"
               >
                 <option value="web-app">Web应用</option>
+                <option value="godot-game">Godot游戏</option>
                 <option value="api">API服务</option>
                 <option value="report">分析报告</option>
                 <option value="documentation">文档</option>
@@ -677,7 +731,7 @@ export function PipelinePanel() {
             </div>
             <div className="flex items-center gap-2">
               {/* 当项目完成时，显示迭代按钮 */}
-              {currentPlan?.status === 'completed' && outputUrl && (
+              {currentPlan?.status === 'completed' && (outputUrl || currentPlan?.target_output === 'godot-game') && (
                 <button
                   onClick={handleIterate}
                   disabled={!request.trim() || iterating}
@@ -1098,7 +1152,7 @@ export function PipelinePanel() {
             </div>
 
             {/* Final Result Section */}
-            {currentPlan.status === 'completed' && outputUrl && (
+            {currentPlan.status === 'completed' && (outputUrl || currentPlan.target_output === 'godot-game') && (
               <div className="p-4 border-t border-gray-700 bg-green-900/20 flex-shrink-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -1106,38 +1160,101 @@ export function PipelinePanel() {
                       <CheckCircle size={20} className="text-white" />
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-white">项目已完成</div>
-                      <div className="text-xs text-gray-400">点击下方链接查看结果，或在上方输入迭代需求</div>
+                      <div className="text-sm font-medium text-white">
+                        {currentPlan.target_output === 'godot-game' ? 'Godot 项目已完成' : '项目已完成'}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {currentPlan.target_output === 'godot-game'
+                          ? '点击下载项目，用 Godot 4.3+ 打开运行'
+                          : '点击下方链接查看结果，或在上方输入迭代需求'}
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {archives.length > 0 && (
-                      <button
-                        onClick={() => setShowArchivePanel(true)}
-                        className="px-3 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
-                      >
-                        <Archive size={14} />
-                        存档管理
-                      </button>
+                    {/* Godot project buttons */}
+                    {currentPlan.target_output === 'godot-game' && (
+                      <>
+                        {godotProjectInfo?.validation && (
+                          <div className={`px-3 py-2 rounded text-sm flex items-center gap-2 ${
+                            godotProjectInfo.validation.passed
+                              ? 'bg-green-600/20 text-green-400'
+                              : 'bg-yellow-600/20 text-yellow-400'
+                          }`}>
+                            {godotProjectInfo.validation.passed ? (
+                              <>
+                                <CheckCircle size={14} />
+                                验证通过
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-yellow-400">!</span>
+                                {godotProjectInfo.validation.errors?.length || 0} 个问题
+                              </>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          onClick={handleDownloadGodot}
+                          disabled={godotDownloading}
+                          className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-500 transition-colors flex items-center gap-2 text-sm disabled:opacity-50"
+                        >
+                          {godotDownloading ? (
+                            <>
+                              <Loader2 size={14} className="animate-spin" />
+                              打包中...
+                            </>
+                          ) : (
+                            <>
+                              <Archive size={14} />
+                              下载项目
+                            </>
+                          )}
+                        </button>
+                      </>
                     )}
-                    <button
-                      onClick={() => copyToClipboard(outputUrl)}
-                      className="px-3 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
-                    >
-                      {copiedUrl ? <Check size={14} /> : <Copy size={14} />}
-                      {copiedUrl ? '已复制' : '复制链接'}
-                    </button>
-                    <a
-                      href={outputUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition-colors flex items-center gap-2 text-sm"
-                    >
-                      <ExternalLink size={14} />
-                      打开网页
-                    </a>
+                    {/* Web app buttons */}
+                    {currentPlan.target_output !== 'godot-game' && (
+                      <>
+                        {archives.length > 0 && (
+                          <button
+                            onClick={() => setShowArchivePanel(true)}
+                            className="px-3 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
+                          >
+                            <Archive size={14} />
+                            存档管理
+                          </button>
+                        )}
+                        <button
+                          onClick={() => copyToClipboard(outputUrl || '')}
+                          className="px-3 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
+                        >
+                          {copiedUrl ? <Check size={14} /> : <Copy size={14} />}
+                          {copiedUrl ? '已复制' : '复制链接'}
+                        </button>
+                        <a
+                          href={outputUrl || '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-500 transition-colors flex items-center gap-2 text-sm"
+                        >
+                          <ExternalLink size={14} />
+                          打开网页
+                        </a>
+                      </>
+                    )}
                   </div>
                 </div>
+                {/* Godot validation warnings */}
+                {currentPlan.target_output === 'godot-game' && godotProjectInfo?.validation?.warnings?.length > 0 && (
+                  <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded">
+                    <div className="text-xs text-yellow-400 font-medium mb-1">注意事项：</div>
+                    <ul className="text-xs text-yellow-300 space-y-1">
+                      {godotProjectInfo.validation.warnings.slice(0, 3).map((w: string, i: number) => (
+                        <li key={i}>- {w}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </>

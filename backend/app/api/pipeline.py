@@ -836,3 +836,62 @@ async def get_archive_content(plan_id: str, round_number: int):
         "content": content,
         "size": len(content),
     }
+
+
+@router.get("/output/{plan_id}/godot")
+async def get_godot_project(plan_id: str):
+    """Get Godot project info for a plan
+
+    Returns file list and validation status
+    """
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan.target_output != "godot-game":
+        raise HTTPException(
+            status_code=400,
+            detail=f"This plan is not a Godot project (target_output: {plan.target_output})"
+        )
+
+    project_info = output_manager.get_godot_project_info(plan_id)
+
+    return {
+        "plan_id": plan_id,
+        "plan_title": plan.title,
+        "target_output": plan.target_output,
+        "project": project_info
+    }
+
+
+@router.get("/output/{plan_id}/godot/download")
+async def download_godot_project(plan_id: str):
+    """Download Godot project as zip file
+
+    Returns the project files packaged as a zip archive
+    """
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan.target_output != "godot-game":
+        raise HTTPException(
+            status_code=400,
+            detail=f"This plan is not a Godot project (target_output: {plan.target_output})"
+        )
+
+    zip_path = output_manager.get_godot_project_zip(plan_id)
+
+    if not zip_path or not os.path.exists(zip_path):
+        raise HTTPException(
+            status_code=404,
+            detail="Godot project not found or failed to create zip"
+        )
+
+    filename = f"godot_project_{plan_id[:8]}.zip"
+
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=filename
+    )

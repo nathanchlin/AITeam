@@ -530,11 +530,35 @@ class CoordinatorService:
 - "实时同步模块" ❌
 """
 
+        # Add constraints for Godot projects
+        godot_constraints = ""
+        if plan.target_output == "godot-game":
+            godot_constraints = """
+⚠️ 重要约束（Godot游戏项目必须遵守）：
+1. 只能生成 GDScript (.gd) 脚本文件，禁止 C# 脚本
+2. 禁止创建外部资源任务（图片、音频、字体等素材制作）
+3. 所有图形必须通过代码绘制，使用 draw_rect、draw_circle 等方法
+4. 必须使用触摸输入（InputEventScreenTouch），禁止键盘/鼠标
+5. 屏幕尺寸固定为 720x1280 竖屏
+6. 禁止使用 Godot 4.3 已知问题功能：PointLight2D、GPUParticles2D
+7. 任务数量控制在 3-5 个，聚焦核心游戏逻辑
+
+任务示例（正确）：
+- "游戏主场景与循环" - 创建 main.tscn 和 main.gd
+- "玩家控制与触摸输入" - 触摸移动玩家
+- "游戏对象与碰撞检测" - 使用 Area2D
+
+任务示例（错误，禁止）：
+- "制作角色精灵图" ❌ (外部资源)
+- "添加背景音乐" ❌ (外部资源)
+- "3D建模" ❌ (外部资源)
+"""
+
         plan_prompt = f"""基于以下讨论，请生成详细的执行计划：
 
 原始需求：{plan.original_request}
 目标输出：{plan.target_output}
-{web_app_constraints}
+{web_app_constraints}{godot_constraints}
 讨论摘要：
 {discussion_summary}
 
@@ -753,12 +777,29 @@ class CoordinatorService:
 🚫 禁止使用外部游戏框架（Phaser、Pixi.js、Three.js等）
 ✅ 只能使用原生 Canvas API 进行游戏开发"""
 
+                    # Add Godot-specific instructions
+                    godot_instructions = ""
+                    if plan.target_output == "godot-game" and agent.type.value == "coder":
+                        godot_instructions = """
+
+⚠️ Godot 游戏开发要求（必须全部满足）：
+1. 输出格式：每个文件用 `# filename: path/to/file.gd` 标注
+2. 必须包含 project.godot、main.tscn、main.gd 等核心文件
+3. 只使用 GDScript，禁止 C#
+4. 所有图形用代码绘制（_draw() 方法）
+5. 使用触摸输入：InputEventScreenTouch、InputEventScreenDrag
+6. 屏幕尺寸：720x1280 竖屏
+
+🚫 禁止使用外部资源文件（png、wav、ttf 等）
+✅ 使用代码绘制：draw_rect()、draw_circle()、draw_string()
+"""
+
                     task_description = f"""任务：{task.title}
 
 描述：{task.description or '无详细描述'}
 
 原始需求上下文：{plan.original_request}
-{previous_tasks_context}{fix_context}{web_app_instructions}
+{previous_tasks_context}{fix_context}{web_app_instructions}{godot_instructions}
 
 请完成你的任务部分，提供详细的输出。"""
 
@@ -921,6 +962,10 @@ class CoordinatorService:
                 if plan.target_output == "web-app":
                     output_manager.consolidate_web_app(plan_id, plan.title)
                     print(f"[OutputManager] Consolidated web app for plan {plan_id[:8]}")
+                # Consolidate Godot project
+                if plan.target_output == "godot-game":
+                    output_manager.consolidate_godot_project(plan_id, plan.title)
+                    print(f"[OutputManager] Consolidated Godot project for plan {plan_id[:8]}")
             except Exception as e:
                 print(f"[OutputManager] Error saving plan output: {e}")
 
@@ -942,6 +987,26 @@ class CoordinatorService:
                     )
                     print(f"[Coordinator] Pre-test validation failed, skipping tests")
                     # Skip to end without running tests
+                    plan.status = PlanStatus.COMPLETED
+                    self._save_plans()
+                    return plan
+
+            # Pre-test validation for Godot
+            if plan.target_output == "godot-game":
+                print(f"[Coordinator] Running Godot pre-test validation...")
+                validation = output_manager.pre_test_validation_godot(plan_id)
+
+                if not validation["passed"]:
+                    error_list = "\n".join([f"- ❌ {err}" for err in validation["errors"]])
+                    await self.add_discussion_message(
+                        plan_id=plan_id,
+                        agent_id="system",
+                        agent_name="系统",
+                        agent_type="assistant",
+                        content=f"⚠️ Godot 项目验证失败\n\n{error_list}\n\n请在测试前修复这些问题。",
+                        message_type="comment",
+                    )
+                    print(f"[Coordinator] Godot pre-test validation failed")
                     plan.status = PlanStatus.COMPLETED
                     self._save_plans()
                     return plan

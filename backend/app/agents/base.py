@@ -58,7 +58,7 @@ class BaseAgent(ABC):
         pass
 
     @abstractmethod
-    def get_system_prompt(self) -> str:
+    def get_system_prompt(self, target_output: str = "web-app") -> str:
         """Get the system prompt for this agent type"""
         pass
 
@@ -67,7 +67,70 @@ class CoderAgent(BaseAgent):
     def __init__(self, id: str, name: str, **kwargs):
         super().__init__(id, name, AgentType.CODER, **kwargs)
 
-    def get_system_prompt(self) -> str:
+    def get_system_prompt(self, target_output: str = "web-app") -> str:
+        if target_output == "godot-game":
+            return self.custom_prompt or """你是一个专业的 Godot 游戏开发专家。你的职责是生成完整的 Godot 游戏项目代码。
+
+⚠️🚨 严格规则 - 违反将导致代码无法运行：
+
+【目标平台】
+- 目标引擎：Godot 4.3+
+- 目标平台：抖音小程序（需要导出为 Web/WASM）
+- 屏幕分辨率：720x1280 竖屏
+
+【禁止事项 - 绝对不可】
+❌ 禁止使用 C# 脚本（无法导出到 Web/WASM）
+❌ 禁止引用外部资源文件（图片、音频、字体等）
+❌ 禁止使用 External 纹理或资源加载
+❌ 禁止只写代码骨架/空方法
+❌ 禁止 TODO 注释或占位符
+
+【必须遵守 - 强制要求】
+✅ 只使用 GDScript (.gd 文件)
+✅ 所有图形必须用代码绘制（使用 draw_* 方法）
+✅ 输出格式：每个文件用 `# filename: path/to/file.gd` 标注
+✅ 必须输出完整的 .gd 脚本和 .tscn 场景文件
+✅ 必须包含 project.godot 项目配置文件
+✅ 触摸控制：使用 InputEventScreenTouch 和 InputEventScreenDrag
+✅ 适配竖屏 720x1280 布局
+
+【输出文件结构】
+# filename: project.godot
+project settings...
+
+# filename: main.tscn
+scene content...
+
+# filename: main.gd
+script content...
+
+# filename: scenes/player.tscn
+scene content...
+
+# filename: scripts/player.gd
+script content...
+
+【抖音小程序适配要求】
+- 使用触摸事件而非键盘/鼠标
+- UI 元素要足够大（最小 44px）
+- 避免 Godot 4.3 已知问题：
+  - 声音播放可能失败
+  - 2D 点光源失效
+  - GPU 粒子特效失效
+- 建议使用 CPUParticles2D 替代 GPUParticles2D
+
+【代码绘制示例】
+func _draw():
+    # 绘制矩形
+    draw_rect(Rect2(0, 0, 100, 50), Color.RED)
+    # 绘制圆形
+    draw_circle(Vector2(50, 50), 25, Color.BLUE)
+    # 绘制文字
+    var font = ThemeDB.fallback_font()
+    draw_string(font, Vector2(10, 30), "Hello", HORIZONTAL_ALIGNMENT_LEFT)
+
+请生成完整的 Godot 项目，确保所有文件都可以直接在 Godot 引擎中打开运行。"""
+
         return self.custom_prompt or """你是一个专业的代码开发专家。你的职责包括：
 1. 编写高质量、可维护的代码
 2. 调试和修复代码问题
@@ -143,7 +206,7 @@ class AnalystAgent(BaseAgent):
     def __init__(self, id: str, name: str, **kwargs):
         super().__init__(id, name, AgentType.ANALYST, **kwargs)
 
-    def get_system_prompt(self) -> str:
+    def get_system_prompt(self, target_output: str = "web-app") -> str:
         return self.custom_prompt or """你是一个专业的数据分析师。你的职责包括：
 1. 分析数据并提供洞察
 2. 生成分析报告
@@ -170,7 +233,7 @@ class AssistantAgent(BaseAgent):
     def __init__(self, id: str, name: str, **kwargs):
         super().__init__(id, name, AgentType.ASSISTANT, **kwargs)
 
-    def get_system_prompt(self) -> str:
+    def get_system_prompt(self, target_output: str = "web-app") -> str:
         return self.custom_prompt or """你是一个智能通用助手和项目协调者。你的职责包括：
 1. 理解用户需求并进行拆解
 2. 协调不同专业领域的Agent进行协作
@@ -197,7 +260,7 @@ class TesterAgent(BaseAgent):
     def __init__(self, id: str, name: str, **kwargs):
         super().__init__(id, name, AgentType.TESTER, **kwargs)
 
-    def get_system_prompt(self) -> str:
+    def get_system_prompt(self, target_output: str = "web-app") -> str:
         return self.custom_prompt or """你是一个专业的软件测试工程师。你的职责包括：
 1. 分析需求并设计测试用例
 2. 执行功能测试和回归测试
@@ -252,7 +315,7 @@ class CustomAgent(BaseAgent):
     def __init__(self, id: str, name: str, custom_prompt: str, **kwargs):
         super().__init__(id, name, AgentType.CUSTOM, custom_prompt=custom_prompt, **kwargs)
 
-    def get_system_prompt(self) -> str:
+    def get_system_prompt(self, target_output: str = "web-app") -> str:
         return self.custom_prompt or "你是一个自定义AI助手。"
 
     async def execute_task(self, task: str) -> AsyncGenerator[Dict[str, Any], None]:
