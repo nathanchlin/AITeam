@@ -521,10 +521,18 @@ async def stop_iteration(plan_id: str, round_number: int):
             "iteration_round": round_number,
         }
 
-    # 已完成或其他状态
+    # 已完成状态：返回成功（而不是报错）
+    if iteration.status == PlanStatus.COMPLETED:
+        return {
+            "message": f"Iteration {round_number} is already completed",
+            "plan_id": plan_id,
+            "iteration_round": round_number,
+        }
+
+    # 其他未知状态
     raise HTTPException(
         status_code=400,
-        detail=f"Iteration is already {iteration.status}"
+        detail=f"Iteration is in unexpected state: {iteration.status}"
     )
 
 
