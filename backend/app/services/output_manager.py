@@ -1210,6 +1210,26 @@ vram_compression/import_etc=true
                 f.write(default_project)
             print(f"[OutputManager] Created project.godot for Godot 3.6")
 
+        # Check for .tscn scene files, create default main.tscn if none exist
+        tscn_files = [f for f in os.listdir(godot_dir) if f.endswith('.tscn')]
+        if not tscn_files:
+            # Check for main.gd to reference in scene
+            has_main_gd = os.path.exists(os.path.join(godot_dir, "main.gd"))
+            default_scene = '''[gd_scene load_steps=2 format=2]
+
+[ext_resource path="res://main.gd" type="Script" id=1]
+
+[node name="Main" type="Node2D"]
+script = ExtResource( 1 )
+
+[node name="Camera2D" type="Camera2D" parent="."]
+current = true
+'''
+            main_tscn = os.path.join(godot_dir, "main.tscn")
+            with open(main_tscn, 'w', encoding='utf-8') as f:
+                f.write(default_scene)
+            print(f"[OutputManager] Created default main.tscn")
+
         return True
 
     def pre_test_validation_godot(self, plan_id: str) -> Dict[str, Any]:
