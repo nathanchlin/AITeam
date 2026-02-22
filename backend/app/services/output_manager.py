@@ -1090,10 +1090,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         return files
 
-    def save_godot_project(self, plan_id: str, task_title: str, content: str) -> Dict:
+    def save_godot_project(self, plan_id: str, task_title: str, content: str) -> List[str]:
         """Save Godot project files to godot_project/ directory
 
-        Returns dict with saved files info
+        Returns list of saved file paths
         """
         plan_dir = os.path.join(self.base_dir, plan_id[:8])
         godot_dir = os.path.join(plan_dir, "godot_project")
@@ -1113,13 +1113,9 @@ document.addEventListener('DOMContentLoaded', function() {
             with open(full_path, 'w', encoding='utf-8') as f:
                 f.write(file_content)
 
-            saved_files.append(filepath)
+            saved_files.append(full_path)
 
-        return {
-            'saved_count': len(saved_files),
-            'files': saved_files,
-            'directory': godot_dir
-        }
+        return saved_files
 
     def consolidate_godot_project(self, plan_id: str, plan_title: str) -> bool:
         """Consolidate Godot project files from multiple tasks

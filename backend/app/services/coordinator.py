@@ -916,13 +916,22 @@ class CoordinatorService:
 
                 # Save output to files
                 try:
-                    saved_files = output_manager.save_task_output(
-                        plan_id=plan_id,
-                        task_id=task.id,
-                        task_title=task.title,
-                        agent_type=task.assigned_agent_type or agent.type.value,
-                        content=full_response,
-                    )
+                    if plan.target_output == "godot-game" and task.assigned_agent_type == "coder":
+                        # Use Godot-specific saving for coder tasks
+                        saved_files = output_manager.save_godot_project(
+                            plan_id=plan_id,
+                            task_title=task.title,
+                            content=full_response,
+                        )
+                    else:
+                        # Default saving for other output types
+                        saved_files = output_manager.save_task_output(
+                            plan_id=plan_id,
+                            task_id=task.id,
+                            task_title=task.title,
+                            agent_type=task.assigned_agent_type or agent.type.value,
+                            content=full_response,
+                        )
                     if saved_files:
                         print(f"[OutputManager] Saved {len(saved_files)} files for task: {task.title}")
                 except Exception as e:
