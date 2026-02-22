@@ -536,6 +536,73 @@ async def stop_iteration(plan_id: str, round_number: int):
     )
 
 
+@router.post("/resume/{plan_id}/iteration/{round_number}")
+async def resume_iteration(plan_id: str, round_number: int, background_tasks: BackgroundTasks):
+    """Resume an interrupted iteration from its current state"""
+    from app.main import websocket_manager
+
+    coordinator.set_websocket_manager(websocket_manager)
+
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Find the iteration
+    iteration = None
+    for iter_round in plan.iterations:
+        if iter_round.round_number == round_number:
+            iteration = iter_round
+            break
+
+    if not iteration:
+        raise HTTPException(status_code=404, detail=f"Iteration round {round_number} not found")
+
+    # Re-assign agents to tasks
+    coordinator._reassign_agents(plan_id)
+
+    # Reset running tasks to pending
+    for task in iteration.tasks:
+        if task.status == TaskStatus.RUNNING:
+            task.status = TaskStatus.PENDING
+
+    # Set plan status
+    plan.status = PlanStatus.EXECUTING
+    plan.current_iteration_round = round_number
+    coordinator._save_plans()
+
+    # Run iteration execution in background
+    async def run_iteration_execution():
+        try:
+            existing_code = output_manager.read_existing_code(plan_id)
+
+            if iteration.status == PlanStatus.DRAFT:
+                # Need to run full iteration pipeline
+                await coordinator._analyze_iteration_request(plan_id, iteration, existing_code, iteration.iteration_request)
+                await coordinator._organize_iteration_discussion(plan_id, iteration, existing_code, iteration.iteration_request)
+                await coordinator._generate_iteration_plan(plan_id, iteration, existing_code, iteration.iteration_request)
+            elif iteration.status == PlanStatus.DISCUSSING:
+                # Resume from discussion
+                await coordinator._organize_iteration_discussion(plan_id, iteration, existing_code, iteration.iteration_request)
+                await coordinator._generate_iteration_plan(plan_id, iteration, existing_code, iteration.iteration_request)
+            elif iteration.status == PlanStatus.APPROVED:
+                # Just execute the plan
+                pass  # Will execute below
+
+            # Execute the iteration
+            await coordinator._execute_iteration(plan_id, iteration, existing_code)
+        except Exception as e:
+            print(f"[Pipeline] Error resuming iteration {plan_id}/{round_number}: {e}")
+
+    background_tasks.add_task(run_iteration_execution)
+
+    return {
+        "message": f"Iteration round {round_number} resumed",
+        "plan_id": plan_id,
+        "iteration_round": round_number,
+        "phase": iteration.status,
+    }
+
+
 @router.get("/task/{task_id}")
 async def get_task_status_endpoint(task_id: str):
     """Get the status of a task (deprecated - Celery no longer used)"""

@@ -396,11 +396,16 @@ export function PipelinePanel() {
     if (!currentPlanId || resuming) return;
     setResuming(true);
     try {
-      const res = await fetch(`${API_BASE}/api/pipeline/resume/${currentPlanId}`, { method: 'POST' });
+      // 根据当前选中的 tab 决定恢复目标
+      const isIteration = activeIterationTab > 0;
+      const url = isIteration
+        ? `${API_BASE}/api/pipeline/resume/${currentPlanId}/iteration/${activeIterationTab}`
+        : `${API_BASE}/api/pipeline/resume/${currentPlanId}`;
+      const res = await fetch(url, { method: 'POST' });
       if (res.ok) {
         await fetchPlans();
         const data = await res.json();
-        console.log('Pipeline resumed:', data);
+        console.log('Pipeline/Iteration resumed:', data);
       }
     } catch (e) {
       console.error('Resume pipeline error:', e);
@@ -788,7 +793,14 @@ export function PipelinePanel() {
                       任务进度: {completedTasksCount}/{totalTasks}
                     </span>
                   )}
-                  {currentPlan.status === 'executing' && completedTasksCount < totalTasks && (
+                  {(() => {
+                    // 根据当前 tab 获取正确的状态
+                    if (activeIterationTab > 0) {
+                      const iteration = currentPlan.iterations?.find(i => i.round_number === activeIterationTab);
+                      return iteration?.status === 'executing' && completedTasksCount < totalTasks;
+                    }
+                    return currentPlan.status === 'executing' && completedTasksCount < totalTasks;
+                  })() && (
                     <button
                       onClick={handleResumePipeline}
                       disabled={resuming}
