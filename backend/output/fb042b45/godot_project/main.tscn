@@ -1,0 +1,15 @@
+# This is the main scene file with the player and obstacles.
+
+# Since we are not using the editor, we will not create the nodes in the
+# editor. Instead, we will simulate the scene structure in the GDScript.
+
+func _ready():
+    # Create obstacles and player
+    $Player = load("res://player.tscn")
+    add_child($Player)
+    
+    for i in range(5):  # Create 5 obstacles
+        $Obstacle = load("res://obstacle.tscn")
+        $Obstacle.position = Vector2(100 + i * 150, 1200)  # Place obstacles
+        add_child($Obstacle)
+```

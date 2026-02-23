@@ -1,0 +1,2210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>修仙沙盘游戏 - 鬼谷八荒风格</title>
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    overflow: hidden;
+    font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+    background: #0a0a12;
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  canvas {
+    display: block;
+    touch-action: none;
+  }
+  
+  #loadingScreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at center, #12121f 0%, #080810 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    transition: opacity 1s ease;
+  }
+  #loadingScreen.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .loading-title {
+    font-size: 48px;
+    color: #ffd700;
+    text-shadow: 0 0 30px rgba(255, 215, 0, 0.6), 0 0 60px rgba(255, 215, 0, 0.4);
+    margin-bottom: 10px;
+    letter-spacing: 12px;
+    font-weight: bold;
+  }
+  .loading-subtitle {
+    font-size: 16px;
+    color: #6b8cff;
+    margin-bottom: 50px;
+    letter-spacing: 6px;
+  }
+  .loading-bagua {
+    width: 150px;
+    height: 150px;
+    position: relative;
+    animation: rotateBagua 4s linear infinite;
+  }
+  .loading-bagua::before {
+    content: '☯';
+    font-size: 120px;
+    color: #ffd700;
+    text-shadow: 0 0 40px rgba(255, 215, 0, 0.9), 0 0 80px rgba(255, 215, 0, 0.5);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+  @keyframes rotateBagua {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .loading-progress-container {
+    width: 320px;
+    height: 6px;
+    background: rgba(107, 140, 255, 0.2);
+    border-radius: 3px;
+    margin-top: 40px;
+    overflow: hidden;
+    border: 1px solid rgba(107, 140, 255, 0.4);
+  }
+  .loading-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #4a6bff, #ffd700, #4a6bff);
+    background-size: 200% 100%;
+    animation: shimmer 2s infinite;
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .loading-tip {
+    margin-top: 30px;
+    color: #556;
+    font-size: 13px;
+    letter-spacing: 2px;
+  }
+  
+  #gameContainer {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+  }
+  
+  #gameCanvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+  }
+  
+  #minimapContainer {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    width: 180px;
+    height: 180px;
+    background: rgba(10, 10, 20, 0.85);
+    border: 2px solid #3a4a6b;
+    border-radius: 10px;
+    overflow: hidden;
+    z-index: 100;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 30px rgba(107, 140, 255, 0.1);
+  }
+  #minimapCanvas {
+    width: 100%;
+    height: 100%;
+  }
+  
+  #uiOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 200;
+  }
+  
+  #statusPanel {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: linear-gradient(135deg, rgba(15, 15, 30, 0.95), rgba(25, 25, 50, 0.9));
+    border: 1px solid #3a4a6b;
+    border-radius: 12px;
+    padding: 18px;
+    min-width: 220px;
+    box-shadow: 0 4px 25px rgba(0, 0, 0, 0.5), inset 0 0 20px rgba(107, 140, 255, 0.05);
+    pointer-events: auto;
+  }
+  
+  .player-name {
+    font-size: 20px;
+    color: #ffd700;
+    font-weight: bold;
+    margin-bottom: 5px;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  }
+  
+  .realm-name {
+    font-size: 13px;
+    color: #b8a0ff;
+    margin-bottom: 15px;
+    letter-spacing: 2px;
+  }
+  
+  .stat-row {
+    margin-bottom: 12px;
+  }
+  
+  .stat-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #8899aa;
+    margin-bottom: 4px;
+  }
+  
+  .stat-bar {
+    height: 8px;
+    background: rgba(30, 30, 50, 0.8);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  .stat-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.3s ease;
+    position: relative;
+  }
+  
+  .stat-fill.hp {
+    background: linear-gradient(90deg, #ff4444, #ff6b6b);
+    box-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+  }
+  
+  .stat-fill.mp {
+    background: linear-gradient(90deg, #4488ff, #6baaff);
+    box-shadow: 0 0 10px rgba(68, 136, 255, 0.5);
+  }
+  
+  .stat-fill.exp {
+    background: linear-gradient(90deg, #44cc88, #66eeaa);
+    box-shadow: 0 0 10px rgba(68, 204, 136, 0.5);
+  }
+  
+  .stat-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.3), transparent);
+    border-radius: 4px 4px 0 0;
+  }
+  
+  #skillBar {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+    pointer-events: auto;
+  }
+  
+  .skill-slot {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, rgba(20, 20, 40, 0.95), rgba(30, 30, 60, 0.9));
+    border: 2px solid #3a4a6b;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+  }
+  
+  .skill-slot:hover {
+    border-color: #6b8cff;
+    transform: translateY(-3px);
+    box-shadow: 0 5px 20px rgba(107, 140, 255, 0.3);
+  }
+  
+  .skill-slot .skill-icon {
+    font-size: 24px;
+    margin-bottom: 2px;
+  }
+  
+  .skill-slot .skill-key {
+    font-size: 10px;
+    color: #6b8cff;
+  }
+  
+  .skill-slot .cooldown-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    color: #fff;
+  }
+  
+  #combatLog {
+    position: absolute;
+    bottom: 100px;
+    left: 20px;
+    width: 350px;
+    max-height: 150px;
+    background: rgba(10, 10, 20, 0.85);
+    border: 1px solid #3a4a6b;
+    border-radius: 8px;
+    padding: 10px;
+    overflow-y: auto;
+    pointer-events: auto;
+    font-size: 12px;
+  }
+  
+  .log-entry {
+    margin-bottom: 5px;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(58, 74, 107, 0.3);
+  }
+  
+  .log-entry.damage { color: #ff6b6b; }
+  .log-entry.heal { color: #66eeaa; }
+  .log-entry.exp { color: #ffd700; }
+  .log-entry.system { color: #8899aa; }
+  .log-entry.loot { color: #ebcb8b; }
+  
+  #notificationContainer {
+    position: fixed;
+    top: 220px;
+    right: 20px;
+    width: 280px;
+    z-index: 300;
+    pointer-events: none;
+  }
+  
+  .notification {
+    background: linear-gradient(135deg, rgba(15, 15, 30, 0.95), rgba(25, 25, 50, 0.9));
+    border: 1px solid #3a4a6b;
+    border-radius: 8px;
+    padding: 12px 15px;
+    margin-bottom: 10px;
+    animation: slideIn 0.3s ease, fadeOut 0.5s ease 2.5s forwards;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  }
+  
+  .notification.gold { border-left: 3px solid #ffd700; }
+  .notification.combat { border-left: 3px solid #ff6b6b; }
+  .notification.system { border-left: 3px solid #6b8cff; }
+  
+  @keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  
+  @keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  
+  #tooltip {
+    position: fixed;
+    background: linear-gradient(135deg, rgba(15, 15, 30, 0.98), rgba(25, 25, 50, 0.95));
+    border: 1px solid #6b8cff;
+    border-radius: 8px;
+    padding: 12px;
+    max-width: 250px;
+    z-index: 400;
+    display: none;
+    pointer-events: none;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  }
+  
+  #tooltip .tooltip-title {
+    color: #ffd700;
+    font-weight: bold;
+    margin-bottom: 5px;
+  }
+  
+  #tooltip .tooltip-content {
+    color: #aabbcc;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  
+  #inventoryPanel {
+    position: absolute;
+    top: 20px;
+    right: 220px;
+    background: linear-gradient(135deg, rgba(15, 15, 30, 0.95), rgba(25, 25, 50, 0.9));
+    border: 1px solid #3a4a6b;
+    border-radius: 12px;
+    padding: 15px;
+    pointer-events: auto;
+    display: none;
+  }
+  
+  #inventoryPanel.show {
+    display: block;
+  }
+  
+  .inventory-title {
+    color: #ffd700;
+    font-size: 16px;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  
+  .inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 40px);
+    gap: 5px;
+  }
+  
+  .inventory-slot {
+    width: 40px;
+    height: 40px;
+    background: rgba(30, 30, 50, 0.8);
+    border: 1px solid #3a4a6b;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    cursor: pointer;
+  }
+  
+  .inventory-slot:hover {
+    border-color: #ffd700;
+  }
+  
+  #controls {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    gap: 10px;
+    pointer-events: auto;
+    z-index: 250;
+  }
+  
+  .control-btn {
+    padding: 8px 15px;
+    background: linear-gradient(135deg, rgba(20, 20, 40, 0.95), rgba(30, 30, 60, 0.9));
+    border: 1px solid #3a4a6b;
+    border-radius: 6px;
+    color: #aabbcc;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s ease;
+  }
+  
+  .control-btn:hover {
+    border-color: #6b8cff;
+    color: #fff;
+  }
+  
+  .control-btn.active {
+    border-color: #ffd700;
+    color: #ffd700;
+  }
+  
+  #fpsCounter {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10, 10, 20, 0.8);
+    border: 1px solid #3a4a6b;
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-size: 11px;
+    color: #6b8cff;
+    z-index: 300;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="loadingScreen">
+  <div class="loading-title">修仙沙盘</div>
+  <div class="loading-subtitle">鬼谷八荒风格</div>
+  <div class="loading-bagua"></div>
+  <div class="loading-progress-container">
+    <div class="loading-progress-bar" id="loadingBar"></div>
+  </div>
+  <div class="loading-tip">天地玄黄 宇宙洪荒</div>
+</div>
+
+<div id="gameContainer">
+  <canvas id="gameCanvas"></canvas>
+</div>
+
+<div id="minimapContainer">
+  <canvas id="minimapCanvas"></canvas>
+</div>
+
+<div id="uiOverlay">
+  <div id="statusPanel">
+    <div class="player-name" id="playerName">逍遥子</div>
+    <div class="realm-name" id="realmName">凡人</div>
+    <div class="stat-row">
+      <div class="stat-label"><span>生命</span><span id="hpText">100/100</span></div>
+      <div class="stat-bar"><div class="stat-fill hp" id="hpBar" style="width:100%"></div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-label"><span>灵力</span><span id="mpText">50/50</span></div>
+      <div class="stat-bar"><div class="stat-fill mp" id="mpBar" style="width:100%"></div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-label"><span>修为</span><span id="expText">0/100</span></div>
+      <div class="stat-bar"><div class="stat-fill exp" id="expBar" style="width:0%"></div></div>
+    </div>
+    <div class="stat-row" style="margin-top:15px;font-size:12px;color:#8899aa;">
+      <span>攻击: <span id="atkText" style="color:#ff6b6b">10</span></span>
+      <span>防御: <span id="defText" style="color:#6baaff">5</span></span>
+    </div>
+  </div>
+  
+  <div id="skillBar">
+    <div class="skill-slot" data-skill="0">
+      <span class="skill-icon">⚔</span>
+      <span class="skill-key">1</span>
+    </div>
+    <div class="skill-slot" data-skill="1">
+      <span class="skill-icon">🔥</span>
+      <span class="skill-key">2</span>
+    </div>
+    <div class="skill-slot" data-skill="2">
+      <span class="skill-icon">❄</span>
+      <span class="skill-key">3</span>
+    </div>
+    <div class="skill-slot" data-skill="3">
+      <span class="skill-icon">⚡</span>
+      <span class="skill-key">4</span>
+    </div>
+  </div>
+  
+  <div id="combatLog"></div>
+</div>
+
+<div id="notificationContainer"></div>
+
+<div id="tooltip">
+  <div class="tooltip-title"></div>
+  <div class="tooltip-content"></div>
+</div>
+
+<div id="inventoryPanel">
+  <div class="inventory-title">储物袋</div>
+  <div class="inventory-grid" id="inventoryGrid"></div>
+</div>
+
+<div id="controls">
+  <button class="control-btn" id="btnInventory">储物袋 (I)</button>
+  <button class="control-btn" id="btnAutoAttack">自动攻击</button>
+</div>
+
+<div id="fpsCounter">FPS: 60 | 粒子: 0</div>
+
+<script>
+// ============ 兼容性补丁 ============
+if (!Math.hypot) {
+  Math.hypot = function() {
+    var y = 0;
+    for (var i = 0; i < arguments.length; i++) {
+      y += arguments[i] * arguments[i];
+    }
+    return Math.sqrt(y);
+  };
+}
+
+if (!window.requestAnimationFrame) {
+  window.requestAnimationFrame = function(cb) { return setTimeout(cb, 16); };
+}
+
+// ============ Canvas 初始化 ============
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const minimapCanvas = document.getElementById('minimapCanvas');
+const minimapCtx = minimapCanvas.getContext('2d');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+minimapCanvas.width = 180;
+minimapCanvas.height = 180;
+
+// ============ 游戏常量 ============
+const TILE_SIZE = 48;
+const MAP_WIDTH = 80;
+const MAP_HEIGHT = 80;
+const MAX_PARTICLES = 800;
+const CHUNK_SIZE = 8;
+
+// ============ 地形类型定义 ============
+const TERRAIN_TYPES = {
+  WATER: 0,
+  PLAIN: 1,
+  GRASS: 2,
+  FOREST: 3,
+  MOUNTAIN: 4
+};
+
+const TERRAIN_COLORS = {
+  0: { base: '#1a4a6e', dark: '#0d2840', light: '#2a6a9e', name: '水' },
+  1: { base: '#4a6741', dark: '#2d3f28', light: '#6a8a5f', name: '平原' },
+  2: { base: '#3d8b37', dark: '#2a6026', light: '#5ab552', name: '草地' },
+  3: { base: '#2d5a27', dark: '#1a3a16', light: '#4a8a42', name: '树林' },
+  4: { base: '#6a6a7a', dark: '#4a4a5a', light: '#8a8a9a', name: '山地' }
+};
+
+const TERRAIN_MOVE_COST = {
+  0: 999,
+  1: 1,
+  2: 1,
+  3: 2,
+  4: 3
+};
+
+// ============ 性能配置 ============
+const PerformanceConfig = {
+  quality: 'high',
+  autoQuality: true,
+  targetFps: 55,
+  
+  qualitySettings: {
+    low: {
+      maxParticles: 300,
+      particleMultiplier: 0.4,
+      glowIntensity: 0.5,
+      trailEnabled: false,
+      shadowBlur: 0
+    },
+    medium: {
+      maxParticles: 500,
+      particleMultiplier: 0.7,
+      glowIntensity: 0.8,
+      trailEnabled: true,
+      shadowBlur: 10
+    },
+    high: {
+      maxParticles: 800,
+      particleMultiplier: 1.0,
+      glowIntensity: 1.0,
+      trailEnabled: true,
+      shadowBlur: 20
+    }
+  },
+  
+  getSettings: function() {
+    return this.qualitySettings[this.quality];
+  },
+  
+  adjustQuality: function(currentFps) {
+    if (!this.autoQuality) return;
+    
+    if (currentFps < 30 && this.quality !== 'low') {
+      this.quality = 'low';
+      console.log('性能调整: 降至低画质');
+    } else if (currentFps > 50 && this.quality === 'low') {
+      this.quality = 'medium';
+      console.log('性能调整: 升至中画质');
+    } else if (currentFps > 55 && this.quality === 'medium') {
+      this.quality = 'high';
+      console.log('性能调整: 升至高画质');
+    }
+  }
+};
+
+// ============ 性能监控 ============
+const performanceStats = {
+  fps: 60,
+  frameTime: 0,
+  particleCount: 0,
+  lastFrameTime: 0,
+  frameCount: 0,
+  fpsUpdateTimer: 0,
+  averageFps: 60,
+  fpsHistory: [],
+  updateCount: 0
+};
+
+// ============ 地图渲染器（性能优化版） ============
+class MapRenderer {
+  constructor() {
+    this.chunks = {};
+    this.chunkCanvas = {};
+    this.dirtyChunks = new Set();
+    this.lastChunkX = -1;
+    this.lastChunkY = -1;
+    this.initialized = false;
+    this.minimapData = null;
+  }
+  
+  init() {
+    console.log('初始化地图渲染器...');
+    this.initialized = true;
+    this.markAllChunksDirty();
+    this.generateMinimapData();
+    console.log('地图渲染器初始化完成');
+  }
+  
+  getChunkKey(cx, cy) {
+    return cx + ',' + cy;
+  }
+  
+  markAllChunksDirty() {
+    const chunksX = Math.ceil(MAP_WIDTH / CHUNK_SIZE);
+    const chunksY = Math.ceil(MAP_HEIGHT / CHUNK_SIZE);
+    
+    for (let cy = 0; cy < chunksY; cy++) {
+      for (let cx = 0; cx < chunksX; cx++) {
+        this.dirtyChunks.add(this.getChunkKey(cx, cy));
+      }
+    }
+  }
+  
+  renderChunk(cx, cy) {
+    const key = this.getChunkKey(cx, cy);
+    
+    if (!this.chunkCanvas[key]) {
+      const chunkCanvas = document.createElement('canvas');
+      chunkCanvas.width = CHUNK_SIZE * TILE_SIZE;
+      chunkCanvas.height = CHUNK_SIZE * TILE_SIZE;
+      this.chunkCanvas[key] = chunkCanvas;
+    }
+    
+    const chunkCtx = this.chunkCanvas[key].getContext('2d');
+    const startX = cx * CHUNK_SIZE;
+    const startY = cy * CHUNK_SIZE;
+    
+    chunkCtx.clearRect(0, 0, CHUNK_SIZE * TILE_SIZE, CHUNK_SIZE * TILE_SIZE);
+    
+    for (let ly = 0; ly < CHUNK_SIZE; ly++) {
+      for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+        const tx = startX + lx;
+        const ty = startY + ly;
+        
+        if (tx >= MAP_WIDTH || ty >= MAP_HEIGHT) continue;
+        if (!mapData[ty] || mapData[ty][tx] === undefined) continue;
+        
+        const terrain = mapData[ty][tx];
+        if (!TERRAIN_COLORS[terrain]) continue;
+        
+        const colors = TERRAIN_COLORS[terrain];
+        const px = lx * TILE_SIZE;
+        const py = ly * TILE_SIZE;
+        
+        chunkCtx.fillStyle = colors.base;
+        chunkCtx.fillRect(px, py, TILE_SIZE + 1, TILE_SIZE + 1);
+        
+        if (terrain === TERRAIN_TYPES.WATER) {
+          chunkCtx.fillStyle = colors.light;
+          chunkCtx.globalAlpha = 0.3;
+          chunkCtx.fillRect(px + 5, py + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+          chunkCtx.globalAlpha = 1;
+        } else if (terrain === TERRAIN_TYPES.FOREST) {
+          this.drawTreeOnChunk(chunkCtx, px, py, colors);
+        } else if (terrain === TERRAIN_TYPES.MOUNTAIN) {
+          this.drawMountainOnChunk(chunkCtx, px, py, colors);
+        } else if (terrain === TERRAIN_TYPES.GRASS) {
+          chunkCtx.fillStyle = colors.light;
+          chunkCtx.globalAlpha = 0.3;
+          for (let i = 0; i < 3; i++) {
+            const gx = px + 10 + (tx * 7 + i * 15) % 30;
+            const gy = py + 10 + (ty * 11 + i * 13) % 30;
+            chunkCtx.fillRect(gx, gy, 2, 8);
+          }
+          chunkCtx.globalAlpha = 1;
+        }
+        
+        chunkCtx.strokeStyle = colors.dark;
+        chunkCtx.globalAlpha = 0.3;
+        chunkCtx.strokeRect(px, py, TILE_SIZE, TILE_SIZE);
+        chunkCtx.globalAlpha = 1;
+      }
+    }
+    
+    this.dirtyChunks.delete(key);
+  }
+  
+  drawTreeOnChunk(chunkCtx, x, y, colors) {
+    const cx = x + TILE_SIZE / 2;
+    const cy = y + TILE_SIZE / 2;
+    
+    chunkCtx.fillStyle = colors.dark;
+    chunkCtx.fillRect(cx - 3, cy + 5, 6, 12);
+    
+    chunkCtx.fillStyle = colors.base;
+    chunkCtx.beginPath();
+    chunkCtx.moveTo(cx, cy - 12);
+    chunkCtx.lineTo(cx - 12, cy + 5);
+    chunkCtx.lineTo(cx + 12, cy + 5);
+    chunkCtx.closePath();
+    chunkCtx.fill();
+    
+    chunkCtx.fillStyle = colors.light;
+    chunkCtx.beginPath();
+    chunkCtx.moveTo(cx, cy - 12);
+    chunkCtx.lineTo(cx + 8, cy);
+    chunkCtx.lineTo(cx, cy + 5);
+    chunkCtx.closePath();
+    chunkCtx.fill();
+  }
+  
+  drawMountainOnChunk(chunkCtx, x, y, colors) {
+    const cx = x + TILE_SIZE / 2;
+    const cy = y + TILE_SIZE / 2;
+    
+    chunkCtx.fillStyle = colors.base;
+    chunkCtx.beginPath();
+    chunkCtx.moveTo(cx - 20, cy + 15);
+    chunkCtx.lineTo(cx, cy - 12);
+    chunkCtx.lineTo(cx + 20, cy + 15);
+    chunkCtx.closePath();
+    chunkCtx.fill();
+    
+    chunkCtx.fillStyle = colors.light;
+    chunkCtx.beginPath();
+    chunkCtx.moveTo(cx, cy - 12);
+    chunkCtx.lineTo(cx + 10, cy + 2);
+    chunkCtx.lineTo(cx, cy + 5);
+    chunkCtx.closePath();
+    chunkCtx.fill();
+    
+    chunkCtx.fillStyle = '#ffffff';
+    chunkCtx.globalAlpha = 0.4;
+    chunkCtx.beginPath();
+    chunkCtx.moveTo(cx - 5, cy - 5);
+    chunkCtx.lineTo(cx, cy - 12);
+    chunkCtx.lineTo(cx + 5, cy - 5);
+    chunkCtx.closePath();
+    chunkCtx.fill();
+    chunkCtx.globalAlpha = 1;
+  }
+  
+  generateMinimapData() {
+    this.minimapData = [];
+    
+    for (let y = 0; y < MAP_HEIGHT; y++) {
+      this.minimapData[y] = [];
+      for (let x = 0; x < MAP_WIDTH; x++) {
+        if (mapData[y] && mapData[y][x] !== undefined) {
+          this.minimapData[y][x] = mapData[y][x];
+        } else {
+          this.minimapData[y][x] = TERRAIN_TYPES.PLAIN;
+        }
+      }
+    }
+  }
+  
+  draw(gameCtx, camX, camY, viewWidth, viewHeight) {
+    const startTileX = Math.max(0, Math.floor((camX - viewWidth / 2) / TILE_SIZE) - 1);
+    const startTileY = Math.max(0, Math.floor((camY - viewHeight / 2) / TILE_SIZE) - 1);
+    const endTileX = Math.min(MAP_WIDTH, Math.ceil((camX + viewWidth / 2) / TILE_SIZE) + 1);
+    const endTileY = Math.min(MAP_HEIGHT, Math.ceil((camY + viewHeight / 2) / TILE_SIZE) + 1);
+    
+    const startChunkX = Math.floor(startTileX / CHUNK_SIZE);
+    const startChunkY = Math.floor(startTileY / CHUNK_SIZE);
+    const endChunkX = Math.floor(endTileX / CHUNK_SIZE);
+    const endChunkY = Math.floor(endTileY / CHUNK_SIZE);
+    
+    for (let cy = startChunkY; cy <= endChunkY; cy++) {
+      for (let cx = startChunkX; cx <= endChunkX; cx++) {
+        const key = this.getChunkKey(cx, cy);
+        
+        if (this.dirtyChunks.has(key)) {
+          this.renderChunk(cx, cy);
+        }
+        
+        if (this.chunkCanvas[key]) {
+          const screenX = cx * CHUNK_SIZE * TILE_SIZE - camX + viewWidth / 2;
+          const screenY = cy * CHUNK_SIZE * TILE_SIZE - camY + viewHeight / 2;
+          gameCtx.drawImage(this.chunkCanvas[key], screenX, screenY);
+        }
+      }
+    }
+  }
+  
+  drawWaterAnimation(gameCtx, camX, camY, viewWidth, viewHeight, time) {
+    const startTileX = Math.max(0, Math.floor((camX - viewWidth / 2) / TILE_SIZE));
+    const startTileY = Math.max(0, Math.floor((camY - viewHeight / 2) / TILE_SIZE));
+    const endTileX = Math.min(MAP_WIDTH, Math.ceil((camX + viewWidth / 2) / TILE_SIZE));
+    const endTileY = Math.min(MAP_HEIGHT, Math.ceil((camY + viewHeight / 2) / TILE_SIZE));
+    
+    const colors = TERRAIN_COLORS[TERRAIN_TYPES.WATER];
+    gameCtx.fillStyle = colors.light;
+    
+    for (let y = startTileY; y < endTileY; y++) {
+      for (let x = startTileX; x < endTileX; x++) {
+        if (!mapData[y] || mapData[y][x] !== TERRAIN_TYPES.WATER) continue;
+        
+        const screenX = x * TILE_SIZE - camX + viewWidth / 2;
+        const screenY = y * TILE_SIZE - camY + viewHeight / 2;
+        
+        const wave = Math.sin(time / 500 + x * 0.5 + y * 0.3) * 0.3 + 0.7;
+        gameCtx.globalAlpha = wave * 0.2;
+        gameCtx.fillRect(screenX + 5, screenY + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+      }
+    }
+    gameCtx.globalAlpha = 1;
+  }
+}
+
+let mapRenderer = new MapRenderer();
+
+// ============ 简单噪声函数 ============
+class SimplexNoise {
+  constructor(seed) {
+    this.seed = seed || Math.random() * 10000;
+    this.perm = new Uint8Array(512);
+    this.init();
+  }
+  
+  init() {
+    const p = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) p[i] = i;
+    
+    let n, q;
+    for (let i = 255; i > 0; i--) {
+      n = Math.floor(this.seededRandom() * (i + 1));
+      q = p[i];
+      p[i] = p[n];
+      p[n] = q;
+    }
+    
+    for (let i = 0; i < 512; i++) {
+      this.perm[i] = p[i & 255];
+    }
+  }
+  
+  seededRandom() {
+    this.seed = (this.seed * 9301 + 49297) % 233280;
+    return this.seed / 233280;
+  }
+  
+  noise2D(x, y) {
+    const F2 = 0.5 * (Math.sqrt(3) - 1);
+    const G2 = (3 - Math.sqrt(3)) / 6;
+    
+    let s = (x + y) * F2;
+    let i = Math.floor(x + s);
+    let j = Math.floor(y + s);
+    
+    let t = (i + j) * G2;
+    let X0 = i - t;
+    let Y0 = j - t;
+    let x0 = x - X0;
+    let y0 = y - Y0;
+    
+    let i1, j1;
+    if (x0 > y0) { i1 = 1; j1 = 0; }
+    else { i1 = 0; j1 = 1; }
+    
+    let x1 = x0 - i1 + G2;
+    let y1 = y0 - j1 + G2;
+    let x2 = x0 - 1 + 2 * G2;
+    let y2 = y0 - 1 + 2 * G2;
+    
+    let ii = i & 255;
+    let jj = j & 255;
+    
+    let n0 = 0, n1 = 0, n2 = 0;
+    
+    let t0 = 0.5 - x0 * x0 - y0 * y0;
+    if (t0 >= 0) {
+      t0 *= t0;
+      n0 = t0 * t0 * this.grad(this.perm[ii + this.perm[jj]], x0, y0);
+    }
+    
+    let t1 = 0.5 - x1 * x1 - y1 * y1;
+    if (t1 >= 0) {
+      t1 *= t1;
+      n1 = t1 * t1 * this.grad(this.perm[ii + i1 + this.perm[jj + j1]], x1, y1);
+    }
+    
+    let t2 = 0.5 - x2 * x2 - y2 * y2;
+    if (t2 >= 0) {
+      t2 *= t2;
+      n2 = t2 * t2 * this.grad(this.perm[ii + 1 + this.perm[jj + 1]], x2, y2);
+    }
+    
+    return 70 * (n0 + n1 + n2);
+  }
+  
+  grad(hash, x, y) {
+    const h = hash & 7;
+    const u = h < 4 ? x : y;
+    const v = h < 4 ? y : x;
+    return ((h & 1) ? -u : u) + ((h & 2) ? -2 * v : 2 * v);
+  }
+  
+  octaveNoise(x, y, octaves, persistence) {
+    let total = 0;
+    let frequency = 1;
+    let amplitude = 1;
+    let maxValue = 0;
+    
+    for (let i = 0; i < octaves; i++) {
+      total += this.noise2D(x * frequency, y * frequency) * amplitude;
+      maxValue += amplitude;
+      amplitude *= persistence;
+      frequency *= 2;
+    }
+    
+    return total / maxValue;
+  }
+}
+
+// ============ 地图数据 ============
+let mapData = [];
+let mapObjects = [];
+let noise = null;
+
+// ============ 相机 ============
+const camera = {
+  x: MAP_WIDTH * TILE_SIZE / 2,
+  y: MAP_HEIGHT * TILE_SIZE / 2,
+  targetX: MAP_WIDTH * TILE_SIZE / 2,
+  targetY: MAP_HEIGHT * TILE_SIZE / 2,
+  zoom: 1,
+  
+  update: function() {
+    this.x += (this.targetX - this.x) * 0.1;
+    this.y += (this.targetY - this.y) * 0.1;
+  },
+  
+  follow: function(x, y) {
+    this.targetX = x;
+    this.targetY = y;
+  }
+};
+
+// ============ 玩家 ============
+const player = {
+  x: MAP_WIDTH * TILE_SIZE / 2,
+  y: MAP_HEIGHT * TILE_SIZE / 2,
+  vx: 0,
+  vy: 0,
+  speed: 150,
+  hp: 100,
+  maxHp: 100,
+  mp: 50,
+  maxMp: 50,
+  exp: 0,
+  atk: 10,
+  def: 5,
+  realm: 0,
+  gold: 0,
+  inventory: [],
+  skillCooldowns: [0, 0, 0, 0],
+  facing: 0,
+  isMoving: false,
+  attackCooldown: 0,
+  invincibleTime: 0
+};
+
+// ============ 怪物类型 ============
+const MONSTER_TYPES = [
+  { name: '野狼', hp: 30, atk: 5, def: 2, exp: 15, gold: 5, color: '#888888', speed: 60 },
+  { name: '妖狐', hp: 50, atk: 12, def: 5, exp: 35, gold: 15, color: '#ff8844', speed: 80 },
+  { name: '石魔', hp: 100, atk: 20, def: 15, exp: 60, gold: 30, color: '#666688', speed: 40 },
+  { name: '灵蛇', hp: 70, atk: 25, def: 8, exp: 50, gold: 25, color: '#44aa44', speed: 100 },
+  { name: '天妖', hp: 200, atk: 40, def: 20, exp: 150, gold: 100, color: '#aa44ff', speed: 70 }
+];
+
+// ============ 怪物数组 ============
+let monsters = [];
+
+// ============ 特殊地点 ============
+let specialLocations = [];
+
+// ============ 粒子系统（优化版） ============
+const particles = {
+  list: [],
+  pool: [],
+  maxPoolSize: 500,
+  
+  getFromPool: function() {
+    return this.pool.pop() || {
+      x: 0, y: 0, vx: 0, vy: 0,
+      size: 0, color: '', life: 0, maxLife: 0, alpha: 0
+    };
+  },
+  
+  returnToPool: function(p) {
+    if (this.pool.length < this.maxPoolSize) {
+      this.pool.push(p);
+    }
+  },
+  
+  add: function(p) {
+    if (this.list.length < MAX_PARTICLES) {
+      const particle = this.getFromPool();
+      Object.assign(particle, p);
+      this.list.push(particle);
+    }
+  },
+  
+  update: function(dt) {
+    for (let i = this.list.length - 1; i >= 0; i--) {
+      const p = this.list[i];
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+      p.alpha = Math.max(0, p.life / p.maxLife);
+      
+      if (p.life <= 0) {
+        this.returnToPool(p);
+        this.list.splice(i, 1);
+      }
+    }
+    performanceStats.particleCount = this.list.length;
+  },
+  
+  draw: function(renderCtx, camX, camY, viewWidth, viewHeight) {
+    renderCtx.save();
+    for (let i = 0; i < this.list.length; i++) {
+      const p = this.list[i];
+      const screenX = p.x - camX + viewWidth / 2;
+      const screenY = p.y - camY + viewHeight / 2;
+      
+      if (screenX < -50 || screenX > viewWidth + 50 || 
+          screenY < -50 || screenY > viewHeight + 50) continue;
+      
+      renderCtx.globalAlpha = p.alpha;
+      renderCtx.fillStyle = p.color;
+      renderCtx.beginPath();
+      renderCtx.arc(screenX, screenY, p.size * p.alpha, 0, Math.PI * 2);
+      renderCtx.fill();
+    }
+    renderCtx.restore();
+  },
+  
+  createExplosion: function(x, y, color, count) {
+    const multiplier = PerformanceConfig.getSettings().particleMultiplier;
+    const actualCount = Math.floor(count * multiplier);
+    for (let i = 0; i < actualCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 50 + Math.random() * 150;
+      this.add({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 3 + Math.random() * 5,
+        color: color,
+        life: 0.5 + Math.random() * 0.5,
+        maxLife: 1,
+        alpha: 1
+      });
+    }
+  },
+  
+  createHit: function(x, y, color) {
+    const multiplier = PerformanceConfig.getSettings().particleMultiplier;
+    const count = Math.floor(10 * multiplier);
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 30 + Math.random() * 80;
+      this.add({
+        x: x,
+        y: y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 2 + Math.random() * 3,
+        color: color,
+        life: 0.3 + Math.random() * 0.3,
+        maxLife: 0.6,
+        alpha: 1
+      });
+    }
+  }
+};
+
+// ============ 修仙境界系统 ============
+const REALMS = [
+  { name: '凡人', expRequired: 0, bonus: 0, color: '#aaaaaa' },
+  { name: '练气一层', expRequired: 100, bonus: 5, color: '#88cc88' },
+  { name: '练气二层', expRequired: 300, bonus: 10, color: '#88cc88' },
+  { name: '练气三层', expRequired: 600, bonus: 15, color: '#88cc88' },
+  { name: '筑基初期', expRequired: 1200, bonus: 25, color: '#88c0d0' },
+  { name: '筑基中期', expRequired: 2500, bonus: 40, color: '#88c0d0' },
+  { name: '筑基后期', expRequired: 5000, bonus: 60, color: '#88c0d0' },
+  { name: '金丹初期', expRequired: 10000, bonus: 90, color: '#ebcb8b' },
+  { name: '金丹中期', expRequired: 20000, bonus: 130, color: '#ebcb8b' },
+  { name: '金丹后期', expRequired: 40000, bonus: 180, color: '#ebcb8b' },
+  { name: '元婴初期', expRequired: 80000, bonus: 250, color: '#b48ead' },
+  { name: '元婴中期', expRequired: 160000, bonus: 350, color: '#b48ead' },
+  { name: '元婴后期', expRequired: 320000, bonus: 500, color: '#b48ead' },
+  { name: '化神期', expRequired: 640000, bonus: 700, color: '#ff9966' },
+  { name: '渡劫期', expRequired: 1280000, bonus: 1000, color: '#ff6666' },
+  { name: '大乘期', expRequired: 2560000, bonus: 1500, color: '#ffd700' },
+  { name: '飞升成仙', expRequired: 5000000, bonus: 2500, color: '#ffffff' }
+];
+
+// ============ 技能系统 ============
+const SKILLS = [
+  { name: '御剑术', damage: 20, cooldown: 1.5, mpCost: 0, range: 120, color: '#aaccff', type: 'melee' },
+  { name: '烈焰掌', damage: 45, cooldown: 4, mpCost: 15, range: 150, color: '#ff6644', type: 'fire' },
+  { name: '寒冰诀', damage: 35, cooldown: 3, mpCost: 12, range: 180, color: '#66ccff', type: 'ice' },
+  { name: '雷霆一击', damage: 80, cooldown: 8, mpCost: 30, range: 200, color: '#ffff66', type: 'lightning' }
+];
+
+// ============ 输入系统 ============
+const input = {
+  keys: {},
+  mouse: { x: 0, y: 0, down: false },
+  touch: { active: false, x: 0, y: 0, startX: 0, startY: 0 }
+};
+
+// ============ 游戏状态 ============
+let gameState = {
+  paused: false,
+  autoAttack: false,
+  showInventory: false,
+  lastTime: 0,
+  initialized: false
+};
+
+// ============ 地图生成函数（已修复） ============
+function generateMap() {
+  console.log('========== 开始生成地图 ==========');
+  console.log('地图尺寸: ' + MAP_WIDTH + ' x ' + MAP_HEIGHT);
+  
+  noise = new SimplexNoise(Date.now());
+  console.log('噪声生成器已初始化，种子: ' + noise.seed);
+  
+  mapData = [];
+  
+  const terrainCount = { 0: 0, 1: 0, 2: 0, 3: 0, 4: 0 };
+  
+  for (let y = 0; y < MAP_HEIGHT; y++) {
+    mapData[y] = [];
+    for (let x = 0; x < MAP_WIDTH; x++) {
+      const nx = x / MAP_WIDTH;
+      const ny = y / MAP_HEIGHT;
+      
+      const elevation = noise.octaveNoise(nx * 4, ny * 4, 4, 0.5);
+      const moisture = noise.octaveNoise(nx * 4 + 100, ny * 4 + 100, 3, 0.5);
+      
+      let terrain;
+      const e = (elevation + 1) / 2;
+      const m = (moisture + 1) / 2;
+      
+      if (e < 0.25) {
+        terrain = TERRAIN_TYPES.WATER;
+      } else if (e < 0.45) {
+        terrain = m > 0.5 ? TERRAIN_TYPES.GRASS : TERRAIN_TYPES.PLAIN;
+      } else if (e < 0.7) {
+        terrain = m > 0.4 ? TERRAIN_TYPES.FOREST : TERRAIN_TYPES.GRASS;
+      } else {
+        terrain = TERRAIN_TYPES.MOUNTAIN;
+      }
+      
+      mapData[y][x] = terrain;
+      terrainCount[terrain]++;
+    }
+  }
+  
+  console.log('---------- 地形分布统计 ----------');
+  console.log('水: ' + terrainCount[0] + ' (' + (terrainCount[0] / (MAP_WIDTH * MAP_HEIGHT) * 100).toFixed(1) + '%)');
+  console.log('平原: ' + terrainCount[1] + ' (' + (terrainCount[1] / (MAP_WIDTH * MAP_HEIGHT) * 100).toFixed(1) + '%)');
+  console.log('草地: ' + terrainCount[2] + ' (' + (terrainCount[2] / (MAP_WIDTH * MAP_HEIGHT) * 100).toFixed(1) + '%)');
+  console.log('树林: ' + terrainCount[3] + ' (' + (terrainCount[3] / (MAP_WIDTH * MAP_HEIGHT) * 100).toFixed(1) + '%)');
+  console.log('山地: ' + terrainCount[4] + ' (' + (terrainCount[4] / (MAP_WIDTH * MAP_HEIGHT) * 100).toFixed(1) + '%)');
+  
+  generateSpecialLocations();
+  spawnMonsters();
+  
+  let startX = Math.floor(MAP_WIDTH / 2);
+  let startY = Math.floor(MAP_HEIGHT / 2);
+  
+  if (mapData[startY] && mapData[startY][startX] === TERRAIN_TYPES.WATER) {
+    console.log('中心点是水，寻找可行走位置...');
+    for (let r = 1; r < 10; r++) {
+      let found = false;
+      for (let dy = -r; dy <= r && !found; dy++) {
+        for (let dx = -r; dx <= r && !found; dx++) {
+          const nx = startX + dx;
+          const ny = startY + dy;
+          if (nx >= 0 && nx < MAP_WIDTH && ny >= 0 && ny < MAP_HEIGHT) {
+            if (mapData[ny] && mapData[ny][nx] !== TERRAIN_TYPES.WATER) {
+              startX = nx;
+              startY = ny;
+              found = true;
+            }
+          }
+        }
+      }
+      if (found) break;
+    }
+  }
+  
+  player.x = startX * TILE_SIZE + TILE_SIZE / 2;
+  player.y = startY * TILE_SIZE + TILE_SIZE / 2;
+  
+  camera.x = player.x;
+  camera.y = player.y;
+  camera.targetX = player.x;
+  camera.targetY = player.y;
+  
+  console.log('玩家初始位置: (' + player.x + ', ' + player.y + ')');
+  console.log('========== 地图生成完成 ==========');
+  return true;
+}
+
+// ============ 生成特殊地点（已修复） ============
+function generateSpecialLocations() {
+  specialLocations = [];
+  
+  console.log('---------- 生成特殊地点 ----------');
+  
+  const numTreasures = 15 + Math.floor(Math.random() * 10);
+  let treasuresCreated = 0;
+  
+  for (let i = 0; i < numTreasures; i++) {
+    let attempts = 0;
+    while (attempts < 100) {
+      const x = Math.floor(Math.random() * MAP_WIDTH);
+      const y = Math.floor(Math.random() * MAP_HEIGHT);
+      
+      if (!mapData[y]) {
+        attempts++;
+        continue;
+      }
+      
+      const terrain = mapData[y][x];
+      
+      if (terrain !== undefined && terrain !== TERRAIN_TYPES.WATER && terrain !== TERRAIN_TYPES.MOUNTAIN) {
+        specialLocations.push({
+          type: 'treasure',
+          x: x * TILE_SIZE + TILE_SIZE / 2,
+          y: y * TILE_SIZE + TILE_SIZE / 2,
+          tileX: x,
+          tileY: y,
+          opened: false,
+          gold: 20 + Math.floor(Math.random() * 80),
+          exp: 30 + Math.floor(Math.random() * 70)
+        });
+        treasuresCreated++;
+        break;
+      }
+      attempts++;
+    }
+  }
+  
+  console.log('宝箱生成: ' + treasuresCreated + ' 个');
+  
+  const numSpiritLands = 8 + Math.floor(Math.random() * 5);
+  let spiritsCreated = 0;
+  
+  for (let i = 0; i < numSpiritLands; i++) {
+    let attempts = 0;
+    while (attempts < 100) {
+      const x = Math.floor(Math.random() * MAP_WIDTH);
+      const y = Math.floor(Math.random() * MAP_HEIGHT);
+      
+      if (!mapData[y]) {
+        attempts++;
+        continue;
+      }
+      
+      const terrain = mapData[y][x];
+      
+      if (terrain !== undefined && (terrain === TERRAIN_TYPES.GRASS || terrain === TERRAIN_TYPES.FOREST)) {
+        specialLocations.push({
+          type: 'spirit',
+          x: x * TILE_SIZE + TILE_SIZE / 2,
+          y: y * TILE_SIZE + TILE_SIZE / 2,
+          tileX: x,
+          tileY: y,
+          bonus: REALMS[player.realm].bonus + 5,
+          pulsePhase: Math.random() * Math.PI * 2
+        });
+        spiritsCreated++;
+        break;
+      }
+      attempts++;
+    }
+  }
+  
+  console.log('灵气之地生成: ' + spiritsCreated + ' 个');
+  console.log('特殊地点总计: ' + specialLocations.length + ' 个');
+}
+
+// ============ 生成怪物（已修复） ============
+function spawnMonsters() {
+  monsters = [];
+  const numMonsters = 30 + Math.floor(Math.random() * 20);
+  
+  console.log('---------- 生成怪物 ----------');
+  console.log('目标怪物数量: ' + numMonsters);
+  
+  let monstersCreated = 0;
+  
+  for (let i = 0; i < numMonsters; i++) {
+    let attempts = 0;
+    while (attempts < 100) {
+      const x = Math.floor(Math.random() * MAP_WIDTH);
+      const y = Math.floor(Math.random() * MAP_HEIGHT);
+      
+      if (!mapData[y]) {
+        attempts++;
+        continue;
+      }
+      
+      const terrain = mapData[y][x];
+      
+      if (terrain !== undefined && terrain !== TERRAIN_TYPES.WATER) {
+        const dist = Math.hypot(x - MAP_WIDTH/2, y - MAP_HEIGHT/2);
+        let typeIndex = Math.min(
+          MONSTER_TYPES.length - 1,
+          Math.floor(dist / 15)
+        );
+        typeIndex = Math.max(0, typeIndex + Math.floor(Math.random() * 2) - 1);
+        
+        const type = MONSTER_TYPES[typeIndex];
+        monsters.push({
+          x: x * TILE_SIZE + TILE_SIZE / 2,
+          y: y * TILE_SIZE + TILE_SIZE / 2,
+          hp: type.hp,
+          maxHp: type.hp,
+          atk: type.atk,
+          def: type.def,
+          exp: type.exp,
+          gold: type.gold,
+          name: type.name,
+          color: type.color,
+          speed: type.speed,
+          attackCooldown: 0,
+          aggroRange: 200,
+          state: 'idle',
+          moveTimer: 0,
+          targetX: 0,
+          targetY: 0
+        });
+        monstersCreated++;
+        break;
+      }
+      attempts++;
+    }
+  }
+  
+  console.log('怪物生成完成: ' + monstersCreated + ' 只');
+}
+
+// ============ 绘制特殊地点（已修复） ============
+function drawSpecialLocations(renderCtx, camX, camY, viewWidth, viewHeight, time) {
+  if (!specialLocations || specialLocations.length === 0) {
+    return;
+  }
+  
+  const halfViewWidth = viewWidth / 2;
+  const halfViewHeight = viewHeight / 2;
+  
+  for (let i = 0; i < specialLocations.length; i++) {
+    const loc = specialLocations[i];
+    
+    if (!loc || loc.x === undefined || loc.y === undefined || !loc.type) {
+      continue;
+    }
+    
+    const screenX = loc.x - camX + halfViewWidth;
+    const screenY = loc.y - camY + halfViewHeight;
+    
+    if (screenX < -50 || screenX > viewWidth + 50 ||
+        screenY < -50 || screenY > viewHeight + 50) {
+      continue;
+    }
+    
+    if (loc.type === 'treasure' && !loc.opened) {
+      const pulse = 0.8 + Math.sin(time / 300) * 0.2;
+      
+      renderCtx.fillStyle = '#ffd700';
+      renderCtx.globalAlpha = 0.3 * pulse;
+      renderCtx.beginPath();
+      renderCtx.arc(screenX, screenY, 25, 0, Math.PI * 2);
+      renderCtx.fill();
+      renderCtx.globalAlpha = 1;
+      
+      renderCtx.fillStyle = '#8b6914';
+      renderCtx.fillRect(screenX - 12, screenY - 8, 24, 16);
+      renderCtx.fillStyle = '#ffd700';
+      renderCtx.fillRect(screenX - 10, screenY - 6, 20, 12);
+      renderCtx.fillStyle = '#8b6914';
+      renderCtx.fillRect(screenX - 3, screenY - 2, 6, 6);
+      
+      renderCtx.fillStyle = '#fff';
+      renderCtx.font = '10px Arial';
+      renderCtx.textAlign = 'center';
+      renderCtx.fillText('宝箱', screenX, screenY + 25);
+    } else if (loc.type === 'spirit') {
+      loc.pulsePhase = (loc.pulsePhase || 0) + 0.05;
+      const pulse = 0.5 + Math.sin(loc.pulsePhase) * 0.5;
+      
+      const gradient = renderCtx.createRadialGradient(screenX, screenY, 0, screenX, screenY, 40);
+      gradient.addColorStop(0, 'rgba(100, 200, 255, ' + (pulse * 0.6) + ')');
+      gradient.addColorStop(0.5, 'rgba(150, 100, 255, ' + (pulse * 0.3) + ')');
+      gradient.addColorStop(1, 'rgba(100, 50, 200, 0)');
+      
+      renderCtx.fillStyle = gradient;
+      renderCtx.beginPath();
+      renderCtx.arc(screenX, screenY, 40, 0, Math.PI * 2);
+      renderCtx.fill();
+      
+      renderCtx.fillStyle = '#aaddff';
+      renderCtx.globalAlpha = pulse;
+      renderCtx.font = 'bold 12px Arial';
+      renderCtx.textAlign = 'center';
+      renderCtx.fillText('灵', screenX, screenY + 4);
+      renderCtx.globalAlpha = 1;
+      
+      renderCtx.fillStyle = '#88ccff';
+      renderCtx.font = '10px Arial';
+      renderCtx.fillText('灵气之地', screenX, screenY + 30);
+    }
+  }
+}
+
+// ============ 绘制玩家 ============
+function drawPlayer(renderCtx, camX, camY, viewWidth, viewHeight) {
+  const screenX = player.x - camX + viewWidth / 2;
+  const screenY = player.y - camY + viewHeight / 2;
+  
+  if (player.invincibleTime > 0 && Math.floor(player.invincibleTime * 10) % 2 === 0) {
+    renderCtx.globalAlpha = 0.5;
+  }
+  
+  renderCtx.fillStyle = '#ffd700';
+  renderCtx.beginPath();
+  renderCtx.arc(screenX, screenY, 18, 0, Math.PI * 2);
+  renderCtx.fill();
+  
+  renderCtx.fillStyle = '#ffee88';
+  renderCtx.beginPath();
+  renderCtx.arc(screenX - 4, screenY - 4, 6, 0, Math.PI * 2);
+  renderCtx.fill();
+  
+  renderCtx.fillStyle = '#fff';
+  renderCtx.font = 'bold 14px Arial';
+  renderCtx.textAlign = 'center';
+  renderCtx.fillText('侠', screenX, screenY + 5);
+  
+  renderCtx.globalAlpha = 1;
+  
+  const hpBarWidth = 40;
+  const hpBarHeight = 4;
+  renderCtx.fillStyle = '#333';
+  renderCtx.fillRect(screenX - hpBarWidth/2, screenY - 30, hpBarWidth, hpBarHeight);
+  renderCtx.fillStyle = '#ff4444';
+  renderCtx.fillRect(screenX - hpBarWidth/2, screenY - 30, hpBarWidth * (player.hp / player.maxHp), hpBarHeight);
+  
+  renderCtx.fillStyle = '#ffd700';
+  renderCtx.font = '11px Arial';
+  renderCtx.fillText(player.name || '逍遥子', screenX, screenY - 35);
+}
+
+// ============ 绘制怪物 ============
+function drawMonsters(renderCtx, camX, camY, viewWidth, viewHeight) {
+  if (!monsters || monsters.length === 0) {
+    return;
+  }
+  
+  const halfViewWidth = viewWidth / 2;
+  const halfViewHeight = viewHeight / 2;
+  
+  for (let i = 0; i < monsters.length; i++) {
+    const m = monsters[i];
+    
+    if (!m || m.x === undefined || m.y === undefined) {
+      continue;
+    }
+    
+    const screenX = m.x - camX + halfViewWidth;
+    const screenY = m.y - camY + halfViewHeight;
+    
+    if (screenX < -50 || screenX > viewWidth + 50 ||
+        screenY < -50 || screenY > viewHeight + 50) continue;
+    
+    renderCtx.fillStyle = m.color;
+    renderCtx.beginPath();
+    renderCtx.arc(screenX, screenY, 15, 0, Math.PI * 2);
+    renderCtx.fill();
+    
+    renderCtx.fillStyle = '#fff';
+    renderCtx.globalAlpha = 0.3;
+    renderCtx.beginPath();
+    renderCtx.arc(screenX - 3, screenY - 3, 5, 0, Math.PI * 2);
+    renderCtx.fill();
+    renderCtx.globalAlpha = 1;
+    
+    renderCtx.fillStyle = '#fff';
+    renderCtx.font = 'bold 12px Arial';
+    renderCtx.textAlign = 'center';
+    renderCtx.fillText(m.name.charAt(0), screenX, screenY + 4);
+    
+    const hpBarWidth = 30;
+    const hpBarHeight = 3;
+    renderCtx.fillStyle = '#333';
+    renderCtx.fillRect(screenX - hpBarWidth/2, screenY - 25, hpBarWidth, hpBarHeight);
+    renderCtx.fillStyle = '#ff4444';
+    renderCtx.fillRect(screenX - hpBarWidth/2, screenY - 25, hpBarWidth * (m.hp / m.maxHp), hpBarHeight);
+  }
+}
+
+// ============ 更新玩家 ============
+function updatePlayer(dt) {
+  let moveX = 0;
+  let moveY = 0;
+  
+  if (input.keys['w'] || input.keys['arrowup']) moveY -= 1;
+  if (input.keys['s'] || input.keys['arrowdown']) moveY += 1;
+  if (input.keys['a'] || input.keys['arrowleft']) moveX -= 1;
+  if (input.keys['d'] || input.keys['arrowright']) moveX += 1;
+  
+  if (moveX !== 0 || moveY !== 0) {
+    const len = Math.sqrt(moveX * moveX + moveY * moveY);
+    moveX /= len;
+    moveY /= len;
+    
+    player.facing = Math.atan2(moveY, moveX);
+    player.isMoving = true;
+    
+    const newX = player.x + moveX * player.speed * dt;
+    const newY = player.y + moveY * player.speed * dt;
+    
+    const tileX = Math.floor(newX / TILE_SIZE);
+    const tileY = Math.floor(newY / TILE_SIZE);
+    
+    if (tileX >= 0 && tileX < MAP_WIDTH && tileY >= 0 && tileY < MAP_HEIGHT) {
+      if (mapData[tileY] && mapData[tileY][tileX] !== undefined) {
+        const terrain = mapData[tileY][tileX];
+        if (terrain !== TERRAIN_TYPES.WATER && TERRAIN_MOVE_COST[terrain] < 999) {
+          player.x = newX;
+          player.y = newY;
+        }
+      }
+    }
+  } else {
+    player.isMoving = false;
+  }
+  
+  if (player.attackCooldown > 0) player.attackCooldown -= dt;
+  if (player.invincibleTime > 0) player.invincibleTime -= dt;
+  
+  for (let i = 0; i < player.skillCooldowns.length; i++) {
+    if (player.skillCooldowns[i] > 0) player.skillCooldowns[i] -= dt;
+  }
+  
+  if (player.mp < player.maxMp) {
+    player.mp = Math.min(player.maxMp, player.mp + 2 * dt);
+  }
+  
+  camera.follow(player.x, player.y);
+  checkSpecialLocations();
+}
+
+// ============ 检查特殊地点 ============
+function checkSpecialLocations() {
+  if (!specialLocations || specialLocations.length === 0) {
+    return;
+  }
+  
+  for (let i = 0; i < specialLocations.length; i++) {
+    const loc = specialLocations[i];
+    
+    if (!loc || loc.x === undefined || loc.y === undefined) {
+      continue;
+    }
+    
+    const dist = Math.hypot(player.x - loc.x, player.y - loc.y);
+    
+    if (dist < 30) {
+      if (loc.type === 'treasure' && !loc.opened) {
+        loc.opened = true;
+        player.gold += loc.gold;
+        player.exp += loc.exp;
+        addCombatLog('获得宝箱：+' + loc.gold + '灵石，+' + loc.exp + '修为', 'loot');
+        showNotification('发现宝箱！获得' + loc.gold + '灵石', 'gold');
+        particles.createExplosion(loc.x, loc.y, '#ffd700', 20);
+        checkLevelUp();
+      } else if (loc.type === 'spirit') {
+        const expGain = Math.floor(5 * (1 + REALMS[player.realm].bonus / 100));
+        player.exp += expGain;
+        if (Math.random() < 0.1) {
+          addCombatLog('灵气充盈，修为+' + expGain, 'exp');
+        }
+        checkLevelUp();
+      }
+    }
+  }
+}
+
+// ============ 更新怪物 ============
+function updateMonsters(dt) {
+  if (!monsters || monsters.length === 0) {
+    return;
+  }
+  
+  for (let i = monsters.length - 1; i >= 0; i--) {
+    const m = monsters[i];
+    
+    if (!m) continue;
+    
+    const distToPlayer = Math.hypot(player.x - m.x, player.y - m.y);
+    
+    if (m.attackCooldown > 0) m.attackCooldown -= dt;
+    
+    if (distToPlayer < m.aggroRange) {
+      m.state = 'chase';
+      const angle = Math.atan2(player.y - m.y, player.x - m.x);
+      m.x += Math.cos(angle) * m.speed * dt;
+      m.y += Math.sin(angle) * m.speed * dt;
+      
+      if (distToPlayer < 30 && m.attackCooldown <= 0 && player.invincibleTime <= 0) {
+        const damage = Math.max(1, m.atk - player.def);
+        player.hp -= damage;
+        player.invincibleTime = 0.5;
+        m.attackCooldown = 1;
+        addCombatLog(m.name + '攻击你，造成' + damage + '伤害', 'damage');
+        particles.createHit(player.x, player.y, '#ff4444');
+        
+        if (player.hp <= 0) {
+          player.hp = player.maxHp;
+          player.exp = Math.max(0, player.exp - 50);
+          player.x = MAP_WIDTH * TILE_SIZE / 2;
+          player.y = MAP_HEIGHT * TILE_SIZE / 2;
+          showNotification('你被击败了，损失50修为', 'combat');
+        }
+      }
+    } else {
+      m.state = 'idle';
+      m.moveTimer -= dt;
+      if (m.moveTimer <= 0) {
+        m.targetX = m.x + (Math.random() - 0.5) * 100;
+        m.targetY = m.y + (Math.random() - 0.5) * 100;
+        m.moveTimer = 2 + Math.random() * 3;
+      }
+      
+      const angle = Math.atan2(m.targetY - m.y, m.targetX - m.x);
+      m.x += Math.cos(angle) * m.speed * 0.3 * dt;
+      m.y += Math.sin(angle) * m.speed * 0.3 * dt;
+    }
+    
+    m.x = Math.max(TILE_SIZE, Math.min(MAP_WIDTH * TILE_SIZE - TILE_SIZE, m.x));
+    m.y = Math.max(TILE_SIZE, Math.min(MAP_HEIGHT * TILE_SIZE - TILE_SIZE, m.y));
+  }
+}
+
+// ============ 使用技能 ============
+function useSkill(index) {
+  if (index < 0 || index >= SKILLS.length) return;
+  
+  const skill = SKILLS[index];
+  if (player.skillCooldowns[index] > 0) {
+    showNotification('技能冷却中', 'system');
+    return;
+  }
+  
+  if (player.mp < skill.mpCost) {
+    showNotification('灵力不足', 'system');
+    return;
+  }
+  
+  player.mp -= skill.mpCost;
+  player.skillCooldowns[index] = skill.cooldown;
+  
+  let nearestMonster = null;
+  let nearestDist = skill.range;
+  
+  if (monsters && monsters.length > 0) {
+    for (let i = 0; i < monsters.length; i++) {
+      const m = monsters[i];
+      if (!m) continue;
+      const dist = Math.hypot(player.x - m.x, player.y - m.y);
+      if (dist < nearestDist) {
+        nearestDist = dist;
+        nearestMonster = m;
+      }
+    }
+  }
+  
+  if (nearestMonster) {
+    const totalDamage = skill.damage + REALMS[player.realm].bonus + player.atk;
+    const actualDamage = Math.max(1, totalDamage - nearestMonster.def);
+    nearestMonster.hp -= actualDamage;
+    
+    addCombatLog(skill.name + '命中' + nearestMonster.name + '，造成' + actualDamage + '伤害', 'damage');
+    particles.createExplosion(nearestMonster.x, nearestMonster.y, skill.color, 15);
+    
+    if (nearestMonster.hp <= 0) {
+      player.exp += nearestMonster.exp;
+      player.gold += nearestMonster.gold;
+      addCombatLog('击败' + nearestMonster.name + '，获得' + nearestMonster.exp + '修为，' + nearestMonster.gold + '灵石', 'exp');
+      showNotification('击败' + nearestMonster.name + '！', 'combat');
+      const idx = monsters.indexOf(nearestMonster);
+      if (idx > -1) {
+        monsters.splice(idx, 1);
+      }
+      checkLevelUp();
+    }
+  } else {
+    const targetX = player.x + Math.cos(player.facing) * 100;
+    const targetY = player.y + Math.sin(player.facing) * 100;
+    particles.createExplosion(targetX, targetY, skill.color, 10);
+  }
+  
+  updateSkillUI();
+}
+
+// ============ 检查升级 ============
+function checkLevelUp() {
+  while (player.realm < REALMS.length - 1 && player.exp >= REALMS[player.realm + 1].expRequired) {
+    player.realm++;
+    player.maxHp += 20;
+    player.hp = player.maxHp;
+    player.maxMp += 10;
+    player.mp = player.maxMp;
+    player.atk += 3;
+    player.def += 2;
+    
+    showNotification('恭喜突破到' + REALMS[player.realm].name + '！', 'gold');
+    addCombatLog('突破成功！当前境界：' + REALMS[player.realm].name, 'system');
+    
+    particles.createExplosion(player.x, player.y, REALMS[player.realm].color, 30);
+  }
+  
+  updateUI();
+}
+
+// ============ 更新UI ============
+function updateUI() {
+  document.getElementById('playerName').textContent = player.name || '逍遥子';
+  document.getElementById('realmName').textContent = REALMS[player.realm].name;
+  document.getElementById('hpText').textContent = Math.floor(player.hp) + '/' + player.maxHp;
+  document.getElementById('mpText').textContent = Math.floor(player.mp) + '/' + player.maxMp;
+  document.getElementById('expText').textContent = Math.floor(player.exp) + '/' + 
+    (player.realm < REALMS.length - 1 ? REALMS[player.realm + 1].expRequired : 'MAX');
+  document.getElementById('hpBar').style.width = (player.hp / player.maxHp * 100) + '%';
+  document.getElementById('mpBar').style.width = (player.mp / player.maxMp * 100) + '%';
+  
+  const nextExp = player.realm < REALMS.length - 1 ? REALMS[player.realm + 1].expRequired : player.exp;
+  const currentExp = player.realm > 0 ? REALMS[player.realm].expRequired : 0;
+  const expPercent = ((player.exp - currentExp) / (nextExp - currentExp)) * 100;
+  document.getElementById('expBar').style.width = Math.min(100, expPercent) + '%';
+  
+  document.getElementById('atkText').textContent = player.atk;
+  document.getElementById('defText').textContent = player.def;
+}
+
+// ============ 更新技能UI ============
+function updateSkillUI() {
+  const slots = document.querySelectorAll('.skill-slot');
+  slots.forEach((slot, index) => {
+    const cooldown = player.skillCooldowns[index];
+    let overlay = slot.querySelector('.cooldown-overlay');
+    
+    if (cooldown > 0) {
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.className = 'cooldown-overlay';
+        slot.appendChild(overlay);
+      }
+      overlay.textContent = Math.ceil(cooldown);
+      overlay.style.display = 'flex';
+    } else if (overlay) {
+      overlay.style.display = 'none';
+    }
+  });
+}
+
+// ============ 添加战斗日志 ============
+function addCombatLog(message, type) {
+  const log = document.getElementById('combatLog');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry ' + (type || '');
+  entry.textContent = message;
+  log.appendChild(entry);
+  
+  while (log.children.length > 20) {
+    log.removeChild(log.firstChild);
+  }
+  
+  log.scrollTop = log.scrollHeight;
+}
+
+// ============ 显示通知 ============
+function showNotification(message, type) {
+  const container = document.getElementById('notificationContainer');
+  const notification = document.createElement('div');
+  notification.className = 'notification ' + (type || '');
+  notification.textContent = message;
+  container.appendChild(notification);
+  
+  setTimeout(() => {
+    if (notification.parentNode) {
+      notification.parentNode.removeChild(notification);
+    }
+  }, 3000);
+}
+
+// ============ 绘制小地图（优化版） ============
+function drawMinimap(time) {
+  minimapCtx.fillStyle = '#0a0a12';
+  minimapCtx.fillRect(0, 0, 180, 180);
+  
+  if (!mapRenderer.minimapData || mapRenderer.minimapData.length === 0) {
+    return;
+  }
+  
+  const scale = 180 / (MAP_WIDTH * TILE_SIZE);
+  const tileSize = TILE_SIZE * scale;
+  
+  // 使用缓存的minimap数据绘制地形
+  for (let y = 0; y < MAP_HEIGHT; y++) {
+    if (!mapRenderer.minimapData[y]) continue;
+    for (let x = 0; x < MAP_WIDTH; x++) {
+      const terrain = mapRenderer.minimapData[y][x];
+      if (!TERRAIN_COLORS[terrain]) continue;
+      
+      minimapCtx.fillStyle = TERRAIN_COLORS[terrain].base;
+      minimapCtx.fillRect(
+        x * tileSize,
+        y * tileSize,
+        tileSize + 1,
+        tileSize + 1
+      );
+    }
+  }
+  
+  // 绘制特殊地点
+  if (specialLocations && specialLocations.length > 0) {
+    for (let i = 0; i < specialLocations.length; i++) {
+      const loc = specialLocations[i];
+      if (!loc) continue;
+      
+      if (loc.type === 'treasure' && !loc.opened) {
+        minimapCtx.fillStyle = '#ffd700';
+        minimapCtx.fillRect(loc.x * scale - 2, loc.y * scale - 2, 4, 4);
+      } else if (loc.type === 'spirit') {
+        minimapCtx.fillStyle = '#88ccff';
+        minimapCtx.fillRect(loc.x * scale - 2, loc.y * scale - 2, 4, 4);
+      }
+    }
+  }
+  
+  // 绘制怪物
+  if (monsters && monsters.length > 0) {
+    minimapCtx.fillStyle = '#ff4444';
+    for (let i = 0; i < monsters.length; i++) {
+      if (monsters[i]) {
+        minimapCtx.fillRect(monsters[i].x * scale - 1, monsters[i].y * scale - 1, 2, 2);
+      }
+    }
+  }
+  
+  // 绘制玩家
+  minimapCtx.fillStyle = '#ffd700';
+  minimapCtx.beginPath();
+  minimapCtx.arc(player.x * scale, player.y * scale, 4, 0, Math.PI * 2);
+  minimapCtx.fill();
+  
+  // 绘制视野框
+  const viewWidth = canvas.width * scale;
+  const viewHeight = canvas.height * scale;
+  minimapCtx.strokeStyle = '#ffffff';
+  minimapCtx.globalAlpha = 0.5;
+  minimapCtx.strokeRect(
+    camera.x * scale - viewWidth / 2,
+    camera.y * scale - viewHeight / 2,
+    viewWidth,
+    viewHeight
+  );
+  minimapCtx.globalAlpha = 1;
+}
+
+// ============ 主循环（优化版） ============
+function gameLoop(timestamp) {
+  if (!gameState.lastTime) gameState.lastTime = timestamp;
+  const dt = Math.min(0.1, (timestamp - gameState.lastTime) / 1000);
+  gameState.lastTime = timestamp;
+  
+  // 性能统计
+  performanceStats.frameCount++;
+  performanceStats.fpsUpdateTimer += dt;
+  if (performanceStats.fpsUpdateTimer >= 1) {
+    performanceStats.fps = performanceStats.frameCount;
+    performanceStats.frameCount = 0;
+    performanceStats.fpsUpdateTimer = 0;
+    performanceStats.fpsHistory.push(performanceStats.fps);
+    if (performanceStats.fpsHistory.length > 60) performanceStats.fpsHistory.shift();
+    
+    // 自适应画质
+    if (performanceStats.fpsHistory.length >= 10) {
+      const recentFps = performanceStats.fpsHistory.slice(-10);
+      const avgFps = recentFps.reduce((a, b) => a + b, 0) / recentFps.length;
+      PerformanceConfig.adjustQuality(avgFps);
+    }
+    
+    // 更新FPS显示
+    document.getElementById('fpsCounter').textContent = 
+      'FPS: ' + performanceStats.fps + ' | 粒子: ' + performanceStats.particleCount + ' | 画质: ' + PerformanceConfig.quality;
+  }
+  
+  // 更新逻辑
+  if (!gameState.paused) {
+    updatePlayer(dt);
+    updateMonsters(dt);
+    particles.update(dt);
+    camera.update();
+    
+    if (gameState.autoAttack) {
+      let nearestMonster = null;
+      let nearestDist = 150;
+      if (monsters && monsters.length > 0) {
+        for (let i = 0; i < monsters.length; i++) {
+          if (!monsters[i]) continue;
+          const dist = Math.hypot(player.x - monsters[i].x, player.y - monsters[i].y);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestMonster = monsters[i];
+          }
+        }
+      }
+      if (nearestMonster && player.attackCooldown <= 0) {
+        player.facing = Math.atan2(nearestMonster.y - player.y, nearestMonster.x - player.x);
+        useSkill(0);
+      }
+    }
+  }
+  
+  // 渲染
+  ctx.fillStyle = '#0a0a12';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  
+  // 使用优化的地图渲染器
+  mapRenderer.draw(ctx, camera.x, camera.y, canvas.width, canvas.height);
+  
+  // 水波动画
+  mapRenderer.drawWaterAnimation(ctx, camera.x, camera.y, canvas.width, canvas.height, timestamp);
+  
+  // 绘制游戏对象
+  drawSpecialLocations(ctx, camera.x, camera.y, canvas.width, canvas.height, timestamp);
+  drawMonsters(ctx, camera.x, camera.y, canvas.width, canvas.height);
+  drawPlayer(ctx, camera.x, camera.y, canvas.width, canvas.height);
+  particles.draw(ctx, camera.x, camera.y, canvas.width, canvas.height);
+  
+  // 绘制小地图
+  drawMinimap(timestamp);
+  
+  // 更新UI（降低更新频率）
+  performanceStats.updateCount++;
+  if (performanceStats.updateCount % 3 === 0) {
+    updateUI();
+    updateSkillUI();
+  }
+  
+  requestAnimationFrame(gameLoop);
+}
+
+// ============ 事件监听 ============
+document.addEventListener('keydown', (e) => {
+  input.keys[e.key.toLowerCase()] = true;
+  
+  if (e.key >= '1' && e.key <= '4') {
+    useSkill(parseInt(e.key) - 1);
+  }
+  
+  if (e.key.toLowerCase() === 'i') {
+    gameState.showInventory = !gameState.showInventory;
+    document.getElementById('inventoryPanel').classList.toggle('show', gameState.showInventory);
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  input.keys[e.key.toLowerCase()] = false;
+});
+
+canvas.addEventListener('mousedown', (e) => {
+  input.mouse.down = true;
+  input.mouse.x = e.clientX;
+  input.mouse.y = e.clientY;
+});
+
+canvas.addEventListener('mouseup', () => {
+  input.mouse.down = false;
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  input.mouse.x = e.clientX;
+  input.mouse.y = e.clientY;
+});
+
+document.querySelectorAll('.skill-slot').forEach(slot => {
+  slot.addEventListener('click', () => {
+    const skillIndex = parseInt(slot.dataset.skill);
+    useSkill(skillIndex);
+  });
+});
+
+document.getElementById('btnAutoAttack').addEventListener('click', function() {
+  gameState.autoAttack = !gameState.autoAttack;
+  this.classList.toggle('active', gameState.autoAttack);
+  this.textContent = gameState.autoAttack ? '停止攻击' : '自动攻击';
+});
+
+document.getElementById('btnInventory').addEventListener('click', function() {
+  gameState.showInventory = !gameState.showInventory;
+  document.getElementById('inventoryPanel').classList.toggle('show', gameState.showInventory);
+});
+
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+
+// ============ 加载和初始化（已修复） ============
+function startLoading() {
+  console.log('========== 开始加载游戏 ==========');
+  
+  const loadingBar = document.getElementById('loadingBar');
+  let progress = 0;
+  
+  const loadingSteps = [
+    { 
+      progress: 20, 
+      action: function() {
+        console.log('[步骤1/5] 初始化游戏系统...');
+      }
+    },
+    { 
+      progress: 40, 
+      action: function() {
+        console.log('[步骤2/5] 生成地图数据...');
+        const success = generateMap();
+        if (!success) {
+          console.error('地图生成失败！尝试重新生成...');
+          generateMap();
+        }
+        
+        if (!mapData || mapData.length === 0) {
+          throw new Error('地图数据生成失败');
+        }
+        console.log('地图数据验证通过');
+      }
+    },
+    { 
+      progress: 60, 
+      action: function() {
+        console.log('[步骤3/5] 初始化地图渲染器...');
+        mapRenderer.init();
+        
+        if (!specialLocations) {
+          console.warn('specialLocations 未初始化，重新生成...');
+          generateSpecialLocations();
+        }
+        if (!monsters || monsters.length === 0) {
+          console.warn('monsters 未初始化，重新生成...');
+          spawnMonsters();
+        }
+      }
+    },
+    { 
+      progress: 80, 
+      action: function() {
+        console.log('[步骤4/5] 初始化UI...');
+        updateUI();
+        
+        console.log('---------- 最终数据验证 ----------');
+        console.log('mapData: ' + (mapData ? mapData.length + ' 行' : '未定义'));
+        console.log('specialLocations: ' + (specialLocations ? specialLocations.length + ' 个' : '未定义'));
+        console.log('monsters: ' + (monsters ? monsters.length + ' 只' : '未定义'));
+        console.log('player: (' + player.x + ', ' + player.y + ')');
+        console.log('camera: (' + camera.x + ', ' + camera.y + ')');
+        console.log('mapRenderer chunks: ' + Object.keys(mapRenderer.chunkCanvas).length + ' 个');
+      }
+    },
+    { 
+      progress: 100, 
+      action: function() {
+        console.log('[步骤5/5] 加载完成！');
+        console.log('========== 游戏加载完成 ==========');
+      }
+    }
+  ];
+  
+  let stepIndex = 0;
+  
+  function runStep() {
+    if (stepIndex >= loadingSteps.length) {
+      setTimeout(function() {
+        document.getElementById('loadingScreen').classList.add('hidden');
+        gameState.initialized = true;
+        console.log('开始游戏主循环');
+        requestAnimationFrame(gameLoop);
+      }, 500);
+      return;
+    }
+    
+    const step = loadingSteps[stepIndex];
+    
+    try {
+      if (typeof step.action === 'function') {
+        step.action();
+      }
+    } catch (e) {
+      console.error('加载步骤 ' + (stepIndex + 1) + ' 出错:', e);
+    }
+    
+    progress = step.progress;
+    loadingBar.style.width = progress + '%';
+    stepIndex++;
+    
+    setTimeout(runStep, 300);
+  }
+  
+  runStep();
+}
+
+// 启动游戏
+window.onload = startLoading;
+</script>
+</body>
+</html>

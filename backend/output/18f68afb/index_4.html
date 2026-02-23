@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>俄罗斯方块对战游戏</title>
+<style>
+  body {
+    margin: 0;
+    display: flex;
+    justify-content: space-between;
+  }
+  canvas {
+    border: 1px solid black;
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="playerCanvas" width="300" height="600"></canvas>
+<canvas id="aiCanvas" width="300" height="600"></canvas>
+
+<script>
+const blockSize = 30;
+const playerCanvas = document.getElementById('playerCanvas');
+const aiCanvas = document.getElementById('aiCanvas');
+const playerCtx = playerCanvas.getContext('2d');
+const aiCtx = aiCanvas.getContext('2d');
+const playerWidth = playerCanvas.width;
+const playerHeight = playerCanvas.height;
+const aiWidth = aiCanvas.width;
+const aiHeight = aiCanvas.height;
+
+class Tetromino {
+  // ... (Tetromino 类定义与之前相同) ...
+}
+
+class Game {
+  constructor(canvas, ctx) {
+    this.canvas = canvas;
+    this.ctx = ctx;
+    this.currentTetromino = null;
+    this.nextTetromino = null;
+    this.gameOver = false;
+    this.score = 0;
+    this.interferenceActive = false;
+    this.interferenceDuration = 3000; // 3 seconds
+    this.interferenceStartTime = 0;
+    this.grid = [];
+    this.init();
+  }
+
+  init() {
+    for (let y = 0; y < playerHeight / blockSize; y++) {
+      this.grid[y] = [];
+      for (let x = 0; x < playerWidth / blockSize; x++) {
+        this.grid[y][x] = 0;
+      }
+    }
+    this.newTetromino();
+    this.newNextTetromino();
+    document.addEventListener('keydown', this.handleKeyPress.bind(this));
+    this.render();
+  }
+
+  handleKeyPress(event) {
+    // ... (其他按键处理逻辑) ...
+    if (event.key === 'Space' && this.score % 10 === 0) { // 释放干扰技能
+      this.activateInterference();
+    }
+  }
+
+  activateInterference() {
+    this.interferenceActive = true;
+    this.interferenceStartTime = Date.now();
+    // 这里可以添加AI干扰逻辑，例如随机改变AI的移动方向
+  }
+
+  updateInterference() {
+    if (this.interferenceActive) {
+      const currentTime = Date.now();
+      if (currentTime - this.interferenceStartTime > this.interferenceDuration) {
+        this.interferenceActive = false;
+      }
+    }
+  }
+
+  // ... (其他游戏逻辑方法) ...
+
+  checkForLines() {
+    for (let y = this.grid.length - 1; y >= 0; y--) {
+      let isFull = true;
+      for (let x = 0; x < this.grid[y].length; x++) {
+        if (this.grid[y][x] === 0) {
+          isFull = false;
+          break;
+        }
+      }
+      if (isFull) {
+        this.score += 10; // 增加得分
+        this.removeLine(y);
+      }
+    }
+  }
+
+  removeLine(lineIndex) {
+    for (let y = lineIndex; y > 0; y--) {
+      this.grid[y] = this.grid[y - 1];
+    }
+    for (let x = 0; x < this.grid[0].length; x++) {
+      this.grid[0][x] = 0;
+    }
+  }
+
+  render() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // ... (绘制当前和下一个方块) ...
+    this.updateInterference();
+  }
+}
+
+// 初始化游戏
+const playerGame = new Game(playerCanvas, playerCtx);
+const aiGame = new Game(aiCanvas, aiCtx);
+
+// 游戏循环
+function gameLoop() {
+  if (!playerGame.gameOver && !aiGame.gameOver) {
+    playerGame.render();
+    aiGame.render();
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+window.onload = () => {
+  gameLoop();
+};
+</script>
+</body>
+</html>

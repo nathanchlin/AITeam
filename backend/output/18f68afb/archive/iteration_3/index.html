@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tetris Battle - Interactive Start</title>
+<style>
+  body {
+    margin: 0;
+    padding: 20px;
+    background-color: #222;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+  }
+  .game-container {
+    display: flex;
+    gap: 20px;
+    background: #333;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    position: relative; /* 为遮罩层定位 */
+    border: 2px solid #555;
+  }
+  
+  /* 启动遮罩层样式 */
+  #startOverlay {
+position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0, 0, 0, 0.92);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: opacity 0.5s ease;
+    overflow-y: auto;
+    padding: 20px;
+    box-sizing: border-box;
+    /* 优化触摸屏体验：禁止双击缩放 */
+    touch-action: manipulation;
+    /* 防止文本被选中 */
+    -webkit-user-select: none;
+    user-select: none;
+}
+  
+  /* 隐藏状态 */
+  .hidden {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  .overlay-content {
+    text-align: center;
+  }
+  
+  .main-title {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 0 10px #00ffcc;
+  }
+
+  .instruction {
+font-size: 18px;
+    color: #aaa;
+    animation: pulse 2s infinite;
+    /* 确保文本不可选中 */
+    pointer-events: none;
+    -webkit-user-select: none;
+    user-select: none;
+    /* 增加过渡效果用于反馈 */
+    transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+/* 增加按下反馈效果 */
+#startOverlay:active .instruction {
+    transform: scale(0.95);
+    opacity: 0.8;
+}
+
+/* 兼容旧版 Webkit 触摸高亮 */
+#startOverlay {
+    -webkit-tap-highlight-color: transparent;
+}
+
+  @keyframes pulse {
+    0% { opacity: 0.4; transform: scale(0.98); }
+    50% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0.4; transform: scale(0.98); }
+  }
+
+  .canvas-wrapper {
+    text-align: center;
+  }
+  h3 { margin-top: 0; margin-bottom: 10px; color: #fff; }
+  canvas {
+    border: 2px solid #555;
+    background-color: #000;
+    display: block;
+  }
+  #info {
+    margin-left: 10px;
+    margin-right: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 150px;
+  }
+  .score-board {
+    margin-bottom: 20px;
+    padding: 10px;
+    background: #444;
+    border-radius: 5px;
+    color: #fff;
+    font-size: 14px;
+  }
+  .score-board span { font-weight: bold; color: #00ffcc; }
+  
+  .controls-hint {
+    font-size: 12px; 
+    color: #888; 
+    margin-top: auto;
+    border-top: 1px solid #555;
+    padding-top: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div class="game-container">
+  <!-- 启动遮罩 -->
+  <div id="startOverlay">
+    <div class="overlay-content">
+      <div class="main-title">TETRIS BATTLE</div>
+      <div class="instruction">TAP OR PRESS ANY KEY</div>
+    </div>
+  </div>
+
+  <div class="canvas-wrapper">
+    <h3>Player</h3>
+    <canvas id="playerCanvas" width="240" height="480"></canvas>
+  </div>
+  
+  <div id="info">
+    <div>
+      <div class="score-board">
+        <p>Player Score<br><span id="playerScore">0</span></p>
+        <p>Lines<br><span id="playerLines">0</span></p>
+      </div>
+      <div class="score-board">
+        <p>AI Score<br><span id="aiScore">0</span></p>
+        <p>Lines<br><span id="aiLines">0</span></p>
+      </div>
+    </div>
+    
+    <div class="controls-hint">
+      Controls:<br>
+      ← → Move<br>
+      ↑ Rotate<br>
+      ↓ Soft Drop<br>
+      Space Hard Drop
+    </div>
+  </div>
+
+  <div class="canvas-wrapper">
+    <h3>AI</h3>
+    <canvas id="aiCanvas" width="240" height="480"></canvas>
+  </div>
+</div>
+
+<script>
+// --- 配置常量 ---
+const COLS = 10;
+const ROWS = 20;
+const BLOCK_SIZE = 24; 
+const COLORS = [
+    null,
+    '#00ffff', // I
+    '#0000ff', // J
+    '#ffaa00', // L
+    '#ffff00', // O
+    '#00ff00', // S
+    '#aa00ff', // T
+    '#ff0000'  // Z
+];
+
+// --- 获取 DOM ---
+const playerCanvas = document.getElementById('playerCanvas');
+const aiCanvas = document.getElementById('aiCanvas');
+const playerCtx = playerCanvas.getContext('2d');
+const aiCtx = aiCanvas.getContext('2d');
+const startOverlay = document.getElementById('startOverlay');
+
+// --- 游戏状态 ---
+let isGameStarted = false;
+let playerGame, aiGame;
+let lastTime = 0;
+let dropCounter = 0;
+let dropInterval = 1000;
+
+// --- 音频系统 (Web Audio API) ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playStartSound() {
+    // 播放一个简短的上升音调，表示游戏开始
+    const osc = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    osc.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
+    osc.frequency.linearRampToValueAtTime(880, audioCtx.currentTime + 0.1); // A5
+    
+    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.3);
+
+    // 触觉反馈 (如果支持)
+    if (navigator.vibrate) {
+        navigator.vibrate(100);
+    }
+}
+
+// --- 启动游戏逻辑 ---
+function startGame() {
+    if (isGameStarted) return;
+    
+    // 必须由用户手势触发 AudioContext 恢复
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+    
+    isGameStarted = true;
+    startOverlay.classList.add('hidden');
+    playStartSound();
+
+    // 初始化游戏实例
+    playerGame = new Game(playerCanvas, playerCtx, false);
+    aiGame = new Game(aiCanvas, aiCtx, true);
+    
+    // 建立对手连接
+    playerGame.opponent = aiGame;
+    aiGame.opponent = playerGame;
+
+    // 开始循环
+    requestAnimationFrame(update);
+}
+
+// 监听全局事件以启动游戏
+document.addEventListener('keydown', startGame);
+startOverlay.addEventListener('click', startGame);
+// 移动端触摸
+startOverlay.addEventListener('touchstart', (e) => {
+    e.preventDefault(); // 防止鼠标事件模拟
+    startGame();
+});
+
+
+// --- 核心类 ---
+
+class Tetromino {
+    constructor() {
+        // 标准俄罗斯方块形状
+        const shapes = [
+            [[1,1,1,1]], 
+            [[2,0,0],[2,2,2]], 
+            [[0,0,3],[3,3,3]], 
+            [[4,4],[4,4]], 
+            [[0,5,5],[5,5,0]], 
+            [[0,6,0],[6,6,6]], 
+            [[7,7,0],[0,7,7]]
+        ];
+        const typeId = Math.floor(Math.random() * shapes.length) + 1;
+        this.matrix = shapes[typeId - 1];
+        this.x = Math.floor(COLS / 2) - Math.floor(this.matrix[0].length / 2);
+        this.y = 0;
+    }
+
+    rotate() {
+        // 矩阵旋转算法
+        const newMatrix = this.matrix[0].map((val, index) => 
+            this.matrix.map(row => row[index]).reverse()
+        );
+        this.matrix = newMatrix;
+    }
+}
+
+class Game {
+    constructor(canvas, ctx, isAI = false) {
+        this.canvas = canvas;
+        this.ctx = ctx;
+        this.isAI = isAI;
+        this.grid = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+        this.score = 0;
+        this.lines = 0;
+        this.gameOver = false;
+        this.piece = new Tetromino();
+        this.opponent = null;
+        
+        // AI 专用计数器
+        this.aiCounter = 0;
+        this.aiActionRate = 30; // 每30帧移动一次
+
+        if (!isAI) this.bindControls();
+    }
+
+    bindControls() {
+        document.addEventListener('keydown', (e) => {
+            if (this.gameOver) return;
+            switch(e.key) {
+                case 'ArrowLeft': this.move(-1); break;
+                case 'ArrowRight': this.move(1); break;
+                case 'ArrowDown': this.drop(); break;
+                case 'ArrowUp': this.rotatePiece(); break;
+                case ' ': this.hardDrop(); break;
+            }
+        });
+    }
+
+    move(dir) {
+        this.piece.x += dir;
+        if (this.collide()) this.piece.x -= dir;
+    }
+
+    rotatePiece() {
+        this.piece.rotate();
+        if (this.collide()) {
+            this.piece.rotate();
+            this.piece.rotate();
+            this.piece.rotate(); // 旋转3次等于逆旋转
+        }
+    }
+
+    drop() {
+        this.piece.y++;
+        if (this.collide()) {
+            this.lock();
+        }
+    }
+
+    hardDrop() {
+        while (!this.collide()) {
+            this.piece.y++;
+        }
+        this.lock();
+    }
+
+    collide() {
+        const m = this.piece.matrix;
+        const o = this.piece;
+        for (let y = 0; y < m.length; ++y) {
+            for (let x = 0; x < m[y].length; ++x) {
+                if (m[y][x] !== 0 &&
+                   (this.grid[y + o.y] && this.grid[y + o.y][x + o.x]) !== 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    lock() {
+        this.piece.y--; // 回退一步
+        // 合并到网格
+        this.piece.matrix.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value !== 0) {
+                    if (this.grid[y + this.piece.y]) {
+                        this.grid[y + this.piece.y][x + this.piece.x] = value;
+                    }
+                }
+            });
+        });
+        
+        // 消除逻辑
+        const linesCleared = this.sweep();
+        if (linesCleared > 0) {
+            this.addScore(linesCleared);
+            // 发送干扰给对手
+            if (this.opponent && linesCleared > 1) {
+                this.opponent.receiveGarbage(linesCleared - 1);
+            }
+        }
+
+        // 生成新方块
+        this.piece = new Tetromino();
+        if (this.collide()) {
+            this.gameOver = true;
+        }
+    }
+
+    sweep() {
+        let rowCount = 0;
+        outer: for (let y = ROWS - 1; y > 0; --y) {
+            for (let x = 0; x < COLS; ++x) {
+                if (this.grid[y][x] === 0) {
+                    continue outer;
+                }
+            }
+            // 移除该行
+            this.grid.splice(y, 1);
+            this.grid.unshift(Array(COLS).fill(0));
+            rowCount++;
+            y++; // 重新检查当前行
+        }
+        return rowCount;
+    }
+
+    addScore(lines) {
+        this.lines += lines;
+        const lineScore = [0, 100, 300, 500, 800];
+        this.score += lineScore[lines] || 0;
+        this.updateUI();
+    }
+
+    receiveGarbage(amount) {
+        for (let i = 0; i < amount; i++) {
+            this.grid.shift(); // 移除顶行
+            // 在底部添加干扰行（带有一个随机空洞）
+            const garbageLine = Array(COLS).fill(8); // 8 是灰色
+            const hole = Math.floor(Math.random() * COLS);
+            garbageLine[hole] = 0;
+            this.grid.push(garbageLine);
+        }
+    }
+
+    updateUI() {
+        if (!this.isAI) {
+            document.getElementById('playerScore').innerText = this.score;
+            document.getElementById('playerLines').innerText = this.lines;
+        } else {
+            document.getElementById('aiScore').innerText = this.score;
+            document.getElementById('aiLines').innerText = this.lines;
+        }
+    }
+
+    draw() {
+        // 清屏
+        this.ctx.fillStyle = '#000';
+        this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // 绘制背景网格
+        this.ctx.strokeStyle = '#222';
+        for (let x = 0; x <= COLS; x++) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(x * BLOCK_SIZE, 0);
+            this.ctx.lineTo(x * BLOCK_SIZE, this.canvas.height);
+            this.ctx.stroke();
+        }
+        for (let y = 0; y <= ROWS; y++) {
+            this.ctx.beginPath();
+            this.ctx.moveTo(0, y * BLOCK_SIZE);
+            this.ctx.lineTo(this.canvas.width, y * BLOCK_SIZE);
+            this.ctx.stroke();
+        }
+
+        // 绘制锁定方块
+        this.grid.forEach((row, y) => {
+            row.forEach((value, x) => {
+                if (value !== 0) {
+                    this.drawBlock(x, y, value);
+                }
+            });
+        });
+
+        // 绘制活动方块
+        if (!this.gameOver && this.piece) {
+            this.piece.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        this.drawBlock(x + this.piece.x, y + this.piece.y, value);
+                    }
+                });
+            });
+        }
+    }
+
+    drawBlock(x, y, typeId) {
+        this.ctx.fillStyle = COLORS[typeId] || '#fff';
+        this.ctx.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+        this.ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+        this.ctx.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+    }
+
+    update(deltaTime) {
+        if (this.gameOver) return;
+
+        if (this.isAI) {
+            this.aiCounter++;
+            if (this.aiCounter > this.aiActionRate) {
+                this.aiCounter = 0;
+                // 简单AI：随机左右移动或旋转，然后下落
+                const actions = ['left', 'right', 'rotate', 'drop'];
+                const action = actions[Math.floor(Math.random() * actions.length)];
+                
+                if (action === 'left') this.move(-1);
+                else if (action === 'right') this.move(1);
+                else if (action === 'rotate') this.rotatePiece();
+                else this.drop();
+            }
+        } else {
+            dropCounter += deltaTime;
+            if (dropCounter > dropInterval) {
+                this.drop();
+                dropCounter = 0;
+            }
+        }
+    }
+}
+
+// --- 主循环 ---
+function update(time = 0) {
+    const deltaTime = time - lastTime;
+    lastTime = time;
+
+    if (isGameStarted) {
+        playerGame.update(deltaTime);
+        aiGame.update(deltaTime);
+
+        playerGame.draw();
+        aiGame.draw();
+    }
+
+    requestAnimationFrame(update);
+}
+
+// 初始渲染（显示空网格）
+function initialRender() {
+    playerCtx.fillStyle = '#000';
+    playerCtx.fillRect(0, 0, playerCanvas.width, playerCanvas.height);
+    aiCtx.fillStyle = '#000';
+    aiCtx.fillRect(0, 0, aiCanvas.width, aiCanvas.height);
+}
+/**
+ * 自动启动游戏逻辑
+ * 代替传统的按钮点击启动，页面加载完成后直接开始
+ */
+
+// --- 帮助系统 ---
+const helpModal = document.getElementById('helpModal');
+const helpBtn = document.getElementById('helpBtn');
+const closeHelpBtn = document.getElementById('closeHelpBtn');
+
+/**
+ * 显示帮助面板
+ */
+function showHelp() {
+    helpModal.classList.remove('hidden');
+}
+
+/**
+ * 隐藏帮助面板
+ */
+function hideHelp() {
+    helpModal.classList.add('hidden');
+}
+
+// 绑定帮助按钮事件
+helpBtn.addEventListener('click', function(e) {
+    e.stopPropagation();
+    showHelp();
+});
+
+closeHelpBtn.addEventListener('click', hideHelp);
+
+// 点击帮助面板空白处关闭
+helpModal.addEventListener('click', function(e) {
+    if (e.target === helpModal) {
+        hideHelp();
+    }
+});
+
+// 按 ESC 关闭帮助
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && !helpModal.classList.contains('hidden')) {
+        hideHelp();
+    }
+});
+function autoStartGame() {
+    // 1. 初始化游戏实例
+    // 假设 TetrisGame 构造函数接受 (canvasElement, isAI) 参数
+    playerGame = new TetrisGame(playerCanvas, false);
+    aiGame = new TetrisGame(aiCanvas, true);
+
+    // 2. 更新游戏状态
+    isGameStarted = true;
+
+    // 3. 隐藏启动遮罩层
+    // 利用 CSS 中定义的 .hidden 类 (opacity: 0, pointer-events: none)
+    startOverlay.classList.add('hidden');
+
+    // 4. 启动游戏主循环
+    // 只有启动后，update 循环才会真正执行游戏逻辑
+    requestAnimationFrame(update);
+}
+
+// 执行自动启动
+autoStartGame();
+
+initialRender();
+
+
+<div id="startOverlay">
+    <div class="overlay-content">
+      <div class="main-title">🎮 TETRIS BATTLE</div>
+      
+      <div class="tutorial-content">
+        <div class="tutorial-section">
+          <div class="tutorial-title">🎯 游戏目标</div>
+          <div class="tutorial-text">
+            消除更多的行数来获取分数，同时向对手发送攻击！
+          </div>
+        </div>
+        
+        <div class="tutorial-section">
+          <div class="tutorial-title">⌨️ 操作方式</div>
+          <div class="key-row">
+            <span class="key-badge">←</span>
+            <span class="key-badge">→</span>
+            <span class="key-desc">左右移动方块</span>
+          </div>
+          <div class="key-row">
+            <span class="key-badge">↑</span>
+            <span class="key-desc">旋转方块</span>
+          </div>
+          <div class="key-row">
+            <span class="key-badge">↓</span>
+            <span class="key-desc">加速下落</span>
+          </div>
+          <div class="key-row">
+            <span class="key-badge">Space</span>
+            <span class="key-desc">直接落到底部</span>
+          </div>
+        </div>
+        
+        <div class="tutorial-section">
+          <div class="tutorial-title">⚔️ 攻击机制</div>
+          <div class="attack-note">
+            <div class="tutorial-text">
+              每次消除行数时，会向对手发送干扰行！<br>
+              消除越多，攻击越强！
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="start-hint">点击任意位置开始游戏</div>
+    </div>
+  </div>
+
+/* 教程内容样式 */
+  .tutorial-content {
+    max-width: 500px;
+    text-align: left;
+    margin-top: 15px;
+    padding: 15px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  
+  .tutorial-section {
+    margin-bottom: 15px;
+  }
+  
+  .tutorial-section:last-child {
+    margin-bottom: 0;
+  }
+  
+  .tutorial-title {
+    font-size: 14px;
+    font-weight: bold;
+    color: #00ffcc;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  
+  .tutorial-text {
+    font-size: 13px;
+    color: #bbb;
+    line-height: 1.6;
+  }
+  
+  .key-badge {
+    display: inline-block;
+    background: linear-gradient(180deg, #555 0%, #333 100%);
+    border: 1px solid #666;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: bold;
+    color: #fff;
+    margin: 2px;
+    box-shadow: 0 2px 0 #222;
+  }
+  
+  .key-row {
+    display: flex;
+    align-items: center;
+    margin: 5px 0;
+    gap: 8px;
+  }
+  
+  .key-desc {
+    color: #aaa;
+    font-size: 12px;
+  }
+  
+  .attack-note {
+    background: rgba(255, 100, 100, 0.15);
+    border-left: 3px solid #ff6666;
+    padding: 8px 12px;
+    margin-top: 10px;
+    border-radius: 0 4px 4px 0;
+  }
+  
+  .attack-note .tutorial-text {
+    color: #ffaaaa;
+  }
+
+  /* 帮助按钮样式 */
+  .help-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #444 0%, #333 100%);
+    border: 1px solid #555;
+    color: #00ffcc;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 50;
+    transition: all 0.2s ease;
+  }
+  
+  .help-btn:hover {
+    background: linear-gradient(180deg, #555 0%, #444 100%);
+    transform: scale(1.1);
+    box-shadow: 0 0 10px rgba(0, 255, 204, 0.3);
+  }
+
+  /* 帮助弹窗样式 */
+  #helpModal {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0, 0, 0, 0.92);
+    z-index: 200;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    border-radius: 8px;
+    overflow-y: auto;
+    padding: 20px;
+    box-sizing: border-box;
+  }
+  
+  .help-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 500px;
+    margin-bottom: 15px;
+  }
+  
+  .help-title {
+    font-size: 24px;
+    font-weight: bold;
+    color: #00ffcc;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  
+  .close-btn {
+    background: none;
+    border: 1px solid #666;
+    color: #aaa;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 5px 12px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+  }
+  
+  .close-btn:hover {
+    border-color: #ff6666;
+    color: #ff6666;
+  }
+  
+  .start-hint {
+    margin-top: 20px;
+    padding: 15px 30px;
+    background: linear-gradient(180deg, rgba(0,255,204,0.2) 0%, rgba(0,255,204,0.1) 100%);
+    border: 1px solid #00ffcc;
+    border-radius: 25px;
+    font-size: 16px;
+    color: #00ffcc;
+    animation: pulse 2s infinite;
+  }
+
+<!-- 帮助按钮 -->
+  <button class="help-btn" id="helpBtn" title="帮助">?</button>
+
+  <!-- 帮助弹窗 -->
+  <div id="helpModal" class="hidden">
+    <div class="help-header">
+      <div class="help-title">游戏帮助</div>
+      <button class="close-btn" id="closeHelpBtn">✕</button>
+    </div>
+    
+    <div class="tutorial-content">
+      <div class="tutorial-section">
+        <div class="tutorial-title">🎯 游戏目标</div>
+        <div class="tutorial-text">
+          控制下落的方块，填满一整行即可消除得分。<br>
+          与 AI 对战，通过消除行数来攻击对手！
+        </div>
+      </div>
+      
+      <div class="tutorial-section">
+        <div class="tutorial-title">⌨️ 键盘操作</div>
+        <div class="key-row">
+          <span class="key-badge">←</span>
+          <span class="key-badge">→</span>
+          <span class="key-desc">左右移动方块</span>
+        </div>
+        <div class="key-row">
+          <span class="key-badge">↑</span>
+          <span class="key-desc">旋转方块</span>
+        </div>
+        <div class="key-row">
+          <span class="key-badge">↓</span>
+          <span class="key-desc">加速下落（软降）</span>
+        </div>
+        <div class="key-row">
+          <span class="key-badge">Space</span>
+          <span class="key-desc">瞬间落底（硬降）</span>
+        </div>
+        <div class="key-row">
+          <span class="key-badge">P</span>
+          <span class="key-desc">暂停/继续游戏</span>
+        </div>
+      </div>
+      
+      <div class="tutorial-section">
+        <div class="tutorial-title">⚔️ 对战攻击规则</div>
+        <div class="tutorial-text">
+          消除行数会对对手造成攻击：
+        </div>
+        <div class="key-row">
+          <span class="key-badge">1行</span>
+          <span class="key-desc">不发送攻击</span>
+        </div>
+        <div class="key-row">
+          <span class="key-badge">2行</span>
+          <span class="key-desc">发送 +1 干扰行</span>
+        </div>
+        <div class="key-row">
+          <span class="key-badge">3行</span>
+          <span class="key-desc">发送 +2 干扰行</span>
+        </div>
+        <div class="key-row">
+          <span class="key-badge">4行</span>
+          <span class="key-desc">发送 +4 干扰行（Tetris！）</span>
+        </div>
+        <div class="attack-note">
+          <div class="tutorial-text">
+            💡 干扰行会从底部出现，且有一个空缺口，<br>
+            尽快消除它们！
+          </div>
+        </div>
+      </div>
+      
+      <div class="tutorial-section">
+        <div class="tutorial-title">💡 小技巧</div>
+        <div class="tutorial-text">
+          • 尽量消除多行以发送更强攻击<br>
+          • 保持场地整洁，避免堆太高<br>
+          • 利用硬降快速放置方块<br>
+          • 注意对手的攻击节奏
+        </div>
+      </div>
+    </div>
+    
+    <button class="close-btn" style="margin-top: 15px;" onclick="hideHelp()">关闭</button>
+  </div>
+
+// --- 启动逻辑优化 ---
+let isGameStarted = false;
+
+/**
+ * 统一的游戏启动函数
+ */
+function startGame(event) {
+    // 防止触摸事件和鼠标事件同时触发
+    if (isGameStarted) return;
+    
+    // 如果是触摸事件，阻止后续的鼠标模拟事件
+    if (event.type === 'touchstart') {
+        event.preventDefault();
+    }
+    
+    isGameStarted = true;
+    console.log("Game starting...");
+
+    // 1. 隐藏遮罩层
+    startOverlay.classList.add('hidden');
+
+    // 2. 清理所有启动监听器
+    window.removeEventListener('keydown', startGame);
+    startOverlay.removeEventListener('click', startGame);
+    startOverlay.removeEventListener('touchstart', startGame);
+
+    // 3. 启动游戏主循环
+    // (此处假设您的游戏主循环函数名为 gameLoop 或类似，请根据实际情况调整)
+    if (typeof gameLoop === 'function') {
+        requestAnimationFrame(gameLoop);
+    } else if (typeof drop === 'function') {
+        // 如果是简单的定时器驱动
+        setInterval(drop, 1000); 
+    }
+    
+    // 4. 确保页面获取焦点以便捕获键盘输入
+    window.focus();
+}
+
+// 绑定事件监听器
+window.addEventListener('keydown', startGame);
+startOverlay.addEventListener('click', startGame);
+// 使用 { passive: false } 允许我们在 touchstart 中调用 preventDefault
+startOverlay.addEventListener('touchstart', startGame, { passive: false });
+</script>
+</body>
+</html>

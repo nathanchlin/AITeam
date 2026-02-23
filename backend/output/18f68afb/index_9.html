@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>俄罗斯方块游戏</title>
+<style>
+  canvas {
+    border: 1px solid black;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="400" height="600"></canvas>
+<script>
+const blockSize = 30;
+const gridWidth = 10;
+const gridHeight = 20;
+let board = [];
+let currentPiece = null;
+let nextPiece = null;
+let gameInterval = null;
+let score = 0;
+let interferenceActive = false;
+let interferenceStartTime = 0;
+const interferenceDuration = 3000;
+
+function init() {
+  for (let i = 0; i < gridHeight; i++) {
+    board[i] = new Array(gridWidth).fill(null);
+  }
+  newPiece();
+  gameInterval = setInterval(fallPiece, 1000);
+  document.addEventListener('keydown', handleKeyPress);
+  window.addEventListener('DOMContentLoaded', () => {
+    requestAnimationFrame(render);
+  });
+}
+
+function newPiece() {
+  const types = ['I', 'J', 'L', 'O', 'S', 'T', 'Z'];
+  const randomType = types[Math.floor(Math.random() * types.length)];
+  currentPiece = createPiece(randomType);
+  nextPiece = createPiece(randomType);
+}
+
+function createPiece(type) {
+  let piece = [];
+  switch (type) {
+    case 'I':
+      piece = [
+        [0, 0, 0, 0],
+        [1, 1, 1, 1],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+      ];
+      break;
+    // 其他方块的创建逻辑...
+    // ...
+  }
+  return piece;
+}
+
+function fallPiece() {
+  if (!canMove(currentPiece, { x: 0, y: 1 })) {
+    lockPiece();
+    newPiece();
+    if (!canMove(nextPiece, { x: 0, y: 0 })) {
+      clearInterval(gameInterval);
+      alert('Game Over');
+    }
+  } else {
+    movePiece(currentPiece, { x: 0, y: 1 });
+  }
+}
+
+function movePiece(piece, offset) {
+  // 移动方块的逻辑...
+}
+
+function lockPiece() {
+  // 锁定方块的逻辑...
+}
+
+function removeFullRows() {
+  // 移除填满的行的逻辑...
+}
+
+function updateScore() {
+  score += 10;
+}
+
+function activateInterference() {
+  interferenceActive = true;
+  interferenceStartTime = Date.now();
+  clearInterval(gameInterval);
+  gameInterval = setInterval(fallPiece, 2000); // AI操作速度减慢
+  setTimeout(() => {
+    interferenceActive = false;
+    interferenceStartTime = 0;
+    gameInterval = setInterval(fallPiece, 1000); // 恢复正常速度
+  }, interferenceDuration);
+}
+
+function checkForInterference() {
+  // 检查是否应该激活干扰技能的逻辑...
+}
+
+function render() {
+  // 渲染游戏的逻辑...
+}
+
+function handleKeyPress(event) {
+  // 处理按键输入的逻辑...
+}
+
+window.onload = init;
+</script>
+</body>
+</html>

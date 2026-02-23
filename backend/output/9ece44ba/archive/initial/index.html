@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multiplayer Bullet Dodging Game</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width = window.innerWidth;
+  const height = canvas.height = window.innerHeight;
+
+  let players = [
+    {
+      x: width / 4,
+      y: height - 50,
+      width: 30,
+      height: 50,
+      color: 'blue',
+      dx: 0,
+      dy: 0
+    },
+    {
+      x: width / 2,
+      y: height - 50,
+      width: 30,
+      height: 50,
+      color: 'red',
+      dx: 0,
+      dy: 0
+    },
+    // 可以添加更多玩家
+  ];
+
+  let bullets = [];
+  let score = 0;
+
+  function drawPlayer(player) {
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+  }
+
+  function drawBullet() {
+    ctx.fillStyle = 'red';
+    for (let bullet of bullets) {
+      ctx.fillRect(bullet.x, bullet.y, 5, 10);
+      bullet.x += 5;
+    }
+    bullets = bullets.filter(bullet => bullet.x < width);
+  }
+
+  function drawScore() {
+    ctx.fillStyle = 'black';
+    ctx.fillText(`Score: ${score}`, 10, 30);
+  }
+
+  function collisionCheck() {
+    for (let i = 0; i < players.length; i++) {
+      for (let j = i + 1; j < players.length; j++) {
+        if (players[i].x < players[j].x + players[j].width &&
+            players[i].x + players[i].width > players[j].x &&
+            players[i].y < players[j].y + players[j].height &&
+            players[i].y + players[i].height > players[j].y) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  function gameLoop() {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+    ctx.fillRect(0, 0, width, height);
+    players.forEach(drawPlayer);
+    drawBullet();
+    drawScore();
+
+    if (collisionCheck()) {
+      alert('Game Over! Score: ' + score);
+      score = 0;
+      bullets = [];
+      players.forEach(player => {
+        player.x = width / 4 * (player.y % 2);
+        player.y = height - 50;
+      });
+    }
+
+    requestAnimationFrame(gameLoop);
+  }
+
+  window.onload = function() {
+    gameLoop();
+    document.addEventListener('keydown', function(event) {
+      let player = players[event.key === 'ArrowLeft' || event.key === 'ArrowRight' ? 0 : 1];
+      if (event.key === 'ArrowLeft') {
+        player.dx = -10;
+      } else if (event.key === 'ArrowRight') {
+        player.dx = 10;
+      } else if (event.key === 'ArrowUp') {
+        player.dy = -10;
+      } else if (event.key === 'ArrowDown') {
+        player.dy = 10;
+      }
+    });
+
+    document.addEventListener('keyup', function(event) {
+      let player = players[event.key === 'ArrowLeft' || event.key === 'ArrowRight' ? 0 : 1];
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        player.dx = 0;
+      } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        player.dy = 0;
+      }
+    });
+
+    setInterval(function() {
+      bullets.push({
+        x: Math.random() * (width - 5),
+        y: 0
+      });
+    }, 500);
+  };
+</script>
+</body>
+</html>

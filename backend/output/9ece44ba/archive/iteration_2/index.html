@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>灵画师躲避弹幕</title>
+<style>
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  body {
+    overflow: hidden;
+    background: #0a0a1a;
+    font-family: 'Microsoft YaHei', sans-serif;
+  }
+  canvas {
+    display: block;
+  }
+  #gameOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 10, 26, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+  }
+  #gameOverlay h1 {
+    color: #00ffcc;
+    font-size: 52px;
+    margin-bottom: 20px;
+    text-shadow: 0 0 30px rgba(0, 255, 204, 0.6);
+    letter-spacing: 8px;
+  }
+  #gameOverlay p {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 18px;
+    margin-bottom: 40px;
+    line-height: 1.8;
+    text-align: center;
+  }
+  #startBtn {
+    padding: 18px 60px;
+    font-size: 20px;
+    background: linear-gradient(135deg, #00ffcc, #0088ff);
+    border: none;
+    border-radius: 40px;
+    color: #0a0a1a;
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s, box-shadow 0.2s;
+    letter-spacing: 2px;
+  }
+  #startBtn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 40px rgba(0, 255, 204, 0.5);
+  }
+  .hidden {
+    display: none !important;
+  }
+</style>
+</head>
+<body>
+
+<!-- 开始/结束界面 -->
+<div id="gameOverlay">
+  <h1>灵画师</h1>
+  <p>使用 方向键 或 WASD 控制角色移动<br>躲避从四面八方袭来的弹幕<br>存活越久，分数越高</p>
+  <button id="startBtn">开始游戏</button>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+
+<script>
+// ========== 全局变量初始化 ==========
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let width = window.innerWidth;
+let height = window.innerHeight;
+canvas.width = width;
+canvas.height = height;
+
+// 游戏状态
+let gameRunning = false;
+let score = 0;
+let highScore = 0;
+let difficultyLevel = 1;
+let frameCount = 0;
+
+// 玩家对象
+const player = {
+  x: 0,
+  y: 0,
+  width: 28,
+  height: 28,
+  speed: 5,
+  trail: [],
+  invincible: false,
+  invincibleTimer: 0
+};
+
+// 弹幕数组
+let bullets = [];
+
+// 粒子效果数组
+let particles = [];
+
+// 背景星星
+let stars = [];
+
+// 弹幕发射器配置
+const bulletConfig = {
+  spawnInterval: 25,
+  baseSpeed: 2.5,
+  speedVariation: 1.5,
+  patterns: ['rain', 'spread', 'spiral', 'side', 'cross'],
+  currentPattern: 0,
+  patternTimer: 0,
+  patternDuration: 400
+};
+
+// 键盘状态
+const keys = {
+  ArrowLeft: false,
+  ArrowRight: false,
+  ArrowUp: false,
+  ArrowDown: false,
+  a: false,
+  d: false,
+  w: false,
+  s: false
+};
+
+// ========== 初始化函数 ==========
+function initGame() {
+  width = canvas.width = window.innerWidth;
+  height = canvas.height = window.innerHeight;
+  
+  player.x = width / 2 - player.width / 2;
+  player.y = height - 120;
+  player.trail = [];
+  player.invincible = true;
+  player.invincibleTimer = 180;
+  
+  bullets = [];
+  particles = [];
+  
+  score = 0;
+  difficultyLevel = 1;
+  frameCount = 0;
+  
+  bulletConfig.spawnInterval = 25;
+  bulletConfig.currentPattern = 0;
+  bulletConfig.patternTimer = 0;
+  
+  initStars();
+}
+
+function initStars() {
+  stars = [];
+  for (let i = 0; i < 100; i++) {
+    stars.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      size: Math.random() * 2 + 0.5,
+      speed: Math.random() * 0.5 + 0.2,
+      alpha: Math.random() * 0.5 + 0.3
+    });
+  }
+}
+
+// ========== 弹幕生成系统 ==========
+function spawnBullets() {
+  const config = bulletConfig;
+  const adjustedInterval = Math.max(8, config.spawnInterval - difficultyLevel * 2);
+  
+  if (frameCount % adjustedInterval !== 0) return;
+  
+  config.patternTimer++;
+  if (config.patternTimer >= config.patternDuration) {
+    config.patternTimer = 0;
+    config.currentPattern = (config.currentPattern + 1) % config.patterns.length;
+  }
+  
+  const pattern = config.patterns[config.currentPattern];
+  const speed = config.baseSpeed + difficultyLevel * 0.3;
+  
+  switch(pattern) {
+    case 'rain':
+      spawnRainBullets(speed);
+      break;
+    case 'spread':
+      spawnSpreadBullets(speed);
+      break;
+    case 'spiral':
+      spawnSpiralBullets(speed);
+      break;
+    case 'side':
+      spawnSideBullets(speed);
+      break;
+    case 'cross':
+      spawnCrossBullets(speed);
+      break;
+  }
+}
+
+function spawnRainBullets(speed) {
+  const count = 2 + Math.floor(difficultyLevel / 2);
+  for (let i = 0; i < count; i++) {
+    bullets.push({
+      x: Math.random() * width,
+      y: -10,
+      vx: (Math.random() - 0.5) * 2,
+      vy: speed + Math.random() * 2,
+      radius: 6,
+      color: `hsl(${180 + Math.random() * 60}, 100%, 60%)`,
+      type: 'circle'
+    });
+  }
+}
+
+function spawnSpreadBullets(speed) {
+  const centerX = width / 2;
+  const spreadCount = 5 + difficultyLevel;
+  const baseAngle = -Math.PI / 2 + (Math.sin(frameCount * 0.05) * 0.3);
+  
+  for (let i = 0; i < spreadCount; i++) {
+    const angle = baseAngle + (i - spreadCount / 2) * 0.2;
+    bullets.push({
+      x: centerX,
+      y: -10,
+      vx: Math.cos(angle) * speed * 1.5,
+      vy: Math.sin(angle) * speed * 1.5 + 1,
+      radius: 5,
+      color: `hsl(${300 + i * 20}, 100%, 65%)`,
+      type: 'circle'
+    });
+  }
+}
+
+function spawnSpiralBullets(speed) {
+  const angle = frameCount * 0.15;
+  const count = 3;
+  for (let i = 0; i < count; i++) {
+    const a = angle + (i * Math.PI * 2 / count);
+    bullets.push({
+      x: width / 2,
+      y: height / 3,
+      vx: Math.cos(a) * speed,
+      vy: Math.sin(a) * speed + 0.5,
+      radius: 7,
+      color: `hsl(${(frameCount * 2 + i * 60) % 360}, 100%, 60%)`,
+      type: 'circle'
+    });
+  }
+}
+
+function spawnSideBullets(speed) {
+  const fromLeft = Math.random() > 0.5;
+  bullets.push({
+    x: fromLeft ? -10 : width + 10,
+    y: Math.random() * height * 0.6,
+    vx: (fromLeft ? 1 : -1) * speed * 1.5,
+    vy: Math.random() * 2 - 1,
+    radius: 8,
+    color: fromLeft ? '#ff6b6b' : '#4ecdc4',
+    type: 'circle'
+  });
+}
+
+function spawnCrossBullets(speed) {
+  if (frameCount % 3 === 0) {
+    const patterns = [
+      { vx: speed, vy: 0 },
+      { vx: -speed, vy: 0 },
+      { vx: 0, vy: speed },
+      { vx: 0, vy: -speed }
+    ];
+    const p = patterns[Math.floor(Math.random() * patterns.length)];
+    bullets.push({
+      x: width / 2,
+      y: height / 2,
+      vx: p.vx * 1.8,
+      vy: p.vy * 1.8,
+      radius: 6,
+      color: '#ffcc00',
+      type: 'circle'
+    });
+  }
+}
+
+// ========== 弹幕更新 ==========
+function updateBullets() {
+  bullets = bullets.filter(b => {
+    b.x += b.vx;
+    b.y += b.vy;
+    
+    return b.x > -50 && b.x < width + 50 &&
+           b.y > -50 && b.y < height + 50;
+  });
+}
+
+// ========== 玩家更新 ==========
+function updatePlayer() {
+  let dx = 0, dy = 0;
+  
+  if (keys.ArrowLeft || keys.a) dx -= 1;
+  if (keys.ArrowRight || keys.d) dx += 1;
+  if (keys.ArrowUp || keys.w) dy -= 1;
+  if (keys.ArrowDown || keys.s) dy += 1;
+  
+  // 归一化对角移动
+  if (dx !== 0 && dy !== 0) {
+    dx *= 0.707;
+    dy *= 0.707;
+  }
+  
+  player.x += dx * player.speed;
+  player.y += dy * player.speed;
+  
+  // 边界限制
+  player.x = Math.max(0, Math.min(width - player.width, player.x));
+  player.y = Math.max(0, Math.min(height - player.height, player.y));
+  
+  // 拖尾效果
+  player.trail.unshift({ x: player.x, y: player.y });
+  if (player.trail.length > 12) player.trail.pop();
+  
+  // 无敌时间
+  if (player.invincible) {
+    player.invincibleTimer--;
+    if (player.invincibleTimer <= 0) {
+      player.invincible = false;
+    }
+  }
+}
+
+// ========== 难度更新 ==========
+function updateDifficulty() {
+  const newLevel = Math.floor(score / 500) + 1;
+  if (newLevel > difficultyLevel) {
+    difficultyLevel = Math.min(newLevel, 15);
+    createDifficultyUpEffect();
+  }
+}
+
+function createDifficultyUpEffect() {
+  for (let i = 0; i < 30; i++) {
+    particles.push({
+      x: width / 2,
+      y: height / 2,
+      vx: (Math.random() - 0.5) * 15,
+      vy: (Math.random() - 0.5) * 15,
+      size: Math.random() * 10 + 5,
+      life: 60,
+      maxLife: 60,
+      r: 255, g: 200, b: 0
+    });
+  }
+}
+
+// ========== 碰撞检测 ==========
+function checkCollision() {
+  if (player.invincible) return false;
+  
+  const px = player.x + player.width / 2;
+  const py = player.y + player.height / 2;
+  const hitRadius = player.width / 2 - 4;
+  
+  for (const b of bullets) {
+    const dist = Math.hypot(px - b.x, py - b.y);
+    if (dist < hitRadius + b.radius) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ========== 绘制函数 ==========
+function drawBackground() {
+  // 渐变背景
+  const gradient = ctx.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, '#0a0a1a');
+  gradient.addColorStop(0.5, '#0f1029');
+  gradient.addColorStop(1, '#1a1a3a');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+  
+  // 星星
+  ctx.save();
+  for (const star of stars) {
+    star.y += star.speed;
+    if (star.y > height) {
+      star.y = 0;
+      star.x = Math.random() * width;
+    }
+    
+    ctx.beginPath();
+    ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 255, 255, ${star.alpha})`;
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawPlayer() {
+  // 拖尾效果
+  ctx.save();
+  player.trail.forEach((pos, i) => {
+    const alpha = (1 - i / player.trail.length) * 0.4;
+    const size = player.width * (1 - i / player.trail.length * 0.5);
+    ctx.fillStyle = `rgba(0, 255, 204, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(pos.x + player.width / 2, pos.y + player.height / 2, size / 2, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.restore();
+  
+  // 玩家主体
+  const cx = player.x + player.width / 2;
+  const cy = player.y + player.height / 2;
+  
+  // 无敌闪烁效果
+  if (player.invincible && Math.floor(frameCount / 5) % 2 === 0) {
+    ctx.globalAlpha = 0.5;
+  }
+  
+  // 外发光
+  const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, player.width);
+  glow.addColorStop(0, 'rgba(0, 255, 204, 0.8)');
+  glow.addColorStop(0.5, 'rgba(0, 255, 204, 0.3)');
+  glow.addColorStop(1, 'rgba(0, 255, 204, 0)');
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(cx, cy, player.width, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // 核心
+  ctx.fillStyle = '#00ffcc';
+  ctx.beginPath();
+  ctx.arc(cx, cy, player.width / 2 - 2, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // 内核高光
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(cx - 3, cy - 3, 5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  ctx.globalAlpha = 1;
+}
+
+function drawBullets() {
+  ctx.save();
+  for (const b of bullets) {
+    // 弹幕光晕
+    const glow = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.radius * 2);
+    glow.addColorStop(0, b.color);
+    glow.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.radius * 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 弹幕核心
+    ctx.fillStyle = b.color;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 高光
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.beginPath();
+    ctx.arc(b.x - b.radius * 0.3, b.y - b.radius * 0.3, b.radius * 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawUI() {
+  // 标题
+  ctx.save();
+  ctx.font = 'bold 28px "Microsoft YaHei"';
+  ctx.fillStyle = 'rgba(0, 255, 204, 0.9)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('灵画师', 20, 20);
+  
+  // 分数
+  ctx.font = '20px "Microsoft YaHei"';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.fillText(`分数: ${score}`, 20, 55);
+  
+  // 最高分
+  ctx.fillStyle = 'rgba(255, 204, 0, 0.9)';
+  ctx.fillText(`最高: ${highScore}`, 20, 82);
+  
+  // 难度等级
+  ctx.fillStyle = 'rgba(255, 100, 100, 0.9)';
+  ctx.fillText(`难度: Lv.${difficultyLevel}`, 20, 109);
+  
+  // 当前弹幕模式
+  ctx.fillStyle = 'rgba(150, 200, 255, 0.7)';
+  const patternNames = ['雨落', '散射', '螺旋', '侧袭', '十字'];
+  ctx.fillText(`模式: ${patternNames[bulletConfig.currentPattern]}`, 20, 136);
+  
+  // 无敌状态提示
+  if (player.invincible) {
+    ctx.font = 'bold 18px "Microsoft YaHei"';
+    ctx.fillStyle = 'rgba(0, 255, 204, 0.8)';
+    ctx.textAlign = 'center';
+    const seconds = Math.ceil(player.invincibleTimer / 60);
+    ctx.fillText(`无敌保护: ${seconds}s`, width / 2, 30);
+  }
+  
+  ctx.restore();
+}
+
+// ========== 粒子系统 ==========
+function updateParticles() {
+  particles = particles.filter(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vx *= 0.98;
+    p.vy *= 0.98;
+    p.life--;
+    return p.life > 0;
+  });
+}
+
+function drawParticles() {
+  ctx.save();
+  for (const p of particles) {
+    const alpha = p.life / p.maxLife;
+    ctx.fillStyle = `rgba(${p.r}, ${p.g}, ${p.b}, ${alpha})`;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * alpha, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function createExplosion(x, y, color) {
+  for (let i = 0; i < 50; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 8 + 2;
+    particles.push({
+      x: x,
+      y: y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: Math.random() * 10 + 3,
+      life: 60,
+      maxLife: 60,
+      r: 0, g: 255, b: 204
+    });
+  }
+}
+
+// ========== 游戏结束 ==========
+function gameOver() {
+  gameRunning = false;
+  
+  if (score > highScore) {
+    highScore = score;
+  }
+  
+  createExplosion(
+    player.x + player.width / 2, 
+    player.y + player.height / 2,
+    '#00ffcc'
+  );
+  
+  setTimeout(() => {
+    const overlay = document.getElementById('gameOverlay');
+    overlay.classList.remove('hidden');
+    overlay.querySelector('h1').textContent = '游戏结束';
+    
+    let recordText = '';
+    if (score === highScore && score > 0) {
+      recordText = '<br><span style="color:#ffcc00">★ 新纪录! ★</span>';
+    }
+    
+    overlay.querySelector('p').innerHTML = 
+      `最终分数: <strong style="color:#00ffcc;font-size:32px">${score}</strong>${recordText}<br><br>` +
+      `最高纪录: ${highScore}<br>` +
+      `达到难度: Lv.${difficultyLevel}`;
+    overlay.querySelector('button').textContent = '再来一次';
+  }, 1000);
+}
+
+// ========== 主游戏循环 ==========
+function gameLoop() {
+  frameCount++;
+  
+  drawBackground();
+  updateParticles();
+  drawParticles();
+  
+  if (gameRunning) {
+    updatePlayer();
+    spawnBullets();
+    updateBullets();
+    updateDifficulty();
+    
+    drawBullets();
+    drawPlayer();
+    drawUI();
+    
+    score++;
+    
+    if (checkCollision()) {
+      gameOver();
+    }
+  }
+  
+  requestAnimationFrame(gameLoop);
+}
+
+// ========== 事件监听 ==========
+document.addEventListener('keydown', (e) => {
+  const validKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+  const lowerKey = e.key.toLowerCase();
+  
+  if (validKeys.includes(e.key)) {
+    keys[e.key] = true;
+    e.preventDefault();
+  }
+  if (['a', 'd', 'w', 's'].includes(lowerKey)) {
+    keys[lowerKey] = true;
+    e.preventDefault();
+  }
+  
+  if (e.key === ' ' && !gameRunning) {
+    const overlay = document.getElementById('gameOverlay');
+    if (!overlay.classList.contains('hidden')) {
+      overlay.classList.add('hidden');
+      initGame();
+      gameRunning = true;
+    }
+    e.preventDefault();
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  const validKeys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'];
+  const lowerKey = e.key.toLowerCase();
+  
+  if (validKeys.includes(e.key)) {
+    keys[e.key] = false;
+  }
+  if (['a', 'd', 'w', 's'].includes(lowerKey)) {
+    keys[lowerKey] = false;
+  }
+});
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  const overlay = document.getElementById('gameOverlay');
+  overlay.classList.add('hidden');
+  initGame();
+  gameRunning = true;
+});
+
+window.addEventListener('resize', () => {
+  width = canvas.width = window.innerWidth;
+  height = canvas.height = window.innerHeight;
+  initStars();
+});
+
+// ========== 初始化启动 ==========
+initStars();
+gameLoop();
+</script>
+</body>
+</html>

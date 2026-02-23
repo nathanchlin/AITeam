@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>俄罗斯方块对战游戏</title>
+<style>
+  body {
+    margin: 0;
+    display: flex;
+    justify-content: space-between;
+  }
+  canvas {
+    border: 1px solid black;
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="playerCanvas" width="300" height="600"></canvas>
+<canvas id="aiCanvas" width="300" height="600"></canvas>
+
+<script>
+const blockSize = 30;
+const playerCanvas = document.getElementById('playerCanvas');
+const aiCanvas = document.getElementById('aiCanvas');
+const playerCtx = playerCanvas.getContext('2d');
+const aiCtx = aiCanvas.getContext('2d');
+const playerWidth = playerCanvas.width;
+const playerHeight = playerCanvas.height;
+const aiWidth = aiCanvas.width;
+const aiHeight = aiCanvas.height;
+
+class Tetromino {
+  constructor(type, x, y) {
+    this.type = type;
+    this.x = x;
+    this.y = y;
+    this.blocks = this.getBlockCoordinates(type);
+  }
+
+  getBlockCoordinates(type) {
+    const blockPositions = {
+      'I': [[0, 0], [0, 1], [0, 2], [0, 3]],
+      'O': [[0, 0], [0, 1], [1, 0], [1, 1]],
+      'T': [[0, 0], [1, 0], [2, 0], [1, 1]],
+      'S': [[0, 0], [0, 1], [1, 1], [1, 2]],
+      'Z': [[0, 0], [0, 1], [1, 0], [1, 1]],
+      'J': [[0, 0], [1, 0], [2, 0], [2, 1]],
+      'L': [[0, 0], [0, 1], [0, 2], [1, 2]]
+    };
+    return blockPositions[type];
+  }
+
+  draw(context) {
+    this.blocks.forEach(([blockX, blockY]) => {
+      context.fillStyle = 'blue';
+      context.fillRect(this.x + blockX * blockSize, this.y + blockY * blockSize, blockSize, blockSize);
+    });
+  }
+}
+
+class Game {
+  constructor(canvas, ctx) {
+    this.canvas = canvas;
+    this.ctx = ctx;
+    this.currentTetromino = null;
+    this.nextTetromino = null;
+    this.gameOver = false;
+    this.score = 0;
+    this.grid = [];
+    this.init();
+  }
+
+  init() {
+    for (let y = 0; y < playerHeight / blockSize; y++) {
+      this.grid[y] = [];
+      for (let x = 0; x < playerWidth / blockSize; x++) {
+        this.grid[y][x] = 0;
+      }
+    }
+    this.newTetromino();
+    this.newNextTetromino();
+    document.addEventListener('keydown', this.handleKeyPress.bind(this));
+    this.render();
+  }
+
+  handleKeyPress(event) {
+    switch (event.key) {
+      case 'ArrowLeft':
+        this.move(-1);
+        break;
+      case 'ArrowRight':
+        this.move(1);
+        break;
+      case 'ArrowDown':
+        this.drop();
+        break;
+      case 'ArrowUp':
+        this.rotate();
+        break;
+    }
+  }
+
+  move(offset) {
+    if (this.canMove(offset)) {
+      this.currentTetromino.x += offset;
+    }
+  }
+
+  drop() {
+    if (this.canDrop()) {
+      this.currentTetromino.y += 1;
+    } else {
+      this.lockTetromino();
+      this.checkForLines();
+      this.newTetromino();
+      this.newNextTetromino();
+    }
+  }
+
+  rotate() {
+    const newBlocks = this.currentTetromino.blocks.map(([x, y]) => [x, y - 1]);
+    if (this.canRotate(newBlocks)) {
+      this.currentTetromino.blocks = newBlocks;
+    }
+  }
+
+  canMove(offset) {
+    return this.currentTetromino.blocks.every(([x, y]) => {
+      return this.currentTetromino.x + x >= 0 && this.currentTetromino.x + x < playerWidth / blockSize &&
+             this.currentTetromino.y + y < playerHeight / blockSize && this.grid[this.currentTetromino.y + y][this.currentTetromino.x + x] === 0;
+    });
+  }
+
+  canDrop() {
+    return this.currentTetromino.blocks.every(([x, y]) => {
+      return this.currentTetromino.y + y < playerHeight / blockSize && this.grid[this.currentTetromino.y + y][this.currentTetromino.x + x] === 0;
+    });
+  }
+
+  canRotate(newBlocks) {
+    return newBlocks.every(([x, y]) => {
+      return this.currentTetromino.x + x >= 0 && this.currentTetromino.x + x < playerWidth / blockSize &&
+             this.currentTetromino.y + y < playerHeight / blockSize && this.grid[this.currentTetromino.y + y][this.currentTetromino.x + x] === 0;
+    });
+  }
+
+  lockTetromino() {
+    this.currentTetromino.blocks.forEach(([x, y]) => {
+      this.grid[this.currentTetromino.y + y][this.currentTetromino.x + x] = 1;
+    });
+  }
+
+  checkForLines() {
+    for (let y = playerHeight / blockSize - 1; y >= 0; y--) {
+      let isLineFull = true;
+      for (let x = 0; x < playerWidth / blockSize; x++) {
+        if (this.grid[y][x] === 0) {
+          isLineFull = false;
+          break;
+        }
+      }
+      if (isLineFull) {
+        this.clearLine(y);
+        this.score += 10;
+      }
+    }
+  }
+
+  clearLine(y) {
+    for (let x = 0; x < playerWidth / blockSize; x++) {
+      this.grid[y][x] = 0;
+    }
+    for (let i = y - 1; i >= 0; i--) {
+      for (let x = 0; x < playerWidth / blockSize; x++) {
+        this.grid[i + 1][x] = this.grid[i][x];
+      }
+    }
+  }
+
+  newTetromino() {
+    const types = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+    const randomType = types[Math.floor(Math.random() * types.length)];
+    this.currentTetromino = new Tetromino(randomType, Math.floor(playerWidth / 2 / blockSize) - Math.floor(randomType.length / 2), 0);
+  }
+
+  newNextTetromino() {
+    const types = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+    const randomType = types[Math.floor(Math.random() * types.length)];
+    this.nextTetromino = new Tetromino(randomType, Math.floor(playerWidth / 2 / blockSize) - Math.floor(randomType.length / 2), 0);
+  }
+
+  render() {
+    this.ctx.clearRect(0, 0, playerWidth, playerHeight);
+    this.currentTetromino.draw(this.ctx);
+    this.nextTetromino.draw(this.ctx);
+    this.ctx.fillStyle = 'black';
+    this.ctx.fillText('Score: ' + this.score, 10, 20);
+  }
+}
+
+const playerGame = new Game(playerCanvas, playerCtx);
+const aiGame = new Game(aiCanvas, aiCtx);
+
+function aiMove() {
+  let bestScore = 0;
+  let bestMove = null;
+  for (let offset = -1; offset <= 1; offset++) {
+    if (playerGame.canMove(offset)) {
+      const newGame = new Game(playerCanvas, playerCtx);
+      newGame.currentTetromino = playerGame.currentTetromino;
+      newGame.nextTetromino = playerGame.nextTetromino;
+      newGame.move(offset);
+      const score = newGame.getScore();
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = offset;
+      }
+    }
+  }
+  if (bestMove !== null) {
+    aiGame.move(bestMove);
+  }
+}
+
+function aiDrop() {
+  if (playerGame.canDrop()) {
+    let bestScore = 0;
+    let bestMove = null;
+    for (let y = playerGame.currentTetromino.y; y < playerHeight / blockSize; y++) {
+      if (playerGame.canDrop()) {
+        const newGame = new Game(playerCanvas, playerCtx);
+        newGame.currentTetromino = playerGame.currentTetromino;
+        newGame.nextTetromino = playerGame.nextTetromino;
+        newGame.currentTetromino.y = y;
+        newGame.drop();
+        const score = newGame.getScore();
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = y;
+        }
+      }
+    }
+    if (bestMove !== null) {
+      aiGame.currentTetromino.y = bestMove;
+      aiGame.drop();
+    }
+  }
+}
+
+function aiRotate() {
+  let bestScore = 0;
+  let bestMove = null;
+  for (let i = 0; i < 4; i++) {
+    const newBlocks = playerGame.currentTetromino.blocks.map(([x, y]) => [x, y - 1]);
+    if (playerGame.canRotate(newBlocks)) {
+      const newGame = new Game(playerCanvas, playerCtx);
+      newGame.currentTetromino = playerGame.currentTetromino;
+      newGame.nextTetromino = playerGame.nextTetromino;
+      newGame.currentTetromino.blocks = newBlocks;
+      const score = newGame.getScore();
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = i;
+      }
+    }
+  }
+  if (bestMove !== null) {
+    playerGame.rotate(bestMove);
+  }
+}
+
+Game.prototype.getScore = function() {
+  return this.score;
+};
+
+function gameLoop() {
+  playerGame.render();
+  aiGame.render();
+  aiMove();
+  aiDrop();
+  aiRotate();
+  requestAnimationFrame(gameLoop);
+}
+
+window.onload = () => {
+  gameLoop();
+};
+</script>
+</body>
+</html>

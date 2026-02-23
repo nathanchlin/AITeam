@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>俄罗斯方块 - 干扰技能</title>
+<style>
+  canvas {
+    border: 1px solid black;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="300" height="600"></canvas>
+<script>
+// 游戏设置
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const blockSize = 30; // 方块大小
+const rows = 20; // 游戏区域行数
+const cols = 10; // 游戏区域列数
+let board = new Array(rows).fill(null).map(() => new Array(cols).fill(0));
+let currentPiece, nextPiece;
+let score = 0;
+let gameInterval;
+let isGameOver = false;
+let interferenceActive = false;
+let interferenceDuration = 3000; // 干扰持续时间（毫秒）
+let interferenceStartTime;
+
+// 游戏初始化
+function init() {
+  createRandomPiece();
+  nextPiece = createRandomPiece();
+  drawBoard();
+  document.addEventListener('keydown', handleKeydown);
+  gameInterval = setInterval(fallPiece, 1000);
+}
+
+// 创建随机方块
+function createRandomPiece() {
+  const shapes = [
+    [[1, 1, 1, 1]], // I
+    [[1, 1], [1, 1]], // O
+    [[0, 1, 0], [1, 1, 1]], // T
+    [[1, 1, 0], [0, 1, 1]], // S
+    [[0, 1, 1], [1, 1, 0]], // Z
+    [[1, 0, 0], [1, 1, 1]], // J
+    [[0, 0, 1], [1, 1, 1]] // L
+  ];
+  return {
+    shape: shapes[Math.floor(Math.random() * shapes.length)],
+    x: Math.floor((cols - shapes[0].length) / 2),
+    y: 0
+  };
+}
+
+// 绘制游戏画布
+function drawBoard() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (let row = 0; row < rows; row++) {
+    for (let col = 0; col < cols; col++) {
+      if (board[row][col]) {
+        drawSquare(col * blockSize, row * blockSize, 'blue');
+      }
+    }
+  }
+  if (currentPiece) {
+    for (let row = 0; row < currentPiece.shape.length; row++) {
+      for (let col = 0; col < currentPiece.shape[row].length; col++) {
+        if (currentPiece.shape[row][col]) {
+          drawSquare((currentPiece.x + col) * blockSize, (currentPiece.y + row) * blockSize, 'red');
+        }
+      }
+    }
+  }
+}
+
+// 绘制方块
+function drawSquare(x, y, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, blockSize, blockSize);
+  ctx.strokeStyle = 'black';
+  ctx.strokeRect(x, y, blockSize, blockSize);
+}
+
+// 控制方块下落
+function fallPiece() {
+  if (currentPiece) {
+    if (canMove(currentPiece, { x: 0, y: 1 })) {
+      currentPiece.y++;
+    } else {
+      lockPiece();
+      checkLines();
+      createRandomPiece();
+      if (!nextPiece) {
+        isGameOver = true;
+        clearInterval(gameInterval);
+      }
+    }
+  }
+}
+
+// 检查并消除满行
+function checkLines() {
+  for (let row = 0; row < rows; row++) {
+    let isRowFull = true;
+    for (let col = 0; col < cols; col++) {
+      if (!board[row][col]) {
+        isRowFull = false;
+        break;
+      }
+    }
+    if (isRowFull) {
+      for (let rowBelow = row; rowBelow > 0; rowBelow--) {
+        board[rowBelow] = board[rowBelow - 1];
+      }
+      board[0] = new Array(cols).fill(0);
+      score += 10;
+      if (interferenceActive) {
+        interferenceActive = false;
+        clearInterval(gameInterval);
+        gameInterval = setInterval(fallPiece, 1000);
+      }
+    }
+  }
+}
+
+// 锁定方块
+function lockPiece() {
+  for (let row = 0; row < currentPiece.shape.length; row++) {
+    for (let col = 0; col < currentPiece.shape[row].length; col++) {
+      if (currentPiece.shape[row][col]) {
+        board[currentPiece.y + row][currentPiece.x + col] = currentPiece.shape[row][col];
+      }
+    }
+  }
+}
+
+// 检查移动是否有效
+function canMove(piece, offset) {
+  for (let row = 0; row < piece.shape.length; row++) {
+    for (let col = 0; col < piece.shape[row].length; col++) {
+      if (piece.shape[row][col]) {
+        let newX = piece.x + col + offset.x;
+        let newY = piece.y + row + offset.y;
+        if (newX < 0 || newX >= cols || newY >= rows || board[newY][newX]) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+// 处理按键输入
+function handleKeydown(e) {
+  if (currentPiece) {
+    switch (e.keyCode) {
+      case 37: // 左
+        if (canMove(currentPiece, { x: -1, y: 0 })) {
+          currentPiece.x--;
+        }
+        break;
+      case 38: // 上
+        rotatePiece();
+        break;
+      case 39: // 右
+        if (canMove(currentPiece, { x: 1, y: 0 })) {
+          currentPiece.x++;
+        }
+        break;
+      case 40: // 下
+        if (canMove(currentPiece, { x: 0, y: 1 })) {
+          currentPiece.y++;
+        }
+        break;
+    }
+    drawBoard();
+  }
+}
+
+// 旋转方块
+function rotatePiece() {
+  const rotatedShape = rotate(currentPiece.shape);
+  if (canMove({ shape: rotatedShape, x: currentPiece.x, y: currentPiece.y })) {
+    currentPiece.shape = rotatedShape;
+  }
+}
+
+// 旋转方块形状
+function rotate(shape) {
+  return shape[0].map((_, colIndex) => shape.map(row => row[colIndex]).reverse());
+}
+
+// 开始游戏
+init();
+</script>
+</body>
+</html>

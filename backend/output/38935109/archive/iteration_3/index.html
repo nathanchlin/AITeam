@@ -1,0 +1,2750 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>背包战争 - Backpack War</title>
+<style>
+  * {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+  body {
+    margin: 0;
+    overflow: hidden;
+    background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    min-height: 100vh;
+  }
+  
+  #gameContainer {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
+  
+  #gameCanvas {
+    display: block;
+    background: #1a1a2e;
+    border: 4px solid #00d4ff;
+    border-radius: 12px;
+    box-shadow: 0 0 50px rgba(0, 212, 255, 0.3);
+    touch-action: none;
+  }
+  
+  #gameTitle {
+    position: absolute;
+    top: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #fff;
+    font-size: clamp(20px, 4vw, 32px);
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(0, 212, 255, 0.8), 3px 3px 0px #000;
+    letter-spacing: 3px;
+    z-index: 100;
+    white-space: nowrap;
+    background: linear-gradient(90deg, #fff, #00d4ff, #fff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-size: 200% auto;
+    animation: shine 3s linear infinite;
+  }
+
+  @keyframes shine {
+    to { background-position: 200% center; }
+  }
+  
+  /* 顶部状态栏 */
+  #topBar {
+    position: absolute;
+    top: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 20px;
+    z-index: 100;
+  }
+  
+  .stat-badge {
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid rgba(0, 212, 255, 0.5);
+    border-radius: 20px;
+    padding: 8px 16px;
+    color: #fff;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+  }
+  
+  .stat-badge.highlight {
+    animation: badgePulse 0.5s ease;
+    border-color: #ffd700;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+  }
+  
+  @keyframes badgePulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+  
+  .stat-badge .icon {
+    font-size: 18px;
+  }
+  
+  .stat-badge .value {
+    font-weight: bold;
+    color: #00d4ff;
+    transition: all 0.3s ease;
+  }
+  
+  .stat-badge .value.changed {
+    color: #4ade80;
+    transform: scale(1.2);
+  }
+  
+  /* 通知系统 - 增强版 */
+  #notification {
+    position: fixed;
+    top: 120px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.95), rgba(79, 172, 254, 0.95));
+    color: #000;
+    padding: 14px 35px;
+    border-radius: 30px;
+    font-weight: bold;
+    font-size: 15px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 20px rgba(0, 212, 255, 0.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    z-index: 500;
+  }
+  #notification.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  
+  #notification.success {
+    background: linear-gradient(135deg, rgba(74, 222, 128, 0.95), rgba(34, 197, 94, 0.95));
+  }
+  
+  #notification.warning {
+    background: linear-gradient(135deg, rgba(251, 191, 36, 0.95), rgba(245, 158, 11, 0.95));
+  }
+  
+  #notification.error {
+    background: linear-gradient(135deg, rgba(248, 113, 113, 0.95), rgba(239, 68, 68, 0.95));
+  }
+
+  /* 教程遮罩层 - 简化版 */
+  #tutorialOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(8px);
+  }
+  
+  .tutorial-card {
+    background: linear-gradient(180deg, #2a2a4a 0%, #1a1a2e 100%);
+    border: 3px solid #00d4ff;
+    border-radius: 20px;
+    padding: 35px;
+    max-width: 480px;
+    width: 90%;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 0 60px rgba(0, 212, 255, 0.4), inset 0 0 40px rgba(0, 0, 0, 0.5);
+    animation: cardPop 0.4s ease-out;
+  }
+  
+  @keyframes cardPop {
+    from { transform: scale(0.8); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  
+  .tutorial-header {
+    text-align: center;
+    margin-bottom: 25px;
+  }
+  
+  .tutorial-header h2 {
+    margin: 0 0 15px 0;
+    color: #00d4ff;
+    font-size: 26px;
+    text-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
+  }
+  
+  .tutorial-step-indicator {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 15px;
+  }
+  
+  .step-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+  }
+  
+  .step-dot.active {
+    background: #00d4ff;
+    box-shadow: 0 0 15px #00d4ff;
+    transform: scale(1.2);
+  }
+  
+  .step-dot.completed {
+    background: #4ade80;
+    box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+  }
+  
+  .tutorial-content {
+    color: #fff;
+    line-height: 1.9;
+    font-size: 15px;
+  }
+  
+  .tutorial-visual {
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 15px;
+    padding: 25px;
+    margin: 20px 0;
+    text-align: center;
+    border: 1px solid rgba(0, 212, 255, 0.2);
+  }
+  
+  .tutorial-visual .demo-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    max-width: 260px;
+    margin: 0 auto 15px;
+  }
+  
+  .demo-slot {
+    aspect-ratio: 1;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px dashed rgba(255, 255, 255, 0.25);
+    border-radius: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 26px;
+    transition: all 0.3s ease;
+  }
+  
+  .demo-slot.has-item {
+    background: rgba(0, 212, 255, 0.15);
+    border: 2px solid rgba(0, 212, 255, 0.5);
+    border-style: solid;
+  }
+  
+  .demo-slot.highlight {
+    animation: pulse 1s infinite;
+    border-color: #ffd700;
+  }
+  
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.5); }
+    50% { box-shadow: 0 0 0 12px rgba(255, 215, 0, 0); }
+  }
+  
+  .tutorial-tip {
+    background: linear-gradient(90deg, rgba(0, 212, 255, 0.15), rgba(79, 172, 254, 0.15));
+    border-left: 4px solid #00d4ff;
+    padding: 14px 18px;
+    margin: 20px 0;
+    border-radius: 0 10px 10px 0;
+    font-size: 14px;
+    color: #7dd3fc;
+  }
+  
+  .tutorial-footer {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 30px;
+    gap: 15px;
+  }
+  
+  .tutorial-btn {
+    flex: 1;
+    padding: 14px 24px;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+  }
+  
+  .tutorial-btn.skip {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    flex: 0.5;
+  }
+  
+  .tutorial-btn.skip:hover {
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.5);
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  .tutorial-btn.secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  .tutorial-btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  
+  .tutorial-btn.primary {
+    background: linear-gradient(135deg, #00d4ff, #4facfe);
+    color: #000;
+    box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3);
+  }
+  
+  .tutorial-btn.primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0, 212, 255, 0.5);
+  }
+  
+  .key-hint {
+    display: inline-block;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 12px;
+    margin: 0 3px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  
+  /* 底部控制栏 */
+  #bottomControls {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 15px;
+    z-index: 100;
+  }
+  
+  .control-btn {
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid rgba(0, 212, 255, 0.5);
+    border-radius: 12px;
+    padding: 12px 20px;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    backdrop-filter: blur(10px);
+  }
+  
+  .control-btn:hover {
+    background: rgba(0, 212, 255, 0.3);
+    border-color: #00d4ff;
+    transform: translateY(-2px);
+  }
+  
+  .control-btn.highlight {
+    animation: btnHighlight 1s infinite;
+    border-color: #ffd700;
+  }
+  
+  @keyframes btnHighlight {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 215, 0, 0.5); }
+    50% { box-shadow: 0 0 20px 5px rgba(255, 215, 0, 0.3); }
+  }
+  
+  .control-btn .icon {
+    font-size: 18px;
+  }
+  
+  /* 背包面板 */
+  #inventoryPanel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background: linear-gradient(180deg, rgba(30, 30, 50, 0.98), rgba(10, 10, 30, 0.99));
+    border: 3px solid #00d4ff;
+    border-radius: 20px;
+    padding: 25px;
+    z-index: 200;
+    display: none;
+    box-shadow: 0 0 80px rgba(0, 212, 255, 0.4);
+    min-width: 420px;
+  }
+  
+  #inventoryPanel.visible {
+    display: block;
+    animation: panelPop 0.35s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+  
+  @keyframes panelPop {
+    from { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+    to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+  
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid rgba(0, 212, 255, 0.3);
+  }
+  
+  .panel-title {
+    color: #00d4ff;
+    font-size: 22px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .close-btn {
+    background: rgba(255, 100, 100, 0.3);
+    border: none;
+    color: #fff;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 20px;
+    transition: all 0.3s ease;
+  }
+  
+  .close-btn:hover {
+    background: rgba(255, 100, 100, 0.6);
+    transform: rotate(90deg);
+  }
+  
+  /* 背包网格 - 优化视觉设计 */
+  .backpack-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 70px);
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .grid-slot {
+    width: 70px;
+    height: 70px;
+    background: linear-gradient(145deg, rgba(40, 40, 60, 0.8), rgba(20, 20, 40, 0.9));
+    border: 2px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .grid-slot::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at center, rgba(255,255,255,0.05) 0%, transparent 70%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .grid-slot:hover::before {
+    opacity: 1;
+  }
+  
+  .grid-slot:hover {
+    transform: translateY(-3px);
+    border-color: rgba(0, 212, 255, 0.6);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4), 0 0 15px rgba(0, 212, 255, 0.2);
+  }
+  
+  .grid-slot.empty-hint {
+    background: linear-gradient(145deg, rgba(30, 30, 50, 0.5), rgba(15, 15, 35, 0.6));
+  }
+  
+  .grid-slot.empty-hint::after {
+    content: '+';
+    font-size: 28px;
+    color: rgba(255, 255, 255, 0.12);
+    font-weight: bold;
+    transition: all 0.3s ease;
+  }
+  
+  .grid-slot.empty-hint:hover::after {
+    color: rgba(0, 212, 255, 0.5);
+    transform: scale(1.2);
+  }
+  
+  .grid-slot.has-item {
+    border-style: solid;
+    border-width: 2px;
+  }
+  
+  /* 物品类型背景色 */
+  .grid-slot.has-item[data-type="weapon"] {
+    background: linear-gradient(145deg, rgba(180, 60, 60, 0.4), rgba(120, 30, 30, 0.5));
+    border-color: rgba(255, 100, 100, 0.6);
+  }
+  
+  .grid-slot.has-item[data-type="armor"] {
+    background: linear-gradient(145deg, rgba(60, 100, 180, 0.4), rgba(30, 60, 120, 0.5));
+    border-color: rgba(100, 150, 255, 0.6);
+  }
+  
+  .grid-slot.has-item[data-type="potion"] {
+    background: linear-gradient(145deg, rgba(60, 180, 80, 0.4), rgba(30, 120, 40, 0.5));
+    border-color: rgba(100, 255, 130, 0.6);
+  }
+  
+  .grid-slot.has-item[data-type="accessory"] {
+    background: linear-gradient(145deg, rgba(150, 60, 180, 0.4), rgba(100, 30, 130, 0.5));
+    border-color: rgba(200, 130, 255, 0.6);
+  }
+  
+  /* 稀有度边框发光效果 */
+  .grid-slot.has-item[data-rarity="common"] {
+    box-shadow: inset 0 0 15px rgba(158, 158, 158, 0.3), 0 2px 10px rgba(0, 0, 0, 0.3);
+  }
+  
+  .grid-slot.has-item[data-rarity="rare"] {
+    box-shadow: inset 0 0 20px rgba(33, 150, 243, 0.4), 0 0 20px rgba(33, 150, 243, 0.3);
+    border-color: #2196f3;
+  }
+  
+  .grid-slot.has-item[data-rarity="epic"] {
+    box-shadow: inset 0 0 25px rgba(156, 39, 176, 0.5), 0 0 25px rgba(156, 39, 176, 0.4);
+    border-color: #9c27b0;
+    animation: epicGlow 2s ease-in-out infinite;
+  }
+  
+  @keyframes epicGlow {
+    0%, 100% { box-shadow: inset 0 0 25px rgba(156, 39, 176, 0.5), 0 0 25px rgba(156, 39, 176, 0.4); }
+    50% { box-shadow: inset 0 0 30px rgba(156, 39, 176, 0.7), 0 0 35px rgba(156, 39, 176, 0.6); }
+  }
+  
+  .grid-slot.has-item[data-rarity="legendary"] {
+    box-shadow: inset 0 0 30px rgba(255, 152, 0, 0.6), 0 0 30px rgba(255, 152, 0, 0.5);
+    border-color: #ff9800;
+    animation: legendaryGlow 1.5s ease-in-out infinite, legendaryShine 3s linear infinite;
+  }
+  
+  @keyframes legendaryGlow {
+    0%, 100% { box-shadow: inset 0 0 30px rgba(255, 152, 0, 0.6), 0 0 30px rgba(255, 152, 0, 0.5); }
+    50% { box-shadow: inset 0 0 40px rgba(255, 200, 0, 0.8), 0 0 45px rgba(255, 200, 0, 0.7); }
+  }
+  
+  @keyframes legendaryShine {
+    0% { filter: brightness(1); }
+    25% { filter: brightness(1.2); }
+    50% { filter: brightness(1); }
+    75% { filter: brightness(1.3); }
+    100% { filter: brightness(1); }
+  }
+  
+  .grid-slot.selected {
+    border-color: #ffd700 !important;
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.6), inset 0 0 15px rgba(255, 215, 0, 0.3) !important;
+    transform: translateY(-3px) scale(1.05);
+  }
+  
+  .grid-slot.can-merge {
+    animation: mergeHint 0.8s ease-in-out infinite;
+  }
+  
+  @keyframes mergeHint {
+    0%, 100% { 
+      box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.4), 0 0 15px rgba(255, 215, 0, 0.3);
+    }
+    50% { 
+      box-shadow: inset 0 0 30px rgba(255, 215, 0, 0.7), 0 0 25px rgba(255, 215, 0, 0.5);
+    }
+  }
+  
+  .grid-slot.just-added {
+    animation: itemAdded 0.6s ease;
+  }
+  
+  @keyframes itemAdded {
+    0% { transform: scale(0) rotate(-180deg); }
+    50% { transform: scale(1.2) rotate(10deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+  
+  .grid-slot .item-icon {
+    font-size: 36px;
+    filter: drop-shadow(0 3px 6px rgba(0,0,0,0.6));
+    transition: transform 0.3s ease;
+    z-index: 2;
+  }
+  
+  .grid-slot:hover .item-icon {
+    transform: scale(1.1);
+  }
+  
+  .grid-slot .item-rarity {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    z-index: 3;
+  }
+  
+  .grid-slot .item-level {
+    position: absolute;
+    bottom: 3px;
+    right: 3px;
+    font-size: 10px;
+    font-weight: bold;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 1px 4px;
+    border-radius: 4px;
+    z-index: 3;
+  }
+  
+  .rarity-common { background: radial-gradient(circle, #bdbdbd, #757575); }
+  .rarity-rare { background: radial-gradient(circle, #64b5f6, #1976d2); }
+  .rarity-epic { background: radial-gradient(circle, #ce93d8, #7b1fa2); }
+  .rarity-legendary { 
+    background: radial-gradient(circle, #ffca28, #ff8f00); 
+    box-shadow: 0 0 10px #ff9800;
+    animation: rarityPulse 1s infinite;
+  }
+  
+  @keyframes rarityPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
+  
+  /* 物品商店区域 - 优化设计 */
+  .shop-area {
+    background: linear-gradient(180deg, rgba(255, 193, 7, 0.1), rgba(255, 152, 0, 0.05));
+    border: 2px solid rgba(255, 193, 7, 0.3);
+    border-radius: 15px;
+    padding: 15px;
+    margin-bottom: 15px;
+    position: relative;
+    transition: all 0.3s ease;
+  }
+  
+  .shop-area.highlight {
+    border-color: #ffd700;
+    box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+    animation: shopHighlight 1.5s infinite;
+  }
+  
+  @keyframes shopHighlight {
+    0%, 100% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.3); }
+    50% { box-shadow: 0 0 50px rgba(255, 215, 0, 0.5); }
+  }
+  
+  .shop-title {
+    color: #ffc107;
+    font-size: 15px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(255, 193, 7, 0.3);
+  }
+  
+  .shop-title .gold-icon {
+    animation: coinSpin 2s linear infinite;
+  }
+  
+  @keyframes coinSpin {
+    0%, 100% { transform: rotateY(0deg); }
+    50% { transform: rotateY(180deg); }
+  }
+  
+  .shop-items {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .shop-item {
+    background: linear-gradient(145deg, rgba(40, 40, 60, 0.9), rgba(25, 25, 45, 0.95));
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    min-width: 65px;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .shop-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    transition: left 0.5s ease;
+  }
+  
+  .shop-item:hover::before {
+    left: 100%;
+  }
+  
+  .shop-item:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 193, 7, 0.3);
+    border-color: #ffc107;
+  }
+  
+  .shop-item .item-icon {
+    font-size: 28px;
+    display: block;
+    margin-bottom: 6px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    transition: transform 0.3s ease;
+  }
+  
+  .shop-item:hover .item-icon {
+    transform: scale(1.15) rotate(5deg);
+  }
+  
+  .shop-item .item-cost {
+    font-size: 12px;
+    color: #ffd700;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+  }
+  
+  .shop-item .item-name {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .shop-item .buy-hint {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(180deg, transparent, rgba(76, 175, 80, 0.9));
+    color: #fff;
+    font-size: 9px;
+    padding: 3px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .shop-item:hover .buy-hint {
+    opacity: 1;
+  }
+  
+  .shop-item.affordable {
+    border-color: rgba(76, 175, 80, 0.5);
+  }
+  
+  .shop-item.unaffordable {
+    opacity: 0.5;
+    filter: grayscale(30%);
+  }
+  
+  .shop-item.unaffordable:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  
+  .shop-item.just-bought {
+    animation: bought 0.5s ease;
+  }
+  
+  @keyframes bought {
+    0% { transform: scale(1); }
+    30% { transform: scale(0.8); }
+    60% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+  }
+  
+  /* 操作按钮区 */
+  .action-area {
+    display: flex;
+    gap: 10px;
+  }
+  
+  .action-btn {
+    flex: 1;
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .action-btn::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    transition: width 0.4s ease, height 0.4s ease;
+  }
+  
+  .action-btn:active::after {
+    width: 200px;
+    height: 200px;
+  }
+  
+  .action-btn.merge {
+    background: linear-gradient(135deg, #9c27b0, #673ab7);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(156, 39, 176, 0.4);
+  }
+  
+  .action-btn.merge:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(156, 39, 176, 0.5);
+  }
+  
+  .action-btn.merge:disabled {
+    background: linear-gradient(135deg, #555, #444);
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  
+  .action-btn.merge.can-merge {
+    animation: mergeBtnPulse 1s infinite;
+  }
+  
+  @keyframes mergeBtnPulse {
+    0%, 100% { box-shadow: 0 4px 15px rgba(156, 39, 176, 0.4); }
+    50% { box-shadow: 0 4px 25px rgba(156, 39, 176, 0.7), 0 0 30px rgba(255, 215, 0, 0.3); }
+  }
+  
+  .action-btn.battle {
+    background: linear-gradient(135deg, #f44336, #e91e63);
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(244, 67, 54, 0.4);
+  }
+  
+  .action-btn.battle:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(244, 67, 54, 0.5);
+  }
+  
+  /* 物品详情tooltip - 优化设计 */
+  #itemTooltip {
+    position: fixed;
+    background: linear-gradient(180deg, rgba(15, 25, 50, 0.98), rgba(10, 15, 35, 0.99));
+    border: 2px solid rgba(0, 212, 255, 0.8);
+    border-radius: 15px;
+    padding: 18px;
+    color: white;
+    pointer-events: none;
+    z-index: 1000;
+    display: none;
+    min-width: 220px;
+    box-shadow: 0 15px 40px rgba(0,0,0,0.8), 0 0 30px rgba(0, 212, 255, 0.2);
+    backdrop-filter: blur(10px);
+  }
+  
+  #itemTooltip .tip-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
+  }
+  
+  #itemTooltip .tip-icon-wrap {
+    width: 50px;
+    height: 50px;
+    border-radius: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 28px;
+  }
+  
+  #itemTooltip .tip-icon-wrap.weapon { background: linear-gradient(135deg, rgba(180, 60, 60, 0.5), rgba(120, 30, 30, 0.6)); }
+  #itemTooltip .tip-icon-wrap.armor { background: linear-gradient(135deg, rgba(60, 100, 180, 0.5), rgba(30, 60, 120, 0.6)); }
+  #itemTooltip .tip-icon-wrap.potion { background: linear-gradient(135deg, rgba(60, 180, 80, 0.5), rgba(30, 120, 40, 0.6)); }
+  #itemTooltip .tip-icon-wrap.accessory { background: linear-gradient(135deg, rgba(150, 60, 180, 0.5), rgba(100, 30, 130, 0.6)); }
+  
+  #itemTooltip .tip-name {
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+  }
+  
+  #itemTooltip .tip-rarity {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: bold;
+  }
+  
+  #itemTooltip .tip-stats {
+    font-size: 14px;
+    margin-bottom: 12px;
+    line-height: 1.6;
+  }
+  
+  #itemTooltip .tip-stat {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  
+  #itemTooltip .tip-stat-icon {
+    font-size: 16px;
+  }
+  
+  #itemTooltip .tip-stat-value {
+    color: #4ade80;
+    font-weight: bold;
+  }
+  
+  #itemTooltip .tip-desc {
+    font-size: 13px;
+    color: #aaa;
+    font-style: italic;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    line-height: 1.5;
+  }
+  
+  #itemTooltip .tip-type-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: bold;
+    margin-top: 8px;
+  }
+  
+  /* 战斗面板 - 优化视觉 */
+  #battlePanel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(180deg, rgba(20, 20, 40, 0.98), rgba(10, 10, 25, 0.99));
+    border: 3px solid #f44336;
+    border-radius: 20px;
+    padding: 30px;
+    z-index: 300;
+    display: none;
+    min-width: 420px;
+    text-align: center;
+    box-shadow: 0 0 60px rgba(244, 67, 54, 0.4), inset 0 0 50px rgba(0, 0, 0, 0.5);
+  }
+  
+  #battlePanel.visible {
+    display: block;
+    animation: battlePanelPop 0.3s ease-out;
+  }
+  
+  @keyframes battlePanelPop {
+    from { transform: translate(-50%, -50%) scale(0.8); opacity: 0; }
+    to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  }
+  
+  .battle-title {
+    color: #f44336;
+    font-size: 26px;
+    margin-bottom: 20px;
+    text-shadow: 0 0 15px rgba(244, 67, 54, 0.6);
+    animation: battleTitlePulse 1s infinite;
+  }
+  
+  @keyframes battleTitlePulse {
+    0%, 100% { text-shadow: 0 0 15px rgba(244, 67, 54, 0.6); }
+    50% { text-shadow: 0 0 25px rgba(244, 67, 54, 0.9); }
+  }
+  
+  .battle-arena {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin: 30px 0;
+  }
+  
+  .fighter {
+    text-align: center;
+  }
+  
+  .fighter-avatar {
+    width: 90px;
+    height: 90px;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.2));
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 48px;
+    margin: 0 auto 12px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.4);
+    position: relative;
+  }
+  
+  .fighter-avatar.player {
+    border-color: rgba(0, 212, 255, 0.6);
+    box-shadow: 0 0 25px rgba(0, 212, 255, 0.3);
+  }
+  
+  .fighter-avatar.enemy {
+    border-color: rgba(244, 67, 54, 0.6);
+    box-shadow: 0 0 25px rgba(244, 67, 54, 0.3);
+  }
+  
+  .fighter-avatar.attacking {
+    animation: attackShake 0.3s ease;
+  }
+  
+  @keyframes attackShake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px) rotate(-5deg); }
+    75% { transform: translateX(5px) rotate(5deg); }
+  }
+  
+  .fighter-name {
+    color: #fff;
+    font-size: 16px;
+    margin-bottom: 8px;
+    font-weight: bold;
+  }
+  
+  .fighter-hp-bar {
+    width: 120px;
+    height: 14px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 7px;
+    overflow: hidden;
+    margin: 0 auto;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .fighter-hp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f44336, #ff9800, #4caf50);
+    background-size: 200% 100%;
+    transition: width 0.3s ease;
+    border-radius: 7px;
+  }
+  
+  .fighter-hp-text {
+    font-size: 12px;
+    color: #fff;
+    margin-top: 5px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  }
+  
+  .vs-text {
+    color: #ffd700;
+    font-size: 32px;
+    font-weight: bold;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.6), 0 0 40px rgba(255, 215, 0, 0.3);
+    animation: vsPulse 1s infinite;
+  }
+  
+  @keyframes vsPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+  
+  .battle-log {
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 12px;
+    padding: 15px;
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    text-align: left;
+    font-size: 13px;
+    color: #ccc;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  .battle-log .log-entry {
+    margin-bottom: 6px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.03);
+    animation: logSlideIn 0.3s ease;
+  }
+  
+  @keyframes logSlideIn {
+    from { transform: translateX(-20px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  
+  .log-damage { color: #f44336; border-left: 3px solid #f44336; }
+  .log-heal { color: #4caf50; border-left: 3px solid #4caf50; }
+  .log-crit { color: #ff9800; font-weight: bold; border-left: 3px solid #ff9800; }
+  .log-enemy { color: #ff5722; border-left: 3px solid #ff5722; }
+  
+  .battle-result {
+    font-size: 24px;
+    font-weight: bold;
+    margin: 20px 0;
+    text-shadow: 0 0 20px currentColor;
+  }
+  
+  .battle-result.victory { color: #4caf50; animation: victoryPulse 0.5s ease infinite; }
+  .battle-result.defeat { color: #f44336; }
+  
+  @keyframes victoryPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  
+  .battle-rewards {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.15), rgba(255, 152, 0, 0.1));
+    border: 2px solid rgba(255, 193, 7, 0.4);
+    border-radius: 15px;
+    padding: 18px;
+    margin-bottom: 20px;
+  }
+  
+  .battle-rewards .reward-title {
+    color: #ffc107;
+    margin-bottom: 12px;
+    font-size: 16px;
+    font-weight: bold;
+  }
+  
+  .battle-rewards .reward-items {
+    display: flex;
+    justify-content: center;
+    gap: 25px;
+  }
+  
+  .reward-item {
+    text-align: center;
+    animation: rewardPop 0.5s ease backwards;
+  }
+  
+  .reward-item:nth-child(1) { animation-delay: 0.2s; }
+  .reward-item:nth-child(2) { animation-delay: 0.4s; }
+  
+  @keyframes rewardPop {
+    from { transform: scale(0) rotate(-180deg); opacity: 0; }
+    to { transform: scale(1) rotate(0deg); opacity: 1; }
+  }
+  
+  .reward-item .icon {
+    font-size: 36px;
+    display: block;
+    margin-bottom: 5px;
+  }
+  
+  .reward-item .amount {
+    color: #ffd700;
+    font-size: 16px;
+    font-weight: bold;
+  }
+  
+  /* 帮助按钮 */
+  #helpBtn {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    z-index: 100;
+    transition: all 0.3s ease;
+  }
+  
+  #helpBtn:hover {
+    background: rgba(0, 212, 255, 0.3);
+    border-color: #00d4ff;
+    transform: scale(1.1);
+    box-shadow: 0 0 15px rgba(0, 212, 255, 0.5);
+  }
+  
+  /* 粒子效果容器 */
+  #particleContainer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+    overflow: hidden;
+  }
+  
+  .particle {
+    position: absolute;
+    pointer-events: none;
+    animation: particleFly 1s ease-out forwards;
+  }
+  
+  @keyframes particleFly {
+    0% {
+      opacity: 1;
+      transform: translate(0, 0) scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: translate(var(--tx), var(--ty)) scale(0);
+    }
+  }
+  
+  /* 属性显示面板 */
+  .stats-summary {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+  }
+  
+  .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    color: #fff;
+    transition: all 0.3s ease;
+  }
+  
+  .stat-item.highlight {
+    animation: statPop 0.5s ease;
+    background: rgba(74, 222, 128, 0.2);
+    border: 1px solid rgba(74, 222, 128, 0.5);
+  }
+  
+  @keyframes statPop {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+  
+  .stat-item .stat-icon {
+    font-size: 16px;
+  }
+  
+  .stat-item .stat-value {
+    color: #4ade80;
+    font-weight: bold;
+    transition: all 0.3s ease;
+  }
+  
+  .stat-item .stat-value.boosted {
+    color: #ffd700;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+  }
+  
+  /* 快速开始提示 */
+  .quick-tip {
+    background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(79, 172, 254, 0.1));
+    border: 1px solid rgba(0, 212, 255, 0.3);
+    border-radius: 10px;
+    padding: 10px 15px;
+    margin-bottom: 15px;
+    text-align: center;
+    font-size: 13px;
+    color: #7dd3fc;
+  }
+  
+  .quick-tip .action {
+    display: inline-block;
+    background: rgba(0, 212, 255, 0.2);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    margin: 0 3px;
+  }
+  
+  @media (max-width: 768px) {
+    .backpack-grid {
+      grid-template-columns: repeat(4, 60px);
+    }
+    .grid-slot {
+      width: 60px;
+      height: 60px;
+    }
+    .grid-slot .item-icon {
+      font-size: 28px;
+    }
+    #inventoryPanel {
+      min-width: auto;
+      width: 95%;
+      padding: 15px;
+    }
+    .tutorial-card {
+      padding: 20px;
+    }
+    .shop-items {
+      gap: 8px;
+    }
+    .shop-item {
+      min-width: 55px;
+      padding: 8px;
+    }
+    .shop-item .item-icon {
+      font-size: 22px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="gameContainer">
+  <div id="gameTitle">⚔️ 背包战争 ⚔️</div>
+  
+  <button id="helpBtn" onclick="startTutorial()">?</button>
+  
+  <div id="topBar">
+    <div class="stat-badge">
+      <span class="icon">❤️</span>
+      <span>HP:</span>
+      <span class="value" id="hpValue">100/100</span>
+    </div>
+    <div class="stat-badge">
+      <span class="icon">💰</span>
+      <span>金币:</span>
+      <span class="value" id="goldValue">50</span>
+    </div>
+    <div class="stat-badge">
+      <span class="icon">🏆</span>
+      <span>波次:</span>
+      <span class="value" id="waveValue">1</span>
+    </div>
+  </div>
+  
+  <canvas id="gameCanvas"></canvas>
+  
+  <div id="bottomControls">
+    <div class="control-btn" onclick="toggleInventory()">
+      <span class="icon">🎒</span>
+      <span>背包 <span class="key-hint">B</span></span>
+    </div>
+    <div class="control-btn" id="battleControlBtn" onclick="startBattle()">
+      <span class="icon">⚔️</span>
+      <span>战斗 <span class="key-hint">空格</span></span>
+    </div>
+    <div class="control-btn" onclick="startTutorial()">
+      <span class="icon">📖</span>
+      <span>教程 <span class="key-hint">H</span></span>
+    </div>
+  </div>
+  
+  <div id="notification"></div>
+  <div id="particleContainer"></div>
+  
+  <!-- 教程遮罩 -->
+  <div id="tutorialOverlay">
+    <div class="tutorial-card">
+      <div class="tutorial-header">
+        <h2 id="tutorialTitle">🎮 背包战争</h2>
+        <div class="tutorial-step-indicator" id="stepIndicator"></div>
+      </div>
+      
+      <div class="tutorial-content" id="tutorialContent">
+        <!-- 动态内容 -->
+      </div>
+      
+      <div class="tutorial-footer">
+        <button class="tutorial-btn skip" id="tutorialSkip" onclick="skipTutorial()">跳过</button>
+        <button class="tutorial-btn secondary" id="tutorialPrev" onclick="prevTutorialStep()">上一步</button>
+        <button class="tutorial-btn primary" id="tutorialNext" onclick="nextTutorialStep()">下一步</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- 背包面板 -->
+  <div id="inventoryPanel">
+    <div class="panel-header">
+      <div class="panel-title">🎒 我的背包</div>
+      <button class="close-btn" onclick="toggleInventory()">✕</button>
+    </div>
+    
+    <div class="quick-tip" id="quickTip">
+      💡 <span class="action">点击商店物品</span>购买装备，<span class="action">点击背包物品</span>选中后可合并
+    </div>
+    
+    <div class="stats-summary" id="statsSummary">
+      <div class="stat-item">
+        <span class="stat-icon">⚔️</span>
+        <span>攻击:</span>
+        <span class="stat-value" id="atkValue">10</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-icon">🛡️</span>
+        <span>防御:</span>
+        <span class="stat-value" id="defValue">5</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-icon">💨</span>
+        <span>速度:</span>
+        <span class="stat-value" id="spdValue">1.00x</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-icon">💊</span>
+        <span>回复:</span>
+        <span class="stat-value" id="healValue">0</span>
+      </div>
+    </div>
+    
+    <div class="backpack-grid" id="backpackGrid">
+      <!-- 12个格子动态生成 -->
+    </div>
+    
+    <div class="shop-area" id="shopArea">
+      <div class="shop-title">
+        <span class="gold-icon">💰</span>
+        商店 (点击购买装备)
+      </div>
+      <div class="shop-items" id="shopItems">
+        <!-- 动态生成 -->
+      </div>
+    </div>
+    
+    <div class="action-area">
+      <button class="action-btn merge" id="mergeBtn" onclick="attemptMerge()" disabled>
+        ✨ 合并升级
+      </button>
+      <button class="action-btn battle" onclick="startBattle()">
+        ⚔️ 开始战斗
+      </button>
+    </div>
+  </div>
+  
+  <!-- 战斗面板 -->
+  <div id="battlePanel">
+    <div class="battle-title">⚔️ 战斗中...</div>
+    <div class="battle-arena">
+      <div class="fighter">
+        <div class="fighter-avatar player" id="playerAvatar">🧙</div>
+        <div class="fighter-name">玩家</div>
+        <div class="fighter-hp-bar">
+          <div class="fighter-hp-fill" id="playerHpFill" style="width: 100%"></div>
+        </div>
+        <div class="fighter-hp-text" id="playerHpText">100/100</div>
+      </div>
+      <div class="vs-text">VS</div>
+      <div class="fighter">
+        <div class="fighter-avatar enemy" id="enemyAvatar">👹</div>
+        <div class="fighter-name" id="enemyName">哥布林</div>
+        <div class="fighter-hp-bar">
+          <div class="fighter-hp-fill" id="enemyHpFill" style="width: 100%"></div>
+        </div>
+        <div class="fighter-hp-text" id="enemyHpText">50/50</div>
+      </div>
+    </div>
+    <div class="battle-log" id="battleLog"></div>
+    <div class="battle-result" id="battleResult" style="display: none;"></div>
+    <div class="battle-rewards" id="battleRewards" style="display: none;">
+      <div class="reward-title">🎁 战斗奖励</div>
+      <div class="reward-items" id="rewardItems"></div>
+    </div>
+    <button class="tutorial-btn primary" id="closeBattleBtn" onclick="closeBattle()" style="display: none; width: 100%;">
+      继续游戏
+    </button>
+  </div>
+  
+  <!-- 物品tooltip -->
+  <div id="itemTooltip">
+    <div class="tip-header">
+      <div class="tip-icon-wrap"></div>
+      <div>
+        <div class="tip-name"></div>
+        <div class="tip-rarity"></div>
+      </div>
+    </div>
+    <div class="tip-stats"></div>
+    <div class="tip-desc"></div>
+  </div>
+</div>
+
+<script>
+// ============ 游戏配置 ============
+const BACKPACK_SIZE = 12;
+const GRID_COLS = 4;
+
+// ============ 物品类型定义 ============
+const ITEM_TYPES = {
+  weapon: { name: '武器', color: 'rgba(255, 100, 100, 0.6)', icon: '⚔️' },
+  armor: { name: '防具', color: 'rgba(100, 150, 255, 0.6)', icon: '🛡️' },
+  potion: { name: '药水', color: 'rgba(100, 255, 130, 0.6)', icon: '💊' },
+  accessory: { name: '饰品', color: 'rgba(200, 130, 255, 0.6)', icon: '👟' }
+};
+
+// ============ 教程数据（简化为3步）============
+const tutorialSteps = [
+  {
+    title: "🎮 欢迎来到背包战争",
+    content: `
+      <p>这是一款<strong>策略合成</strong>游戏，玩法简单有趣：</p>
+      <div class="tutorial-visual">
+        <div class="demo-grid">
+          <div class="demo-slot has-item">⚔️</div>
+          <div class="demo-slot">+</div>
+          <div class="demo-slot has-item">⚔️</div>
+          <div class="demo-slot" style="border-style: solid; border-color: #9c27b0;">=</div>
+          <div class="demo-slot has-item highlight">🗡️</div>
+        </div>
+        <p style="font-size: 13px; color: #9c27b0; margin-top: 10px;">相同装备合成 → 升级更强！</p>
+      </div>
+      <div class="tutorial-tip">
+        💡 核心玩法：<strong>买装备 → 合成升级 → 战斗获胜</strong>
+      </div>
+    `
+  },
+  {
+    title: "🎒 背包与角色集成",
+    content: `
+      <p><strong>背包</strong>是你角色的装备库，装备会直接显示在角色身上：</p>
+      <div class="tutorial-visual">
+        <p style="font-size: 60px; margin: 10px 0;">🧙🎒</p>
+        <p style="font-size: 12px; color: #00d4ff;">角色随身携带背包，装备提供属性加成</p>
+      </div>
+      <div class="tutorial-tip">
+        💡 装备越多，角色越强！稀有装备会给角色带来特殊的发光效果
+      </div>
+    `
+  },
+  {
+    title: "⚔️ 准备战斗！",
+    content: `
+      <p>装备准备好后，点击<strong>战斗按钮</strong>开始自动战斗！</p>
+      <div class="tutorial-visual">
+        <p style="font-size: 50px; margin: 15px 0;">🧙 ⚔️ 👹</p>
+        <p style="font-size: 14px; color: #888;">
+          战斗胜利获得 <span style="color: #ffd700;">💰金币</span> 并进入下一波<br>
+          失败后会恢复生命，可以继续挑战
+        </p>
+      </div>
+      <div class="tutorial-tip">
+        💡 快捷键：<span class="key-hint">B</span> 打开背包｜<span class="key-hint">空格</span> 开始战斗｜<span class="key-hint">H</span> 查看教程
+      </div>
+      <p style="text-align: center; color: #4ade80; font-weight: bold; margin-top: 20px; font-size: 16px;">现在就开始你的冒险吧！</p>
+    `
+  }
+];
+
+// ============ 物品数据库 ============
+const itemDatabase = [
+  { id: 1, name: '铁剑', icon: '⚔️', type: 'weapon', rarity: 'common', cost: 5, stats: { attack: 5 }, desc: '基础的铁制长剑，增加攻击力' },
+  { id: 2, name: '钢盾', icon: '🛡️', type: 'armor', rarity: 'common', cost: 5, stats: { defense: 8 }, desc: '坚固的钢制盾牌，增加防御力' },
+  { id: 3, name: '药水', icon: '💊', type: 'potion', rarity: 'common', cost: 3, stats: { heal: 15 }, desc: '战斗中每回合恢复生命值' },
+  { id: 4, name: '精灵弓', icon: '🏹', type: 'weapon', rarity: 'rare', cost: 12, stats: { attack: 12, speed: 5 }, desc: '快速精准的精灵弓' },
+  { id: 5, name: '魔法杖', icon: '🔮', type: 'weapon', rarity: 'rare', cost: 15, stats: { attack: 15 }, desc: '蕴含魔力的法杖' },
+  { id: 6, name: '暗影匕首', icon: '🗡️', type: 'weapon', rarity: 'epic', cost: 25, stats: { attack: 20, crit: 15 }, desc: '从暗影中袭击敌人' },
+  { id: 7, name: '圣剑', icon: '✨', type: 'weapon', rarity: 'legendary', cost: 50, stats: { attack: 40, holy: 25 }, desc: '传说中的神圣之剑' },
+  { id: 8, name: '时光之靴', icon: '👟', type: 'accessory', rarity: 'rare', cost: 10, stats: { speed: 20 }, desc: '扭曲时间的神秘靴子' }
+];
+
+const mergeUpgrades = {
+  1: { id: 4, name: '精灵弓', icon: '🏹', type: 'weapon', rarity: 'rare', stats: { attack: 12, speed: 5 }, desc: '两把铁剑融合而成' },
+  2: { id: 5, name: '魔法盾', icon: '🛋️', type: 'armor', rarity: 'rare', stats: { defense: 20 }, desc: '两块钢盾融合而成' },
+  3: { id: 9, name: '生命药剂', icon: '❤️', type: 'potion', rarity: 'rare', stats: { heal: 40 }, desc: '两瓶药水融合而成' }
+};
+
+// ============ 敌人数据 ============
+const enemyDatabase = [
+  { name: '哥布林', icon: '👹', hp: 50, attack: 8, wave: 1 },
+  { name: '骷髅兵', icon: '💀', hp: 70, attack: 12, wave: 2 },
+  { name: '狼人', icon: '🐺', hp: 100, attack: 18, wave: 3 },
+  { name: '恶魔', icon: '😈', hp: 150, attack: 25, wave: 4 },
+  { name: '巨龙', icon: '🐲', hp: 250, attack: 35, wave: 5 }
+];
+
+// ============ 游戏状态 ============
+let gameState = {
+  hp: 100,
+  maxHp: 100,
+  gold: 50,
+  wave: 1,
+  attack: 10,
+  defense: 5,
+  speed: 1,
+  critChance: 0.05,
+  healPerTurn: 0
+};
+
+let backpack = new Array(BACKPACK_SIZE).fill(null);
+let selectedSlot = -1;
+let tutorialStep = 0;
+let isInventoryOpen = false;
+let isBattling = false;
+let shopItems = [];
+let isFirstTime = true;
+let hasShownBattleHint = false;
+
+// ============ DOM 元素 ============
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const tutorialOverlay = document.getElementById('tutorialOverlay');
+const inventoryPanel = document.getElementById('inventoryPanel');
+const battlePanel = document.getElementById('battlePanel');
+const notification = document.getElementById('notification');
+const itemTooltip = document.getElementById('itemTooltip');
+const particleContainer = document.getElementById('particleContainer');
+
+// ============ 初始化 ============
+function init() {
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  
+  // 初始化背包格子
+  renderBackpackGrid();
+  
+  // 生成商店物品
+  generateShopItems();
+  renderShopItems();
+  
+  // 初始化教程
+  renderTutorial();
+  
+  // 键盘事件
+  setupKeyboardListeners();
+  
+  // 添加初始物品
+  addToBackpack({...itemDatabase[0]}, true);
+  addToBackpack({...itemDatabase[0]}, true);
+  addToBackpack({...itemDatabase[2]}, true);
+  
+  // 更新UI
+  updateStats();
+  
+  // 开始游戏循环
+  requestAnimationFrame(gameLoop);
+}
+
+function resizeCanvas() {
+  const ratio = 16 / 9;
+  let w = window.innerWidth * 0.9;
+  let h = window.innerHeight * 0.7;
+  
+  if (w / h > ratio) {
+    canvas.height = h;
+    canvas.width = h * ratio;
+  } else {
+    canvas.width = w;
+    canvas.height = w / ratio;
+  }
+}
+
+// ============ 教程系统（简化版）============
+function renderTutorial() {
+  const step = tutorialSteps[tutorialStep];
+  
+  document.getElementById('tutorialTitle').textContent = step.title;
+  document.getElementById('tutorialContent').innerHTML = step.content;
+  
+  // 步骤指示器
+  const indicator = document.getElementById('stepIndicator');
+  indicator.innerHTML = tutorialSteps.map((_, i) => 
+    `<div class="step-dot ${i < tutorialStep ? 'completed' : (i === tutorialStep ? 'active' : '')}"></div>`
+  ).join('');
+  
+  // 按钮状态
+  document.getElementById('tutorialPrev').style.display = tutorialStep === 0 ? 'none' : 'block';
+  document.getElementById('tutorialSkip').style.display = tutorialStep === tutorialSteps.length - 1 ? 'none' : 'block';
+  document.getElementById('tutorialNext').textContent = 
+    tutorialStep === tutorialSteps.length - 1 ? '开始游戏！' : '下一步';
+}
+
+function nextTutorialStep() {
+  if (tutorialStep < tutorialSteps.length - 1) {
+    tutorialStep++;
+    renderTutorial();
+  } else {
+    closeTutorial();
+  }
+}
+
+function prevTutorialStep() {
+  if (tutorialStep > 0) {
+    tutorialStep--;
+    renderTutorial();
+  }
+}
+
+function skipTutorial() {
+  closeTutorial();
+}
+
+function startTutorial() {
+  tutorialStep = 0;
+  renderTutorial();
+  tutorialOverlay.style.display = 'flex';
+}
+
+function closeTutorial() {
+  tutorialOverlay.style.display = 'none';
+  
+  // 首次关闭教程后自动打开背包
+  if (isFirstTime) {
+    isFirstTime = false;
+    setTimeout(() => {
+      toggleInventory();
+      // 高亮商店区域
+      document.getElementById('shopArea').classList.add('highlight');
+      showNotification('👆 点击商店物品购买装备开始游戏！', 'success');
+    }, 300);
+  }
+}
+
+// ============ 粒子效果系统 ============
+function createParticles(x, y, emoji, count = 8) {
+  for (let i = 0; i < count; i++) {
+    const particle = document.createElement('div');
+    particle.className = 'particle';
+    particle.textContent = emoji;
+    particle.style.left = x + 'px';
+    particle.style.top = y + 'px';
+    particle.style.fontSize = (16 + Math.random() * 12) + 'px';
+    
+    const angle = (Math.PI * 2 / count) * i + Math.random() * 0.5;
+    const distance = 50 + Math.random() * 50;
+    const tx = Math.cos(angle) * distance;
+    const ty = Math.sin(angle) * distance - 30;
+    
+    particle.style.setProperty('--tx', tx + 'px');
+    particle.style.setProperty('--ty', ty + 'px');
+    
+    particleContainer.appendChild(particle);
+    
+    setTimeout(() => particle.remove(), 1000);
+  }
+}
+
+// ============ 背包系统 ============
+function renderBackpackGrid() {
+  const grid = document.getElementById('backpackGrid');
+  grid.innerHTML = '';
+  
+  for (let i = 0; i < BACKPACK_SIZE; i++) {
+    const slot = document.createElement('div');
+    const item = backpack[i];
+    
+    let classes = 'grid-slot';
+    if (item) {
+      classes += ' has-item';
+    } else {
+      classes += ' empty-hint';
+    }
+    if (selectedSlot === i) classes += ' selected';
+    
+    slot.className = classes;
+    slot.dataset.index = i;
+    
+    if (item) {
+      slot.dataset.type = item.type;
+      slot.dataset.rarity = item.rarity;
+      
+      // 检查是否可合并
+      if (selectedSlot !== -1 && selectedSlot !== i && canMerge(selectedSlot, i)) {
+        slot.classList.add('can-merge');
+      }
+      
+      slot.innerHTML = `
+        <span class="item-icon">${item.icon}</span>
+        <span class="item-rarity rarity-${item.rarity}"></span>
+      `;
+    }
+    
+    slot.addEventListener('click', () => selectSlot(i));
+    slot.addEventListener('mouseenter', (e) => showItemTooltip(e, backpack[i]));
+    slot.addEventListener('mouseleave', hideItemTooltip);
+    
+    grid.appendChild(slot);
+  }
+}
+
+// ============ 获取背包中的物品数量 ============
+function getBackpackItemCount() {
+  return backpack.filter(item => item !== null).length;
+}
+
+// ============ 获取背包中最高的稀有度 ============
+function getHighestRarity() {
+  const rarityOrder = { common: 0, rare: 1, epic: 2, legendary: 3 };
+  let highest = 'common';
+  backpack.forEach(item => {
+    if (item && rarityOrder[item.rarity] > rarityOrder[highest]) {
+      highest = item.rarity;
+    }
+  });
+  return highest;
+}
+
+// ============ 获取背包中的武器列表 ============
+function getBackpackWeapons() {
+  return backpack.filter(item => item !== null && item.type === 'weapon');
+}
+
+// ============ 获取背包中的防具列表 ============
+function getBackpackArmors() {
+  return backpack.filter(item => item !== null && item.type === 'armor');
+}
+
+function selectSlot(index) {
+  if (selectedSlot === index) {
+    selectedSlot = -1;
+  } else if (selectedSlot !== -1 && backpack[selectedSlot] && backpack[index]) {
+    // 尝试合并
+    if (canMerge(selectedSlot, index)) {
+      mergeItems(selectedSlot, index);
+    } else {
+      // 交换位置
+      [backpack[selectedSlot], backpack[index]] = [backpack[index], backpack[selectedSlot]];
+      showNotification('物品已交换位置', 'success');
+    }
+    selectedSlot = -1;
+  } else if (selectedSlot !== -1 && backpack[selectedSlot] && !backpack[index]) {
+    // 移动物品
+    backpack[index] = backpack[selectedSlot];
+    backpack[selectedSlot] = null;
+    selectedSlot = -1;
+    showNotification('物品已移动', 'success');
+  } else {
+    selectedSlot = index;
+  }
+  
+  renderBackpackGrid();
+  updateMergeButton();
+  calculateStats();
+}
+
+function addToBackpack(item, silent = false) {
+  for (let i = 0; i < BACKPACK_SIZE; i++) {
+    if (!backpack[i]) {
+      backpack[i] = item;
+      renderBackpackGrid();
+      calculateStats();
+      
+      // 添加动画效果
+      if (!silent) {
+        setTimeout(() => {
+          const slots = document.querySelectorAll('.grid-slot');
+          if (slots[i]) {
+            slots[i].classList.add('just-added');
+            // 创建粒子效果
+            const rect = slots[i].getBoundingClientRect();
+            createParticles(rect.left + rect.width/2, rect.top + rect.height/2, item.icon, 6);
+          }
+        }, 50);
+      }
+      
+      return true;
+    }
+  }
+  showNotification('背包已满！', 'error');
+  return false;
+}
+
+function canMerge(slot1, slot2) {
+  if (!backpack[slot1] || !backpack[slot2]) return false;
+  return backpack[slot1].id === backpack[slot2].id && 
+         backpack[slot1].rarity === backpack[slot2].rarity;
+}
+
+function mergeItems(slot1, slot2) {
+  const item = backpack[slot1];
+  
+  // 获取合并位置的中心点用于粒子效果
+  const slots = document.querySelectorAll('.grid-slot');
+  const rect1 = slots[slot1].getBoundingClientRect();
+  const rect2 = slots[slot2].getBoundingClientRect();
+  const centerX = (rect1.left + rect2.left) / 2 + rect1.width / 2;
+  const centerY = (rect1.top + rect2.top) / 2 + rect1.height / 2;
+  
+  if (mergeUpgrades[item.id]) {
+    const upgrade = mergeUpgrades[item.id];
+    backpack[slot1] = {...upgrade};
+    backpack[slot2] = null;
+    
+    // 创建合并粒子效果
+    createParticles(centerX, centerY, '✨', 12);
+    createParticles(centerX, centerY, upgrade.icon, 6);
+    
+    showNotification(`✨ 合成成功！获得 ${upgrade.name}！`, 'success');
+  } else {
+    // 通用升级：提升稀有度
+    const rarities = ['common', 'rare', 'epic', 'legendary'];
+    const currentIdx = rarities.indexOf(item.rarity);
+    if (currentIdx < rarities.length - 1) {
+      const rarityMultipliers = { common: 1, rare: 1.5, epic: 2, legendary: 3 };
+      const nextRarity = rarities[currentIdx + 1];
+      const multiplier = rarityMultipliers[nextRarity] / rarityMultipliers[item.rarity];
+      
+      backpack[slot1] = {
+        ...item,
+        rarity: nextRarity,
+        stats: {
+          attack: Math.round((item.stats.attack || 0) * multiplier),
+          defense: Math.round((item.stats.defense || 0) * multiplier),
+          speed: Math.round((item.stats.speed || 0) * multiplier),
+          heal: Math.round((item.stats.heal || 0) * multiplier),
+          crit: item.stats.crit || 0
+        }
+      };
+      backpack[slot2] = null;
+      
+      // 创建合并粒子效果
+      createParticles(centerX, centerY, '⬆️', 8);
+      createParticles(centerX, centerY, '✨', 10);
+      
+      const rarityNames = { common: '普通', rare: '稀有', epic: '史诗', legendary: '传说' };
+      showNotification(`⬆️ 合成成功！${item.name} 升级为 ${rarityNames[nextRarity]}！`, 'success');
+    }
+  }
+  
+  // 高亮属性面板
+  highlightStats();
+  
+  renderBackpackGrid();
+  calculateStats();
+}
+
+function attemptMerge() {
+  // 查找可合并的物品
+  for (let i = 0; i < BACKPACK_SIZE; i++) {
+    for (let j = i + 1; j < BACKPACK_SIZE; j++) {
+      if (canMerge(i, j)) {
+        mergeItems(i, j);
+        return;
+      }
+    }
+  }
+  showNotification('没有可以合并的物品', 'warning');
+}
+
+function updateMergeButton() {
+  const btn = document.getElementById('mergeBtn');
+  let canMergeAny = false;
+  
+  for (let i = 0; i < BACKPACK_SIZE && !canMergeAny; i++) {
+    for (let j = i + 1; j < BACKPACK_SIZE && !canMergeAny; j++) {
+      if (canMerge(i, j)) {
+        canMergeAny = true;
+      }
+    }
+  }
+  
+  btn.disabled = !canMergeAny;
+  if (canMergeAny) {
+    btn.classList.add('can-merge');
+  } else {
+    btn.classList.remove('can-merge');
+  }
+}
+
+// ============ 商店系统 ============
+function generateShopItems() {
+  shopItems = [];
+  const availableItems = itemDatabase.filter(item => item.cost <= 20);
+  
+  for (let i = 0; i < 4; i++) {
+    const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)];
+    shopItems.push({...randomItem});
+  }
+}
+
+function renderShopItems() {
+  const container = document.getElementById('shopItems');
+  container.innerHTML = '';
+  
+  shopItems.forEach((item, index) => {
+    const itemEl = document.createElement('div');
+    const isAffordable = gameState.gold >= item.cost;
+    itemEl.className = `shop-item ${isAffordable ? 'affordable' : 'unaffordable'}`;
+    itemEl.dataset.type = item.type;
+    itemEl.dataset.index = index;
+    
+    itemEl.innerHTML = `
+      <span class="item-icon">${item.icon}</span>
+      <span class="item-cost">💰${item.cost}</span>
+      <span class="item-name">${item.name}</span>
+      <span class="buy-hint">${isAffordable ? '点击购买' : '金币不足'}</span>
+    `;
+    
+    itemEl.addEventListener('click', () => buyItem(index, itemEl));
+    itemEl.addEventListener('mouseenter', (e) => showItemTooltip(e, item));
+    itemEl.addEventListener('mouseleave', hideItemTooltip);
+    
+    container.appendChild(itemEl);
+  });
+}
+
+function buyItem(index, element) {
+  const item = shopItems[index];
+  
+  if (gameState.gold >= item.cost) {
+    if (addToBackpack({...item})) {
+      gameState.gold -= item.cost;
+      updateStats();
+      
+      // 动画效果
+      element.classList.add('just-bought');
+      setTimeout(() => element.classList.remove('just-bought'), 500);
+      
+      // 高亮金币显示
+      document.getElementById('goldValue').classList.add('changed');
+      setTimeout(() => document.getElementById('goldValue').classList.remove('changed'), 500);
+      
+      showNotification(`✓ 购买了 ${item.icon} ${item.name}！`, 'success');
+      
+      // 移除商店高亮（首次购买后）
+      document.getElementById('shopArea').classList.remove('highlight');
+      
+      // 更新快速提示
+      updateQuickTip();
+      
+      // 刷新商店物品
+      const availableItems = itemDatabase.filter(i => i.cost <= 30);
+      shopItems[index] = {...availableItems[Math.floor(Math.random() * availableItems.length)]};
+      renderShopItems();
+      
+      // 检查是否可以合并，显示战斗提示
+      checkAndShowBattleHint();
+    }
+  } else {
+    showNotification('💰 金币不足！', 'error');
+    element.style.animation = 'shake 0.3s ease';
+    setTimeout(() => element.style.animation = '', 300);
+  }
+}
+
+function updateQuickTip() {
+  const tip = document.getElementById('quickTip');
+  
+  // 检查是否有可合并的物品
+  let canMergeAny = false;
+  for (let i = 0; i < BACKPACK_SIZE; i++) {
+    for (let j = i + 1; j < BACKPACK_SIZE; j++) {
+      if (backpack[i] && backpack[j] && 
+          backpack[i].id === backpack[j].id && 
+          backpack[i].rarity === backpack[j].rarity) {
+        canMergeAny = true;
+        break;
+      }
+    }
+    if (canMergeAny) break;
+  }
+  
+  if (canMergeAny) {
+    tip.innerHTML = '💡 有装备可以<span class="action">合并升级</span>！选中一个装备后点击另一个相同的';
+  } else {
+    tip.innerHTML = '💡 <span class="action">点击商店物品</span>购买装备，准备好后<span class="action">开始战斗</span>！';
+  }
+}
+
+function checkAndShowBattleHint() {
+  if (!hasShownBattleHint && gameState.attack > 15) {
+    hasShownBattleHint = true;
+    document.getElementById('battleControlBtn').classList.add('highlight');
+    showNotification('⚔️ 装备准备好了！点击战斗按钮开始冒险！', 'success');
+  }
+}
+
+// ============ 物品提示 - 优化版 ============
+function showItemTooltip(e, item) {
+  if (!item) return;
+  
+  const rarityNames = {
+    common: '普通',
+    rare: '稀有',
+    epic: '史诗',
+    legendary: '传说'
+  };
+  
+  const rarityColors = {
+    common: '#9e9e9e',
+    rare: '#2196f3',
+    epic: '#9c27b0',
+    legendary: '#ff9800'
+  };
+  
+  const typeNames = {
+    weapon: '武器',
+    armor: '防具',
+    potion: '药水',
+    accessory: '饰品'
+  };
+  
+  // 设置图标和类型背景
+  const iconWrap = itemTooltip.querySelector('.tip-icon-wrap');
+  iconWrap.className = `tip-icon-wrap ${item.type}`;
+  iconWrap.textContent = item.icon;
+  
+  itemTooltip.querySelector('.tip-name').textContent = item.name;
+  itemTooltip.querySelector('.tip-rarity').textContent = rarityNames[item.rarity];
+  itemTooltip.querySelector('.tip-rarity').style.color = rarityColors[item.rarity];
+  
+  // 构建属性显示
+  let statsHtml = '';
+  if (item.stats.attack) {
+    statsHtml += `<div class="tip-stat"><span class="tip-stat-icon">⚔️</span>攻击力 <span class="tip-stat-value">+${item.stats.attack}</span></div>`;
+  }
+  if (item.stats.defense) {
+    statsHtml += `<div class="tip-stat"><span class="tip-stat-icon">🛡️</span>防御力 <span class="tip-stat-value">+${item.stats.defense}</span></div>`;
+  }
+  if (item.stats.speed) {
+    statsHtml += `<div class="tip-stat"><span class="tip-stat-icon">💨</span>速度 <span class="tip-stat-value">+${item.stats.speed}%</span></div>`;
+  }
+  if (item.stats.heal) {
+    statsHtml += `<div class="tip-stat"><span class="tip-stat-icon">💊</span>每回合恢复 <span class="tip-stat-value">+${item.stats.heal}</span></div>`;
+  }
+  if (item.stats.crit) {
+    statsHtml += `<div class="tip-stat"><span class="tip-stat-icon">💥</span>暴击率 <span class="tip-stat-value">+${item.stats.crit}%</span></div>`;
+  }
+  
+  // 添加类型标签
+  statsHtml += `<div class="tip-type-badge" style="background: ${ITEM_TYPES[item.type].color}; color: #fff;">${typeNames[item.type]}</div>`;
+  
+  itemTooltip.querySelector('.tip-stats').innerHTML = statsHtml;
+  itemTooltip.querySelector('.tip-desc').textContent = item.desc;
+  
+  itemTooltip.style.display = 'block';
+  
+  // 智能定位，避免超出屏幕
+  const rect = itemTooltip.getBoundingClientRect();
+  let x = e.clientX + 15;
+  let y = e.clientY + 15;
+  
+  if (x + rect.width > window.innerWidth) {
+    x = e.clientX - rect.width - 15;
+  }
+  if (y + rect.height > window.innerHeight) {
+    y = e.clientY - rect.height - 15;
+  }
+  
+  itemTooltip.style.left = x + 'px';
+  itemTooltip.style.top = y + 'px';
+}
+
+function hideItemTooltip() {
+  itemTooltip.style.display = 'none';
+}
+
+// ============ 属性计算 ============
+function calculateStats() {
+  const oldAttack = gameState.attack;
+  const oldDefense = gameState.defense;
+  
+  gameState.attack = 10;
+  gameState.defense = 5;
+  gameState.speed = 1;
+  gameState.critChance = 0.05;
+  gameState.healPerTurn = 0;
+  
+  backpack.forEach(item => {
+    if (item) {
+      gameState.attack += (item.stats.attack || 0);
+      gameState.defense += (item.stats.defense || 0);
+      gameState.speed += (item.stats.speed || 0) / 100;
+      gameState.critChance += (item.stats.crit || 0) / 100;
+      gameState.healPerTurn += (item.stats.heal || 0) / 10;
+    }
+  });
+  
+  updateStats();
+  
+  // 如果属性有提升，高亮显示
+  if (gameState.attack > oldAttack || gameState.defense > oldDefense) {
+    highlightStats();
+  }
+}
+
+function highlightStats() {
+  const statItems = document.querySelectorAll('.stat-item');
+  statItems.forEach(item => {
+    item.classList.add('highlight');
+    setTimeout(() => item.classList.remove('highlight'), 500);
+  });
+}
+
+function updateStats() {
+  document.getElementById('hpValue').textContent = `${gameState.hp}/${gameState.maxHp}`;
+  document.getElementById('goldValue').textContent = gameState.gold;
+  document.getElementById('waveValue').textContent = gameState.wave;
+  
+  // 更新属性面板
+  document.getElementById('atkValue').textContent = gameState.attack;
+  document.getElementById('defValue').textContent = gameState.defense;
+  document.getElementById('spdValue').textContent = gameState.speed.toFixed(2) + 'x';
+  document.getElementById('healValue').textContent = Math.floor(gameState.healPerTurn);
+}
+
+// ============ 战斗系统 ============
+function startBattle() {
+  if (isBattling) return;
+  
+  // 移除战斗按钮高亮
+  document.getElementById('battleControlBtn').classList.remove('highlight');
+  
+  isBattling = true;
+  battlePanel.classList.add('visible');
+  inventoryPanel.classList.remove('visible');
+  isInventoryOpen = false;
+  
+  // 选择敌人
+  const availableEnemies = enemyDatabase.filter(e => e.wave <= gameState.wave);
+  const enemy = {...availableEnemies[availableEnemies.length - 1]};
+  const maxEnemyHp = enemy.hp;
+  
+  document.getElementById('enemyAvatar').textContent = enemy.icon;
+  document.getElementById('enemyName').textContent = enemy.name;
+  document.getElementById('playerHpText').textContent = `${gameState.hp}/${gameState.maxHp}`;
+  document.getElementById('enemyHpText').textContent = `${enemy.hp}/${maxEnemyHp}`;
+  document.getElementById('battleLog').innerHTML = '';
+  document.getElementById('battleResult').style.display = 'none';
+  document.getElementById('battleRewards').style.display = 'none';
+  document.getElementById('closeBattleBtn').style.display = 'none';
+  
+  let playerHp = gameState.hp;
+  let enemyHp = enemy.hp;
+  
+  const battleInterval = setInterval(() => {
+    const log = document.getElementById('battleLog');
+    const playerAvatar = document.getElementById('playerAvatar');
+    const enemyAvatar = document.getElementById('enemyAvatar');
+    
+    // 玩家攻击
+    let playerDamage = Math.max(1, gameState.attack - Math.floor(enemy.defense || 0));
+    let isCrit = Math.random() < gameState.critChance;
+    if (isCrit) playerDamage = Math.floor(playerDamage * 2);
+    
+    enemyHp -= playerDamage;
+    playerAvatar.classList.add('attacking');
+    setTimeout(() => playerAvatar.classList.remove('attacking'), 300);
+    
+    const critText = isCrit ? '【暴击】' : '';
+    log.innerHTML += `<div class="log-entry ${isCrit ? 'log-crit' : 'log-damage'}">
+      ${critText}你造成了 ${playerDamage} 点伤害！
+    </div>`;
+    
+    // 更新敌人血条
+    const enemyHpPercent = Math.max(0, (enemyHp / maxEnemyHp) * 100);
+    document.getElementById('enemyHpFill').style.width = enemyHpPercent + '%';
+    document.getElementById('enemyHpText').textContent = `${Math.max(0, enemyHp)}/${maxEnemyHp}`;
+    
+    // 检查敌人死亡
+    if (enemyHp <= 0) {
+      clearInterval(battleInterval);
+      endBattle(true, enemy);
+      return;
+    }
+    
+    // 敌人攻击
+    let enemyDamage = Math.max(1, enemy.attack - Math.floor(gameState.defense));
+    playerHp -= enemyDamage;
+    enemyAvatar.classList.add('attacking');
+    setTimeout(() => enemyAvatar.classList.remove('attacking'), 300);
+    
+    log.innerHTML += `<div class="log-entry log-enemy">
+      ${enemy.name}造成了 ${enemyDamage} 点伤害！
+    </div>`;
+    
+    // 玩家治疗
+    if (gameState.healPerTurn > 0) {
+      const healAmount = Math.floor(gameState.healPerTurn);
+      playerHp = Math.min(gameState.maxHp, playerHp + healAmount);
+      log.innerHTML += `<div class="log-entry log-heal">
+        💊 药水恢复了 ${healAmount} 点生命！
+      </div>`;
+    }
+    
+    // 更新玩家血条
+    const playerHpPercent = Math.max(0, (playerHp / gameState.maxHp) * 100);
+    document.getElementById('playerHpFill').style.width = playerHpPercent + '%';
+    document.getElementById('playerHpText').textContent = `${Math.max(0, Math.floor(playerHp))}/${gameState.maxHp}`;
+    gameState.hp = Math.max(0, Math.floor(playerHp));
+    updateStats();
+    
+    // 检查玩家死亡
+    if (playerHp <= 0) {
+      clearInterval(battleInterval);
+      endBattle(false, enemy);
+      return;
+    }
+    
+    log.scrollTop = log.scrollHeight;
+  }, 800 / gameState.speed);
+}
+
+function endBattle(victory, enemy) {
+  const result = document.getElementById('battleResult');
+  const rewards = document.getElementById('battleRewards');
+  
+  result.style.display = 'block';
+  
+  if (victory) {
+    result.className = 'battle-result victory';
+    result.textContent = '🎉 胜利！';
+    
+    // 计算奖励
+    const goldReward = 10 + gameState.wave * 5;
+    gameState.gold += goldReward;
+    gameState.wave++;
+    
+    rewards.style.display = 'block';
+    document.getElementById('rewardItems').innerHTML = `
+      <div class="reward-item">
+        <span class="icon">💰</span>
+        <span class="amount">+${goldReward}</span>
+      </div>
+      <div class="reward-item">
+        <span class="icon">🏆</span>
+        <span class="amount">波次 ${gameState.wave}</span>
+      </div>
+    `;
+    
+    // 恢复生命
+    gameState.hp = gameState.maxHp;
+    
+    // 刷新商店
+    generateShopItems();
+    renderShopItems();
+    
+    // 更新提示
+    updateQuickTip();
+  } else {
+    result.className = 'battle-result defeat';
+    result.textContent = '💀 失败...';
+    
+    // 惩罚
+    gameState.gold = Math.max(0, gameState.gold - 10);
+    gameState.hp = gameState.maxHp;
+    gameState.wave = Math.max(1, gameState.wave - 1 > 0 ? gameState.wave - 1 : 1);
+    
+    rewards.style.display = 'block';
+    document.getElementById('rewardItems').innerHTML = `
+      <div class="reward-item">
+        <span class="icon">💔</span>
+        <span class="amount">生命已恢复</span>
+      </div>
+    `;
+  }
+  
+  updateStats();
+  document.getElementById('closeBattleBtn').style.display = 'block';
+}
+
+function closeBattle() {
+  battlePanel.classList.remove('visible');
+  isBattling = false;
+  
+  // 自动打开背包方便继续装备
+  setTimeout(() => {
+    toggleInventory();
+  }, 200);
+}
+
+// ============ UI 控制 ============
+function toggleInventory() {
+  isInventoryOpen = !isInventoryOpen;
+  if (isInventoryOpen) {
+    inventoryPanel.classList.add('visible');
+    updateMergeButton();
+    updateQuickTip();
+  } else {
+    inventoryPanel.classList.remove('visible');
+  }
+}
+
+function showNotification(message, type = 'info') {
+  notification.textContent = message;
+  notification.className = type;
+  notification.classList.add('show');
+  setTimeout(() => {
+    notification.classList.remove('show');
+  }, 2500);
+}
+
+// ============ 键盘监听 ============
+function setupKeyboardListeners() {
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyB') {
+      toggleInventory();
+    }
+    if (e.code === 'Space' && !isBattling) {
+      e.preventDefault();
+      startBattle();
+    }
+    if (e.code === 'KeyH') {
+      startTutorial();
+    }
+    if (e.code === 'Escape') {
+      if (isInventoryOpen) toggleInventory();
+      if (battlePanel.classList.contains('visible')) closeBattle();
+    }
+  });
+}
+
+// ============ 游戏主循环 ============
+let lastTime = 0;
+let animationTime = 0;
+
+function gameLoop(timestamp) {
+  const deltaTime = (timestamp - lastTime) / 1000;
+  lastTime = timestamp;
+  animationTime += deltaTime;
+  
+  // 绘制游戏画面
+  drawGame(animationTime);
+  
+  requestAnimationFrame(gameLoop);
+}
+
+// ============ 绘制角色与背包的集成显示 ============
+function drawGame(time) {
+  const w = canvas.width;
+  const h = canvas.height;
+  
+  // 背景
+  const gradient = ctx.createLinearGradient(0, 0, 0, h);
+  gradient.addColorStop(0, '#0f0c29');
+  gradient.addColorStop(0.5, '#302b63');
+  gradient.addColorStop(1, '#24243e');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, w, h);
+  
+  // 星星
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+  for (let i = 0; i < 50; i++) {
+    const x = (i * 37 + time * 10) % w;
+    const y = (i * 23) % (h * 0.6);
+    const size = (Math.sin(time * 2 + i) + 1) * 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // 地面
+  const groundY = h * 0.75;
+  const groundGradient = ctx.createLinearGradient(0, groundY, 0, h);
+  groundGradient.addColorStop(0, '#1a1a2e');
+  groundGradient.addColorStop(1, '#0d0d1a');
+  ctx.fillStyle = groundGradient;
+  ctx.fillRect(0, groundY, w, h - groundY);
+  
+  // 草地纹理
+  ctx.strokeStyle = 'rgba(0, 212, 255, 0.3)';
+  ctx.lineWidth = 2;
+  for (let x = 0; x < w; x += 20) {
+    const grassHeight = 5 + Math.sin(x * 0.1 + time * 3) * 3;
+    ctx.beginPath();
+    ctx.moveTo(x, groundY);
+    ctx.lineTo(x + 5, groundY - grassHeight);
+    ctx.stroke();
+  }
+  
+  // ==================== 玩家角色与背包集成 ====================
+  const playerX = w * 0.2;
+  const playerY = groundY - 50;
+  const bobY = Math.sin(time * 5) * 3;
+  
+  // 获取背包信息
+  const itemCount = getBackpackItemCount();
+  const highestRarity = getHighestRarity();
+  const weapons = getBackpackWeapons();
+  const armors = getBackpackArmors();
+  
+  // 根据最高稀有度确定发光颜色
+  const rarityGlowColors = {
+    common: 'rgba(255, 255, 255, 0.2)',
+    rare: 'rgba(33, 150, 243, 0.4)',
+    epic: 'rgba(156, 39, 176, 0.5)',
+    legendary: 'rgba(255, 152, 0, 0.6)'
+  };
+  
+  // 角色底部光环（根据装备稀有度）
+  if (itemCount > 0) {
+    const glowColor = rarityGlowColors[highestRarity];
+    const glowRadius = 40 + itemCount * 3;
+    
+    // 绘制光环
+    const glowGradient = ctx.createRadialGradient(playerX, playerY + 20, 0, playerX, playerY + 20, glowRadius);
+    glowGradient.addColorStop(0, glowColor);
+    glowGradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = glowGradient;
+    ctx.beginPath();
+    ctx.ellipse(playerX, playerY + 20, glowRadius, glowRadius * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // ==================== 绘制背包（在角色背后）====================
+  const backpackX = playerX + 25;
+  const backpackY = playerY - 25 + bobY;
+  const backpackBounce = Math.sin(time * 3) * 2;
+  
+  // 背包阴影
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(backpackX + 5, backpackY + 35, 25, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // 背包本体
+  ctx.font = '40px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🎒', backpackX, backpackY + backpackBounce);
+  
+  // 背包容量指示器
+  const capacityText = `${itemCount}/${BACKPACK_SIZE}`;
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillStyle = itemCount >= BACKPACK_SIZE ? '#f44336' : '#00d4ff';
+  ctx.fillText(capacityText, backpackX, backpackY + 55);
+  
+  // 背包满时闪烁警告
+  if (itemCount >= BACKPACK_SIZE) {
+    ctx.fillStyle = `rgba(244, 67, 54, ${0.3 + Math.sin(time * 5) * 0.2})`;
+    ctx.beginPath();
+    ctx.arc(backpackX, backpackY + 20, 30, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // ==================== 绘制玩家角色 ====================
+  ctx.font = '50px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🧙', playerX, playerY + bobY);
+  
+  // ==================== 绘制装备环绕效果 ====================
+  // 在角色周围显示已装备物品的小图标
+  const equippedItems = backpack.filter(item => item !== null);
+  const orbitRadius = 55;
+  
+  equippedItems.forEach((item, index) => {
+    const angle = (time * 0.5) + (index * (Math.PI * 2 / equippedItems.length));
+    const itemX = playerX + Math.cos(angle) * orbitRadius;
+    const itemY = playerY - 10 + Math.sin(angle) * (orbitRadius * 0.4) + bobY;
+    
+    // 物品图标（较小）
+    ctx.font = '16px serif';
+    ctx.globalAlpha = 0.7;
+    ctx.fillText(item.icon, itemX, itemY);
+    ctx.globalAlpha = 1;
+  });
+  
+  // ==================== 武器显示（在角色手中）====================
+  if (weapons.length > 0) {
+    const weapon = weapons[0];
+    const weaponX = playerX - 35;
+    const weaponY = playerY - 10 + bobY;
+    const weaponSwing = Math.sin(time * 2) * 5;
+    
+    ctx.font = '24px serif';
+    ctx.save();
+    ctx.translate(weaponX, weaponY);
+    ctx.rotate(weaponSwing * Math.PI / 180);
+    ctx.fillText(weapon.icon, 0, 0);
+    ctx.restore();
+  }
+  
+  // ==================== 盾牌显示（在角色另一侧）====================
+  if (armors.length > 0) {
+    const armor = armors[0];
+    const shieldX = playerX + 35;
+    const shieldY = playerY - 5 + bobY;
+    
+    ctx.font = '22px serif';
+    ctx.fillText(armor.icon, shieldX, shieldY);
+  }
+  
+  // ==================== 角色属性面板 ====================
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.roundRect(playerX - 50, playerY + 20, 100, 85, 8);
+  ctx.fill();
+  
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(`🧙 玩家`, playerX - 42, playerY + 38);
+  ctx.fillStyle = '#ff6464';
+  ctx.fillText(`⚔️ ATK: ${gameState.attack}`, playerX - 42, playerY + 55);
+  ctx.fillStyle = '#6496ff';
+  ctx.fillText(`🛡️ DEF: ${gameState.defense}`, playerX - 42, playerY + 70);
+  ctx.fillStyle = '#64ff82';
+  ctx.fillText(`💨 SPD: ${gameState.speed.toFixed(2)}x`, playerX - 42, playerY + 85);
+  ctx.fillStyle = '#ffd700';
+  ctx.fillText(`💥 CRIT: ${Math.floor(gameState.critChance * 100)}%`, playerX - 42, playerY + 100);
+  
+  // ==================== 背包状态指示 ====================
+  // 在角色头顶显示背包状态
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#00d4ff';
+  ctx.fillText(`🎒 背包: ${itemCount}/${BACKPACK_SIZE}`, playerX, playerY - 55);
+  
+  // 如果有可合并的物品，显示提示
+  let canMergeAny = false;
+  for (let i = 0; i < BACKPACK_SIZE && !canMergeAny; i++) {
+    for (let j = i + 1; j < BACKPACK_SIZE && !canMergeAny; j++) {
+      if (backpack[i] && backpack[j] && 
+          backpack[i].id === backpack[j].id && 
+          backpack[i].rarity === backpack[j].rarity) {
+        canMergeAny = true;
+      }
+    }
+  }
+  
+  if (canMergeAny) {
+    ctx.fillStyle = `rgba(156, 39, 176, ${0.7 + Math.sin(time * 3) * 0.3})`;
+    ctx.fillText('✨ 可合成！', playerX, playerY - 70);
+  }
+  
+  // ==================== 敌人显示 ====================
+  const enemy = enemyDatabase[Math.min(gameState.wave - 1, enemyDatabase.length - 1)];
+  const enemyX = w * 0.8;
+  const enemyY = groundY - 50;
+  
+  ctx.font = '50px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(enemy.icon, enemyX, enemyY + bobY);
+  
+  // 敌人属性面板
+  ctx.fillStyle = 'rgba(50, 0, 0, 0.6)';
+  ctx.roundRect(enemyX - 50, enemyY + 20, 100, 65, 8);
+  ctx.fill();
+  
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillStyle = '#ff8a80';
+  ctx.fillText(enemy.name, enemyX - 42, enemyY + 38);
+  ctx.fillStyle = '#f44336';
+  ctx.textAlign = 'left';
+  ctx.fillText(`❤️ HP: ${enemy.hp}`, enemyX - 42, enemyY + 55);
+  ctx.fillStyle = '#ff5722';
+  ctx.fillText(`⚔️ ATK: ${enemy.attack}`, enemyX - 42, enemyY + 70);
+  ctx.fillStyle = '#ffa726';
+  ctx.fillText(`🏆 波次: ${enemy.wave}`, enemyX - 42, enemyY + 85);
+  
+  // ==================== VS 文字 ====================
+  ctx.font = 'bold 32px sans-serif';
+  ctx.fillStyle = '#ffd700';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
+  ctx.shadowBlur = 15;
+  ctx.fillText('VS', w / 2, playerY);
+  ctx.shadowBlur = 0;
+  
+  // ==================== 中央提示 ====================
+  ctx.font = '14px sans-serif';
+  ctx.fillStyle = 'rgba(0, 212, 255, 0.8)';
+  ctx.fillText('按 B 打开背包 | 空格 开始战斗', w / 2, groundY + 30);
+  
+  // 波次指示器
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillStyle = '#00d4ff';
+  ctx.fillText(`第 ${gameState.wave} 波`, w / 2, groundY + 50);
+  
+  // ==================== 装备统计面板（右上角）====================
+  const statsX = w - 120;
+  const statsY = 20;
+  
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.roundRect(statsX - 10, statsY, 130, 100, 8);
+  ctx.fill();
+  
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#00d4ff';
+  ctx.fillText('📦 装备统计', statsX, statsY + 18);
+  
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '#ff6464';
+  ctx.fillText(`⚔️ 武器: ${weapons.length}`, statsX, statsY + 38);
+  ctx.fillStyle = '#6496ff';
+  ctx.fillText(`🛡️ 防具: ${armors.length}`, statsX, statsY + 55);
+  ctx.fillStyle = '#64ff82';
+  ctx.fillText(`💊 药水: ${backpack.filter(i => i && i.type === 'potion').length}`, statsX, statsY + 72);
+  ctx.fillStyle = '#c882ff';
+  ctx.fillText(`👟 饰品: ${backpack.filter(i => i && i.type === 'accessory').length}`, statsX, statsY + 89);
+}
+
+// Canvas roundRect polyfill
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+  CanvasRenderingContext2D.prototype.roundRect = function(x, y, w, h, r) {
+    if (w < 2 * r) r = w / 2;
+    if (h < 2 * r) r = h / 2;
+    this.beginPath();
+    this.moveTo(x + r, y);
+    this.arcTo(x + w, y, x + w, y + h, r);
+    this.arcTo(x + w, y + h, x, y + h, r);
+    this.arcTo(x, y + h, x, y, r);
+    this.arcTo(x, y, x + w, y, r);
+    this.closePath();
+    return this;
+  };
+}
+
+// 启动游戏
+init();
+</script>
+</body>
+</html>

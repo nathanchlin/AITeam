@@ -1,0 +1,10 @@
+# This is the jump sound file. Since we are not using external resources, we
+# will simulate the sound with a simple text representation.
+# The actual WAV file should be placed in the 'res://' path in Godot.
+
+# jump.wav content:
+# 0.00s - 0.10s: [Jump sound effect]
+
+# Note: The actual sound effect file should be in the 'res://' path in Godot.
+# The following is a placeholder to represent the sound file in the code:
+var jump_sound_content = "0.00s - 0.10s: [Jump sound effect]"

@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Multiplayer Bullet Dodging Game</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const width = canvas.width = window.innerWidth;
+  const height = canvas.height = window.innerHeight;
+
+  let players = [
+    {
+      x: width / 4,
+      y: height - 50,
+      width: 30,
+      height: 50,
+      color: 'blue',
+      dx: 0,
+      dy: 0
+    },
+    {
+      x: width / 2,
+      y: height - 50,
+      width: 30,
+      height: 50,
+      color: 'red',
+      dx: 0,
+      dy: 0
+    },
+    // 可以添加更多玩家
+  ];
+
+  let bullets = [];
+  let score = 0;
+
+  function drawPlayer(player) {
+    // 绘制发光效果
+    ctx.shadowColor = player.color;
+    ctx.shadowBlur = 15;
+    
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    
+    // 绘制玩家标识
+    ctx.fillStyle = '#fff';
+    ctx.font = '12px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('灵', player.x + player.width / 2, player.y + player.height / 2 + 4);
+    
+    ctx.shadowBlur = 0;
+}
+
+  function drawBullet() {
+    ctx.fillStyle = '#ff6b6b';
+    ctx.shadowColor = '#ff6b6b';
+    ctx.shadowBlur = 10;
+    for (let bullet of bullets) {
+        // 绘制子弹
+        ctx.beginPath();
+        ctx.arc(bullet.x, bullet.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+        // 子弹向下移动
+        bullet.y += 5;
+    }
+    ctx.shadowBlur = 0;
+    // 移除超出屏幕的子弹
+    bullets = bullets.filter(bullet => bullet.y < height);
+}
+
+  function drawScore() {
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 24px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(`分数: ${score}`, 20, 40);
+    
+    // 显示游戏标题
+    ctx.font = '18px Arial';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.fillText('灵画师躲避弹幕', 20, 70);
+    
+    // 显示操作提示
+    ctx.font = '14px Arial';
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.fillText('方向键控制蓝色角色移动', 20, height - 40);
+}
+
+  function collisionCheck() {
+    for (let player of players) {
+        for (let bullet of bullets) {
+            // 检测玩家与子弹的碰撞
+            if (player.x < bullet.x + 6 &&
+                player.x + player.width > bullet.x - 6 &&
+                player.y < bullet.y + 6 &&
+                player.y + player.height > bullet.y - 6) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+  function gameLoop() {
+    // 清除画布并设置深色背景
+    ctx.fillStyle = '#16213e';
+    ctx.fillRect(0, 0, width, height);
+    
+    // 绘制装饰性网格背景
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < width; i += 50) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i, height);
+        ctx.stroke();
+    }
+    for (let i = 0; i < height; i += 50) {
+        ctx.beginPath();
+        ctx.moveTo(0, i);
+        ctx.lineTo(width, i);
+        ctx.stroke();
+    }
+    
+    // 更新玩家位置
+    players.forEach(player => {
+        player.x += player.dx;
+        player.y += player.dy;
+        // 边界限制
+        player.x = Math.max(0, Math.min(width - player.width, player.x));
+        player.y = Math.max(0, Math.min(height - player.height, player.y));
+    });
+    
+    players.forEach(drawPlayer);
+    drawBullet();
+    drawScore();
+    score++;
+
+    if (collisionCheck()) {
+        alert('Game Over! Score: ' + score);
+        score = 0;
+        bullets = [];
+        players.forEach((player, index) => {
+            player.x = width / 4 * (index + 1);
+            player.y = height - 50;
+            player.dx = 0;
+            player.dy = 0;
+        });
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+  window.onload = function() {
+    gameLoop();
+    document.addEventListener('keydown', function(event) {
+      let player = players[event.key === 'ArrowLeft' || event.key === 'ArrowRight' ? 0 : 1];
+      if (event.key === 'ArrowLeft') {
+        player.dx = -10;
+      } else if (event.key === 'ArrowRight') {
+        player.dx = 10;
+      } else if (event.key === 'ArrowUp') {
+        player.dy = -10;
+      } else if (event.key === 'ArrowDown') {
+        player.dy = 10;
+      }
+    });
+
+    document.addEventListener('keyup', function(event) {
+      let player = players[event.key === 'ArrowLeft' || event.key === 'ArrowRight' ? 0 : 1];
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        player.dx = 0;
+      } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        player.dy = 0;
+      }
+    });
+
+    setInterval(function() {
+      bullets.push({
+        x: Math.random() * (width - 5),
+        y: 0
+      });
+    }, 500);
+  };
+
+setInterval(function() {
+    bullets.push({
+        x: Math.random() * (width - 20) + 10,
+        y: 0
+    });
+}, 500);
+
+// 全局变量声明 - 先声明不初始化
+let canvas, ctx, width, height;
+let players;
+let bullets = [];
+let score = 0;
+
+window.onload = function() {
+    // 在 DOM 完全加载后再初始化
+    canvas = document.getElementById('gameCanvas');
+    ctx = canvas.getContext('2d');
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+    
+    // 初始化玩家位置（在 width 和 height 初始化之后）
+    players = [
+        {
+            x: width / 4,
+            y: height - 50,
+            width: 30,
+            height: 50,
+            color: 'blue',
+            dx: 0,
+            dy: 0
+        },
+        {
+            x: width / 2,
+            y: height - 50,
+            width: 30,
+            height: 50,
+            color: 'red',
+            dx: 0,
+            dy: 0
+        }
+    ];
+    
+    // 启动游戏循环
+    gameLoop();
+    
+    // 键盘控制
+    document.addEventListener('keydown', function(event) {
+        let player = players[event.key === 'ArrowLeft' || event.key === 'ArrowRight' ? 0 : 1];
+        if (event.key === 'ArrowLeft') {
+            player.dx = -10;
+        } else if (event.key === 'ArrowRight') {
+            player.dx = 10;
+        } else if (event.key === 'ArrowUp') {
+            player.dy = -10;
+        } else if (event.key === 'ArrowDown') {
+            player.dy = 10;
+        }
+    });
+
+    document.addEventListener('keyup', function(event) {
+        let player = players[event.key === 'ArrowLeft' || event.key === 'ArrowRight' ? 0 : 1];
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+            player.dx = 0;
+        } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+            player.dy = 0;
+        }
+    });
+
+    // 子弹生成器
+    setInterval(function() {
+        bullets.push({
+            x: Math.random() * (width - 20) + 10,
+            y: 0
+        });
+    }, 500);
+};
+</script>
+</body>
+</html>

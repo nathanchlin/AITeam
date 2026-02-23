@@ -1,0 +1,6 @@
+extends Project
+
+func _ready():
+    $MainScene = load("res://main.tscn")
+    add_scene($MainScene)
+    current_scene = $MainScene

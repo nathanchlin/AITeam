@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jump Game</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { 
+    overflow: hidden; 
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #1a1a2e;
+  }
+  canvas { 
+    display: block; 
+  }
+  #overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 10;
+  }
+  #overlay.hidden {
+    display: none;
+  }
+  #overlay h1 {
+    color: #00d9ff;
+    font-size: 64px;
+    margin-bottom: 20px;
+    text-shadow: 0 0 20px rgba(0, 217, 255, 0.5);
+  }
+  #overlay h2 {
+    color: #ff6b6b;
+    font-size: 48px;
+    margin-bottom: 20px;
+  }
+  #overlay p {
+    color: #ffffff;
+    font-size: 24px;
+    margin-bottom: 30px;
+  }
+  #overlay .final-score {
+    color: #ffd93d;
+    font-size: 32px;
+    margin-bottom: 20px;
+  }
+  #overlay .hint {
+    color: #aaaaaa;
+    font-size: 18px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+  #scoreDisplay {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: #ffffff;
+    font-size: 28px;
+    font-weight: bold;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    z-index: 5;
+  }
+  #highScoreDisplay {
+    position: absolute;
+    top: 55px;
+    left: 20px;
+    color: #ffd93d;
+    font-size: 18px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    z-index: 5;
+  }
+  #versionDisplay {
+    position: absolute;
+    bottom: 10px;
+    left: 20px;
+    color: #666;
+    font-size: 12px;
+    z-index: 5;
+  }
+  #debugPanel {
+    position: absolute;
+    top: 90px;
+    left: 20px;
+    color: #00ff00;
+    font-size: 12px;
+    font-family: monospace;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 10px;
+    border-radius: 5px;
+    border: 1px solid #333;
+    z-index: 5;
+    display: none;
+    max-width: 220px;
+  }
+  #debugPanel.visible {
+    display: block;
+  }
+  #debugPanel h3 {
+    color: #00d9ff;
+    margin-bottom: 8px;
+    font-size: 14px;
+  }
+  #changeLog {
+    position: absolute;
+    bottom: 10px;
+    right: 20px;
+    color: #666;
+    font-size: 11px;
+    text-align: right;
+    z-index: 5;
+    max-width: 250px;
+  }
+  #changeLog .log-title {
+    color: #888;
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+  #changeLog .log-item {
+    margin: 2px 0;
+  }
+  #controls {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: #555;
+    font-size: 12px;
+    text-align: right;
+    z-index: 5;
+  }
+  #fpsDisplay {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #00ff00;
+    font-size: 14px;
+    font-family: monospace;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 5px 10px;
+    border-radius: 3px;
+    z-index: 5;
+  }
+  #fpsDisplay.warning {
+    color: #ffaa00;
+  }
+  #fpsDisplay.critical {
+    color: #ff0000;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="fpsDisplay">FPS: --</div>
+<div id="scoreDisplay">Score: 0</div>
+<div id="highScoreDisplay">Best: 0</div>
+<div id="versionDisplay">v1.2.0 | Build: 2024</div>
+<div id="debugPanel">
+  <h3>DEBUG MODE</h3>
+  <div id="debugInfo">Loading...</div>
+</div>
+<div id="changeLog">
+  <div class="log-title">v1.2.0 Changelog:</div>
+  <div class="log-item">- Fixed rendering visibility issue</div>
+  <div class="log-item">- Added FPS monitor display</div>
+  <div class="log-item">- Added slow-motion mode (S key)</div>
+  <div class="log-item">- Improved initialization timing</div>
+</div>
+<div id="controls">
+  <div>SPACE: Jump | D: Debug | S: Slow-Mo</div>
+</div>
+<div id="overlay">
+  <h1>JUMP GAME</h1>
+  <p>Avoid the red obstacles!</p>
+  <p class="hint">Press SPACE to Start</p>
+</div>
+
+<script>
+  // ============================================
+  // 版本控制系统 - Version Control System
+  // ============================================
+  const VERSION = {
+    major: 1,
+    minor: 2,
+    patch: 0,
+    get full() { return `v${this.major}.${this.minor}.${this.patch}`; },
+    buildDate: '2024',
+    author: '2D/3D Character Artist',
+    changes: [
+      '[FIX] Rendering visibility issue resolved',
+      '[ADD] FPS monitor with frame time analysis',
+      '[ADD] Slow-motion mode for animation review',
+      '[FIX] Initialization timing and sequence'
+    ]
+  };
+
+  // ============================================
+  // DOM 元素引用 - DOM Element References
+  // ============================================
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const overlay = document.getElementById('overlay');
+  const scoreDisplay = document.getElementById('scoreDisplay');
+  const highScoreDisplay = document.getElementById('highScoreDisplay');
+  const debugPanel = document.getElementById('debugPanel');
+  const debugInfo = document.getElementById('debugInfo');
+  const versionDisplay = document.getElementById('versionDisplay');
+  const fpsDisplay = document.getElementById('fpsDisplay');
+
+  // 更新版本显示
+  versionDisplay.textContent = `${VERSION.full} | Build: ${VERSION.buildDate}`;
+
+  // ============================================
+  // 画布尺寸设置 - Canvas Size Setup
+  // ============================================
+  function resizeCanvas() {
+    const prevWidth = canvas.width;
+    const prevHeight = canvas.height;
+    
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    
+    // 更新地面位置
+    ground.y = canvas.height - 50;
+    ground.width = canvas.width;
+    
+    // 更新玩家位置（只在游戏未开始或重置时）
+    if (gameState === 'waiting' || prevHeight === 0) {
+      player.y = ground.y - player.height;
+    }
+    
+    // 立即重新渲染
+    if (isInitialized) {
+      render();
+    }
+  }
+  
+  // 立即设置初始画布尺寸
+  canvas.width = window.innerWidth || 800;
+  canvas.height = window.innerHeight || 600;
+
+  // ============================================
+  // 游戏状态变量 - Game State Variables
+  // ============================================
+  let gameState = 'waiting'; // 'waiting', 'playing', 'gameover'
+  let animationId = null;
+  let obstacleTimer = 0;
+  let obstacleInterval = 100;
+  let jumpCount = 0;
+  const maxJumps = 2;
+  let debugMode = false;
+  let slowMotionMode = false;
+  let slowMotionFactor = 0.25;
+  
+  // 帧率监控
+  let lastFrameTime = performance.now();
+  let frameCount = 0;
+  let fps = 60;
+  let frameTime = 16.67;
+  let fpsUpdateTime = 0;
+  
+  // 动画时间累积器（用于慢动作）
+  let accumulator = 0;
+  const fixedDeltaTime = 1000 / 60; // 16.67ms
+  
+  // 初始化标志
+  let isInitialized = false;
+
+  // ============================================
+  // 玩家对象 - Player Object
+  // ============================================
+  const player = {
+    x: 100,
+    y: 0, // 将在初始化时设置
+    width: 50,
+    height: 50,
+    gravity: 0.6,
+    jumpHeight: -14,
+    velocityY: 0,
+    score: 0,
+    isOnGround: true,
+    color: '#4ecdc4'
+  };
+
+  // ============================================
+  // 地面对象 - Ground Object
+  // ============================================
+  const ground = {
+    x: 0,
+    y: 0, // 将在初始化时设置
+    width: canvas.width,
+    height: 50,
+    color: '#2d5a27'
+  };
+
+  // 障碍物数组
+  let obstacles = [];
+
+  // 高分记录
+  let highScore = parseInt(localStorage.getItem('highScore')) || 0;
+  highScoreDisplay.textContent = `Best: ${highScore}`;
+
+  // 粒子效果数组
+  let particles = [];
+
+  // ============================================
+  // 帧率监控函数 - FPS Monitor Functions
+  // ============================================
+  function updateFPS(currentTime) {
+    frameCount++;
+    const elapsed = currentTime - fpsUpdateTime;
+    
+    if (elapsed >= 500) { // 每500ms更新一次显示
+      fps = Math.round((frameCount * 1000) / elapsed);
+      frameTime = elapsed / frameCount;
+      frameCount = 0;
+      fpsUpdateTime = currentTime;
+      
+      // 更新FPS显示
+      fpsDisplay.textContent = `FPS: ${fps} (${frameTime.toFixed(1)}ms)`;
+      
+      // 根据帧率设置颜色
+      fpsDisplay.classList.remove('warning', 'critical');
+      if (fps < 30) {
+        fpsDisplay.classList.add('critical');
+      } else if (fps < 50) {
+        fpsDisplay.classList.add('warning');
+      }
+    }
+  }
+
+  // ============================================
+  // 绘制函数 - Drawing Functions
+  // ============================================
+  
+  // 绘制背景
+  function drawBackground() {
+    // 确保画布尺寸有效
+    if (canvas.width <= 0 || canvas.height <= 0) return;
+    
+    const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    gradient.addColorStop(0, '#1a1a2e');
+    gradient.addColorStop(0.5, '#16213e');
+    gradient.addColorStop(1, '#0f3460');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // 星星 - 使用固定种子的伪随机
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    for (let i = 0; i < 50; i++) {
+      const x = (i * 137 + 50) % canvas.width;
+      const y = (i * 97 + 30) % (canvas.height - 100);
+      ctx.beginPath();
+      ctx.arc(x, y, 1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    
+    // 调试模式：显示慢动作指示
+    if (slowMotionMode) {
+      ctx.fillStyle = 'rgba(255, 170, 0, 0.3)';
+      ctx.fillRect(0, 0, canvas.width, 5);
+      ctx.font = '16px monospace';
+      ctx.fillStyle = '#ffaa00';
+      ctx.fillText(`SLOW-MO: ${slowMotionFactor}x`, 10, 25);
+    }
+  }
+
+  // 绘制玩家
+  function drawPlayer() {
+    // 确保玩家位置有效
+    if (!isFinite(player.x) || !isFinite(player.y)) return;
+    
+    // 玩家身体
+    ctx.fillStyle = player.color;
+    ctx.shadowColor = '#00d9ff';
+    ctx.shadowBlur = player.isOnGround ? 0 : 15;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    ctx.shadowBlur = 0;
+    
+    // 眼睛
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(player.x + 32, player.y + 12, 10, 10);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(player.x + 36, player.y + 14, 5, 5);
+    
+    // 调试模式：显示碰撞框和详细信息
+    if (debugMode) {
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(player.x, player.y, player.width, player.height);
+      
+      // 显示速度向量
+      ctx.strokeStyle = '#ffff00';
+      ctx.beginPath();
+      ctx.moveTo(player.x + player.width/2, player.y + player.height/2);
+      ctx.lineTo(player.x + player.width/2, player.y + player.height/2 + player.velocityY * 3);
+      ctx.stroke();
+    }
+  }
+
+  // 绘制地面
+  function drawGround() {
+    // 确保地面尺寸有效
+    if (ground.width <= 0 || ground.height <= 0) return;
+    
+    // 主地面
+    ctx.fillStyle = ground.color;
+    ctx.fillRect(ground.x, ground.y, ground.width, ground.height);
+    
+    // 草地纹理
+    ctx.fillStyle = '#3d8b37';
+    ctx.fillRect(ground.x, ground.y, ground.width, 8);
+    
+    // 调试模式：显示地面线
+    if (debugMode) {
+      ctx.strokeStyle = '#ff00ff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, ground.y);
+      ctx.lineTo(canvas.width, ground.y);
+      ctx.stroke();
+    }
+  }
+
+  // 绘制障碍物
+  function drawObstacles() {
+    obstacles.forEach(obstacle => {
+      if (!isFinite(obstacle.x) || !isFinite(obstacle.y)) return;
+      
+      // 障碍物身体
+      ctx.fillStyle = '#e74c3c';
+      ctx.shadowColor = '#ff0000';
+      ctx.shadowBlur = 10;
+      ctx.fillRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+      ctx.shadowBlur = 0;
+      
+      // 危险标记
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(obstacle.x + 5, obstacle.y + 5, obstacle.width - 10, 5);
+      ctx.fillRect(obstacle.x + 5, obstacle.y + obstacle.height - 10, obstacle.width - 10, 5);
+      
+      // 调试模式：显示碰撞框
+      if (debugMode) {
+        ctx.strokeStyle = '#ff0000';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(obstacle.x, obstacle.y, obstacle.width, obstacle.height);
+      }
+    });
+  }
+
+  // 绘制粒子效果
+  function drawParticles() {
+    particles.forEach((p) => {
+      if (p.life > 0) {
+        ctx.fillStyle = `rgba(255, 217, 61, ${p.life})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+  }
+
+  // ============================================
+  // 更新函数 - Update Functions
+  // ============================================
+  
+  // 更新粒子
+  function updateParticles(deltaTime) {
+    const timeScale = deltaTime / 16.67; // 标准化到60fps
+    
+    for (let i = particles.length - 1; i >= 0; i--) {
+      particles[i].x += particles[i].vx * timeScale;
+      particles[i].y += particles[i].vy * timeScale;
+      particles[i].life -= 0.02 * timeScale;
+      if (particles[i].life <= 0) {
+        particles.splice(i, 1);
+      }
+    }
+  }
+
+  // 创建跳跃粒子
+  function createJumpParticles() {
+    for (let i = 0; i < 10; i++) {
+      particles.push({
+        x: player.x + player.width / 2,
+        y: player.y + player.height,
+        vx: (Math.random() - 0.5) * 6,
+        vy: Math.random() * 3,
+        size: Math.random() * 4 + 2,
+        life: 1
+      });
+    }
+  }
+
+  // 生成障碍物
+  function spawnObstacle() {
+    const minHeight = 30;
+    const maxHeight = 70;
+    const height = Math.random() * (maxHeight - minHeight) + minHeight;
+    const width = 30 + Math.random() * 20;
+    
+    obstacles.push({
+      x: canvas.width + 50,
+      y: ground.y - height,
+      width: width,
+      height: height,
+      passed: false
+    });
+  }
+
+  // 碰撞检测
+  function checkCollision(rect1, rect2) {
+    return rect1.x < rect2.x + rect2.width &&
+           rect1.x + rect1.width > rect2.x &&
+           rect1.y < rect2.y + rect2.height &&
+           rect1.y + rect1.height > rect2.y;
+  }
+
+  // 更新调试信息
+  function updateDebugInfo() {
+    if (debugMode) {
+      debugInfo.innerHTML = `
+        <div>State: ${gameState}</div>
+        <div>Player Y: ${Math.round(player.y)}</div>
+        <div>Velocity: ${player.velocityY.toFixed(2)}</div>
+        <div>Ground Y: ${Math.round(ground.y)}</div>
+        <div>OnGround: ${player.isOnGround}</div>
+        <div>JumpCount: ${jumpCount}/${maxJumps}</div>
+        <div>Obstacles: ${obstacles.length}</div>
+        <div>Particles: ${particles.length}</div>
+        <div>Score: ${player.score}</div>
+        <div>FPS: ${fps}</div>
+        <div>FrameTime: ${frameTime.toFixed(2)}ms</div>
+        <div>SlowMo: ${slowMotionMode ? slowMotionFactor + 'x' : 'OFF'}</div>
+        <div>Canvas: ${canvas.width}x${canvas.height}</div>
+      `;
+    }
+  }
+
+  // 更新游戏状态
+  function update(deltaTime) {
+    if (gameState !== 'playing') return;
+
+    // 时间缩放因子
+    const timeScale = deltaTime / 16.67; // 标准化到60fps
+
+    // 应用重力
+    player.velocityY += player.gravity * timeScale;
+    player.y += player.velocityY * timeScale;
+
+    // 地面碰撞
+    if (player.y + player.height >= ground.y) {
+      player.y = ground.y - player.height;
+      player.velocityY = 0;
+      player.isOnGround = true;
+      jumpCount = 0;
+    } else {
+      player.isOnGround = false;
+    }
+
+    // 生成障碍物
+    obstacleTimer += timeScale;
+    if (obstacleTimer >= obstacleInterval) {
+      spawnObstacle();
+      obstacleTimer = 0;
+      obstacleInterval = 80 + Math.random() * 60;
+    }
+
+    // 更新障碍物
+    const obstacleSpeed = 6 * timeScale;
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+      obstacles[i].x -= obstacleSpeed;
+
+      // 碰撞检测
+      if (checkCollision(player, obstacles[i])) {
+        gameOver();
+        return;
+      }
+
+      // 通过障碍物得分
+      if (!obstacles[i].passed && obstacles[i].x + obstacles[i].width < player.x) {
+        obstacles[i].passed = true;
+        player.score += 10;
+        scoreDisplay.textContent = `Score: ${player.score}`;
+        
+        // 得分视觉反馈
+        scoreDisplay.style.transform = 'scale(1.2)';
+        setTimeout(() => {
+          scoreDisplay.style.transform = 'scale(1)';
+        }, 100);
+      }
+
+      // 移除屏幕外的障碍物
+      if (obstacles[i].x + obstacles[i].width < 0) {
+        obstacles.splice(i, 1);
+      }
+    }
+
+    // 更新粒子
+    updateParticles(deltaTime);
+    
+    // 更新调试信息
+    updateDebugInfo();
+  }
+
+  // ============================================
+  // 渲染函数 - Render Function
+  // ============================================
+  function render() {
+    // 清空画布
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 绘制各层
+    drawBackground();
+    drawGround();
+    drawObstacles();
+    drawPlayer();
+    drawParticles();
+  }
+
+  // ============================================
+  // 游戏主循环 - Game Loop
+  // ============================================
+  function gameLoop(currentTime) {
+    // 更新FPS
+    updateFPS(currentTime);
+    
+    // 计算帧时间
+    const deltaTime = currentTime - lastFrameTime;
+    lastFrameTime = currentTime;
+    
+    // 使用固定时间步长更新（支持慢动作）
+    if (slowMotionMode) {
+      accumulator += deltaTime * slowMotionFactor;
+      
+      // 防止累积器过大（防止死亡螺旋）
+      if (accumulator > fixedDeltaTime * 5) {
+        accumulator = fixedDeltaTime * 5;
+      }
+      
+      while (accumulator >= fixedDeltaTime) {
+        update(fixedDeltaTime);
+        accumulator -= fixedDeltaTime;
+      }
+    } else {
+      // 正常速度，但限制最大帧时间
+      const clampedDelta = Math.min(deltaTime, 50); // 最大50ms
+      update(clampedDelta);
+    }
+    
+    // 渲染
+    render();
+    
+    // 继续循环
+    animationId = requestAnimationFrame(gameLoop);
+  }
+
+  // ============================================
+  // 游戏控制函数 - Game Control Functions
+  // ============================================
+  
+  // 开始游戏
+  function startGame() {
+    gameState = 'playing';
+    player.score = 0;
+    player.y = ground.y - player.height;
+    player.velocityY = 0;
+    player.isOnGround = true;
+    obstacles = [];
+    particles = [];
+    obstacleTimer = 0;
+    jumpCount = 0;
+    accumulator = 0;
+    scoreDisplay.textContent = `Score: ${player.score}`;
+    overlay.classList.add('hidden');
+    
+    if (animationId) {
+      cancelAnimationFrame(animationId);
+    }
+    
+    lastFrameTime = performance.now();
+    fpsUpdateTime = lastFrameTime;
+    frameCount = 0;
+    
+    animationId = requestAnimationFrame(gameLoop);
+  }
+
+  // 游戏结束
+  function gameOver() {
+    gameState = 'gameover';
+    
+    // 更新高分
+    if (player.score > highScore) {
+      highScore = player.score;
+      localStorage.setItem('highScore', highScore);
+      highScoreDisplay.textContent = `Best: ${highScore}`;
+    }
+    
+    // 显示结束界面
+    overlay.innerHTML = `
+      <h2>GAME OVER</h2>
+      <div class="final-score">Score: ${player.score}</div>
+      ${player.score >= highScore ? '<p style="color: #ffd93d;">New High Score!</p>' : ''}
+      <p class="hint">Press SPACE to Restart</p>
+    `;
+    overlay.classList.remove('hidden');
+  }
+
+  // 跳跃函数
+  function jump() {
+    if (gameState === 'waiting') {
+      startGame();
+      return;
+    }
+    
+    if (gameState === 'gameover') {
+      startGame();
+      return;
+    }
+    
+    if (gameState === 'playing' && jumpCount < maxJumps) {
+      player.velocityY = player.jumpHeight;
+      jumpCount++;
+      player.isOnGround = false;
+      createJumpParticles();
+    }
+  }
+
+  // 切换调试模式
+  function toggleDebug() {
+    debugMode = !debugMode;
+    if (debugMode) {
+      debugPanel.classList.add('visible');
+      updateDebugInfo();
+    } else {
+      debugPanel.classList.remove('visible');
+    }
+  }
+
+  // 切换慢动作模式
+  function toggleSlowMotion() {
+    slowMotionMode = !slowMotionMode;
+    
+    // 循环切换慢动作倍率
+    if (slowMotionMode) {
+      if (slowMotionFactor === 0.25) {
+        slowMotionFactor = 0.5;
+      } else if (slowMotionFactor === 0.5) {
+        slowMotionFactor = 0.1;
+      } else {
+        slowMotionFactor = 0.25;
+      }
+    }
+    
+    console.log(`Slow Motion: ${slowMotionMode ? slowMotionFactor + 'x' : 'OFF'}`);
+  }
+
+  // ============================================
+  // 事件监听器 - Event Listeners
+  // ============================================
+  document.addEventListener('keydown', function(event) {
+    if (event.code === 'Space') {
+      event.preventDefault();
+      jump();
+    }
+    // 按 D 切换调试模式
+    if (event.code === 'KeyD') {
+      toggleDebug();
+    }
+    // 按 S 切换慢动作模式
+    if (event.code === 'KeyS') {
+      event.preventDefault();
+      toggleSlowMotion();
+    }
+  });
+
+  canvas.addEventListener('click', jump);
+  canvas.addEventListener('touchstart', function(event) {
+    event.preventDefault();
+    jump();
+  });
+
+  window.addEventListener('resize', resizeCanvas);
+
+  // ============================================
+  // 初始化函数 - Initialization Function
+  // ============================================
+  function initGame() {
+    // 防止重复初始化
+    if (isInitialized) {
+      console.log('Game already initialized, skipping...');
+      return;
+    }
+    isInitialized = true;
+    
+    console.log('========================================');
+    console.log(`Jump Game ${VERSION.full}`);
+    console.log(`Build Date: ${VERSION.buildDate}`);
+    console.log('Changes:');
+    VERSION.changes.forEach(change => console.log(`  ${change}`));
+    console.log('========================================');
+    console.log('Controls:');
+    console.log('  SPACE - Jump / Start / Restart');
+    console.log('  D - Toggle Debug Mode');
+    console.log('  S - Toggle Slow Motion');
+    console.log('========================================');
+    
+    // 设置画布尺寸
+    canvas.width = window.innerWidth || 800;
+    canvas.height = window.innerHeight || 600;
+    
+    // 初始化地面位置
+    ground.y = canvas.height - 50;
+    ground.width = canvas.width;
+    
+    // 初始化玩家位置
+    player.y = ground.y - player.height;
+    
+    // 初始化帧率计时器
+    lastFrameTime = performance.now();
+    fpsUpdateTime = lastFrameTime;
+    
+    // 渲染初始画面
+    render();
+    
+    // 验证渲染
+    console.log('Canvas size:', canvas.width, 'x', canvas.height);
+    console.log('Player position:', player.x, player.y);
+    console.log('Ground position:', ground.y);
+    console.log('Initial render complete');
+  }
+
+  // ============================================
+  // 启动游戏 - Start Game
+  // ============================================
+  // 使用 DOMContentLoaded 确保DOM就绪
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initGame);
+  } else {
+    // DOM已经加载完成
+    initGame();
+  }
+</script>
+</body>
+</html>

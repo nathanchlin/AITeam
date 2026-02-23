@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>俄罗斯方块对战游戏</title>
+<style>
+  body {
+    margin: 0;
+    display: flex;
+    justify-content: space-between;
+  }
+  #playerCanvas, #aiCanvas {
+    border: 1px solid black;
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="playerCanvas" width="300" height="600"></canvas>
+<canvas id="aiCanvas" width="300" height="600"></canvas>
+
+<script>
+// 游戏配置
+const blockSize = 30;
+const playerCanvas = document.getElementById('playerCanvas');
+const aiCanvas = document.getElementById('aiCanvas');
+const playerCtx = playerCanvas.getContext('2d');
+const aiCtx = aiCanvas.getContext('2d');
+const playerWidth = playerCanvas.width;
+const playerHeight = playerCanvas.height;
+const aiWidth = aiCanvas.width;
+const aiHeight = aiCanvas.height;
+
+// 玩家与AI的俄罗斯方块逻辑
+class Tetromino {
+  constructor(type, x, y) {
+    this.type = type;
+    this.x = x;
+    this.y = y;
+    this.blocks = this.getBlockCoordinates(type);
+  }
+
+  getBlockCoordinates(type) {
+    const blockPositions = {
+      'I': [[0, 0], [0, 1], [0, 2], [0, 3]],
+      'O': [[0, 0], [0, 1], [1, 0], [1, 1]],
+      'T': [[0, 0], [1, 0], [2, 0], [1, 1]],
+      'S': [[0, 0], [0, 1], [1, 1], [1, 2]],
+      'Z': [[0, 0], [0, 1], [1, 0], [1, 1]],
+      'J': [[0, 0], [1, 0], [2, 0], [2, 1]],
+      'L': [[0, 0], [0, 1], [0, 2], [1, 2]]
+    };
+    return blockPositions[type];
+  }
+
+  draw(context) {
+    this.blocks.forEach(([blockX, blockY]) => {
+      context.fillStyle = 'blue';
+      context.fillRect(this.x + blockX * blockSize, this.y + blockY * blockSize, blockSize, blockSize);
+    });
+  }
+}
+
+class Game {
+  constructor(canvas, ctx) {
+    this.canvas = canvas;
+    this.ctx = ctx;
+    this.currentTetromino = null;
+    this.nextTetromino = null;
+    this.gameOver = false;
+    this.score = 0;
+    this.init();
+  }
+
+  init() {
+    this.newTetromino();
+    this.render();
+  }
+
+  newTetromino() {
+    this.currentTetromino = new Tetromino('I', Math.floor(this.canvas.width / 2) - 1, 0);
+    this.nextTetromino = new Tetromino('O', Math.floor(this.canvas.width / 2) - 1, 0);
+  }
+
+  render() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    if (!this.gameOver) {
+      this.currentTetromino.draw(this.ctx);
+    }
+    this.nextTetromino.draw(this.ctx);
+  }
+}
+
+// 初始化游戏
+const playerGame = new Game(playerCanvas, playerCtx);
+const aiGame = new Game(aiCanvas, aiCtx);
+
+// 游戏循环
+function gameLoop() {
+  if (!playerGame.gameOver && !aiGame.gameOver) {
+    playerGame.render();
+    aiGame.render();
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+window.onload = () => {
+  gameLoop();
+};
+</script>
+</body>
+</html>

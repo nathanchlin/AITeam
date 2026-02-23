@@ -1,0 +1,5 @@
+# project.godot
+ProjectSettings:
+  module:
+    scenes: "main.tscn"
+    resource_path: "res://"

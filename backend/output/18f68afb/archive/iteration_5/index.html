@@ -1,0 +1,1817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tetris Battle - Power Ups Edition</title>
+<style>
+.difficulty-btn.selected .diff-key {
+color: var(--diff-color);
+    background: color-mix(in srgb, var(--diff-color) 15%, transparent);
+}
+.diff-key {
+position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 10px;
+    color: #444;
+    background: rgba(255,255,255,0.05);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+.difficulty-hint {
+font-size: 12px;
+    color: #555;
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+.difficulty-label {
+font-size: 14px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 8px;
+}
+@keyframes iconBounce {
+0% { transform: scale(1); }
+    30% { transform: scale(1.2); }
+    50% { transform: scale(0.95); }
+    70% { transform: scale(1.05); }
+    100% { transform: scale(1.1); }
+}
+.difficulty-btn:active {
+transform: translateY(-1px) scale(0.98);
+    box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.4),
+        inset 0 2px 4px rgba(0, 0, 0, 0.2);
+    transition: all 0.1s ease;
+}
+.difficulty-indicator:hover {
+transform: translateX(-50%) translateY(-2px);
+    box-shadow: 
+        0 8px 20px rgba(0, 0, 0, 0.5),
+        0 0 16px color-mix(in srgb, var(--diff-color) 20%, transparent);
+}
+@keyframes iconPulse {
+0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+.difficulty-btn.selected .diff-icon {
+transform: scale(1.1);
+    filter: drop-shadow(0 0 16px color-mix(in srgb, var(--diff-color) 60%, transparent));
+    animation: iconBounce 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.difficulty-btn:hover .diff-icon {
+transform: scale(1.15) rotate(-5deg);
+}
+  body {
+    margin: 0;
+    padding: 20px;
+    background-color: #1a1a2e;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    overflow: hidden;
+  }
+  .game-container {
+    display: flex;
+    gap: 20px;
+    background: linear-gradient(135deg, #2d2d44 0%, #1a1a2e 100%);
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.6), 0 0 60px rgba(102, 51, 153, 0.3);
+    position: relative;
+    border: 2px solid #4a4a6a;
+  }
+  
+  #startOverlay {
+position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: rgba(0, 0, 0, 0.9);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: #fff;
+    cursor: pointer;
+    border-radius: 13px;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    overflow-y: auto;
+    padding: 20px;
+    box-sizing: border-box;
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    pointer-events: auto;
+    /* 性能优化：仅在非低性能模式下启用模糊 */
+    backdrop-filter: blur(10px);
+    max-height: 100%;
+    /* 性能优化：限制重绘范围 */
+    contain: layout style;
+}
+
+/* 低性能模式：禁用模糊效果 */
+.low-performance #startOverlay {
+    backdrop-filter: none;
+    background-color: rgba(0, 0, 0, 0.95);
+}
+
+/* 无障碍模式：禁用模糊 */
+@media (prefers-reduced-motion: reduce) {
+    #startOverlay {
+        backdrop-filter: none;
+        background-color: rgba(0, 0, 0, 0.95);
+    }
+}
+}
+  
+  .hidden {
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  .overlay-content {
+    text-align: center;
+  }
+  
+  .main-title {
+    font-size: 48px;
+    font-weight: bold;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 6px;
+    background: linear-gradient(90deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: titleGlow 3s ease-in-out infinite;
+  }
+
+  .instruction {
+    font-size: 18px;
+    color: #aaa;
+    animation: pulse 1.5s ease-in-out infinite;
+    margin-top: 20px;
+  }
+
+  .feature-list {
+    margin-top: 30px;
+    text-align: left;
+    display: inline-block;
+  }
+  
+  .feature-list li {
+    margin: 8px 0;
+    color: #888;
+    font-size: 14px;
+  }
+  
+  .feature-list span {
+    color: #48dbfb;
+    font-weight: bold;
+  }
+
+  @keyframes titleGlow {
+    0%, 100% { filter: brightness(1) drop-shadow(0 0 10px rgba(255,107,107,0.5)); }
+    50% { filter: brightness(1.2) drop-shadow(0 0 20px rgba(72,219,251,0.8)); }
+  }
+
+  @keyframes pulse {
+    0% { opacity: 0.5; transform: scale(0.98); }
+    50% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0.5; transform: scale(0.98); }
+  }
+
+  .canvas-wrapper {
+    text-align: center;
+    position: relative;
+  }
+  
+  h3 { 
+    margin-top: 0; 
+    margin-bottom: 10px; 
+    color: #fff;
+    font-size: 18px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+  }
+  
+  canvas {
+    border: 3px solid #4a4a6a;
+    background-color: #0a0a15;
+    display: block;
+    border-radius: 8px;
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+  }
+  
+  /* 干扰效果样式 */
+  .canvas-wrapper.blurred canvas {
+    filter: blur(4px);
+    transition: filter 0.3s ease;
+  }
+  
+  .canvas-wrapper.reversed canvas {
+    transform: scaleX(-1);
+    transition: transform 0.3s ease;
+  }
+  
+  .canvasWrapper.shaking {
+    animation: shake 0.5s ease-in-out;
+  }
+  
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-8px) rotate(-1deg); }
+    40% { transform: translateX(8px) rotate(1deg); }
+    60% { transform: translateX(-6px) rotate(-0.5deg); }
+    80% { transform: translateX(6px) rotate(0.5deg); }
+  }
+
+  #info {
+    margin-left: 10px;
+    margin-right: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 160px;
+  }
+  
+  .score-board {
+    margin-bottom: 12px;
+    padding: 12px;
+    background: linear-gradient(180deg, #2a2a40, #1e1e30);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 13px;
+    border: 1px solid #3a3a5a;
+    transition: all 0.3s ease;
+  }
+
+  .score-board.highlight {
+    border-color: #48dbfb;
+    box-shadow: 0 0 20px rgba(72, 219, 251, 0.4);
+    transform: scale(1.03);
+  }
+
+  .score-board p { margin: 6px 0; }
+  .score-board span { font-weight: bold; color: #48dbfb; }
+  
+  .combo-indicator {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 8px;
+    background: linear-gradient(135deg, #ff6b6b, #feca57);
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: bold;
+    animation: comboPopIn 0.3s ease-out;
+  }
+
+  /* 道具栏样式 */
+  .powerup-bar {
+    background: linear-gradient(180deg, #2a2a40, #1e1e30);
+    border-radius: 10px;
+    padding: 10px;
+    border: 1px solid #3a3a5a;
+    margin-bottom: 12px;
+  }
+  
+  .powerup-bar-title {
+    font-size: 11px;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  
+  .powerup-slots {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+  }
+  
+  .powerup-slot {
+    width: 40px;
+    height
+
+<script>
+
+// ========== 常量定义 ==========
+const COLS = 10;
+const ROWS = 20;
+const BLOCK_SIZE = 24;
+const COLORS = [
+    null,
+    '#ff6b6b', // I - 红
+    '#feca57', // O - 黄
+    '#48dbfb', // T - 青
+    '#1dd1a1', // S - 绿
+    '#ff9ff3', // Z - 粉
+    '#a55eea', // J - 紫
+    '#fd9644'  // L - 橙
+];
+
+// 方块形状
+const SHAPES = [
+    null,
+    [[1,1,1,1]],           // I
+    [[2,2],[2,2]],         // O
+    [[0,3,0],[3,3,3]],     // T
+    [[0,4,4],[4,4,0]],     // S
+    [[5,5,0],[0,5,5]],     // Z
+    [[6,0,0],[6,6,6]],     // J
+    [[0,0,7],[7,7,7]]      // L
+];
+
+// ========== 道具系统 ==========
+const POWERUP_TYPES = {
+    BOMB: { 
+        id: 'bomb', 
+        name: '炸弹', 
+        icon: '💣', 
+        color: '#ff6b6b',
+        description: '清除底部3行'
+    },
+    FREEZE: { 
+        id: 'freeze', 
+        name: '冰冻', 
+        icon: '❄️', 
+        color: '#48dbfb',
+        description: '冻结对手5秒'
+    },
+    SHIELD: { 
+        id: 'shield', 
+        name: '护盾', 
+        icon: '🛡️', 
+        color: '#1dd1a1',
+        description: '抵挡下次攻击'
+    },
+    CLEAR: { 
+        id: 'clear', 
+        name: '净化', 
+        icon: '✨', 
+        color: '#feca57',
+        description: '清除所有负面效果'
+    },
+    RANDOM: { 
+        id: 'random', 
+        name: '混乱', 
+        icon: '🎲', 
+        color: '#a55eea',
+        description: '随机干扰对手'
+    }
+};
+
+const POWERUP_LIST = Object.values(POWERUP_TYPES);
+
+// ========== 干扰效果系统 ==========
+const DEBUFF_TYPES = {
+    BLUR: { id: 'blur', name: '模糊', icon: '👁️', duration: 5000, cssClass: 'blurred' },
+    REVERSE: { id: 'reverse', name: '反转', icon: '↔️', duration: 8000, cssClass: 'reversed' },
+    SLOW: { id: 'slow', name: '减速', icon: '🐌', duration: 6000, speedMultiplier: 2 },
+    BLIND: { id: 'blind', name: '致盲', icon: '🙈', duration: 4000, hideBlocks: true }
+};
+
+// ========== 游戏状态 ==========
+let gameRunning = false;
+let gameMode = 'normal';
+
+// 玩家状态
+const playerState = {
+    board: createBoard(),
+    score: 0,
+    lines: 0,
+    piece: null,
+    nextPiece: null,
+    powerups: [null, null, null],
+    debuffs: [],
+    shielded: false,
+    dropCounter: 0,
+    dropInterval: 1000,
+    lastTime: 0,
+    combo: 0
+};
+
+// AI状态
+const aiState = {
+    board: createBoard(),
+    score: 0,
+    lines: 0,
+    piece: null,
+    nextPiece: null,
+    powerups: [null, null, null],
+    debuffs: [],
+    shielded: false,
+    dropCounter: 0,
+    dropInterval: 800,
+    lastTime: 0,
+    combo: 0,
+    moveCounter: 0
+};
+
+// 待发送的攻击行数
+let pendingAttackToPlayer = 0;
+let pendingAttackToAI = 0;
+
+// ========== 工具函数 ==========
+function createBoard() {
+    return Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+}
+
+function randomPiece() {
+    const type = Math.floor(Math.random() * 7) + 1;
+    const shape = SHAPES[type].map(row => [...row]);
+    return {
+        type,
+        shape,
+        x: Math.floor((COLS - shape[0].length) / 2),
+        y: 0
+    };
+}
+
+function rotate(shape) {
+    const rows = shape.length;
+    const cols = shape[0].length;
+    const rotated = Array.from({ length: cols }, () => Array(rows).fill(0));
+    for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < cols; x++) {
+            rotated[x][rows - 1 - y] = shape[y][x];
+        }
+    }
+    return rotated;
+}
+
+function collision(board, piece, offsetX = 0, offsetY = 0) {
+    for (let y = 0; y < piece.shape.length; y++) {
+        for (let x = 0; x < piece.shape[y].length; x++) {
+            if (piece.shape[y][x]) {
+                const newX = piece.x + x + offsetX;
+                const newY = piece.y + y + offsetY;
+                if (newX < 0 || newX >= COLS || newY >= ROWS) return true;
+                if (newY >= 0 && board[newY][newX]) return true;
+            }
+        }
+    }
+    return false;
+}
+
+function merge(board, piece) {
+    piece.shape.forEach((row, y) => {
+        row.forEach((val, x) => {
+            if (val) {
+                const boardY = piece.y + y;
+                if (boardY >= 0) {
+                    board[boardY][piece.x + x] = val;
+                }
+            }
+        });
+    });
+}
+
+function clearLines(board) {
+    let linesCleared = 0;
+    const clearedRows = [];
+    
+    for (let y = ROWS - 1; y >= 0; y--) {
+        if (board[y].every(cell => cell !== 0)) {
+            clearedRows.push(y);
+            board.splice(y, 1);
+            board.unshift(Array(COLS).fill(0));
+            linesCleared++;
+            y++;
+        }
+    }
+    
+    return { linesCleared, clearedRows };
+}
+
+// ========== 道具系统类 ==========
+class PowerUpSystem {
+    constructor() {
+        this.spawnChance = 0.15; // 15%概率生成道具方块
+    }
+    
+    // 获取随机道具
+    getRandomPowerup() {
+        return POWERUP_LIST[Math.floor(Math.random() * POWERUP_LIST.length)];
+    }
+    
+    // 添加道具到槽位
+    addPowerup(state, powerup) {
+        const emptySlot = state.powerups.findIndex(p => p === null);
+        if (emptySlot !== -1) {
+            state.powerups[emptySlot] = powerup;
+            return true;
+        }
+        return false;
+    }
+    
+    // 使用道具
+    usePowerup(state, slotIndex, targetState, targetWrapper, ownerId) {
+        const powerup = state.powerups[slotIndex];
+        if (!powerup) return false;
+        
+        state.powerups[slotIndex] = null;
+        
+        // 显示使用特效
+        this.showPowerupEffect(ownerId, powerup.icon);
+        showToast(ownerId === playerState ? 'Player' : 'AI', `使用 ${powerup.name}!`);
+        
+        // 执行道具效果
+        switch (powerup.id) {
+            case 'bomb':
+                this.useBomb(targetState);
+                break;
+            case 'freeze':
+                this.useFreeze(targetState);
+                break;
+            case 'shield':
+                state.shielded = true;
+                break;
+            case 'clear':
+                this.useClear(state);
+                break;
+            case 'random':
+                this.useRandom(targetState, targetWrapper);
+                break;
+        }
+        
+        return true;
+    }
+    
+    // 炸弹 - 清除底部3行
+    useBomb(targetState) {
+        for (let i = 0; i < 3; i++) {
+            targetState.board.pop();
+            targetState.board.unshift(Array(COLS).fill(0));
+        }
+    }
+    
+    // 冰冻 - 暂停对手
+    useFreeze(targetState) {
+        targetState.dropInterval = 5000; // 5秒下落一次
+        setTimeout(() => {
+            targetState.dropInterval = targetState === playerState ? 1000 : 800;
+        }, 5000);
+    }
+    
+    // 净化 - 清除负面效果
+    useClear(state) {
+        state.debuffs = [];
+        state.shielded = false;
+    }
+    
+    // 混乱 - 随机干扰
+    useRandom(targetState, targetWrapper) {
+        const effects = Object.values(DEBUFF_TYPES);
+        const randomEffect = effects[Math.floor(Math.random() * effects.length)];
+        debuffSystem.applyDebuff(targetState, targetWrapper, randomEffect);
+    }
+    
+    // 显示道具使用特效
+    showPowerupEffect(ownerId, icon) {
+        const wrapper = ownerId === playerState ? 
+            document.getElementById('playerWrapper') : 
+            document.getElementById('aiWrapper');
+        
+        const effect = document.createElement('div');
+        effect.className = 'powerup-effect';
+        effect.textContent = icon;
+        wrapper.appendChild(effect);
+        
+        setTimeout(() => effect.remove(), 600);
+    }
+}
+
+const powerupSystem = new PowerUpSystem();
+
+// ========== 干扰效果系统类 ==========
+class DebuffSystem {
+    constructor() {
+        this.activeDebuffs = new Map();
+    }
+    
+    applyDebuff(targetState, targetWrapper, debuffType) {
+        // 检查护盾
+        if (targetState.shielded) {
+            targetState.shielded = false;
+            showToast(targetState === playerState ? 'Player' : 'AI', '护盾抵挡了攻击!');
+            return;
+        }
+        
+        // 添加debuff
+        const existing = targetState.debuffs.find(d => d.id === debuffType.id);
+        if (existing) {
+            // 刷新持续时间
+            existing.endTime = Date.now() + debuffType.duration;
+        } else {
+            targetState.debuffs.push({
+                ...debuffType,
+                endTime: Date.now() + debuffType.duration
+            });
+        }
+        
+        // 应用视觉效果
+        if (debuffType.cssClass) {
+            targetWrapper.classList.add(debuffType.cssClass);
+        }
+        
+        // 如果是减速效果
+        if (debuffType.speedMultiplier) {
+            targetState.dropInterval *= debuffType.speedMultiplier;
+        }
+        
+        this.updateDebuffUI(targetState);
+    }
+    
+    updateDebuffs(state, wrapper) {
+        const now = Date.now();
+        state.debuffs = state.debuffs.filter(debuff => {
+            if (now >= debuff.endTime) {
+                // 移除效果
+                if (debuff.cssClass) {
+                    wrapper.classList.remove(debuff.cssClass);
+                }
+                if (debuff.speedMultiplier) {
+                    state.dropInterval /= debuff.speedMultiplier;
+                }
+                return false;
+            }
+            return true;
+        });
+        
+        this.updateDebuffUI(state);
+    }
+    
+    updateDebuffUI(state) {
+        const containerId = state === playerState ? 'playerDebuffs' : 'aiDebuffs';
+        const container = document.getElementById(containerId);
+        
+        container.innerHTML = state.debuffs.map(d => {
+            const remaining = Math.ceil((d.endTime - Date.now()) / 1000);
+            return `<div class="debuff-icon ${d.id}">${d.icon} ${remaining}s</div>`;
+        }).join('');
+    }
+}
+
+const debuffSystem = new DebuffSystem();
+
+// ========== 技能触发系统 ==========
+class SkillTriggerSystem {
+    constructor() {
+        // 连击阈值对应的技能
+        this.comboSkills = {
+            2: { type: 'attack', lines: 1, name: '干扰行' },
+            3: { type: 'debuff', debuff: DEBUFF_TYPES.BLUR, name: '模糊攻击' },
+            4: { type: 'attack', lines: 3, name: '大量干扰' },
+            5: { type: 'debuff', debuff: DEBUFF_TYPES.REVERSE, name: '反转控制' }
+        };
+    }
+    
+    onLinesCleared(state, linesCleared, targetState, targetWrapper) {
+        if (linesCleared === 0) {
+            state.combo = 0;
+            return;
+        }
+        
+        state.combo++;
+        
+        // 基础攻击计算
+        const baseAttack = this.calculateBaseAttack(linesCleared, state.combo);
+        
+        // 发送垃圾行
+        if (baseAttack > 0) {
+            if (targetState === playerState) {
+                pendingAttackToPlayer += baseAttack;
+            } else {
+                pendingAttackToAI += baseAttack;
+            }
+            updateAttackPreview(targetState === playerState ? 'player' : 'ai', baseAttack);
+        }
+        
+        // 连击奖励技能
+        const skill = this.comboSkills[state.combo];
+        if (skill) {
+            this.triggerSkill(skill, targetState, targetWrapper, state);
+        }
+        
+        // 高连击获得道具
+        if (state.combo >= 2 && Math.random() < 0.3) {
+            const powerup = powerupSystem.getRandomPowerup();
+            if (powerupSystem.addPowerup(state, powerup)) {
+                showToast(state === playerState ? 'Player' : 'AI', `获得道具: ${powerup.icon}`);
+            }
+        }
+        
+        // 更新连击显示
+        if (state.combo >= 2) {
+            showCombo(state === playerState ? 'playerCanvas' : 'aiCanvas', state.combo);
+        }
+    }
+    
+    calculateBaseAttack(lines, combo) {
+        const baseLines = [0, 0, 1, 2, 4]; // 1,2,3,4行消除对应攻击
+        const attack = (baseLines[lines] || lines) + Math.floor(combo / 2);
+        return attack;
+    }
+    
+    triggerSkill(skill, targetState, targetWrapper, sourceState) {
+        const sourceName = sourceState === playerState ? 'Player' : 'AI';
+        
+        switch (skill.type) {
+            case 'attack':
+                showToast(sourceName, `触发技能: ${skill.name}!`);
+                if (targetState === playerState) {
+                    pendingAttackToPlayer += skill.lines;
+                } else {
+                    pendingAttackToAI += skill.lines;
+                }
+                break;
+                
+            case 'debuff':
+                showToast(sourceName, `触发技能: ${skill.name}!`);
+                debuffSyst
+
+function startGame() {
+    // 应用难度配置
+    const diffConfig = getDifficultyConfig();
+    
+    // 重置游戏状态
+    playerState = { ...initialPlayerState };
+    aiState = { ...initialAIState };
+    
+    // 初始化棋盘
+    playerBoard = createEmptyBoard();
+    aiBoard = createEmptyBoard();
+    
+    // 生成第一个方块
+    playerState.currentPiece = playerState.nextPiece || generatePiece();
+    playerState.nextPiece = generatePiece();
+    
+    aiState.currentPiece = aiState.nextPiece || generatePiece();
+    aiState.nextPiece = generatePiece();
+    
+    // 重置攻击计数
+    pendingAttackToPlayer = 0;
+    pendingAttackToAI = 0;
+    
+    // 重置debuff
+    playerState.debuffs = [];
+    aiState.debuffs = [];
+    
+    // 隐藏开始界面
+    document.getElementById('startOverlay').classList.add('hidden');
+    document.getElementById('gameOverScreen').classList.add('hidden');
+    gameRunning = true;
+    
+    // 根据难度设置AI延迟
+    aiLastMoveTime = Date.now();
+    
+    // 启动游戏循环
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+    
+    showToast('Game', `开始游戏! 难度: ${diffConfig.icon} ${diffConfig.name}`);
+}
+// 显示难度指示器
+const indicator = document.getElementById('difficultyIndicator');
+if (indicator) {
+    indicator.style.display = 'flex';
+}
+
+
+function aiMove() {
+    if (!aiState.currentPiece || aiState.gameOver) return;
+    
+    const diffConfig = getDifficultyConfig();
+    const smartness = diffConfig.aiSmartness;
+    
+    // 根据智能程度决定是否做出最优选择
+    let bestMove;
+    if (Math.random() < smartness) {
+        // 智能选择：寻找最佳位置
+        bestMove = findBestMove(aiState.currentPiece, aiBoard);
+    } else {
+        // 随机选择：可能不是最优
+        bestMove = findRandomMove(aiState.currentPiece, aiBoard);
+    }
+    
+    if (bestMove) {
+        aiState.currentPiece.x = bestMove.x;
+        aiState.currentPiece.rotation = bestMove.rotation;
+        
+        // 直接放置
+        while (isValidMove(aiState.currentPiece, aiBoard, 0, 1)) {
+            aiState.currentPiece.y++;
+        }
+        
+        // 锁定方块
+        lockPiece(aiState.currentPiece, aiBoard);
+        
+        // 检查消除
+        const linesCleared = clearLines(aiBoard);
+        
+        // 触发技能系统
+        skillTriggerSystem.onLinesCleared(
+            aiState, 
+            linesCleared, 
+            playerState, 
+            document.getElementById('playerWrapper')
+        );
+        
+        // 更新分数
+        aiState.score += [0, 100, 300, 500, 800][linesCleared] || 0;
+        
+        // 生成新方块
+        aiState.currentPiece = aiState.nextPiece;
+        aiState.nextPiece = generatePiece();
+        
+        // 检查游戏结束
+        if (!isValidMove(aiState.currentPiece, aiBoard, 0, 0)) {
+            aiState.gameOver = true;
+            endGame('player');
+        }
+    }
+}
+
+// AI寻找最佳移动
+function findBestMove(piece, board) {
+    const shape = SHAPES[piece.type][piece.rotation];
+    let bestScore = -Infinity;
+    let bestMove = null;
+    
+    // 尝试所有旋转和位置
+    for (let rot = 0; rot < 4; rot++) {
+        const testShape = SHAPES[piece.type][rot];
+        for (let x = -2; x < COLS + 2; x++) {
+            const testPiece = { ...piece, x: x, rotation: rot };
+            if (isValidMove(testPiece, board, 0, 0)) {
+                // 模拟放置
+                let dropY = piece.y;
+                while (isValidMove(testPiece, board, 0, dropY - piece.y + 1)) {
+                    dropY++;
+                }
+                testPiece.y = dropY;
+                
+                // 评估位置
+                const score = evaluatePosition(testShape, x, dropY, board);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = { x: x, rotation: rot };
+                }
+            }
+        }
+    }
+    
+    return bestMove || findRandomMove(piece, board);
+}
+
+// AI寻找随机可行移动
+function findRandomMove(piece, board) {
+    const validMoves = [];
+    
+    for (let rot = 0; rot < 4; rot++) {
+        for (let x = -2; x < COLS + 2; x++) {
+            const testPiece = { ...piece, x: x, rotation: rot };
+            if (isValidMove(testPiece, board, 0, 0)) {
+                validMoves.push({ x: x, rotation: rot });
+            }
+        }
+    }
+    
+    if (validMoves.length > 0) {
+        return validMoves[Math.floor(Math.random() * validMoves.length)];
+    }
+    return null;
+}
+
+// 评估放置位置的分数
+function evaluatePosition(shape, x, y, board) {
+    let score = 0;
+    
+    // 模拟放置后的棋盘
+    const tempBoard = board.map(row => [...row]);
+    shape.forEach(([dy, dx]) => {
+        const newY = y + dy;
+        const newX = x + dx;
+        if (newY >= 0 && newY < ROWS && newX >= 0 && newX < COLS) {
+            tempBoard[newY][newX] = 1;
+        }
+    });
+    
+    // 计算消除行数奖励
+    let linesCleared = 0;
+    for (let row = 0; row < ROWS; row++) {
+        if (tempBoard[row].every(cell => cell !== 0)) {
+            linesCleared++;
+        }
+    }
+    score += linesCleared * 1000;
+    
+    // 惩罚空洞
+    let holes = 0;
+    for (let col = 0; col < COLS; col++) {
+        let foundBlock = false;
+        for (let row = 0; row < ROWS; row++) {
+            if (tempBoard[row][col] !== 0) {
+                foundBlock = true;
+            } else if (foundBlock) {
+                holes++;
+            }
+        }
+    }
+    score -= holes * 50;
+    
+    // 奖励低放置（越低越好）
+    score += y * 5;
+    
+    // 惩罚过高的堆叠
+    let maxHeight = 0;
+    for (let col = 0; col < COLS; col++) {
+        for (let row = 0; row < ROWS; row++) {
+            if (tempBoard[row][col] !== 0) {
+                maxHeight = Math.max(maxHeight, ROWS - row);
+                break;
+            }
+        }
+    }
+    score -= maxHeight * 10;
+    
+    return score;
+}
+
+onLinesCleared(state, linesCleared, targetState, targetWrapper) {
+        if (linesCleared === 0) {
+            state.combo = 0;
+            return;
+        }
+        
+        state.combo++;
+        
+        const diffConfig = getDifficultyConfig();
+        const isPlayer = state === playerState;
+        
+        // 基础攻击计算
+        let baseAttack = this.calculateBaseAttack(linesCleared, state.combo);
+        
+        // 应用难度修正
+        if (isPlayer) {
+            baseAttack = Math.floor(baseAttack * diffConfig.playerAttackBonus);
+        } else {
+            baseAttack = Math.floor(baseAttack * diffConfig.aiAttackBonus);
+        }
+        
+        // 发送垃圾行
+        if (baseAttack > 0) {
+            if (targetState === playerState) {
+                // 玩家受伤害应用减免
+                const reducedAttack = Math.floor(baseAttack * diffConfig.playerDamageReduction);
+                pendingAttackToPlayer += reducedAttack;
+            } else {
+                pendingAttackToAI += baseAttack;
+            }
+            updateAttackPreview(targetState === playerState ? 'player' : 'ai', baseAttack);
+        }
+        
+        // 连击奖励技能
+        const skill = this.comboSkills[state.combo];
+        if (skill) {
+            this.triggerSkill(skill, targetState, targetWrapper, state);
+        }
+        
+        // 高连击获得道具
+        if (state.combo >= 2 && Math.random() < 0.3) {
+            const powerup = powerupSystem.getRandomPowerup();
+            if (powerupSystem.addPowerup(state, powerup)) {
+                showToast(state === playerState ? 'Player' : 'AI', `获得道具: ${powerup.icon}`);
+            }
+        }
+        
+        // 更新连击显示
+        if (state.combo >= 2) {
+            showCombo(state === playerState ? 'playerCanvas' : 'aiCanvas', state.combo);
+        }
+    }
+
+<div class="overlay-content">
+    <div class="main-title">TETRIS BATTLE</div>
+    <p style="color: #666; margin: 5px 0 0 0; font-size: 14px; letter-spacing: 4px;">POWER-UPS EDITION</p>
+    
+    <div class="difficulty-section">
+      <div class="difficulty-title">选择难度</div>
+      <div class="difficulty-selector" id="difficultySelector"></div>
+    </div>
+    
+    <div class="feature-list">
+      <li><span>⬅️ ➡️ ⬇️</span> 移动方块</li>
+      <li><span>⬆️ / Z</span> 旋转方块</li>
+      <li><span>空格</span> 硬降</li>
+      <li><span>1-4</span> 使用道具</li>
+    </div>
+    
+    <p class="instruction">点击任意位置开始游戏</p>
+  </div>
+
+function startGame() {
+    // 应用难度配置
+    const diffConfig = getDifficultyConfig();
+    
+    // 显示难度指示器
+    const indicator = document.getElementById('difficultyIndicator');
+    if (indicator) {
+        indicator.style.display = 'flex';
+        indicator.querySelector('.diff-icon').textContent = diffConfig.icon;
+        indicator.querySelector('.diff-name').textContent = diffConfig.name;
+        indicator.style.setProperty('--diff-color', diffConfig.color);
+        indicator.style.borderColor = diffConfig.color;
+    }
+    
+    // 重置游戏状态
+    playerState = { ...initialPlayerState };
+    aiState = { ...initialAIState };
+    
+    // 初始化棋盘
+    playerBoard = createEmptyBoard();
+    aiBoard = createEmptyBoard();
+    
+    // 生成第一个方块
+    playerState.currentPiece = playerState.nextPiece || generatePiece();
+    playerState.nextPiece = generatePiece();
+    
+    aiState.currentPiece = aiState.nextPiece || generatePiece();
+    aiState.nextPiece = generatePiece();
+    
+    // 重置攻击计数
+    pendingAttackToPlayer = 0;
+    pendingAttackToAI = 0;
+    
+    // 重置debuff
+    playerState.debuffs = [];
+    aiState.debuffs = [];
+    
+    // 隐藏开始界面
+    document.getElementById('startOverlay').classList.add('hidden');
+    document.getElementById('gameOverScreen').classList.add('hidden');
+    gameRunning = true;
+    
+    // 根据难度设置AI延迟
+    aiLastMoveTime = Date.now();
+    
+    // 启动游戏循环
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+    
+    showToast('Game', `开始游戏! 难度: ${diffConfig.icon} ${diffConfig.name}`);
+}
+
+function gameLoop(currentTime) {
+    if (!gameRunning) return;
+    
+    const deltaTime = currentTime - lastTime;
+    const diffConfig = getDifficultyConfig();
+    
+    // 更新玩家
+    updatePlayer(deltaTime);
+    
+    // 更新AI（根据难度调整频率）
+    const aiThinkDelay = diffConfig.aiThinkDelay;
+    const aiMoveDelay = diffConfig.aiMoveDelay;
+    
+    if (currentTime - aiLastMoveTime > aiThinkDelay) {
+        aiMove();
+        aiLastMoveTime = currentTime;
+    }
+    
+    // 处理待处理的攻击
+    processPendingAttacks();
+    
+    // 更新debuff
+    debuffSystem.update(playerState, 'playerWrapper');
+    debuffSystem.update(aiState, 'aiWrapper');
+    
+    // 渲染
+    render();
+    
+    lastTime = currentTime;
+    requestAnimationFrame(gameLoop);
+}
+// 初始化难度选择交互
+function initDifficultySelection() {
+    // 防止重复初始化
+    if (window._difficultyInitialized) return;
+    window._difficultyInitialized = true;
+    
+    const difficultyBtns = document.querySelectorAll('.difficulty-btn');
+    const indicator = document.getElementById('difficultyIndicator');
+    
+    if (!difficultyBtns.length) return;
+    
+    // 检测低性能设备
+    const isLowPerformance = detectLowPerformance();
+    if (isLowPerformance) {
+        document.body.classList.add('low-performance');
+    }
+    
+    // 使用事件委托优化性能
+    const selectorContainer = document.querySelector('.difficulty-selector');
+    if (selectorContainer) {
+        selectorContainer.addEventListener('click', handleDifficultyClick);
+    }
+    
+    // 键盘快捷键 - 使用单一事件监听
+    document.addEventListener('keydown', handleDifficultyKeydown);
+    
+    // 初始化完成后设置默认难度
+    updateDifficultyUI();
+}
+// 性能检测函数
+function detectLowPerformance() {
+    // 检测是否为低端设备
+    const reasons = [];
+    let isLow = false;
+    
+    // 1. 检测硬件并发数（CPU核心数）
+    const cores = navigator.hardwareConcurrency || 2;
+    if (cores <= 2) {
+        reasons.push('low-cores');
+        isLow = true;
+    }
+    
+    // 2. 检测设备内存（如果可用）
+    if (navigator.deviceMemory && navigator.deviceMemory < 4) {
+        reasons.push('low-memory');
+        isLow = true;
+    }
+    
+    // 3. 检测是否为移动设备
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+        reasons.push('mobile-device');
+        // 移动设备不直接判定为低性能，但作为参考
+    }
+    
+    // 4. 检测用户偏好减少动画
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (prefersReducedMotion) {
+        reasons.push('reduced-motion');
+        isLow = true;
+    }
+    
+    // 5. 简单的性能基准测试
+    if (!isLow) {
+        const start = performance.now();
+        let sum = 0;
+        for (let i = 0; i < 100000; i++) {
+            sum += Math.sqrt(i);
+        }
+        const elapsed = performance.now() - start;
+        if (elapsed > 50) {
+            reasons.push('slow-benchmark');
+            isLow = true;
+        }
+    }
+    
+    console.log('[Performance] Low performance mode:', isLow, 'Reasons:', reasons);
+    return isLow;
+}
+
+// 统一处理难度按钮点击
+function handleDifficultyClick(e) {
+    const btn = e.target.closest('.difficulty-btn');
+    if (!btn) return;
+    
+    const difficulty = btn.dataset.difficulty;
+    if (difficulty && difficulty !== currentDifficulty) {
+        selectDifficulty(difficulty);
+    }
+}
+
+// 统一处理键盘快捷键
+function handleDifficultyKeydown(e) {
+    // 只在开始界面显示时响应
+    const overlay = document.getElementById('startOverlay');
+    if (!overlay || overlay.classList.contains('hidden')) return;
+    
+    const keyMap = {
+        '1': 'easy',
+        '2': 'normal',
+        '3': 'hard',
+        '4': 'hell'
+    };
+    
+    const difficulty = keyMap[e.key];
+    if (difficulty) {
+        selectDifficulty(difficulty);
+        // 视觉反馈
+        const btn = document.querySelector(`.difficulty-btn[data-difficulty="${difficulty}"]`);
+        if (btn) {
+            btn.classList.add('key-pressed');
+            setTimeout(() => btn.classList.remove('key-pressed'), 150);
+        }
+    }
+}
+
+// 选择难度（提取为独立函数）
+function selectDifficulty(difficulty) {
+    currentDifficulty = difficulty;
+    updateDifficultyUI();
+    
+    // 使用 requestAnimationFrame 确保 UI 更新不阻塞
+    requestAnimationFrame(() => {
+        updateDifficultySettings(difficulty);
+    });
+}
+
+// 更新难度 UI
+function updateDifficultyUI() {
+    const difficultyBtns = document.querySelectorAll('.difficulty-btn');
+    const indicator = document.getElementById('difficultyIndicator');
+    
+    difficultyBtns.forEach(btn => {
+        const isSelected = btn.dataset.difficulty === currentDifficulty;
+        btn.classList.toggle('selected', isSelected);
+        
+        // 低性能模式下跳过动画
+        if (document.body.classList.contains('low-performance')) {
+            btn.style.transition = 'none';
+        }
+    });
+    
+    // 更新游戏内指示器
+    if (indicator) {
+        const config = difficultyConfig[currentDifficulty];
+        if (config) {
+            indicator.querySelector('.diff-icon').textContent = config.icon;
+            indicator.querySelector('.diff-name').textContent = config.name;
+            indicator.style.setProperty('--diff-color', config.color);
+        }
+    }
+}
+
+// 更新难度设置（配置应用）
+function updateDifficultySettings(difficulty) {
+    const config = difficultyConfig[difficulty];
+    if (!config) return;
+    
+    // 应用 AI 速度设置
+    if (typeof aiSpeed !== 'undefined') {
+        aiSpeed = config.aiSpeed;
+    }
+    
+    // 应用其他设置...
+    console.log('[Game] Difficulty set to:', difficulty, config);
+}
+
+
+// 选择难度
+function selectDifficulty(difficulty, config, buttons) {
+    const cfg = config[difficulty];
+    if (!cfg) return;
+    
+    // 更新按钮状态
+    buttons.forEach(btn => {
+        btn.classList.remove('selected');
+        if (btn.dataset.difficulty === difficulty) {
+            btn.classList.add('selected');
+        }
+    });
+    
+    // 更新全局难度设置
+    window.currentDifficulty = difficulty;
+    window.aiSpeed = cfg.aiSpeed;
+    window.aiThinkDelay = cfg.aiThinkDelay;
+    
+    // 更新难度指示器
+    updateDifficultyIndicator(cfg);
+    
+    console.log(`Difficulty selected: ${cfg.name} (AI Speed: ${cfg.aiSpeed}ms)`);
+}
+
+// 更新游戏中难度指示器
+function updateDifficultyIndicator(config) {
+    const indicator = document.getElementById('difficultyIndicator');
+    if (!indicator) return;
+    
+    indicator.style.setProperty('--diff-color', config.color);
+    indicator.querySelector('.diff-icon').textContent = config.icon;
+    indicator.querySelector('.diff-name').textContent = config.name;
+}
+
+
+function showGameOver(winner) {
+    gameRunning = false;
+    
+    const diffConfig = getDifficultyConfig();
+    const overlay = document.getElementById('gameOverScreen');
+    const resultText = document.getElementById('gameResult');
+    const statsText = document.getElementById('gameStats');
+    
+    // 隐藏难度指示器
+    const indicator = document.getElementById('difficultyIndicator');
+    if (indicator) {
+        indicator.style.display = 'none';
+    }
+    
+    if (winner === 'player') {
+        resultText.innerHTML = `<span style="color: #4ade80;">🎉 胜利!</span>`;
+    } else {
+        resultText.innerHTML = `<span style="color: #f87171;">💀 失败!</span>`;
+    }
+    
+    statsText.innerHTML = `
+        难度: ${diffConfig.icon} ${diffConfig.name}<br>
+        分数: ${playerState.score}<br>
+        消除: ${playerState.linesCleared} 行
+    `;
+    
+    overlay.classList.remove('hidden');
+}
+
+// ========== 难度系统 ==========
+const DIFFICULTY_LEVELS = {
+    easy: {
+        name: '简单',
+        icon: '🌱',
+        color: '#4ade80',
+        description: 'AI反应慢，攻击较弱',
+        aiThinkDelay: 800,      // AI思考间隔
+        aiMoveDelay: 150,       // AI移动间隔
+        aiSmartness: 0.3,       // AI智能程度 (0-1)
+        playerAttackBonus: 1.2, // 玩家攻击加成
+        playerDamageReduction: 0.5, // 玩家受伤减免
+        aiAttackBonus: 0.7      // AI攻击加成
+    },
+    normal: {
+        name: '普通',
+        icon: '⚔️',
+        color: '#fbbf24',
+        description: '标准对战体验',
+        aiThinkDelay: 500,
+        aiMoveDelay: 100,
+        aiSmartness: 0.6,
+        playerAttackBonus: 1.0,
+        playerDamageReduction: 1.0,
+        aiAttackBonus: 1.0
+    },
+    hard: {
+        name: '困难',
+        icon: '💀',
+        color: '#f87171',
+        description: 'AI反应快，攻击凶猛',
+        aiThinkDelay: 200,
+        aiMoveDelay: 50,
+        aiSmartness: 0.95,
+        playerAttackBonus: 0.8,
+        playerDamageReduction: 1.5,
+        aiAttackBonus: 1.3
+    }
+};
+
+let currentDifficulty = 'normal'; // 默认普通难度
+let selectedDifficultyBtn = null;
+
+
+// 难度等级配置
+const DIFFICULTY_LEVELS = {
+    easy: {
+        name: '简单',
+        icon: '🌱',
+        desc: 'AI反应慢，适合新手',
+        color: '#4ade80',
+        aiSpeed: 800,
+        aiThinkDelay: 500,
+        garbageMultiplier: 0.5
+    },
+    normal: {
+        name: '普通',
+        icon: '⚔️',
+        desc: '平衡难度，经典体验',
+        color: '#60a5fa',
+        aiSpeed: 500,
+        aiThinkDelay: 300,
+        garbageMultiplier: 1
+    },
+    hard: {
+        name: '困难',
+        icon: '🔥',
+        desc: 'AI强力，极限挑战',
+        color: '#f87171',
+        aiSpeed: 200,
+        aiThinkDelay: 100,
+        garbageMultiplier: 1.5
+    }
+};
+
+let currentDifficulty = 'normal';
+let selectedDifficultyBtn = null;
+function initDifficultySelection() {
+    // 创建难度选择区域并插入到开始界面
+    const overlay = document.getElementById('startOverlay');
+    const featureList = overlay.querySelector('.feature-list');
+    
+    // 创建难度选择区域
+    const difficultySection = document.createElement('div');
+    difficultySection.className = 'difficulty-section';
+    difficultySection.innerHTML = `
+        <div class="difficulty-title">选择难度</div>
+        <div class="difficulty-selector">
+            <div class="difficulty-btn" data-difficulty="easy" style="--diff-color: ${DIFFICULTY_LEVELS.easy.color}">
+                <div class="diff-icon">${DIFFICULTY_LEVELS.easy.icon}</div>
+                <div class="diff-name">${DIFFICULTY_LEVELS.easy.name}</div>
+                <div class="diff-desc">${DIFFICULTY_LEVELS.easy.desc}</div>
+            </div>
+            <div class="difficulty-btn selected" data-difficulty="normal" style="--diff-color: ${DIFFICULTY_LEVELS.normal.color}">
+                <div class="diff-icon">${DIFFICULTY_LEVELS.normal.icon}</div>
+                <div class="diff-name">${DIFFICULTY_LEVELS.normal.name}</div>
+                <div class="diff-desc">${DIFFICULTY_LEVELS.normal.desc}</div>
+            </div>
+            <div class="difficulty-btn" data-difficulty="hard" style="--diff-color: ${DIFFICULTY_LEVELS.hard.color}">
+                <div class="diff-icon">${DIFFICULTY_LEVELS.hard.icon}</div>
+                <div class="diff-name">${DIFFICULTY_LEVELS.hard.name}</div>
+                <div class="diff-desc">${DIFFICULTY_LEVELS.hard.desc}</div>
+            </div>
+        </div>
+    `;
+    
+    // 插入到特性列表之前
+    if (featureList) {
+        featureList.parentNode.insertBefore(difficultySection, featureList);
+    } else {
+        overlay.querySelector('.overlay-content').appendChild(difficultySection);
+    }
+    
+    // 绑定点击事件
+    const buttons = difficultySection.querySelectorAll('.difficulty-btn');
+    selectedDifficultyBtn = difficultySection.querySelector('[data-difficulty="normal"]');
+    
+    buttons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const difficultyKey = btn.dataset.difficulty;
+            selectDifficulty(difficultyKey, btn);
+        });
+    });
+}
+
+function selectDifficulty(difficultyKey, btn) {
+    if (!DIFFICULTY_LEVELS[difficultyKey]) return;
+    
+    currentDifficulty = difficultyKey;
+    
+    // 更新选中状态
+    if (selectedDifficultyBtn) {
+        selectedDifficultyBtn.classList.remove('selected');
+    }
+    
+    if (btn) {
+        btn.classList.add('selected');
+        selectedDifficultyBtn = btn;
+    } else {
+        // 查找对应按钮
+        const buttons = document.querySelectorAll('.difficulty-btn');
+        buttons.forEach(b => {
+            if (b.dataset.difficulty === difficultyKey) {
+                b.classList.add('selected');
+                selectedDifficultyBtn = b;
+            }
+        });
+    }
+    
+    // 更新游戏中的难度指示器
+    updateDifficultyIndicator();
+    
+    // 显示选择提示
+    const level = DIFFICULTY_LEVELS[difficultyKey];
+    showToast('System', `难度已选择: ${level.icon} ${level.name}`);
+}
+function updateDifficultyIndicator() {
+    const indicator = document.getElementById('difficultyIndicator');
+    if (!indicator) return;
+    
+    const level = DIFFICULTY_LEVELS[currentDifficulty];
+    const iconSpan = indicator.querySelector('.diff-icon');
+    const nameSpan = indicator.querySelector('.diff-name');
+    
+    if (iconSpan) iconSpan.textContent = level.icon;
+    if (nameSpan) nameSpan.textContent = level.name;
+    indicator.style.borderColor = level.color;
+}
+
+
+function getDifficultyConfig() {
+    return DIFFICULTY_LEVELS[currentDifficulty] || DIFFICULTY_LEVELS.normal;
+}
+
+/* 难度选择器样式 */
+  .difficulty-section {
+    margin: 25px 0;
+    text-align: center;
+    width: 100%;
+    max-width: 500px;
+  }
+  
+  .difficulty-title {
+    font-size: 16px;
+    color: #888;
+    margin-bottom: 15px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+  }
+  
+  .difficulty-selector {
+display: flex;
+    gap: 12px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+    justify-content: center;
+    /* 性能优化：减少布局计算 */
+    contain: layout style;
+}
+
+/* 低性能模式：禁用复杂效果 */
+.low-performance .difficulty-btn,
+.low-performance .difficulty-indicator {
+    transition: none !important;
+    animation: none !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+}
+
+.low-performance .difficulty-btn:hover,
+.low-performance .difficulty-btn.selected {
+    transform: none !important;
+}
+
+.low-performance .difficulty-btn .diff-icon {
+font-size: 32px;
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), filter 0.3s ease;
+    /* 性能优化：提示浏览器准备变换 */
+    will-change: transform;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+/* 低性能模式下简化图标效果 */
+.low-performance .difficulty-btn .diff-icon {
+    will-change: auto;
+}
+}
+
+/* 键盘按下视觉反馈 */
+.difficulty-btn.key-pressed {
+    transform: scale(0.95) !important;
+    transition: transform 0.1s ease !important;
+}
+
+/* 无障碍：尊重用户减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+    .difficulty-btn,
+    .difficulty-btn .diff-icon,
+    .difficulty-indicator,
+    .main-title,
+    .instruction {
+        animation: none !important;
+        transition: none !important;
+    }
+    
+    .difficulty-btn:hover,
+    .difficulty-btn.selected {
+        transform: none !important;
+    }
+    
+    .difficulty-btn .diff-icon {
+        transform: none !important;
+        filter: none !important;
+    }
+}
+}
+  
+  .difficulty-btn {
+background: linear-gradient(145deg, #2a2a40, #1e1e30);
+    padding: 16px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 100px;
+    position: relative;
+    /* 性能优化：提示浏览器进行GPU加速 */
+    will-change: transform, border-color, box-shadow;
+    /* 性能优化：限制重绘范围 */
+    contain: layout style paint;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.difficulty-btn:hover {
+    border-color: var(--diff-color);
+    transform: translateY(-3px);
+    box-shadow: 
+        0 8px 20px rgba(0, 0, 0, 0.4),
+        0 0 20px color-mix(in srgb, var(--diff-color) 20%, transparent);
+}
+
+.difficulty-btn.selected {
+    border-color: var(--diff-color);
+    background: linear-gradient(145deg, 
+        color-mix(in srgb, var(--diff-color) 15%, #2a2a40), 
+        color-mix(in srgb, var(--diff-color) 8%, #1e1e30));
+    box-shadow: 
+        0 6px 20px rgba(0, 0, 0, 0.5),
+        0 0 30px color-mix(in srgb, var(--diff-color) 30%, transparent);
+}
+}
+  
+  .difficulty-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(145deg, var(--diff-color), transparent);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .difficulty-btn:hover {
+border-color: var(--diff-color);
+    transform: translateY(-6px) scale(1.03);
+    box-shadow: 
+        0 16px 32px rgba(0, 0, 0, 0.4),
+        0 0 24px color-mix(in srgb, var(--diff-color) 25%, transparent),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+  
+  .difficulty-btn:hover::before {
+    opacity: 0.15;
+  }
+  
+  .difficulty-btn.selected {
+border-color: var(--diff-color);
+    background: linear-gradient(145deg, 
+        color-mix(in srgb, var(--diff-color) 20%, #2a2a3e), 
+        color-mix(in srgb, var(--diff-color) 10%, #1e1e2d));
+    box-shadow: 
+        0 8px 24px rgba(0, 0, 0, 0.4),
+        0 0 32px color-mix(in srgb, var(--diff-color) 35%, transparent),
+        inset 0 0 20px color-mix(in srgb, var(--diff-color) 15%, transparent);
+    transform: translateY(-3px);
+}
+  
+  .difficulty-btn.selected::before {
+opacity: 0.25;
+    background: linear-gradient(145deg, var(--diff-color), transparent 70%);
+}
+  
+  .diff-icon {
+font-size: 32px;
+    margin-bottom: 8px;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+    transition: transform 0.3s ease, filter 0.3s ease;
+}
+  
+  .diff-name {
+font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+  
+  .difficulty-btn.selected .diff-name {
+color: var(--diff-color);
+    text-shadow: 0 0 12px color-mix(in srgb, var(--diff-color) 70%, transparent);
+}
+  
+  .diff-desc {
+font-size: 10px;
+    color: #666;
+    line-height: 1.4;
+    text-align: center;
+    max-width: 100px;
+    transition: color 0.3s ease;
+}
+  
+  .difficulty-btn.selected .diff-desc {
+color: #999;
+}
+  
+  /* 难度指示器 - 游戏中显示 */
+  .difficulty-indicator {
+position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: linear-gradient(145deg, #2a2a40, #1e1e30);
+    padding: 8px 18px;
+    border-radius: 24px;
+    font-size: 13px;
+    color: #fff;
+    border: 1px solid #3a3a5a;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 
+        0 4px 16px rgba(0, 0, 0, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    transition: all 0.3s ease;
+}
+  
+  .difficulty-indicator .diff-icon {
+font-size: 16px;
+    margin: 0;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+}
+
+<div class="difficulty-indicator" id="difficultyIndicator" style="display: none;">
+      <span class="diff-icon"></span>
+      <span class="diff-name"></span>
+    </div>
+
+// 在页面加载时初始化难度选择
+document.addEventListener('DOMContentLoaded', () => {
+    initDifficultySelection();
+});
+
+<div class="overlay-content">
+    <div class="main-title">⚔️ TETRIS BATTLE ⚔️</div>
+    <p style="color: #888; margin: 0;">Player VS AI</p>
+    
+    <div class="difficulty-label">SELECT DIFFICULTY</div>
+    <div class="difficulty-selector">
+        <div class="difficulty-btn" data-difficulty="easy" style="--diff-color: #4ade80;">
+            <span class="diff-key">1</span>
+            <span class="diff-icon">🌱</span>
+            <span class="diff-name">Easy</span>
+            <span class="diff-desc">AI moves slowly<br>Great for beginners</span>
+        </div>
+        <div class="difficulty-btn selected" data-difficulty="normal" style="--diff-color: #60a5fa;">
+            <span class="diff-key">2</span>
+            <span class="diff-icon">⚔️</span>
+            <span class="diff-name">Normal</span>
+            <span class="diff-desc">Balanced AI<br>Recommended</span>
+        </div>
+        <div class="difficulty-btn" data-difficulty="hard" style="--diff-color: #f97316;">
+            <span class="diff-key">3</span>
+            <span class="diff-icon">🔥</span>
+            <span class="diff-name">Hard</span>
+            <span class="diff-desc">Fast & smart AI<br>Real challenge</span>
+        </div>
+        <div class="difficulty-btn" data-difficulty="hell" style="--diff-color: #ef4444;">
+            <span class="diff-key">4</span>
+            <span class="diff-icon">💀</span>
+            <span class="diff-name">Hell</span>
+            <span class="diff-desc">Ultimate AI<br>No mercy!</span>
+        </div>
+    </div>
+    
+    <div class="difficulty-hint">
+        <span>💡</span>
+        <span>Press 1-4 to quick select</span>
+    </div>
+    
+    <p class="instruction">▶ TAP TO START ◀</p>
+    
+    <div class="feature-list">
+        <li><span>←→</span> Move blocks</li>
+        <li><span>↑</span> Rotate</li>
+        <li><span>↓</span> Soft drop</li>
+        <li><span>SPACE</span> Hard drop</li>
+    </div>
+</div>
+
+document.addEventListener('DOMContentLoaded', () => {
+    // 确保难度选择在DOM加载后初始化
+    setTimeout(() => {
+        initDifficultySelection();
+    }, 0);
+});
+
+// 在页面加载时初始化难度选择（只执行一次）
+document.addEventListener('DOMContentLoaded', () => {
+    // 使用 requestIdleCallback 在空闲时初始化，不阻塞主线程
+    if ('requestIdleCallback' in window) {
+        requestIdleCallback(() => {
+            initDifficultySelection();
+        }, { timeout: 100 });
+    } else {
+        // 降级：使用 setTimeout 延迟执行
+        setTimeout(initDifficultySelection, 50);
+    }
+});
+</script>

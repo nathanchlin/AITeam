@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>俄罗斯方块游戏</title>
+<style>
+  canvas {
+    border: 1px solid black;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="400" height="600"></canvas>
+<script>
+// 游戏配置
+const blockSize = 30; // 集成块的大小
+const gridWidth = 10; // 游戏网格宽度
+const gridHeight = 20; // 游戏网格高度
+let board = []; // 游戏板
+let currentPiece = null; // 当前方块
+let nextPiece = null; // 下一个方块
+let gameInterval = null; // 游戏间隔
+let score = 0; // 分数
+let interferenceActive = false; // 干扰技能激活标志
+let interferenceStartTime = 0; // 干扰技能开始时间
+const interferenceDuration = 3000; // 干扰技能持续时间（毫秒）
+
+// 初始化游戏
+function init() {
+  for (let i = 0; i < gridHeight; i++) {
+    board[i] = new Array(gridWidth).fill(null);
+  }
+  newPiece();
+  gameInterval = setInterval(fallPiece, 1000);
+  document.addEventListener('keydown', handleKeyPress);
+  window.addEventListener('DOMContentLoaded', () => {
+    requestAnimationFrame(render);
+  });
+}
+
+// 生成新方块
+function newPiece() {
+  const types = ['I', 'J', 'L', 'O', 'S', 'T', 'Z'];
+  const randomType = types[Math.floor(Math.random() * types.length)];
+  currentPiece = createPiece(randomType);
+  nextPiece = createPiece(randomType);
+}
+
+// 创建方块
+function createPiece(type) {
+  let piece = [];
+  switch (type) {
+    case 'I':
+      piece = [
+        [0, 0, 0, 0],
+        [1, 1, 1, 1],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0]
+      ];
+      break;
+    // 其他方块的创建逻辑...
+    // ...
+  }
+  return piece;
+}
+
+// 控制方块下落
+function fallPiece() {
+  if (!canMove(currentPiece, { x: 0, y: 1 })) {
+    lockPiece();
+    newPiece();
+    if (!canMove(nextPiece, { x: 0, y: 0 })) {
+      clearInterval(gameInterval);
+      alert('Game Over');
+    }
+  } else {
+    movePiece(currentPiece, { x: 0, y: 1 });
+  }
+}
+
+// 移动方块
+function movePiece(piece, offset) {
+  for (let y = 0; y < piece.length; y++) {
+    for (let x = 0; x < piece[y].length; x++) {
+      if (piece[y][x]) {
+        const newX = x + offset.x;
+        const newY = y + offset.y;
+        if (newX < 0 || newX >= gridWidth || newY >= gridHeight || board[newY][newX]) {
+          return;
+        }
+      }
+    }
+  }
+  for (let y = 0; y < piece.length; y++) {
+    for (let x = 0; x < piece[y].length; x++) {
+      if (piece[y][x]) {
+        board[y + offset.y][x + offset.x] = piece[y][x];
+      }
+    }
+  }
+}
+
+// 锁定方块
+function lockPiece() {
+  for (let y = 0; y < currentPiece.length; y++) {
+    for (let x = 0; x < currentPiece[y].length; x++) {
+      if (currentPiece[y][x]) {
+        board[y][x] = currentPiece[y][x];
+      }
+    }
+  }
+  removeFullRows();
+  updateScore();
+}
+
+// 移除填满的行
+function removeFullRows() {
+  for (let y = board.length - 1; y >= 0; y--) {
+    if (board[y].every(cell => cell !== null)) {
+      board.splice(y, 1);
+      board.unshift(new Array(gridWidth).fill(null));
+    }
+  }
+}
+
+// 更新分数
+function updateScore() {
+  score += 10;
+}
+
+// 检查移动是否可行
+function canMove(piece, offset) {
+  for (let y = 0; y < piece.length; y++) {
+    for (let x = 0; x < piece[y].length; x++) {
+      if (piece[y][x]) {
+        const newX = x + offset.x;
+        const newY = y + offset.y;
+        if (newX < 0 || newX >= gridWidth || newY >= gridHeight || board[newY][newX]) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+// 渲染游戏
+function render() {
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBoard(ctx);
+  drawPiece(ctx, currentPiece, { x: 0, y: 0 });
+  drawPiece(ctx, nextPiece, { x: 10, y: 0 });
+  requestAnimationFrame(render);
+}
+
+// 绘制游戏板
+function drawBoard(ctx) {
+  for (let y = 0; y < board.length; y++) {
+    for (let x = 0; x < board[y].length; x++) {
+      if (board[y][x]) {
+        drawSquare(ctx, x * blockSize, y * blockSize, board[y][x]);
+      }
+    }
+  }
+}
+
+// 绘制方块
+function drawPiece(ctx, piece, offset) {
+  for (let y = 0; y < piece.length; y++) {
+    for (let x = 0; x < piece[y].length; x++) {
+      if (piece[y][x]) {
+        drawSquare(ctx, x * blockSize + offset.x * blockSize, y * blockSize + offset.y * blockSize, piece[y][x]);
+      }
+    }
+  }
+}
+
+// 绘制单个方块
+function drawSquare(ctx, x, y, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, blockSize, blockSize);
+  ctx.strokeStyle = 'black';
+  ctx.strokeRect(x, y, blockSize, blockSize);
+}
+
+// 处理按键按下
+function handleKeyPress(event) {
+  const key = event.key;
+  const offset = { x: 0, y: 0 };
+  switch (key) {
+    case 'ArrowLeft':
+      offset.x = -1;
+      break;
+    case 'ArrowRight':
+      offset.x = 1;
+      break;
+    case 'ArrowDown':
+      offset.y = 1;
+      break;
+    // 其他按键处理...
+    // ...
+  }
+  if (canMove(currentPiece, offset)) {
+    movePiece(currentPiece, offset);
+  }
+}
+
+// 干扰技能激活
+function activateInterference() {
+  interferenceActive = true;
+  interferenceStartTime = Date.now();
+  // 这里可以添加具体的干扰效果，比如减慢AI速度或增加玩家得分
+  // 例如，我们可以暂停游戏循环一段时间
+  clearInterval(gameInterval);
+  const interferenceDelay = 500; // 干扰技能延迟（毫秒）
+  setTimeout(() => {
+    if (Date.now() - interferenceStartTime > interferenceDuration) {
+      interferenceActive = false;
+      gameInterval = setInterval(fallPiece, 1000); // 恢复游戏循环
+    }
+  }, interferenceDelay);
+}
+
+// 检查是否应该激活干扰技能
+function checkForInterference() {
+  // 这里可以添加逻辑来判断何时激活干扰技能，例如当玩家消除一行或多行时
+  // 例如，如果玩家消除了多行，我们可以激活干扰技能
+  if (/* 条件满足 */) {
+    activateInterference();
+  }
+}
+
+// 主游戏循环
+function gameLoop() {
+  if (interferenceActive) {
+    // 如果干扰技能激活，执行干扰逻辑
+  } else {
+    // 正常游戏逻辑
+    fallPiece();
+  }
+  checkForInterference();
+}
+
+// 游戏初始化
+init();
+</script>
+</body>
+</html>

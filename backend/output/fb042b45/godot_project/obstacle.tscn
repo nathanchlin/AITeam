@@ -1,0 +1,2 @@
+# This is the obstacle scene file. Since we are not using the editor, we will
+# define the obstacle properties in the GDScript.

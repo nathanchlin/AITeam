@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>修仙沙盘游戏 - 交易系统</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #status {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(255, 255, 255, 0.8);
+    padding: 5px;
+    border-radius: 5px;
+  }
+  #inventory {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.8);
+    padding: 5px;
+    border-radius: 5px;
+    max-height: 200px;
+    overflow: auto;
+  }
+  .item {
+    margin-bottom: 5px;
+    padding: 5px;
+    border: 1px solid #ccc;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="status">玩家等级：1，经验：0，金币：100</div>
+<div id="inventory">
+  <div class="item">金币：100</div>
+  <!-- 物品将被动态添加到此处 -->
+</div>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const scale = 32;
+canvas.width = 800;
+canvas.height = 600;
+
+// 玩家对象
+const player = {
+  x: 100,
+  y: 100,
+  width: 32,
+  height: 32,
+  speed: 5,
+  level: 1,
+  experience: 0,
+  money: 100,
+  inventory: []
+};
+
+// 物品类
+class Item {
+  constructor(name, cost) {
+    this.name = name;
+    this.cost = cost;
+  }
+
+  sell() {
+    player.money += this.cost;
+    const itemIndex = player.inventory.indexOf(this);
+    if (itemIndex > -1) {
+      player.inventory.splice(itemIndex, 1);
+    }
+    updateInventory();
+  }
+}
+
+// 更新状态信息
+function updateStatus() {
+  const statusDiv = document.getElementById('status');
+  statusDiv.textContent = `玩家等级：${player.level}，经验：${player.experience}，金币：${player.money}`;
+}
+
+// 更新物品列表
+function updateInventory() {
+  const inventoryDiv = document.getElementById('inventory');
+  inventoryDiv.innerHTML = '';
+  player.inventory.forEach(item => {
+    const itemDiv = document.createElement('div');
+    itemDiv.className = 'item';
+    itemDiv.textContent = `${item.name}（售价：${item.cost}金币）`;
+    itemDiv.onclick = () => item.sell();
+    inventoryDiv.appendChild(itemDiv);
+  });
+}
+
+// 添加物品到库存
+function addItem(item) {
+  player.inventory.push(item);
+  updateInventory();
+}
+
+// 交易系统
+function trade() {
+  const gold = prompt('请输入交易金币数量：');
+  const goldNumber = parseInt(gold, 10);
+  if (!isNaN(goldNumber) && player.money >= goldNumber) {
+    player.money -= goldNumber;
+    updateStatus();
+  } else {
+    alert('交易失败：金币不足或输入非法！');
+  }
+}
+
+// 初始化游戏
+window.onload = () => {
+  addItem(new Item('丹药', 10));
+  addItem(new Item('法宝', 50));
+  updateStatus();
+  updateInventory();
+  // 添加其他初始化代码，如绑定按钮事件等
+};
+</script>
+</body>
+</html>
