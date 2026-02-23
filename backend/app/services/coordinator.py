@@ -130,12 +130,23 @@ class CoordinatorService:
         if not plan:
             return
 
-        # Get current agents by type
+        # Get current agents, respecting user's selection order
+        all_agents = agent_manager.get_all_agents()
+
+        # Get current agents by type, respecting selected_agent_ids order
         agents_by_type = {}
-        for agent in agent_manager.get_all_agents():
-            agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
-            if agent_type not in agents_by_type:
-                agents_by_type[agent_type] = agent
+        if plan.selected_agent_ids:
+            for agent_id in plan.selected_agent_ids:
+                agent = next((a for a in all_agents if a.id == agent_id), None)
+                if agent:
+                    agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
+                    if agent_type not in agents_by_type:
+                        agents_by_type[agent_type] = agent
+        else:
+            for agent in all_agents:
+                agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
+                if agent_type not in agents_by_type:
+                    agents_by_type[agent_type] = agent
 
         # Re-assign agents to tasks
         reassigned = 0
@@ -487,11 +498,22 @@ class CoordinatorService:
             raise ValueError("No agent available to generate plan")
 
         # Build a map of agent types to agents for task assignment
+        # 按 selected_agent_ids 的顺序构建，确保尊重用户的选择顺序
         agents_by_type = {}
-        for agent in selected_agents:
-            agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
-            if agent_type not in agents_by_type:
-                agents_by_type[agent_type] = agent
+        if plan.selected_agent_ids:
+            # 按用户选择的顺序分配，第一个选择的 agent 优先
+            for agent_id in plan.selected_agent_ids:
+                agent = next((a for a in selected_agents if a.id == agent_id), None)
+                if agent:
+                    agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
+                    if agent_type not in agents_by_type:
+                        agents_by_type[agent_type] = agent
+        else:
+            # 兜底：按默认顺序
+            for agent in selected_agents:
+                agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
+                if agent_type not in agents_by_type:
+                    agents_by_type[agent_type] = agent
 
         assistant.update_status(AgentStatus.WORKING)
 
@@ -1796,12 +1818,20 @@ class CoordinatorService:
         if not assistant:
             return
 
-        # 构建 agent 类型映射
+        # 构建 agent 类型映射，尊重用户选择顺序
         agents_by_type = {}
-        for agent in selected_agents:
-            agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
-            if agent_type not in agents_by_type:
-                agents_by_type[agent_type] = agent
+        if plan.selected_agent_ids:
+            for agent_id in plan.selected_agent_ids:
+                agent = next((a for a in selected_agents if a.id == agent_id), None)
+                if agent:
+                    agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
+                    if agent_type not in agents_by_type:
+                        agents_by_type[agent_type] = agent
+        else:
+            for agent in selected_agents:
+                agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
+                if agent_type not in agents_by_type:
+                    agents_by_type[agent_type] = agent
 
         assistant.update_status(AgentStatus.WORKING)
 
