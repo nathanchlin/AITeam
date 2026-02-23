@@ -46,6 +46,8 @@ export function PipelinePanel() {
   const [showArchivePanel, setShowArchivePanel] = useState(false);
   const [godotProjectInfo, setGodotProjectInfo] = useState<any>(null);
   const [godotDownloading, setGodotDownloading] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -148,6 +150,17 @@ export function PipelinePanel() {
   // 获取当前迭代的任务进度
   const completedTasksCount = displayTasks.filter(t => t.status === 'completed').length;
   const totalTasks = displayTasks.length;
+
+  // 检查当前计划/迭代是否处于待确认状态
+  const isPendingApproval = () => {
+    if (!currentPlan) return false;
+    if (activeIterationTab === 0) {
+      return currentPlan.status === 'pending_approval';
+    } else {
+      const iteration = currentPlan.iterations?.find(i => i.round_number === activeIterationTab);
+      return iteration?.status === 'pending_approval';
+    }
+  };
 
   // Fetch all plans
   const fetchPlans = async () => {
@@ -546,11 +559,53 @@ export function PipelinePanel() {
     }
   };
 
+  const handleApprovePlan = async () => {
+    if (!currentPlanId || approving) return;
+    setApproving(true);
+    try {
+      const isIteration = activeIterationTab > 0;
+      const url = isIteration
+        ? `${API_BASE}/api/pipeline/plans/${currentPlanId}/iterations/${activeIterationTab}/approve`
+        : `${API_BASE}/api/pipeline/plans/${currentPlanId}/approve`;
+      const res = await fetch(url, { method: 'POST' });
+      if (res.ok) {
+        await fetchPlans();
+        console.log('Plan approved');
+      }
+    } catch (e) {
+      console.error('Approve plan error:', e);
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const handleRejectPlan = async () => {
+    if (!currentPlanId || rejecting) return;
+    const feedback = prompt('请输入拒绝原因（可选）：') || '';
+    setRejecting(true);
+    try {
+      const isIteration = activeIterationTab > 0;
+      const url = isIteration
+        ? `${API_BASE}/api/pipeline/plans/${currentPlanId}/iterations/${activeIterationTab}/reject?feedback=${encodeURIComponent(feedback)}`
+        : `${API_BASE}/api/pipeline/plans/${currentPlanId}/reject?feedback=${encodeURIComponent(feedback)}`;
+      const res = await fetch(url, { method: 'POST' });
+      if (res.ok) {
+        await fetchPlans();
+        console.log('Plan rejected');
+      }
+    } catch (e) {
+      console.error('Reject plan error:', e);
+    } finally {
+      setRejecting(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       draft: 'text-gray-400',
       discussing: 'text-yellow-400',
       approved: 'text-blue-400',
+      pending_approval: 'text-orange-400',
       executing: 'text-green-400',
       completed: 'text-green-500',
     };
@@ -562,6 +617,7 @@ export function PipelinePanel() {
       draft: '草稿',
       discussing: '讨论中',
       approved: '已批准',
+      pending_approval: '待确认',
       executing: '执行中',
       completed: '已完成',
     };
@@ -573,6 +629,7 @@ export function PipelinePanel() {
       draft: 'bg-gray-500',
       discussing: 'bg-yellow-500',
       approved: 'bg-blue-500',
+      pending_approval: 'bg-orange-500',
       executing: 'bg-green-500',
       completed: 'bg-green-600',
     };
@@ -584,6 +641,7 @@ export function PipelinePanel() {
       { key: 'draft', label: '需求分析', icon: '📋' },
       { key: 'discussing', label: '团队讨论', icon: '💬' },
       { key: 'approved', label: '计划确认', icon: '✅' },
+      { key: 'pending_approval', label: '待确认', icon: '⏳' },
       { key: 'executing', label: '执行开发', icon: '⚙️' },
       { key: 'completed', label: '完成交付', icon: '🎉' },
     ];
@@ -872,6 +930,33 @@ export function PipelinePanel() {
                 <div className="flex items-center gap-2 p-2 bg-blue-500/10 rounded border border-blue-500/30">
                   <CheckCircle size={14} className="text-blue-400" />
                   <span className="text-sm text-blue-300">{restartMessage}</span>
+                </div>
+              )}
+              {/* Plan Approval Banner */}
+              {isPendingApproval() && (
+                <div className="flex items-center gap-3 p-3 bg-orange-500/10 border border-orange-500/30 rounded">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-orange-300">⏳ 计划已生成，请确认后开始执行</div>
+                    <div className="text-xs text-orange-400/70 mt-1">确认后将开始执行任务，拒绝后将返回讨论阶段</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleRejectPlan}
+                      disabled={rejecting}
+                      className="px-3 py-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded text-sm disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {rejecting ? <Loader2 size={14} className="animate-spin" /> : null}
+                      重新规划
+                    </button>
+                    <button
+                      onClick={handleApprovePlan}
+                      disabled={approving}
+                      className="px-4 py-1.5 bg-green-600 hover:bg-green-500 text-white rounded text-sm disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {approving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                      确认执行
+                    </button>
+                  </div>
                 </div>
               )}
               {/* Current Activity */}

@@ -1564,25 +1564,15 @@ const tutorialSteps = [
     `
   },
   {
-    title: "🎒 背包与商店",
+    title: "🎒 背包与角色集成",
     content: `
-      <p><strong>背包</strong>有12个格子存放装备，<strong>商店</strong>出售各种装备：</p>
+      <p><strong>背包</strong>是你角色的装备库，装备会直接显示在角色身上：</p>
       <div class="tutorial-visual">
-        <div class="demo-grid" style="grid-template-columns: repeat(4, 50px);">
-          <div class="demo-slot has-item" style="border-color: #ff6464; background: rgba(255,100,100,0.2);">⚔️<br><span style="font-size:9px;color:#ffd700;">5💰</span></div>
-          <div class="demo-slot has-item" style="border-color: #6496ff; background: rgba(100,150,255,0.2);">🛡️<br><span style="font-size:9px;color:#ffd700;">5💰</span></div>
-          <div class="demo-slot has-item" style="border-color: #64ff82; background: rgba(100,255,130,0.2);">💊<br><span style="font-size:9px;color:#ffd700;">3💰</span></div>
-          <div class="demo-slot has-item" style="border-color: #c882ff; background: rgba(200,130,255,0.2);">👟<br><span style="font-size:9px;color:#ffd700;">8💰</span></div>
-        </div>
-        <p style="font-size: 12px; margin-top: 10px;">
-          <span style="color:#ff6464;">⚔️武器</span>｜
-          <span style="color:#6496ff;">🛡️防具</span>｜
-          <span style="color:#64ff82;">💊药水</span>｜
-          <span style="color:#c882ff;">👟饰品</span>
-        </p>
+        <p style="font-size: 60px; margin: 10px 0;">🧙🎒</p>
+        <p style="font-size: 12px; color: #00d4ff;">角色随身携带背包，装备提供属性加成</p>
       </div>
       <div class="tutorial-tip">
-        💡 点击商店物品直接购买，点击背包物品选中后可移动或合并
+        💡 装备越多，角色越强！稀有装备会给角色带来特殊的发光效果
       </div>
     `
   },
@@ -1834,6 +1824,33 @@ function renderBackpackGrid() {
     
     grid.appendChild(slot);
   }
+}
+
+// ============ 获取背包中的物品数量 ============
+function getBackpackItemCount() {
+  return backpack.filter(item => item !== null).length;
+}
+
+// ============ 获取背包中最高的稀有度 ============
+function getHighestRarity() {
+  const rarityOrder = { common: 0, rare: 1, epic: 2, legendary: 3 };
+  let highest = 'common';
+  backpack.forEach(item => {
+    if (item && rarityOrder[item.rarity] > rarityOrder[highest]) {
+      highest = item.rarity;
+    }
+  });
+  return highest;
+}
+
+// ============ 获取背包中的武器列表 ============
+function getBackpackWeapons() {
+  return backpack.filter(item => item !== null && item.type === 'weapon');
+}
+
+// ============ 获取背包中的防具列表 ============
+function getBackpackArmors() {
+  return backpack.filter(item => item !== null && item.type === 'armor');
 }
 
 function selectSlot(index) {
@@ -2446,6 +2463,7 @@ function gameLoop(timestamp) {
   requestAnimationFrame(gameLoop);
 }
 
+// ============ 绘制角色与背包的集成显示 ============
 function drawGame(time) {
   const w = canvas.width;
   const h = canvas.height;
@@ -2488,68 +2506,186 @@ function drawGame(time) {
     ctx.stroke();
   }
   
-  // 背包图标（中间）
-  const bpX = w / 2;
-  const bpY = h / 2 - 30;
-  const bounce = Math.sin(time * 3) * 5;
-  
-  ctx.font = '60px serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('🎒', bpX, bpY + 50 + bounce);
-  
-  ctx.font = '16px sans-serif';
-  ctx.fillStyle = '#00d4ff';
-  ctx.fillText('点击下方按钮打开背包', bpX, bpY + 100);
-  
-  // 玩家角色
+  // ==================== 玩家角色与背包集成 ====================
   const playerX = w * 0.2;
   const playerY = groundY - 50;
   const bobY = Math.sin(time * 5) * 3;
   
-  ctx.font = '45px serif';
+  // 获取背包信息
+  const itemCount = getBackpackItemCount();
+  const highestRarity = getHighestRarity();
+  const weapons = getBackpackWeapons();
+  const armors = getBackpackArmors();
+  
+  // 根据最高稀有度确定发光颜色
+  const rarityGlowColors = {
+    common: 'rgba(255, 255, 255, 0.2)',
+    rare: 'rgba(33, 150, 243, 0.4)',
+    epic: 'rgba(156, 39, 176, 0.5)',
+    legendary: 'rgba(255, 152, 0, 0.6)'
+  };
+  
+  // 角色底部光环（根据装备稀有度）
+  if (itemCount > 0) {
+    const glowColor = rarityGlowColors[highestRarity];
+    const glowRadius = 40 + itemCount * 3;
+    
+    // 绘制光环
+    const glowGradient = ctx.createRadialGradient(playerX, playerY + 20, 0, playerX, playerY + 20, glowRadius);
+    glowGradient.addColorStop(0, glowColor);
+    glowGradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = glowGradient;
+    ctx.beginPath();
+    ctx.ellipse(playerX, playerY + 20, glowRadius, glowRadius * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // ==================== 绘制背包（在角色背后）====================
+  const backpackX = playerX + 25;
+  const backpackY = playerY - 25 + bobY;
+  const backpackBounce = Math.sin(time * 3) * 2;
+  
+  // 背包阴影
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+  ctx.beginPath();
+  ctx.ellipse(backpackX + 5, backpackY + 35, 25, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // 背包本体
+  ctx.font = '40px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🎒', backpackX, backpackY + backpackBounce);
+  
+  // 背包容量指示器
+  const capacityText = `${itemCount}/${BACKPACK_SIZE}`;
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillStyle = itemCount >= BACKPACK_SIZE ? '#f44336' : '#00d4ff';
+  ctx.fillText(capacityText, backpackX, backpackY + 55);
+  
+  // 背包满时闪烁警告
+  if (itemCount >= BACKPACK_SIZE) {
+    ctx.fillStyle = `rgba(244, 67, 54, ${0.3 + Math.sin(time * 5) * 0.2})`;
+    ctx.beginPath();
+    ctx.arc(backpackX, backpackY + 20, 30, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  
+  // ==================== 绘制玩家角色 ====================
+  ctx.font = '50px serif';
   ctx.textAlign = 'center';
   ctx.fillText('🧙', playerX, playerY + bobY);
   
-  // 玩家属性显示（带背景）
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-  ctx.roundRect(playerX - 45, playerY + 15, 90, 75, 8);
+  // ==================== 绘制装备环绕效果 ====================
+  // 在角色周围显示已装备物品的小图标
+  const equippedItems = backpack.filter(item => item !== null);
+  const orbitRadius = 55;
+  
+  equippedItems.forEach((item, index) => {
+    const angle = (time * 0.5) + (index * (Math.PI * 2 / equippedItems.length));
+    const itemX = playerX + Math.cos(angle) * orbitRadius;
+    const itemY = playerY - 10 + Math.sin(angle) * (orbitRadius * 0.4) + bobY;
+    
+    // 物品图标（较小）
+    ctx.font = '16px serif';
+    ctx.globalAlpha = 0.7;
+    ctx.fillText(item.icon, itemX, itemY);
+    ctx.globalAlpha = 1;
+  });
+  
+  // ==================== 武器显示（在角色手中）====================
+  if (weapons.length > 0) {
+    const weapon = weapons[0];
+    const weaponX = playerX - 35;
+    const weaponY = playerY - 10 + bobY;
+    const weaponSwing = Math.sin(time * 2) * 5;
+    
+    ctx.font = '24px serif';
+    ctx.save();
+    ctx.translate(weaponX, weaponY);
+    ctx.rotate(weaponSwing * Math.PI / 180);
+    ctx.fillText(weapon.icon, 0, 0);
+    ctx.restore();
+  }
+  
+  // ==================== 盾牌显示（在角色另一侧）====================
+  if (armors.length > 0) {
+    const armor = armors[0];
+    const shieldX = playerX + 35;
+    const shieldY = playerY - 5 + bobY;
+    
+    ctx.font = '22px serif';
+    ctx.fillText(armor.icon, shieldX, shieldY);
+  }
+  
+  // ==================== 角色属性面板 ====================
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.roundRect(playerX - 50, playerY + 20, 100, 85, 8);
   ctx.fill();
   
   ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'left';
+  ctx.fillStyle = '#fff';
+  ctx.fillText(`🧙 玩家`, playerX - 42, playerY + 38);
   ctx.fillStyle = '#ff6464';
-  ctx.fillText(`⚔️ ATK: ${gameState.attack}`, playerX - 38, playerY + 35);
+  ctx.fillText(`⚔️ ATK: ${gameState.attack}`, playerX - 42, playerY + 55);
   ctx.fillStyle = '#6496ff';
-  ctx.fillText(`🛡️ DEF: ${gameState.defense}`, playerX - 38, playerY + 52);
+  ctx.fillText(`🛡️ DEF: ${gameState.defense}`, playerX - 42, playerY + 70);
   ctx.fillStyle = '#64ff82';
-  ctx.fillText(`💨 SPD: ${gameState.speed.toFixed(2)}x`, playerX - 38, playerY + 69);
+  ctx.fillText(`💨 SPD: ${gameState.speed.toFixed(2)}x`, playerX - 42, playerY + 85);
   ctx.fillStyle = '#ffd700';
-  ctx.fillText(`💥 CRIT: ${Math.floor(gameState.critChance * 100)}%`, playerX - 38, playerY + 86);
+  ctx.fillText(`💥 CRIT: ${Math.floor(gameState.critChance * 100)}%`, playerX - 42, playerY + 100);
   
-  // 敌人预览
+  // ==================== 背包状态指示 ====================
+  // 在角色头顶显示背包状态
+  ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#00d4ff';
+  ctx.fillText(`🎒 背包: ${itemCount}/${BACKPACK_SIZE}`, playerX, playerY - 55);
+  
+  // 如果有可合并的物品，显示提示
+  let canMergeAny = false;
+  for (let i = 0; i < BACKPACK_SIZE && !canMergeAny; i++) {
+    for (let j = i + 1; j < BACKPACK_SIZE && !canMergeAny; j++) {
+      if (backpack[i] && backpack[j] && 
+          backpack[i].id === backpack[j].id && 
+          backpack[i].rarity === backpack[j].rarity) {
+        canMergeAny = true;
+      }
+    }
+  }
+  
+  if (canMergeAny) {
+    ctx.fillStyle = `rgba(156, 39, 176, ${0.7 + Math.sin(time * 3) * 0.3})`;
+    ctx.fillText('✨ 可合成！', playerX, playerY - 70);
+  }
+  
+  // ==================== 敌人显示 ====================
   const enemy = enemyDatabase[Math.min(gameState.wave - 1, enemyDatabase.length - 1)];
   const enemyX = w * 0.8;
+  const enemyY = groundY - 50;
   
-  ctx.font = '45px serif';
+  ctx.font = '50px serif';
   ctx.textAlign = 'center';
-  ctx.fillText(enemy.icon, enemyX, playerY + bobY);
+  ctx.fillText(enemy.icon, enemyX, enemyY + bobY);
   
-  // 敌人属性显示（带背景）
-  ctx.fillStyle = 'rgba(50, 0, 0, 0.5)';
-  ctx.roundRect(enemyX - 45, playerY + 15, 90, 55, 8);
+  // 敌人属性面板
+  ctx.fillStyle = 'rgba(50, 0, 0, 0.6)';
+  ctx.roundRect(enemyX - 50, enemyY + 20, 100, 65, 8);
   ctx.fill();
   
   ctx.font = 'bold 11px sans-serif';
   ctx.fillStyle = '#ff8a80';
-  ctx.fillText(enemy.name, enemyX, playerY + 35);
+  ctx.fillText(enemy.name, enemyX - 42, enemyY + 38);
   ctx.fillStyle = '#f44336';
   ctx.textAlign = 'left';
-  ctx.fillText(`❤️ HP: ${enemy.hp}`, enemyX - 38, playerY + 52);
+  ctx.fillText(`❤️ HP: ${enemy.hp}`, enemyX - 42, enemyY + 55);
   ctx.fillStyle = '#ff5722';
-  ctx.fillText(`⚔️ ATK: ${enemy.attack}`, enemyX - 38, playerY + 67);
+  ctx.fillText(`⚔️ ATK: ${enemy.attack}`, enemyX - 42, enemyY + 70);
+  ctx.fillStyle = '#ffa726';
+  ctx.fillText(`🏆 波次: ${enemy.wave}`, enemyX - 42, enemyY + 85);
   
-  // VS 文字
-  ctx.font = 'bold 28px sans-serif';
+  // ==================== VS 文字 ====================
+  ctx.font = 'bold 32px sans-serif';
   ctx.fillStyle = '#ffd700';
   ctx.textAlign = 'center';
   ctx.shadowColor = 'rgba(255, 215, 0, 0.5)';
@@ -2557,10 +2693,38 @@ function drawGame(time) {
   ctx.fillText('VS', w / 2, playerY);
   ctx.shadowBlur = 0;
   
+  // ==================== 中央提示 ====================
+  ctx.font = '14px sans-serif';
+  ctx.fillStyle = 'rgba(0, 212, 255, 0.8)';
+  ctx.fillText('按 B 打开背包 | 空格 开始战斗', w / 2, groundY + 30);
+  
   // 波次指示器
   ctx.font = 'bold 14px sans-serif';
   ctx.fillStyle = '#00d4ff';
-  ctx.fillText(`第 ${gameState.wave} 波`, w / 2, groundY + 25);
+  ctx.fillText(`第 ${gameState.wave} 波`, w / 2, groundY + 50);
+  
+  // ==================== 装备统计面板（右上角）====================
+  const statsX = w - 120;
+  const statsY = 20;
+  
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+  ctx.roundRect(statsX - 10, statsY, 130, 100, 8);
+  ctx.fill();
+  
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#00d4ff';
+  ctx.fillText('📦 装备统计', statsX, statsY + 18);
+  
+  ctx.font = '11px sans-serif';
+  ctx.fillStyle = '#ff6464';
+  ctx.fillText(`⚔️ 武器: ${weapons.length}`, statsX, statsY + 38);
+  ctx.fillStyle = '#6496ff';
+  ctx.fillText(`🛡️ 防具: ${armors.length}`, statsX, statsY + 55);
+  ctx.fillStyle = '#64ff82';
+  ctx.fillText(`💊 药水: ${backpack.filter(i => i && i.type === 'potion').length}`, statsX, statsY + 72);
+  ctx.fillStyle = '#c882ff';
+  ctx.fillText(`👟 饰品: ${backpack.filter(i => i && i.type === 'accessory').length}`, statsX, statsY + 89);
 }
 
 // Canvas roundRect polyfill

@@ -291,6 +291,35 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }
         break;
 
+      case 'plan_pending_approval':
+        // Update plan with pending_approval status
+        const pendingPlanData = data.plan as Plan;
+        if (pendingPlanData) {
+          const existingPlan = get().plans.find(p => p.id === pendingPlanData.id);
+          if (existingPlan) {
+            get().updatePlan(pendingPlanData.id, pendingPlanData);
+          } else {
+            get().addPlan(pendingPlanData);
+          }
+        }
+        break;
+
+      case 'iteration_pending_approval':
+        // Update iteration with pending_approval status
+        if (data.plan_id && data.iteration_round !== undefined) {
+          const plan = get().plans.find(p => p.id === data.plan_id);
+          if (plan && plan.iterations) {
+            const updatedIterations = plan.iterations.map(iter => {
+              if (iter.round_number === data.iteration_round) {
+                return { ...iter, status: 'pending_approval' as const };
+              }
+              return iter;
+            });
+            get().updatePlan(data.plan_id, { iterations: updatedIterations });
+          }
+        }
+        break;
+
       case 'iteration_discussion':
         // 迭代讨论消息
         const iterMsg = data.message as DiscussionMessage;

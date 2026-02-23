@@ -228,6 +228,38 @@ func _draw():
 ✅ 只能使用原生 Canvas API (getContext('2d'))
 ✅ 原因：单文件HTML无法加载外部框架，框架CDN可能被墙
 
+【增量修改规则 - 迭代时必须遵守】
+
+当修改已有代码时，必须使用增量修改格式，而不是重写整个文件：
+
+1. 修改现有函数：
+<<<MODIFY: function_name>>>
+function function_name() {
+    // 新的函数实现
+}
+<<<END>>>
+
+2. 添加新函数（在指定函数之后）：
+<<<ADD: after: existing_function>>>
+function new_function() {
+    // 新函数
+}
+<<<END>>>
+
+3. 删除函数：
+<<<DELETE: function_name>>>
+<<<END>>>
+
+4. 修改CSS规则：
+<<<CSS: .selector>>>
+color: red;
+font-size: 16px;
+<<<END>>>
+
+⚠️ 只有在创建全新项目时才输出完整代码。
+⚠️ 迭代修改时，只输出需要修改的部分！
+⚠️ 如果用户请求是迭代/修改现有功能，必须分析当前代码，只修改需要变化的部分！
+
 【Web游戏开发模板】
 必须使用纯 Canvas 实现：
 ```html

@@ -29,7 +29,8 @@ class TaskStatus(str, Enum):
 class PlanStatus(str, Enum):
     DRAFT = "draft"
     DISCUSSING = "discussing"
-    APPROVED = "approved"
+    PENDING_APPROVAL = "pending_approval"  # 计划已生成，等待用户确认
+    APPROVED = "approved"     # 用户已确认
     EXECUTING = "executing"
     COMPLETED = "completed"
 

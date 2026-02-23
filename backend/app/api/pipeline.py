@@ -129,6 +129,91 @@ async def execute_plan(plan_id: str):
     return {"message": "Execution completed", "result": result}
 
 
+@router.post("/plans/{plan_id}/approve")
+async def approve_plan(plan_id: str, background_tasks: BackgroundTasks):
+    """用户确认计划，开始执行"""
+    from app.main import websocket_manager
+    coordinator.set_websocket_manager(websocket_manager)
+
+    plan = coordinator.approve_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # 启动执行
+    async def run_execute():
+        try:
+            await coordinator.execute_plan(plan_id)
+        except Exception as e:
+            print(f"[Pipeline] Error executing plan {plan_id}: {e}")
+
+    background_tasks.add_task(run_execute)
+
+    return {"status": "approved", "plan_id": plan_id, "message": "计划已确认，开始执行"}
+
+
+@router.post("/plans/{plan_id}/reject")
+async def reject_plan(plan_id: str, feedback: str = ""):
+    """用户拒绝计划，重新讨论"""
+    from app.main import websocket_manager
+    coordinator.set_websocket_manager(websocket_manager)
+
+    plan = coordinator.reject_plan(plan_id, feedback)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    return {"status": "rejected", "plan_id": plan_id, "message": "计划已拒绝，返回讨论阶段"}
+
+
+@router.post("/plans/{plan_id}/iterations/{round_number}/approve")
+async def approve_iteration(plan_id: str, round_number: int, background_tasks: BackgroundTasks):
+    """用户确认迭代计划，开始执行"""
+    from app.main import websocket_manager
+    coordinator.set_websocket_manager(websocket_manager)
+
+    iteration = coordinator.approve_iteration_plan(plan_id, round_number)
+    if not iteration:
+        raise HTTPException(status_code=404, detail="Iteration not found")
+
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # 启动迭代执行
+    async def run_iteration_execute():
+        try:
+            existing_code = output_manager.read_existing_code(plan_id)
+            await coordinator._execute_iteration_plan(plan_id, iteration, existing_code)
+        except Exception as e:
+            print(f"[Pipeline] Error executing iteration {plan_id}/{round_number}: {e}")
+
+    background_tasks.add_task(run_iteration_execute)
+
+    return {
+        "status": "approved",
+        "plan_id": plan_id,
+        "iteration_round": round_number,
+        "message": "迭代计划已确认，开始执行"
+    }
+
+
+@router.post("/plans/{plan_id}/iterations/{round_number}/reject")
+async def reject_iteration(plan_id: str, round_number: int, feedback: str = ""):
+    """用户拒绝迭代计划，重新讨论"""
+    from app.main import websocket_manager
+    coordinator.set_websocket_manager(websocket_manager)
+
+    iteration = coordinator.reject_iteration_plan(plan_id, round_number, feedback)
+    if not iteration:
+        raise HTTPException(status_code=404, detail="Iteration not found")
+
+    return {
+        "status": "rejected",
+        "plan_id": plan_id,
+        "iteration_round": round_number,
+        "message": "迭代计划已拒绝，返回讨论阶段"
+    }
+
+
 @router.post("/plans/{plan_id}/discussion", response_model=dict)
 async def add_discussion_message(plan_id: str, msg_data: DiscussionMessageCreate):
     """Add a message to plan discussion"""

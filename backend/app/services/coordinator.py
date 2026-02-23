@@ -640,20 +640,99 @@ class CoordinatorService:
                 )
             ]
 
-        plan.status = PlanStatus.APPROVED
+        plan.status = PlanStatus.PENDING_APPROVAL
         plan.updated_at = datetime.utcnow()
         self._save_plans()
 
         await self.broadcast({
-            "type": "plan_update",
+            "type": "plan_pending_approval",
             "data": {
                 "plan_id": plan_id,
                 "plan": plan.model_dump(),
+                "message": "计划已生成，请确认后开始执行"
             }
         })
 
         assistant.update_status(AgentStatus.IDLE)
         return plan
+
+    def approve_plan(self, plan_id: str) -> Optional[Plan]:
+        """用户确认计划"""
+        plan = self.plans.get(plan_id)
+        if not plan:
+            return None
+
+        plan.status = PlanStatus.APPROVED
+        plan.updated_at = datetime.utcnow()
+        self._save_plans()
+
+        return plan
+
+    def reject_plan(self, plan_id: str, feedback: str = "") -> Optional[Plan]:
+        """用户拒绝计划，返回讨论阶段"""
+        plan = self.plans.get(plan_id)
+        if not plan:
+            return None
+
+        plan.status = PlanStatus.DISCUSSING
+        plan.updated_at = datetime.utcnow()
+
+        # 添加反馈到讨论
+        if feedback:
+            asyncio.create_task(self.add_discussion_message(
+                plan_id=plan_id,
+                agent_id="user",
+                agent_name="用户",
+                agent_type="assistant",
+                content=f"反馈：{feedback}",
+                message_type="comment",
+            ))
+
+        self._save_plans()
+        return plan
+
+    def approve_iteration_plan(self, plan_id: str, round_number: int) -> Optional[IterationRound]:
+        """用户确认迭代计划"""
+        plan = self.plans.get(plan_id)
+        if not plan:
+            return None
+
+        for iteration in plan.iterations:
+            if iteration.round_number == round_number:
+                iteration.status = PlanStatus.APPROVED
+                plan.updated_at = datetime.utcnow()
+                self._save_plans()
+                return iteration
+
+        return None
+
+    def reject_iteration_plan(self, plan_id: str, round_number: int, feedback: str = "") -> Optional[IterationRound]:
+        """用户拒绝迭代计划，返回讨论阶段"""
+        plan = self.plans.get(plan_id)
+        if not plan:
+            return None
+
+        for iteration in plan.iterations:
+            if iteration.round_number == round_number:
+                iteration.status = PlanStatus.DISCUSSING
+                plan.updated_at = datetime.utcnow()
+
+                # 添加反馈到迭代讨论
+                if feedback:
+                    asyncio.create_task(self._add_iteration_discussion_message(
+                        plan_id=plan_id,
+                        round_number=round_number,
+                        agent_id="user",
+                        agent_name="用户",
+                        agent_type="assistant",
+                        content=f"反馈：{feedback}",
+                        message_type="comment",
+                    ))
+
+                self._save_plans()
+                return iteration
+
+        return None
 
     async def execute_plan(self, plan_id: str) -> str:
         """Phase 4: Execute the plan step by step with testing and feedback loop"""
@@ -1863,14 +1942,16 @@ class CoordinatorService:
             ]
             print(f"[Coordinator] Created fallback task with agent: {fallback_agent.name if fallback_agent else 'None'}")
 
-        iteration_round.status = PlanStatus.APPROVED
+        iteration_round.status = PlanStatus.PENDING_APPROVAL
         self._save_plans()
 
         await self.broadcast({
-            "type": "plan_update",
+            "type": "iteration_pending_approval",
             "data": {
                 "plan_id": plan_id,
+                "iteration_round": iteration_round.round_number,
                 "plan": plan.model_dump(),
+                "message": "迭代计划已生成，请确认后开始执行"
             }
         })
 

@@ -1,7 +1,7 @@
 export type AgentType = 'coder' | 'analyst' | 'assistant' | 'tester' | 'custom';
 export type AgentStatus = 'idle' | 'working' | 'waiting' | 'error';
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
-export type PlanStatus = 'draft' | 'discussing' | 'approved' | 'executing' | 'completed';
+export type PlanStatus = 'draft' | 'discussing' | 'approved' | 'pending_approval' | 'executing' | 'completed';
 
 export interface Position {
   x: number;
