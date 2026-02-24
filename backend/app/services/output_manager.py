@@ -148,6 +148,266 @@ class OutputManager:
                 max_counter = max(max_counter, counter)
         return max_counter + 1
 
+    def _deduplicate_javascript(self, js_code: str) -> str:
+        """Remove duplicate variable declarations, class and function definitions.
+
+        Keeps only the LAST declaration/definition of each identifier.
+        This prevents "Identifier has already been declared" errors.
+        """
+        lines = js_code.split('\n')
+
+        # Track all declarations with their positions and content
+        # Format: name -> list of (start_line, end_line, content_lines)
+        var_declarations = {}  # let/const/var name -> [(start, end, [lines])]
+        class_definitions = {}  # class name -> [(start, end, [lines])]
+        function_definitions = {}  # function name -> [(start, end, [lines])]
+
+        # Track block comment state across lines
+        in_block_comment = False
+
+        # First pass: identify all declarations
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+
+            # Handle block comment state
+            if in_block_comment:
+                # Check for end of block comment
+                if '*/' in stripped:
+                    in_block_comment = False
+                i += 1
+                continue
+
+            # Skip empty lines and comments
+            if not stripped:
+                i += 1
+                continue
+
+            # Check for single-line comment
+            if stripped.startswith('//'):
+                i += 1
+                continue
+
+            # Check for start of block comment (entire line)
+            if stripped.startswith('/*'):
+                # Check if it ends on same line
+                if '*/' not in stripped:
+                    in_block_comment = True
+                i += 1
+                continue
+
+            # Check for variable declarations (let/const/var)
+            # Match patterns like: let name = ..., const name = ..., var name = ...
+            var_match = re.match(r'^(let|const|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)', stripped)
+            if var_match:
+                var_name = var_match.group(2)
+                start = i
+                # Find the end of declaration (semicolon or complete statement)
+                end = self._find_statement_end(lines, i)
+                content = lines[start:end + 1]
+                if var_name not in var_declarations:
+                    var_declarations[var_name] = []
+                var_declarations[var_name].append((start, end, content))
+                i = end + 1
+                continue
+
+            # Check for class definitions
+            class_match = re.match(r'^class\s+([a-zA-Z_$][a-zA-Z0-9_$]*)', stripped)
+            if class_match:
+                class_name = class_match.group(1)
+                start = i
+                end = self._find_block_end(lines, i, '{', '}')
+                content = lines[start:end + 1]
+                if class_name not in class_definitions:
+                    class_definitions[class_name] = []
+                class_definitions[class_name].append((start, end, content))
+                i = end + 1
+                continue
+
+            # Check for function definitions (not methods inside classes)
+            # Match: function name(...) { or async function name(...) {
+            func_match = re.match(r'^(async\s+)?function\s+([a-zA-Z_$][a-zA-Z0-9_$]*)', stripped)
+            if func_match:
+                func_name = func_match.group(2)
+                start = i
+                end = self._find_block_end(lines, i, '{', '}')
+                content = lines[start:end + 1]
+                if func_name not in function_definitions:
+                    function_definitions[func_name] = []
+                function_definitions[func_name].append((start, end, content))
+                i = end + 1
+                continue
+
+            # Check for arrow function variable assignments (const name = () => { or const name = async () => {)
+            arrow_match = re.match(r'^(const|let|var)\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=\s*(async\s+)?(\([^)]*\)|[a-zA-Z_$][a-zA-Z0-9_$]*)\s*=>', stripped)
+            if arrow_match:
+                var_name = arrow_match.group(2)
+                start = i
+                # Find if it's a block arrow function
+                if '{' in stripped or self._find_block_end(lines, i, '{', '}') > i:
+                    end = self._find_block_end(lines, i, '{', '}')
+                else:
+                    end = self._find_statement_end(lines, i)
+                content = lines[start:end + 1]
+                if var_name not in var_declarations:
+                    var_declarations[var_name] = []
+                var_declarations[var_name].append((start, end, content))
+                i = end + 1
+                continue
+
+            i += 1
+
+        # Collect line indices to remove (all but the last occurrence)
+        lines_to_remove = set()
+
+        for var_name, occurrences in var_declarations.items():
+            if len(occurrences) > 1:
+                # Keep only the last occurrence
+                for start, end, _ in occurrences[:-1]:
+                    for line_idx in range(start, end + 1):
+                        lines_to_remove.add(line_idx)
+                print(f"[DeduplicateJS] Removing {len(occurrences) - 1} duplicate(s) of variable '{var_name}'")
+
+        for class_name, occurrences in class_definitions.items():
+            if len(occurrences) > 1:
+                for start, end, _ in occurrences[:-1]:
+                    for line_idx in range(start, end + 1):
+                        lines_to_remove.add(line_idx)
+                print(f"[DeduplicateJS] Removing {len(occurrences) - 1} duplicate(s) of class '{class_name}'")
+
+        for func_name, occurrences in function_definitions.items():
+            if len(occurrences) > 1:
+                for start, end, _ in occurrences[:-1]:
+                    for line_idx in range(start, end + 1):
+                        lines_to_remove.add(line_idx)
+                print(f"[DeduplicateJS] Removing {len(occurrences) - 1} duplicate(s) of function '{func_name}'")
+
+        # Build result, replacing removed lines with empty lines to preserve line numbers for debugging
+        result = []
+        for i, line in enumerate(lines):
+            if i in lines_to_remove:
+                # Replace with empty comment to preserve structure
+                result.append('')
+            else:
+                result.append(line)
+
+        return '\n'.join(result)
+
+    def _find_statement_end(self, lines: List[str], start: int) -> int:
+        """Find the end of a JavaScript statement (semicolon or complete expression)."""
+        i = start
+        paren_depth = 0
+        bracket_depth = 0
+        brace_depth = 0
+
+        while i < len(lines):
+            line = lines[i]
+
+            # Track nested structures
+            paren_depth += line.count('(') - line.count(')')
+            bracket_depth += line.count('[') - line.count(']')
+            brace_depth += line.count('{') - line.count('}')
+
+            # Statement ends with semicolon when not in nested structure
+            if ';' in line and paren_depth <= 0 and bracket_depth <= 0 and brace_depth <= 0:
+                return i
+
+            # If we hit a brace, the statement continues until the brace closes
+            if brace_depth > 0:
+                return self._find_block_end(lines, i, '{', '}')
+
+            # Multi-line statement without semicolon - check if it's complete
+            if i > start and paren_depth <= 0 and bracket_depth <= 0 and brace_depth <= 0:
+                # Check if line ends with operator (continuation)
+                stripped = line.rstrip()
+                if not stripped.endswith((',', '+', '-', '*', '/', '=', '?', ':', '&&', '||')):
+                    return i
+
+            i += 1
+
+        return len(lines) - 1
+
+    def _find_block_end(self, lines: List[str], start: int, open_char: str, close_char: str) -> int:
+        """Find the matching closing bracket for a block."""
+        depth = 0
+        in_string = False
+        string_char = None
+        in_comment = False
+
+        for i in range(start, len(lines)):
+            line = lines[i]
+            j = 0
+            while j < len(line):
+                char = line[j]
+
+                # Handle comments
+                if not in_string and j + 1 < len(line):
+                    if line[j:j+2] == '//':
+                        break  # Rest of line is comment
+                    if line[j:j+2] == '/*':
+                        in_comment = True
+                        j += 2
+                        continue
+                    if line[j:j+2] == '*/' and in_comment:
+                        in_comment = False
+                        j += 2
+                        continue
+
+                if in_comment:
+                    j += 1
+                    continue
+
+                # Handle strings (with proper escape sequence handling)
+                if char in ('"', "'", '`') and not in_comment:
+                    # Count consecutive backslashes before this position
+                    backslash_count = 0
+                    k = j - 1
+                    while k >= 0 and line[k] == '\\':
+                        backslash_count += 1
+                        k -= 1
+                    # Quote is escaped only if odd number of backslashes
+                    is_escaped = backslash_count % 2 == 1
+
+                    if not in_string and not is_escaped:
+                        in_string = True
+                        string_char = char
+                    elif in_string and char == string_char and not is_escaped:
+                        in_string = False
+                        string_char = None
+
+                # Count brackets only when not in string
+                if not in_string:
+                    if char == open_char:
+                        depth += 1
+                    elif char == close_char:
+                        depth -= 1
+                        if depth == 0:
+                            return i
+
+                j += 1
+
+        return len(lines) - 1
+
+    def _extract_all_scripts(self, html_content: str) -> tuple:
+        """Extract all inline script contents from HTML.
+
+        Returns:
+            (scripts_content, html_without_scripts)
+        """
+        scripts = []
+        # Find all script tags with content
+        pattern = r'<script[^>]*>([\s\S]*?)</script>'
+
+        def collect_script(match):
+            content = match.group(1).strip()
+            if content:
+                scripts.append(content)
+            return ''  # Remove from HTML
+
+        html_without = re.sub(pattern, collect_script, html_content)
+        return '\n\n'.join(scripts), html_without
+
     def consolidate_web_app(self, plan_id: str, plan_title: str) -> bool:
         """Consolidate code fragments into a working web application"""
         plan_dir = os.path.join(self.base_dir, plan_id[:8])
@@ -252,21 +512,30 @@ class OutputManager:
             combined_css = '\n'.join(css_code)
             html_content = html_content.replace('</head>', f'<style>\n{combined_css}\n</style>\n</head>')
 
-        # Handle JavaScript consolidation - always merge JS files into HTML
-        # This ensures all JS files are included, even if HTML already has some JS
-        if js_code:
-            combined_js = '\n'.join(js_code)
-            # Find last script tag or inject before </body>
-            if '</script>' in html_content and '<script' in html_content:
-                # Insert after the last </script> to maintain code order
-                last_script_pos = html_content.rfind('</script>')
-                html_content = (
-                    html_content[:last_script_pos + len('</script>')] +
-                    f'\n<script>\n{combined_js}\n</script>' +
-                    html_content[last_script_pos + len('</script>'):]
+        # Handle JavaScript consolidation with deduplication
+        # Extract all existing scripts, merge with new JS, deduplicate, then re-inject
+        if js_code or ('<script' in html_content and '</script>' in html_content):
+            # Extract all existing inline JavaScript
+            existing_js, html_without_scripts = self._extract_all_scripts(html_content)
+
+            # Combine existing JS with new JS files
+            all_js_parts = []
+            if existing_js.strip():
+                all_js_parts.append(existing_js)
+            if js_code:
+                all_js_parts.append('\n'.join(js_code))
+
+            combined_js = '\n\n'.join(all_js_parts)
+
+            # Deduplicate: remove duplicate variable, class, function declarations
+            deduplicated_js = self._deduplicate_javascript(combined_js)
+
+            # Re-inject as a single script tag before </body>
+            if deduplicated_js.strip():
+                html_content = html_without_scripts.replace(
+                    '</body>',
+                    f'<script>\n{deduplicated_js}\n</script>\n</body>'
                 )
-            else:
-                html_content = html_content.replace('</body>', f'<script>\n{combined_js}\n</script>\n</body>')
 
         # Validate and fix common issues
         html_content = self._validate_and_fix_html(html_content, plan_title)
