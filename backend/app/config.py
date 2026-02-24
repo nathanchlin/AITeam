@@ -20,8 +20,12 @@ class Settings(BaseSettings):
     # Database
     database_url: str = "sqlite+aiosqlite:///./aiteam.db"
 
-    # CORS
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    # CORS (允许本地和内网访问)
+    cors_origins: list[str] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://192.168.32.38:5173",  # 内网访问
+    ]
 
     # Redis Configuration
     redis_url: str = "redis://localhost:6379/0"
