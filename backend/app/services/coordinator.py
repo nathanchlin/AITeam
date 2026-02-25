@@ -9,6 +9,8 @@ from pathlib import Path
 from app.services.agent_manager import agent_manager
 from app.services.output_manager import output_manager
 from app.services.code_merger import code_merger
+from app.services.quality_scorer import quality_scorer
+from app.services.feedback_store import feedback_store
 from app.models.schemas import (
     AgentType, AgentStatus, TaskStatus, PlanStatus,
     Plan, PlanTask, PlanCreate, DiscussionMessage, IterationTask, IterationRound
@@ -801,6 +803,14 @@ class CoordinatorService:
         testing_tasks = [t for t in sorted_tasks if 'test' in t.title.lower() or t.assigned_agent_type == 'tester']
         coding_tasks = [t for t in sorted_tasks if t not in testing_tasks]
 
+        # Track first coding task completion for incremental mode
+        first_coding_task_completed = False
+        # Check if index.html already exists (from previous execution)
+        if plan.target_output == "web-app":
+            existing_code = output_manager.read_existing_code(plan_id)
+            if existing_code:
+                first_coding_task_completed = True
+
         while fix_iteration < max_fix_iterations:
             # Execute coding tasks
             for task in coding_tasks:
@@ -864,10 +874,32 @@ class CoordinatorService:
                                 task_result = task_result[:3000] + "\n... (内容已截断)"
                             previous_tasks_context += f"\n---\n### 任务：{task_title}\n\n{task_result}\n"
 
+                    # ===== Incremental Code Modification =====
+                    # For web-app projects, read existing code and pass to agent
+                    existing_code = None
+                    incremental_mode = False
+
+                    if plan.target_output == "web-app" and agent.type.value == "coder":
+                        if first_coding_task_completed:
+                            # Read existing index.html for incremental modification
+                            existing_code = output_manager.read_existing_code(plan_id)
+                            if existing_code:
+                                incremental_mode = True
+                                print(f"[Coordinator] Using incremental mode for task: {task.title} (existing code: {len(existing_code)} chars)")
+
                     # Add web-app specific instructions
                     web_app_instructions = ""
                     if plan.target_output == "web-app" and agent.type.value == "coder":
-                        web_app_instructions = """
+                        if incremental_mode:
+                            web_app_instructions = """
+
+⚠️ 增量修改模式（重要）：
+- 当前已有一个可运行的 index.html，你需要在此基础上进行修改
+- 保持现有功能的同时添加新功能或修复问题
+- 输出完整的修改后的 HTML 代码（不是差异对比）
+- 确保修改后的代码仍然是完整的单文件 HTML 应用"""
+                        else:
+                            web_app_instructions = """
 
 ⚠️ Web应用开发要求（必须全部满足，否则视为未完成任务）：
 1. 生成完整的单文件 HTML（包含内联 CSS 和 JavaScript），打开即可运行。
@@ -913,7 +945,11 @@ class CoordinatorService:
                         try:
                             async def execute_with_timeout():
                                 nonlocal full_response
-                                async for update in agent.execute_task(task_description):
+                                async for update in agent.execute_task(
+                                    task_description,
+                                    existing_code=existing_code,
+                                    incremental_mode=incremental_mode
+                                ):
                                     if update["type"] == "stream":
                                         full_response += update["content"]
                                         await self.broadcast({
@@ -1025,6 +1061,17 @@ class CoordinatorService:
                             task_title=task.title,
                             content=full_response,
                         )
+                    elif plan.target_output == "web-app" and task.assigned_agent_type == "coder":
+                        # For web-app coder tasks, update index.html directly
+                        saved_files = output_manager.update_index_html(
+                            plan_id=plan_id,
+                            content=full_response,
+                            task_title=task.title,
+                        )
+                        # Mark first coding task as completed
+                        if not first_coding_task_completed:
+                            first_coding_task_completed = True
+                            print(f"[Coordinator] First coding task completed, incremental mode enabled for subsequent tasks")
                     else:
                         # Default saving for other output types
                         saved_files = output_manager.save_task_output(
@@ -1079,6 +1126,81 @@ class CoordinatorService:
                     print(f"[OutputManager] Consolidated Godot project for plan {plan_id[:8]}")
             except Exception as e:
                 print(f"[OutputManager] Error saving plan output: {e}")
+
+            # ===== Quality Scoring Gate =====
+            if plan.target_output == "web-app":
+                print(f"[Coordinator] Running quality scoring...")
+                existing_code = output_manager.read_existing_code(plan_id)
+                if existing_code:
+                    quality_result = quality_scorer.score_output(existing_code, plan.original_request)
+                    print(f"[QualityScorer] Score: {quality_result['total']:.1f}/100 (Grade: {quality_result['grade']})")
+
+                    # Store quality score in plan for reference
+                    if not hasattr(plan, 'quality_scores'):
+                        plan.quality_scores = []
+                    plan.quality_scores.append({
+                        "round": fix_iteration,
+                        "score": quality_result["total"],
+                        "grade": quality_result["grade"],
+                        "timestamp": datetime.now().isoformat()
+                    })
+
+                    # Quality gate: if score is below threshold, add feedback for next iteration
+                    if quality_result["total"] < 60:
+                        quality_feedback = f"""⚠️ 代码质量评分: {quality_result['total']:.1f}/100 (等级: {quality_result['grade']})
+
+评分详情:
+- 完整性: {quality_result['scores']['completeness']['percentage']}%
+- 正确性: {quality_result['scores']['correctness']['percentage']}%
+- 可维护性: {quality_result['scores']['maintainability']['percentage']}%
+
+需要改进的问题:
+{chr(10).join('- ' + r for r in quality_result['recommendations'][:5])}
+
+请修复这些问题后重新生成代码。"""
+
+                        await self.add_discussion_message(
+                            plan_id=plan_id,
+                            agent_id="system",
+                            agent_name="系统",
+                            agent_type="assistant",
+                            content=quality_feedback,
+                            message_type="comment",
+                        )
+
+                        # Record errors for feedback learning
+                        for check in quality_result['scores']['correctness'].get('checks', []):
+                            if not check.get('passed', True):
+                                feedback_store.record_error(
+                                    plan_id=plan_id,
+                                    error_type=check.get('name', 'unknown'),
+                                    description=check.get('name', 'Unknown error'),
+                                    code_snippet=existing_code[:500],
+                                    task_context=plan.original_request[:200]
+                                )
+
+                        # If quality is very low, skip to next iteration
+                        if quality_result["total"] < 40:
+                            fix_iteration += 1
+                            await self.add_discussion_message(
+                                plan_id=plan_id,
+                                agent_id="system",
+                                agent_name="系统",
+                                agent_type="assistant",
+                                content="🔄 代码质量过低，开始新一轮修复迭代...",
+                                message_type="comment",
+                            )
+                            continue
+                    else:
+                        # Good quality, post success message
+                        await self.add_discussion_message(
+                            plan_id=plan_id,
+                            agent_id="system",
+                            agent_name="系统",
+                            agent_type="assistant",
+                            content=f"✅ 代码质量评分通过: {quality_result['total']:.1f}/100 (等级: {quality_result['grade']})",
+                            message_type="comment",
+                        )
 
             # Pre-test validation
             if plan.target_output == "web-app":

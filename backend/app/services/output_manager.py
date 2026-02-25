@@ -138,6 +138,103 @@ class OutputManager:
         saved_files.append(md_path)
         return saved_files
 
+    def update_index_html(
+        self,
+        plan_id: str,
+        content: str,
+        task_title: str = "",
+    ) -> List[str]:
+        """Update index.html directly for incremental code modification.
+
+        This method is used for web-app projects to maintain a single index.html
+        file that gets updated incrementally rather than creating multiple
+        numbered files (index_0.html, index_1.html, etc.)
+
+        Args:
+            plan_id: The plan ID
+            content: The LLM output content (may contain markdown code blocks)
+            task_title: Task title for logging purposes
+
+        Returns:
+            List of saved file paths
+        """
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+        self.ensure_dir(plan_dir)
+
+        saved_files = []
+        index_path = os.path.join(plan_dir, "index.html")
+
+        # Extract HTML code from content
+        html_code = None
+
+        # First, try to extract from markdown code blocks
+        code_blocks = self.extract_code_blocks(content)
+        for block in code_blocks:
+            if block['language'] == 'html' or block['filename'].endswith('.html'):
+                html_code = block['code']
+                break
+
+        # If no code block found, try to extract HTML directly from content
+        if not html_code:
+            html_match = re.search(
+                r'(<(!DOCTYPE\s+)?html.*?</html>)',
+                content,
+                re.IGNORECASE | re.DOTALL
+            )
+            if html_match:
+                html_code = html_match.group(1)
+
+        if html_code:
+            # Backup existing index.html if it exists
+            if os.path.exists(index_path):
+                timestamp = int(datetime.now().timestamp())
+                backup_path = os.path.join(plan_dir, f"index_backup_{timestamp}.html")
+
+                # Also save to archive directory for version history
+                archive_dir = os.path.join(plan_dir, "archive")
+                self.ensure_dir(archive_dir)
+
+                # Count existing archives to determine next iteration number
+                existing_archives = [f for f in os.listdir(archive_dir) if f.startswith("iteration_")]
+                next_iteration = len(existing_archives)
+                archive_path = os.path.join(archive_dir, f"iteration_{next_iteration}", "index.html")
+
+                try:
+                    # Create backup
+                    shutil.copy2(index_path, backup_path)
+                    saved_files.append(backup_path)
+                    print(f"[OutputManager] Backup created: {backup_path}")
+
+                    # Save to archive
+                    archive_dir_full = os.path.dirname(archive_path)
+                    self.ensure_dir(archive_dir_full)
+                    shutil.copy2(index_path, archive_path)
+                    print(f"[OutputManager] Archived to: {archive_path}")
+                except Exception as e:
+                    print(f"[OutputManager] Backup failed: {e}")
+
+            # Save the new HTML content
+            with open(index_path, 'w', encoding='utf-8') as f:
+                f.write(html_code)
+            saved_files.append(index_path)
+            print(f"[OutputManager] Updated index.html for plan {plan_id[:8]}")
+
+        # Also save the task output as markdown for record-keeping
+        if task_title:
+            task_slug = re.sub(r'[^\w\s-]', '', task_title.lower())[:30]
+            task_slug = re.sub(r'[\s-]+', '-', task_slug)
+            md_path = os.path.join(plan_dir, f"{task_slug}.md")
+
+            with open(md_path, 'w', encoding='utf-8') as f:
+                f.write(f"# {task_title}\n\n")
+                f.write(f"**Time**: {datetime.now().isoformat()}\n\n")
+                f.write("---\n\n")
+                f.write(content)
+
+            saved_files.append(md_path)
+
+        return saved_files
+
     def _get_next_code_counter(self, plan_dir: str) -> int:
         """Get the next available code counter for numbered files"""
         max_counter = -1
@@ -768,6 +865,233 @@ document.addEventListener('DOMContentLoaded', function() {
         except Exception as e:
             print(f"[OutputManager] Error reading existing code: {e}")
             return None
+
+    def read_existing_code_smart(
+        self,
+        plan_id: str,
+        max_length: int = 20000,
+        focus_areas: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """Smart code reading with prioritized sections.
+
+        Intelligently reads code and prioritizes key sections based on
+        modification focus areas. Returns structured data with code,
+        summary, and structure information.
+
+        Args:
+            plan_id: The plan ID
+            max_length: Maximum total length of returned code
+            focus_areas: Areas to prioritize (e.g., ['game_loop', 'input', 'collision'])
+
+        Returns:
+            Dictionary with:
+            - code: The prioritized code string
+            - summary: Brief description of what's in the code
+            - structure: Dict of section names to their content
+            - stats: Code statistics
+        """
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+        index_path = os.path.join(plan_dir, "index.html")
+
+        result = {
+            "code": "",
+            "summary": "",
+            "structure": {},
+            "stats": {
+                "total_lines": 0,
+                "js_lines": 0,
+                "css_lines": 0,
+                "html_lines": 0
+            }
+        }
+
+        if not os.path.exists(index_path):
+            return result
+
+        try:
+            with open(index_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            # Extract sections
+            sections = self._extract_code_sections(content)
+            result["structure"] = {k: v[:200] + "..." if len(v) > 200 else v
+                                   for k, v in sections.items()}
+
+            # Calculate stats
+            result["stats"]["total_lines"] = len(content.split('\n'))
+            result["stats"]["js_lines"] = len(sections.get("javascript", "").split('\n'))
+            result["stats"]["css_lines"] = len(sections.get("css", "").split('\n'))
+            result["stats"]["html_lines"] = result["stats"]["total_lines"] - result["stats"]["js_lines"] - result["stats"]["css_lines"]
+
+            # Build prioritized context
+            prioritized_code = self._build_prioritized_context(
+                sections, max_length, focus_areas
+            )
+            result["code"] = prioritized_code
+
+            # Generate summary
+            result["summary"] = self._generate_code_summary(sections)
+
+            return result
+        except Exception as e:
+            print(f"[OutputManager] Error in smart code reading: {e}")
+            return result
+
+    def _extract_code_sections(self, content: str) -> Dict[str, str]:
+        """Extract different sections from HTML code."""
+        sections = {}
+
+        # Extract CSS
+        css_match = re.search(r'<style[^>]*>([\s\S]*?)</style>', content)
+        if css_match:
+            sections["css"] = css_match.group(1).strip()
+
+        # Extract JavaScript
+        js_match = re.search(r'<script[^>]*>([\s\S]*?)</script>', content)
+        if js_match:
+            js_content = js_match.group(1).strip()
+            sections["javascript"] = js_content
+
+            # Further break down JavaScript into logical sections
+            # Class definitions
+            class_matches = re.findall(r'(class\s+\w+\s*\{[\s\S]*?\n\})', js_content)
+            if class_matches:
+                sections["classes"] = '\n\n'.join(class_matches)
+
+            # Game loop
+            if re.search(r'(gameLoop|requestAnimationFrame|update.*draw)', js_content):
+                loop_match = re.search(
+                    r'((?:async\s+)?(?:function\s+)?(?:gameLoop|update|render)[\s\S]*?(?=\n\s*(?:function|class|const|let|var|\/\/)|$))',
+                    js_content
+                )
+                if loop_match:
+                    sections["game_loop"] = loop_match.group(1).strip()
+
+            # Event handlers
+            event_matches = re.findall(
+                r'(addEventListener\s*\([^)]+\)[^;]*;?|(?:handleInput|onKey|onClick)[\s\S]*?(?=\n\s*(?:function|class|const|let|var|\/\/|\})|$))',
+                js_content
+            )
+            if event_matches:
+                sections["event_handlers"] = '\n'.join(event_matches[:3])  # Limit to 3
+
+            # Initialization
+            init_match = re.search(
+                r'(window\.onload[\s\S]*?(?=\n\s*(?:function|class|const|let|var)|$)|DOMContentLoaded[\s\S]*?(?=\n\s*(?:function|class|const|let|var)|$))',
+                js_content
+            )
+            if init_match:
+                sections["initialization"] = init_match.group(1).strip()
+
+        # Extract HTML structure (without CSS and JS)
+        html_content = re.sub(r'<style[^>]*>[\s\S]*?</style>', '', content)
+        html_content = re.sub(r'<script[^>]*>[\s\S]*?</script>', '', html_content)
+        sections["html_structure"] = html_content.strip()
+
+        return sections
+
+    def _build_prioritized_context(
+        self,
+        sections: Dict[str, str],
+        max_length: int,
+        focus_areas: Optional[List[str]]
+    ) -> str:
+        """Build prioritized context string from sections."""
+        focus_areas = focus_areas or []
+
+        # Priority order based on focus areas
+        priority_order = []
+
+        # Always include HTML structure first (but abbreviated)
+        if "html_structure" in sections:
+            html = sections["html_structure"]
+            # Abbreviate HTML to just structure
+            html_brief = re.sub(r'>[^<]+<', '><', html)  # Remove text content
+            html_brief = html_brief[:1500]
+            priority_order.append(("html_structure", html_brief, 1500))
+
+        # Priority based on focus areas
+        if "game_loop" in focus_areas and "game_loop" in sections:
+            priority_order.insert(0, ("game_loop", sections["game_loop"], 3000))
+        elif "game_loop" in sections:
+            priority_order.append(("game_loop", sections["game_loop"], 2500))
+
+        if "input" in focus_areas and "event_handlers" in sections:
+            priority_order.insert(0, ("event_handlers", sections["event_handlers"], 2000))
+        elif "event_handlers" in sections:
+            priority_order.append(("event_handlers", sections["event_handlers"], 1500))
+
+        if "collision" in focus_areas or "physics" in focus_areas:
+            if "classes" in sections:
+                priority_order.insert(0, ("classes", sections["classes"], 5000))
+
+        # Always include initialization
+        if "initialization" in sections:
+            priority_order.append(("initialization", sections["initialization"], 1000))
+
+        # Include full JavaScript if space allows
+        if "javascript" in sections:
+            priority_order.append(("javascript_full", sections["javascript"], 12000))
+
+        # Build final context within length limit
+        parts = []
+        total_length = 0
+
+        for name, content, max_section_length in priority_order:
+            if total_length >= max_length:
+                break
+
+            available = max_length - total_length
+            section_max = min(max_section_length, available)
+
+            if len(content) <= section_max:
+                parts.append(f"<!-- {name} -->\n{content}")
+                total_length += len(content) + 20
+            else:
+                # Truncate with marker
+                truncated = content[:section_max - 50]
+                parts.append(f"<!-- {name} (truncated) -->\n{truncated}\n... (truncated)")
+                total_length += section_max
+
+        return '\n\n'.join(parts)
+
+    def _generate_code_summary(self, sections: Dict[str, str]) -> str:
+        """Generate a brief summary of the code structure."""
+        summary_parts = []
+
+        if "html_structure" in sections:
+            # Extract key elements
+            canvas = re.search(r'<canvas[^>]*>', sections.get("html_structure", ""))
+            if canvas:
+                summary_parts.append("Canvas element present")
+            else:
+                summary_parts.append("No canvas element")
+
+        if "javascript" in sections:
+            js = sections["javascript"]
+
+            # Count classes
+            classes = re.findall(r'class\s+(\w+)', js)
+            if classes:
+                summary_parts.append(f"Classes: {', '.join(classes)}")
+
+            # Check for game loop
+            if re.search(r'requestAnimationFrame|gameLoop', js):
+                summary_parts.append("Has game loop")
+            else:
+                summary_parts.append("No game loop detected")
+
+            # Check for initialization
+            if re.search(r'window\.onload|DOMContentLoaded', js):
+                summary_parts.append("Has initialization")
+            else:
+                summary_parts.append("No initialization detected")
+
+            # Check for event handlers
+            if re.search(r'addEventListener', js):
+                summary_parts.append("Has event handlers")
+
+        return " | ".join(summary_parts) if summary_parts else "Empty or invalid code"
 
     # ==================== Archive Management ====================
 

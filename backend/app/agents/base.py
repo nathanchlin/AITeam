@@ -53,8 +53,19 @@ class BaseAgent(ABC):
         self.updated_at = datetime.utcnow()
 
     @abstractmethod
-    async def execute_task(self, task: str) -> AsyncGenerator[Dict[str, Any], None]:
-        """Execute a task and yield progress updates"""
+    async def execute_task(
+        self,
+        task: str,
+        existing_code: Optional[str] = None,
+        incremental_mode: bool = False
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """Execute a task and yield progress updates
+
+        Args:
+            task: Task description
+            existing_code: Current code to modify (for incremental updates)
+            incremental_mode: If True, use incremental modification format
+        """
         pass
 
     @abstractmethod
@@ -228,6 +239,204 @@ func _draw():
 ✅ 只能使用原生 Canvas API (getContext('2d'))
 ✅ 原因：单文件HTML无法加载外部框架，框架CDN可能被墙
 
+【预生成检查清单 - 生成代码前必须确认】
+
+在开始写代码之前，先在脑子里过一遍这个清单，确保所有必需组件都会被包含：
+
+□ HTML 结构 - DOCTYPE, html, head, body 标签
+□ Canvas 元素 - <canvas id="game"></canvas>
+□ CSS 样式 - canvas 居中、背景色、边框
+□ 游戏类 - class Game { ... }
+□ 构造函数 - constructor() 初始化所有状态变量
+□ 游戏循环 - requestAnimationFrame 或 setInterval
+□ 输入处理 - keydown/keyup 或 touch 事件
+□ 碰撞检测 - 边界、物体之间的碰撞
+□ 状态更新 - update() 方法修改游戏状态
+□ 渲染绘制 - draw() 方法使用 Canvas API 绘制
+□ 分数/状态显示 - 玩家可见的游戏信息
+□ 游戏结束条件 - 判断游戏何时结束
+□ 初始化代码 - window.onload 或 DOMContentLoaded 启动游戏
+
+=== 完整示例：可运行的贪吃蛇游戏 ===
+
+以下是一个完整的、可直接在浏览器运行的贪吃蛇游戏。你的代码必须达到同样的完整度：
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>贪吃蛇游戏</title>
+<style>
+body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #1a1a2e; font-family: monospace; }
+#gameContainer { position: relative; }
+canvas { border: 2px solid #4a9eff; background: #16213e; }
+#score { position: absolute; top: 10px; left: 10px; color: #4a9eff; font-size: 18px; }
+#gameOver { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ff4a4a; font-size: 24px; display: none; text-align: center; }
+#restart { margin-top: 10px; padding: 10px 20px; background: #4a9eff; border: none; color: white; cursor: pointer; font-size: 16px; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <div id="score">得分: 0</div>
+  <canvas id="game" width="400" height="400"></canvas>
+  <div id="gameOver">
+    游戏结束!<br>
+    <button id="restart" onclick="restartGame()">重新开始</button>
+  </div>
+</div>
+<script>
+class SnakeGame {
+  constructor() {
+    this.canvas = document.getElementById('game');
+    this.ctx = this.canvas.getContext('2d');
+    this.gridSize = 20;
+    this.tileCount = this.canvas.width / this.gridSize;
+    this.snake = [{x: 10, y: 10}];
+    this.direction = {x: 1, y: 0};
+    this.nextDirection = {x: 1, y: 0};
+    this.food = {x: 15, y: 15};
+    this.score = 0;
+    this.gameOver = false;
+    this.speed = 100;
+    this.lastTime = 0;
+    this.init();
+  }
+  init() {
+    document.addEventListener('keydown', (e) => this.handleInput(e));
+    document.getElementById('restart').addEventListener('click', () => this.restart());
+    requestAnimationFrame((time) => this.gameLoop(time));
+  }
+  handleInput(e) {
+    const keyMap = {
+      ArrowUp: {x: 0, y: -1}, ArrowDown: {x: 0, y: 1},
+      ArrowLeft: {x: -1, y: 0}, ArrowRight: {x: 1, y: 0},
+      w: {x: 0, y: -1}, s: {x: 0, y: 1}, a: {x: -1, y: 0}, d: {x: 1, y: 0}
+    };
+    const newDir = keyMap[e.key];
+    if (newDir && (newDir.x !== -this.direction.x || newDir.y !== -this.direction.y)) {
+      this.nextDirection = newDir;
+    }
+  }
+  spawnFood() {
+    let newFood;
+    do {
+      newFood = {
+        x: Math.floor(Math.random() * this.tileCount),
+        y: Math.floor(Math.random() * this.tileCount)
+      };
+    } while (this.snake.some(s => s.x === newFood.x && s.y === newFood.y));
+    this.food = newFood;
+  }
+  update() {
+    this.direction = this.nextDirection;
+    const head = {
+      x: this.snake[0].x + this.direction.x,
+      y: this.snake[0].y + this.direction.y
+    };
+    if (head.x < 0 || head.x >= this.tileCount || head.y < 0 || head.y >= this.tileCount) {
+      this.endGame();
+      return;
+    }
+    if (this.snake.some(s => s.x === head.x && s.y === head.y)) {
+      this.endGame();
+      return;
+    }
+    this.snake.unshift(head);
+    if (head.x === this.food.x && head.y === this.food.y) {
+      this.score += 10;
+      document.getElementById('score').textContent = '得分: ' + this.score;
+      this.spawnFood();
+    } else {
+      this.snake.pop();
+    }
+  }
+  draw() {
+    this.ctx.fillStyle = '#16213e';
+    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    this.ctx.fillStyle = '#4a9eff';
+    this.snake.forEach((s, i) => {
+      const alpha = 1 - (i / this.snake.length) * 0.5;
+      this.ctx.fillStyle = `rgba(74, 158, 255, ${alpha})`;
+      this.ctx.fillRect(s.x * this.gridSize + 1, s.y * this.gridSize + 1, this.gridSize - 2, this.gridSize - 2);
+    });
+    this.ctx.fillStyle = '#ff4a4a';
+    this.ctx.beginPath();
+    this.ctx.arc(
+      this.food.x * this.gridSize + this.gridSize / 2,
+      this.food.y * this.gridSize + this.gridSize / 2,
+      this.gridSize / 2 - 2, 0, Math.PI * 2
+    );
+    this.ctx.fill();
+  }
+  gameLoop(time) {
+    if (this.gameOver) return;
+    if (time - this.lastTime >= this.speed) {
+      this.update();
+      this.draw();
+      this.lastTime = time;
+    }
+    requestAnimationFrame((t) => this.gameLoop(t));
+  }
+  endGame() {
+    this.gameOver = true;
+    document.getElementById('gameOver').style.display = 'block';
+  }
+  restart() {
+    this.snake = [{x: 10, y: 10}];
+    this.direction = {x: 1, y: 0};
+    this.nextDirection = {x: 1, y: 0};
+    this.score = 0;
+    this.gameOver = false;
+    document.getElementById('score').textContent = '得分: 0';
+    document.getElementById('gameOver').style.display = 'none';
+    this.spawnFood();
+    requestAnimationFrame((t) => this.gameLoop(t));
+  }
+}
+window.onload = () => new SnakeGame();
+</script>
+</body>
+</html>
+```
+
+=== 反模式示例：绝对不要这样写 ===
+
+以下代码展示了常见错误，你的代码绝对不能出现这些模式：
+
+```javascript
+// ❌ 错误1: 空方法体
+class Game {
+  constructor() { /* TODO */ }  // 错误！构造函数是空的
+  update() { }                   // 错误！方法体为空
+  draw() { /* 待实现 */ }        // 错误！只有注释
+}
+
+// ❌ 错误2: 使用省略号或占位符
+function createEnemy() {
+  // ... 创建敌人的逻辑
+}
+
+// ❌ 错误3: 没有初始化
+class Game {
+  constructor() {
+    this.score = 0;
+  }
+}
+// 忘记 window.onload 或实例化！游戏永远不会启动
+
+// ❌ 错误4: 引用外部文件
+<link href="style.css">          // 错误！外部CSS
+<script src="game.js"></script>  // 错误！外部JS
+
+// ❌ 错误5: 使用未定义的变量
+class Game {
+  draw() {
+    ctx.fillRect(0, 0, 100, 100);  // 错误！ctx 未定义
+  }
+}
+```
+
 【增量修改规则 - 迭代时必须遵守】
 
 当修改已有代码时，必须使用增量修改格式，而不是重写整个文件：
@@ -260,17 +469,50 @@ font-size: 16px;
 ⚠️ 迭代修改时，只输出需要修改的部分！
 ⚠️ 如果用户请求是迭代/修改现有功能，必须分析当前代码，只修改需要变化的部分！
 
-【Web游戏开发模板】
+【Web游戏开发模板 - 最小可运行结构】
 必须使用纯 Canvas 实现：
 ```html
 <!DOCTYPE html>
 <html>
-<head><style>/* 样式 */</style></head>
+<head><style>canvas { border: 1px solid #000; }</style></head>
 <body>
-<canvas id="game"></canvas>
+<canvas id="game" width="400" height="400"></canvas>
 <script>
-class Game { constructor() { this.init(); } init() {} update() {} draw() {} gameLoop() { this.update(); this.draw(); requestAnimationFrame(() => this.gameLoop()); } }
-window.onload = () => { new Game(); };
+class Game {
+  constructor() {
+    this.canvas = document.getElementById('game');
+    this.ctx = this.canvas.getContext('2d');
+    this.init();
+  }
+  init() {
+    // 初始化游戏状态
+    this.score = 0;
+    this.gameOver = false;
+    this.bindEvents();
+    this.gameLoop();
+  }
+  bindEvents() {
+    document.addEventListener('keydown', (e) => this.handleInput(e));
+  }
+  handleInput(e) {
+    // 处理输入
+  }
+  update() {
+    // 更新游戏状态（必须有实际代码）
+  }
+  draw() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // 绘制游戏（必须有实际代码，调用 ctx 绘制方法）
+  }
+  gameLoop() {
+    if (!this.gameOver) {
+      this.update();
+      this.draw();
+    }
+    requestAnimationFrame(() => this.gameLoop());
+  }
+}
+window.onload = () => new Game();
 </script>
 </body>
 </html>
@@ -278,13 +520,54 @@ window.onload = () => { new Game(); };
 
 当代码需要作为独立文件时，请在代码块第一行标注文件名。"""
 
-    async def execute_task(self, task: str) -> AsyncGenerator[Dict[str, Any], None]:
+    async def execute_task(
+        self,
+        task: str,
+        existing_code: Optional[str] = None,
+        incremental_mode: bool = False
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """Execute a coding task with optional incremental modification support
+
+        Args:
+            task: Task description
+            existing_code: Current HTML/JS code to modify (for incremental updates)
+            incremental_mode: If True, instruct LLM to make targeted modifications
+        """
         self.update_status(AgentStatus.WORKING)
 
         yield {"type": "thinking", "content": f"[{self.name}] 开始分析代码任务..."}
         yield {"type": "thinking", "content": f"[{self.name}] 理解需求：{task}"}
 
-        async for chunk in glm_client.chat_stream(task, "coder", self.custom_prompt):
+        # Construct prompt based on mode
+        if existing_code and incremental_mode:
+            # Incremental modification mode - LLM should modify existing code
+            full_prompt = f"""## 当前代码
+
+```html
+{existing_code}
+```
+
+## 修改任务
+
+{task}
+
+## 重要提示
+
+这是**增量修改任务**，你需要基于上面的当前代码进行修改。
+
+⚠️ **输出要求**：
+1. 输出**完整的修改后的 HTML 代码**（不是增量格式，而是完整的可运行代码）
+2. 保持现有功能的同时添加新功能或修复问题
+3. 确保修改后的代码仍然是完整的单文件 HTML 应用
+4. 不要删除或破坏现有的核心功能
+
+请输出修改后的完整 HTML 代码：
+"""
+        else:
+            # Initial generation mode - generate from scratch
+            full_prompt = task
+
+        async for chunk in glm_client.chat_stream(full_prompt, "coder", self.custom_prompt):
             yield {"type": "stream", "content": chunk}
 
         self.update_status(AgentStatus.IDLE)
@@ -305,7 +588,17 @@ class AnalystAgent(BaseAgent):
 
 请用清晰、结构化的方式呈现分析结果。"""
 
-    async def execute_task(self, task: str) -> AsyncGenerator[Dict[str, Any], None]:
+    async def execute_task(
+        self,
+        task: str,
+        existing_code: Optional[str] = None,
+        incremental_mode: bool = False
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """Execute an analysis task.
+
+        Note: existing_code and incremental_mode are accepted for interface
+        consistency but are not used by AnalystAgent (only CoderAgent uses them).
+        """
         self.update_status(AgentStatus.WORKING)
 
         yield {"type": "thinking", "content": f"[{self.name}] 开始数据分析..."}
@@ -332,7 +625,17 @@ class AssistantAgent(BaseAgent):
 
 请用友好、专业的方式回应，善于组织和协调。"""
 
-    async def execute_task(self, task: str) -> AsyncGenerator[Dict[str, Any], None]:
+    async def execute_task(
+        self,
+        task: str,
+        existing_code: Optional[str] = None,
+        incremental_mode: bool = False
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """Execute an assistant task.
+
+        Note: existing_code and incremental_mode are accepted for interface
+        consistency but are not used by AssistantAgent (only CoderAgent uses them).
+        """
         self.update_status(AgentStatus.WORKING)
 
         yield {"type": "thinking", "content": f"[{self.name}] 处理请求..."}
@@ -365,29 +668,124 @@ class TesterAgent(BaseAgent):
 - 只有代码中明确引用了某个框架，才检查该框架是否存在
 - 不要假设所有游戏都需要 Phaser 或其他框架
 
+【常见错误模式检测清单 - 按严重程度分类】
+
+🔴 严重错误（必须修复，代码无法运行）：
+
+1. 【空方法体】
+   - 检测模式：function name() { } 或 method() { /* 注释 */ }
+   - 问题：方法没有实际执行代码
+   - 示例：constructor() { /* TODO */ } 或 update() { }
+
+2. 【重复定义】
+   - 检测模式：同一个 class、function 或变量被定义多次
+   - 问题：JavaScript 会报 "Identifier has already been declared" 错误
+   - 示例：class Game {} 出现两次
+
+3. 【缺少游戏循环】
+   - 检测模式：代码有游戏类但没有 requestAnimationFrame 或 setInterval
+   - 问题：游戏永远不会更新或渲染
+   - 必须有：gameLoop() { requestAnimationFrame(() => this.gameLoop()); }
+
+4. 【缺少初始化】
+   - 检测模式：有 class 定义但没有 window.onload 或 DOMContentLoaded
+   - 问题：游戏类永远不会被实例化
+   - 必须有：window.onload = () => new Game();
+
+5. 【使用未定义的变量/函数】
+   - 检测模式：使用了 ctx、canvas 等但没有在构造函数中初始化
+   - 问题：运行时会报 "xxx is not defined" 错误
+   - 示例：draw() { ctx.fillRect(...) } 但 ctx 没有定义
+
+6. 【外部文件引用】
+   - 检测模式：<script src="xxx.js"> 或 <link href="xxx.css">
+   - 问题：单文件 HTML 无法加载外部资源
+
+7. 【占位符代码】
+   - 检测模式：TODO、FIXME、... 省略号、"待实现"
+   - 问题：代码不完整，功能无法正常工作
+
+8. 【DOM 元素不存在】
+   - 检测模式：getElementById('xxx') 但 HTML 中没有 id="xxx"
+   - 问题：返回 null，后续操作会失败
+
+🟡 中等问题（建议修复，可能导致运行时错误）：
+
+1. 【缺少边界检查】
+   - 玩家/敌人可能移出屏幕
+   - 数组访问可能越界
+
+2. 【没有错误处理】
+   - 除法没有检查除数是否为 0
+   - 没有 try-catch 处理可能的异常
+
+3. 【硬编码数值】
+   - 魔法数字应该用常量表示
+   - 示例：if (score > 1000) 应该用 const WIN_SCORE = 1000
+
+4. 【游戏状态不完整】
+   - 缺少暂停/继续功能
+   - 缺少游戏结束判定
+   - 缺少重新开始功能
+
+🟢 轻微问题（优化建议）：
+
+1. 代码风格不一致
+2. 注释不清晰
+3. 变量命名不规范
+
 【Canvas 游戏测试标准】
-- 检查是否有 canvas 元素和 getContext('2d')
-- 检查是否有游戏循环 (requestAnimationFrame 或 setInterval)
-- 检查是否有初始化代码 (init 函数或 window.onload)
-- 检查类和函数是否在使用前定义
-- 检查事件监听是否设置
+- ✅ 检查是否有 canvas 元素和 getContext('2d')
+- ✅ 检查是否有游戏循环 (requestAnimationFrame 或 setInterval)
+- ✅ 检查是否有初始化代码 (init 函数或 window.onload)
+- ✅ 检查类和函数是否在使用前定义
+- ✅ 检查事件监听是否设置
+- ✅ 检查 ctx 绘制方法是否被调用（fillRect, drawImage 等）
 
 【不要误报的问题】
 ❌ 不要报告"缺少 Phaser.js"如果代码使用纯 Canvas
 ❌ 不要报告"缺少外部文件"如果代码是完整的单文件
 ❌ 不要要求未使用的技术栈
 
-【真正的代码问题】
-✅ 使用了未定义的变量或函数
-✅ 缺少必要的初始化代码
-✅ 游戏循环没有启动
-✅ 事件监听未绑定
-✅ 逻辑错误或边界条件未处理
+【测试报告格式】
+
+请按以下格式输出测试结果：
+
+## 测试结果
+
+### 🔴 严重错误（共 X 个）
+1. [行号] 错误类型: 描述
+   - 代码片段: ...
+   - 修复建议: ...
+
+### 🟡 中等问题（共 X 个）
+1. [行号] 问题类型: 描述
+   - 修复建议: ...
+
+### ✅ 通过的检查项
+- [x] 有游戏循环
+- [x] 有初始化代码
+- ...
+
+### 修复优先级
+1. 首先修复严重错误
+2. 然后处理中等问题
+3. 最后优化轻微问题
 
 请用系统化、严谨的方式工作，关注边界条件和异常情况。
 发现问题时，请清晰描述问题、预期结果和实际结果。"""
 
-    async def execute_task(self, task: str) -> AsyncGenerator[Dict[str, Any], None]:
+    async def execute_task(
+        self,
+        task: str,
+        existing_code: Optional[str] = None,
+        incremental_mode: bool = False
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """Execute a testing task.
+
+        Note: existing_code and incremental_mode are accepted for interface
+        consistency but are not used by TesterAgent (only CoderAgent uses them).
+        """
         self.update_status(AgentStatus.WORKING)
 
         yield {"type": "thinking", "content": f"[{self.name}] 开始测试任务..."}
@@ -407,7 +805,17 @@ class CustomAgent(BaseAgent):
     def get_system_prompt(self, target_output: str = "web-app") -> str:
         return self.custom_prompt or "你是一个自定义AI助手。"
 
-    async def execute_task(self, task: str) -> AsyncGenerator[Dict[str, Any], None]:
+    async def execute_task(
+        self,
+        task: str,
+        existing_code: Optional[str] = None,
+        incremental_mode: bool = False
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """Execute a custom task.
+
+        Note: existing_code and incremental_mode are accepted for interface
+        consistency but are not used by CustomAgent (only CoderAgent uses them).
+        """
         self.update_status(AgentStatus.WORKING)
 
         yield {"type": "thinking", "content": f"[{self.name}] 开始处理自定义任务..."}
