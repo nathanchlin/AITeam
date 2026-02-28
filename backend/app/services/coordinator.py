@@ -1144,25 +1144,26 @@ class CoordinatorService:
 
             # ===== Quality Scoring Gate =====
             if plan.target_output == "web-app":
-                print(f"[Coordinator] Running quality scoring...")
-                existing_code = output_manager.read_existing_code(plan_id)
-                if existing_code:
-                    quality_result = quality_scorer.score_output(existing_code, plan.original_request)
-                    print(f"[QualityScorer] Score: {quality_result['total']:.1f}/100 (Grade: {quality_result['grade']})")
+                try:
+                    print(f"[Coordinator] Running quality scoring...")
+                    existing_code = output_manager.read_existing_code(plan_id)
+                    if existing_code:
+                        quality_result = quality_scorer.score_output(existing_code, plan.original_request)
+                        print(f"[QualityScorer] Score: {quality_result['total']:.1f}/100 (Grade: {quality_result['grade']})")
 
-                    # Store quality score in plan for reference
-                    if not hasattr(plan, 'quality_scores'):
-                        plan.quality_scores = []
-                    plan.quality_scores.append({
-                        "round": fix_iteration,
-                        "score": quality_result["total"],
-                        "grade": quality_result["grade"],
-                        "timestamp": datetime.now().isoformat()
-                    })
+                        # Store quality score in plan for reference
+                        if not hasattr(plan, 'quality_scores'):
+                            plan.quality_scores = []
+                        plan.quality_scores.append({
+                            "round": fix_iteration,
+                            "score": quality_result["total"],
+                            "grade": quality_result["grade"],
+                            "timestamp": datetime.now().isoformat()
+                        })
 
-                    # Quality gate: if score is below threshold, add feedback for next iteration
-                    if quality_result["total"] < 60:
-                        quality_feedback = f"""⚠️ 代码质量评分: {quality_result['total']:.1f}/100 (等级: {quality_result['grade']})
+                        # Quality gate: if score is below threshold, add feedback for next iteration
+                        if quality_result["total"] < 60:
+                            quality_feedback = f"""⚠️ 代码质量评分: {quality_result['total']:.1f}/100 (等级: {quality_result['grade']})
 
 评分详情:
 - 完整性: {quality_result['scores']['completeness']['percentage']}%
@@ -1174,90 +1175,101 @@ class CoordinatorService:
 
 请修复这些问题后重新生成代码。"""
 
-                        await self.add_discussion_message(
-                            plan_id=plan_id,
-                            agent_id="system",
-                            agent_name="系统",
-                            agent_type="assistant",
-                            content=quality_feedback,
-                            message_type="comment",
-                        )
-
-                        # Record errors for feedback learning
-                        for check in quality_result['scores']['correctness'].get('checks', []):
-                            if not check.get('passed', True):
-                                feedback_store.record_error(
-                                    plan_id=plan_id,
-                                    error_type=check.get('name', 'unknown'),
-                                    description=check.get('name', 'Unknown error'),
-                                    code_snippet=existing_code[:500],
-                                    task_context=plan.original_request[:200]
-                                )
-
-                        # If quality is very low, skip to next iteration
-                        if quality_result["total"] < 40:
-                            fix_iteration += 1
                             await self.add_discussion_message(
                                 plan_id=plan_id,
                                 agent_id="system",
                                 agent_name="系统",
                                 agent_type="assistant",
-                                content="🔄 代码质量过低，开始新一轮修复迭代...",
+                                content=quality_feedback,
                                 message_type="comment",
                             )
-                            continue
-                    else:
-                        # Good quality, post success message
+
+                            # Record errors for feedback learning
+                            for check in quality_result['scores']['correctness'].get('checks', []):
+                                if not check.get('passed', True):
+                                    feedback_store.record_error(
+                                        plan_id=plan_id,
+                                        error_type=check.get('name', 'unknown'),
+                                        description=check.get('name', 'Unknown error'),
+                                        code_snippet=existing_code[:500],
+                                        task_context=plan.original_request[:200]
+                                    )
+
+                            # If quality is very low, skip to next iteration
+                            if quality_result["total"] < 40:
+                                fix_iteration += 1
+                                await self.add_discussion_message(
+                                    plan_id=plan_id,
+                                    agent_id="system",
+                                    agent_name="系统",
+                                    agent_type="assistant",
+                                    content="🔄 代码质量过低，开始新一轮修复迭代...",
+                                    message_type="comment",
+                                )
+                                continue
+                        else:
+                            # Good quality, post success message
+                            await self.add_discussion_message(
+                                plan_id=plan_id,
+                                agent_id="system",
+                                agent_name="系统",
+                                agent_type="assistant",
+                                content=f"✅ 代码质量评分通过: {quality_result['total']:.1f}/100 (等级: {quality_result['grade']})",
+                                message_type="comment",
+                            )
+                except Exception as e:
+                    print(f"[Coordinator] Quality scoring failed: {e}")
+                    # Continue with execution even if quality scoring fails
+
+            # Pre-test validation
+            if plan.target_output == "web-app":
+                try:
+                    print(f"[Coordinator] Running pre-test validation...")
+                    validation = output_manager.pre_test_validation(plan_id)
+
+                    if not validation["passed"]:
+                        # Post validation failure message
+                        error_list = "\n".join([f"- ❌ {err}" for err in validation["errors"]])
                         await self.add_discussion_message(
                             plan_id=plan_id,
                             agent_id="system",
                             agent_name="系统",
                             agent_type="assistant",
-                            content=f"✅ 代码质量评分通过: {quality_result['total']:.1f}/100 (等级: {quality_result['grade']})",
+                            content=f"⚠️ 预测试验证失败\n\n{error_list}\n\n请在测试前修复这些问题。",
                             message_type="comment",
                         )
-
-            # Pre-test validation
-            if plan.target_output == "web-app":
-                print(f"[Coordinator] Running pre-test validation...")
-                validation = output_manager.pre_test_validation(plan_id)
-
-                if not validation["passed"]:
-                    # Post validation failure message
-                    error_list = "\n".join([f"- ❌ {err}" for err in validation["errors"]])
-                    await self.add_discussion_message(
-                        plan_id=plan_id,
-                        agent_id="system",
-                        agent_name="系统",
-                        agent_type="assistant",
-                        content=f"⚠️ 预测试验证失败\n\n{error_list}\n\n请在测试前修复这些问题。",
-                        message_type="comment",
-                    )
-                    print(f"[Coordinator] Pre-test validation failed, skipping tests")
-                    # Skip to end without running tests
-                    plan.status = PlanStatus.COMPLETED
-                    self._save_plans()
-                    return plan
+                        print(f"[Coordinator] Pre-test validation failed, skipping tests")
+                        # Skip to end without running tests
+                        plan.status = PlanStatus.COMPLETED
+                        self._save_plans()
+                        return plan
+                except Exception as e:
+                    print(f"[Coordinator] Pre-test validation failed with error: {e}")
+                    # Continue with execution even if validation fails
 
             # Pre-test validation for Godot
             if plan.target_output == "godot-game":
-                print(f"[Coordinator] Running Godot pre-test validation...")
-                validation = output_manager.pre_test_validation_godot(plan_id)
+                try:
+                    print(f"[Coordinator] Running Godot pre-test validation...")
+                    validation = output_manager.pre_test_validation_godot(plan_id)
 
-                if not validation["passed"]:
-                    error_list = "\n".join([f"- ❌ {err}" for err in validation["errors"]])
-                    await self.add_discussion_message(
-                        plan_id=plan_id,
-                        agent_id="system",
-                        agent_name="系统",
-                        agent_type="assistant",
-                        content=f"⚠️ Godot 项目验证失败\n\n{error_list}\n\n请在测试前修复这些问题。",
-                        message_type="comment",
-                    )
-                    print(f"[Coordinator] Godot pre-test validation failed")
-                    plan.status = PlanStatus.COMPLETED
-                    self._save_plans()
-                    return plan
+                    if not validation["passed"]:
+                        error_list = "\n".join([f"- ❌ {err}" for err in validation["errors"]])
+                        await self.add_discussion_message(
+                            plan_id=plan_id,
+                            agent_id="system",
+                            agent_name="系统",
+                            agent_type="assistant",
+                            content=f"⚠️ Godot 项目验证失败\n\n{error_list}\n\n请在测试前修复这些问题。",
+                            message_type="comment",
+                        )
+                        print(f"[Coordinator] Godot pre-test validation failed")
+                        plan.status = PlanStatus.COMPLETED
+                        self._save_plans()
+                        return plan
+                except Exception as e:
+                    print(f"[Coordinator] Godot pre-test validation failed with error: {e}")
+                    # Continue with execution even if validation fails
 
             # Execute testing tasks
             all_tests_passed = True
