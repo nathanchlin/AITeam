@@ -4,7 +4,7 @@ import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
 import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square } from 'lucide-react';
 import { ArchivePanel } from './ArchivePanel';
 
-const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
+const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
 
 // Default panel size
 const DEFAULT_WIDTH = 900;
@@ -669,7 +669,10 @@ export function PipelinePanel() {
   if (!pipelinePanelOpen) return null;
 
   const { phases, currentIndex } = getPhaseInfo(currentPlan?.status || 'draft');
-  const outputUrl = currentPlan?.status === 'completed' ? `${API_BASE}/api/pipeline/output/${currentPlan.id}/files/index.html` : null;
+  // 显示链接的条件：web-app类型且有计划ID（不要求completed，只要有HTML就可能访问）
+  const outputUrl = currentPlan?.id && currentPlan?.target_output === 'web-app'
+    ? `${API_BASE}/api/pipeline/output/${currentPlan.id}/files/index.html`
+    : null;
 
   return (
     <div
@@ -793,8 +796,8 @@ export function PipelinePanel() {
               </select>
             </div>
             <div className="flex items-center gap-2">
-              {/* 当项目完成时，显示迭代按钮 */}
-              {currentPlan?.status === 'completed' && (outputUrl || currentPlan?.target_output === 'godot-game') && (
+              {/* 当有输出文件时，显示迭代按钮（不需要等到完成） */}
+              {currentPlan && (outputUrl || currentPlan?.target_output === 'godot-game') && (
                 <button
                   onClick={handleIterate}
                   disabled={!request.trim() || iterating}
