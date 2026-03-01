@@ -1,0 +1,2034 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>昆特牌 - 暗黑幻想战场</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0f;
+            overflow: hidden;
+            font-family: 'Cinzel', 'Times New Roman', serif;
+            color: #d4c4a8;
+        }
+        
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #gameCanvas {
+            display: block;
+            cursor: pointer;
+        }
+        
+        #uiOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .weather-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            pointer-events: all;
+        }
+        
+        .weather-btn {
+            padding: 10px 20px;
+            background: linear-gradient(180deg, #2a2520 0%, #1a1815 100%);
+            border: 1px solid #5a4a35;
+            color: #c9a227;
+            font-family: 'Cinzel', serif;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .weather-btn:hover {
+            background: linear-gradient(180deg, #3a3530 0%, #2a2825 100%);
+            border-color: #c9a227;
+            box-shadow: 0 0 15px rgba(201, 162, 39, 0.3);
+        }
+        
+        .weather-btn.active {
+            background: linear-gradient(180deg, #4a3a25 0%, #3a2a15 100%);
+            border-color: #c9a227;
+            color: #f0d060;
+        }
+        
+        .game-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+            pointer-events: all;
+            flex-wrap: wrap;
+            max-width: 450px;
+        }
+        
+        .control-btn {
+            padding: 10px 20px;
+            background: linear-gradient(180deg, #1a2520 0%, #0a1815 100%);
+            border: 1px solid #356a55;
+            color: #4ade80;
+            font-family: 'Cinzel', serif;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .control-btn:hover {
+            background: linear-gradient(180deg, #2a3530 0%, #1a2825 100%);
+            border-color: #4ade80;
+            box-shadow: 0 0 15px rgba(74, 222, 128, 0.3);
+        }
+        
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .control-btn.danger {
+            background: linear-gradient(180deg, #2a1520 0%, #1a1015 100%);
+            border-color: #6a3535;
+            color: #de4a4a;
+        }
+        
+        .control-btn.danger:hover {
+            background: linear-gradient(180deg, #3a2530 0%, #2a1825 100%);
+            border-color: #de4a4a;
+            box-shadow: 0 0 15px rgba(222, 74, 74, 0.3);
+        }
+        
+        .control-btn.leader {
+            background: linear-gradient(180deg, #2a2515 0%, #1a180a 100%);
+            border-color: #c9a227;
+            color: #f0d060;
+        }
+        
+        .control-btn.leader:hover {
+            box-shadow: 0 0 20px rgba(201, 162, 39, 0.5);
+        }
+        
+        .control-btn.leader.used {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        .game-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(180deg, #2a2520 0%, #1a1815 100%);
+            border: 1px solid #5a4a35;
+            padding: 15px 30px;
+            border-radius: 5px;
+            text-align: center;
+            pointer-events: all;
+        }
+        
+        .game-info h3 {
+            color: #c9a227;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .game-info p {
+            font-size: 12px;
+            color: #a09080;
+        }
+        
+        .round-indicator {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            pointer-events: all;
+        }
+        
+        .round-gem {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: linear-gradient(180deg, #1a1815 0%, #0a0805 100%);
+            border: 2px solid #5a4a35;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .round-gem.won {
+            background: linear-gradient(180deg, #4a3a25 0%, #2a1a05 100%);
+            border-color: #c9a227;
+            box-shadow: 0 0 10px rgba(201, 162, 39, 0.5);
+        }
+        
+        .round-gem.player {
+            border-color: #4ade80;
+        }
+        
+        .round-gem.player.won {
+            background: linear-gradient(180deg, #1a3a25 0%, #0a2a15 100%);
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+        }
+        
+        .score-display {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: none;
+        }
+        
+        .score-display.enemy {
+            top: 120px;
+        }
+        
+        .score-display.player {
+            bottom: 180px;
+        }
+        
+        .score-value {
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(201, 162, 39, 0.5);
+        }
+        
+        .score-value.enemy {
+            color: #de4a4a;
+        }
+        
+        .score-value.player {
+            color: #4ade80;
+        }
+        
+        .hand-info {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: linear-gradient(180deg, #2a2520 0%, #1a1815 100%);
+            border: 1px solid #5a4a35;
+            padding: 10px 15px;
+            border-radius: 5px;
+            pointer-events: all;
+        }
+        
+        .hand-info span {
+            color: #c9a227;
+            font-size: 14px;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: linear-gradient(180deg, #2a2520 0%, #1a1815 100%);
+            border: 2px solid #5a4a35;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 250px;
+            pointer-events: none;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .tooltip h4 {
+            color: #c9a227;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .tooltip p {
+            font-size: 12px;
+            color: #a09080;
+            line-height: 1.4;
+        }
+        
+        .tooltip .ability-desc {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid #3a3530;
+        }
+        
+        .effect-log {
+            position: absolute;
+            top: 120px;
+            right: 20px;
+            width: 200px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: rgba(26, 24, 21, 0.9);
+            border: 1px solid #3a3530;
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: all;
+        }
+        
+        .effect-log p {
+            font-size: 11px;
+            color: #a09080;
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #2a2520;
+        }
+        
+        .effect-log p:last-child {
+            border-bottom: none;
+        }
+        
+        .effect-log .positive {
+            color: #4ade80;
+        }
+        
+        .effect-log .negative {
+            color: #de4a4a;
+        }
+        
+        .effect-log .special {
+            color: #c9a227;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="uiOverlay">
+            <div class="game-controls">
+                <button class="control-btn" id="btnPass">跳过回合</button>
+                <button class="control-btn leader" id="btnLeader">领袖技能</button>
+                <button class="control-btn danger" id="btnRestart">重新开始</button>
+            </div>
+            
+            <div class="weather-controls">
+                <button class="weather-btn" data-weather="MELEE">暴雨</button>
+                <button class="weather-btn" data-weather="RANGED">迷雾</button>
+                <button class="weather-btn" data-weather="SIEGE">霜冻</button>
+                <button class="weather-btn" data-weather="CLEAR">晴朗</button>
+            </div>
+            
+            <div class="round-indicator">
+                <div class="round-gem player" id="playerGem1"></div>
+                <div class="round-gem player" id="playerGem2"></div>
+                <span style="color: #5a4a35; font-size: 20px;">⚔</span>
+                <div class="round-gem enemy" id="enemyGem1"></div>
+                <div class="round-gem enemy" id="enemyGem2"></div>
+            </div>
+            
+            <div class="score-display enemy">
+                <div class="score-value enemy" id="enemyScore">0</div>
+                <div style="color: #5a4a35; font-size: 12px;">敌方战力</div>
+            </div>
+            
+            <div class="score-display player">
+                <div class="score-value player" id="playerScore">0</div>
+                <div style="color: #5a4a35; font-size: 12px;">我方战力</div>
+            </div>
+            
+            <div class="hand-info">
+                <span>手牌: <span id="handCount">0</span></span>
+            </div>
+            
+            <div class="effect-log" id="effectLog">
+                <p style="color: #c9a227;">游戏开始</p>
+            </div>
+            
+            <div class="game-info">
+                <h3 id="gamePhase">第 1 回合</h3>
+                <p id="gameMessage">选择卡牌出战</p>
+            </div>
+            
+            <div class="tooltip" id="cardTooltip">
+                <h4 id="tooltipName">卡牌名称</h4>
+                <p id="tooltipDesc">卡牌描述</p>
+                <div class="ability-desc" id="tooltipAbility"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============ 配置常量 ============
+        const CONFIG = {
+            CARD_WIDTH: 70,
+            CARD_HEIGHT: 100,
+            CARD_SPACING: 5,
+            HAND_Y: 680,
+            HAND_Y_ENEMY: 20,
+            ROW_HEIGHT: 90,
+            ROW_Y_OFFSET: 380,
+            ANIMATION_SPEED: 0.15
+        };
+
+        // ============ 游戏状态 ============
+        let gameState = {
+            turn: 'player',
+            round: 1,
+            playerScore: 0,
+            enemyScore: 0,
+            playerWins: 0,
+            enemyWins: 0,
+            playerPassed: false,
+            enemyPassed: false,
+            gameOver: false,
+            leaderUsed: false,
+            enemyLeaderUsed: false,
+            selectedCard: null,
+            hoveredCard: null,
+            weather: {
+                MELEE: false,
+                RANGED: false,
+                SIEGE: false
+            },
+            board: {
+                player: { MELEE: [], RANGED: [], SIEGE: [] },
+                enemy: { MELEE: [], RANGED: [], SIEGE: [] }
+            },
+            playerHand: [],
+            enemyHand: [],
+            playerDeck: [],
+            enemyDeck: [],
+            graveyard: [],
+            animations: [],
+            effectQueue: []
+        };
+
+        // ============ 卡牌数据库 ============
+        const CARD_DATABASE = {
+            // 北方领域 - 近战单位
+            geralt: {
+                id: 'geralt',
+                name: '杰洛特',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'MELEE',
+                basePower: 15,
+                power: 15,
+                armor: 2,
+                rarity: 'LEGENDARY',
+                abilities: ['HERO'],
+                description: '利维亚的杰洛特，传奇猎魔人',
+                flavor: '邪恶畏惧的化身'
+            },
+            ciri: {
+                id: 'ciri',
+                name: '希里',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'MELEE',
+                basePower: 12,
+                power: 12,
+                armor: 1,
+                rarity: 'LEGENDARY',
+                abilities: ['HERO', 'DASH'],
+                description: '可移动到任意行',
+                flavor: '辛特拉的幼狮'
+            },
+            vesemir: {
+                id: 'vesemir',
+                name: '维瑟米尔',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'MELEE',
+                basePower: 10,
+                power: 10,
+                armor: 1,
+                rarity: 'EPIC',
+                abilities: ['MENTOR'],
+                description: '部署时：使一个友军单位获得+3基础战力',
+                flavor: '最年长的猎魔人'
+            },
+            lambert: {
+                id: 'lambert',
+                name: '兰伯特',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'MELEE',
+                basePower: 8,
+                power: 8,
+                armor: 0,
+                rarity: 'RARE',
+                abilities: ['AGILITY'],
+                description: '可移动到任意行',
+                flavor: '暴躁的猎魔人'
+            },
+            eskal: {
+                id: 'eskal',
+                name: '艾斯凯尔',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'MELEE',
+                basePower: 8,
+                power: 8,
+                armor: 0,
+                rarity: 'RARE',
+                abilities: ['AGILITY'],
+                description: '可移动到任意行',
+                flavor: '沉稳的猎魔人'
+            },
+            blueStripes: {
+                id: 'blueStripes',
+                name: '蓝衣铁卫',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'MELEE',
+                basePower: 6,
+                power: 6,
+                armor: 0,
+                rarity: 'COMMON',
+                abilities: ['BOND'],
+                description: '紧密绑定：与同名卡牌战力叠加',
+                flavor: '泰莫利亚精锐'
+            },
+            temerianSoldier: {
+                id: 'temerianSoldier',
+                name: '泰莫利亚士兵',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'MELEE',
+                basePower: 4,
+                power: 4,
+                armor: 1,
+                rarity: 'COMMON',
+                abilities: [],
+                description: '普通士兵',
+                flavor: '为国王而战'
+            },
+            
+            // 远程单位
+            triss: {
+                id: 'triss',
+                name: '特莉丝',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'RANGED',
+                basePower: 10,
+                power: 10,
+                armor: 0,
+                rarity: 'EPIC',
+                abilities: ['MAGE'],
+                description: '部署时：对一个敌方单位造成6点伤害',
+                flavor: '梅利葛德的魅魔'
+            },
+            yen: {
+                id: 'yen',
+                name: '叶奈法',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'RANGED',
+                basePower: 8,
+                power: 8,
+                armor: 0,
+                rarity: 'LEGENDARY',
+                abilities: ['HERO', 'SUMMON'],
+                description: '部署时：从牌组召唤一个法师单位',
+                flavor: '格格不入的女术士'
+            },
+            dwarvenSkirmisher: {
+                id: 'dwarvenSkirmisher',
+                name: '矮人散兵',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'RANGED',
+                basePower: 7,
+                power: 7,
+                armor: 2,
+                rarity: 'COMMON',
+                abilities: [],
+                description: '坚固的矮人战士',
+                flavor: '玛哈坎之子'
+            },
+            elvenArcher: {
+                id: 'elvenArcher',
+                name: '精灵弓手',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'RANGED',
+                basePower: 6,
+                power: 6,
+                armor: 0,
+                rarity: 'COMMON',
+                abilities: [],
+                description: '精准射击',
+                flavor: '蓝山精灵'
+            },
+            catapult: {
+                id: 'catapult',
+                name: '投石机',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'SIEGE',
+                basePower: 8,
+                power: 8,
+                armor: 0,
+                rarity: 'RARE',
+                abilities: ['BOND'],
+                description: '紧密绑定：与同名卡牌战力叠加',
+                flavor: '攻城利器'
+            },
+            trebuchet: {
+                id: 'trebuchet',
+                name: '重型弩炮',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'SIEGE',
+                basePower: 6,
+                power: 6,
+                armor: 0,
+                rarity: 'COMMON',
+                abilities: [],
+                description: '攻城器械',
+                flavor: '破城之锤'
+            },
+            balista: {
+                id: 'balista',
+                name: '弩炮',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'SIEGE',
+                basePower: 5,
+                power: 5,
+                armor: 0,
+                rarity: 'COMMON',
+                abilities: ['PIERCE'],
+                description: '部署时：对敌方随机单位造成3点伤害',
+                flavor: '穿甲利器'
+            },
+            
+            // 特殊卡牌
+            scorch: {
+                id: 'scorch',
+                name: '灼烧',
+                type: 'SPECIAL',
+                faction: 'NEUTRAL',
+                rarity: 'EPIC',
+                abilities: ['SCORCH'],
+                description: '消灭所有最强力的单位牌（不分敌我）',
+                flavor: '龙之吐息'
+            },
+            commandersHorn: {
+                id: 'commandersHorn',
+                name: '号角',
+                type: 'SPECIAL',
+                faction: 'NEUTRAL',
+                rarity: 'RARE',
+                abilities: ['BOOST_ROW'],
+                description: '使一行的所有友军单位战力翻倍',
+                flavor: '进攻的信号'
+            },
+            decoy: {
+                id: 'decoy',
+                name: '诱饵',
+                type: 'SPECIAL',
+                faction: 'NEUTRAL',
+                rarity: 'RARE',
+                abilities: ['DECOY'],
+                description: '将一个友军单位收回手牌，并用诱饵替换',
+                flavor: '声东击西'
+            },
+            clearWeather: {
+                id: 'clearWeather',
+                name: '晴空',
+                type: 'SPECIAL',
+                faction: 'NEUTRAL',
+                rarity: 'COMMON',
+                abilities: ['CLEAR_WEATHER'],
+                description: '清除所有天气效果',
+                flavor: '云开雾散'
+            },
+            frost: {
+                id: 'frost',
+                name: '霜冻',
+                type: 'WEATHER',
+                faction: 'NEUTRAL',
+                row: 'SIEGE',
+                abilities: ['WEATHER_SIEGE'],
+                description: '对所有攻城行的单位施加霜冻效果',
+                flavor: '寒冬降临'
+            },
+            fog: {
+                id: 'fog',
+                name: '迷雾',
+                type: 'WEATHER',
+                faction: 'NEUTRAL',
+                row: 'RANGED',
+                abilities: ['WEATHER_RANGED'],
+                description: '对所有远程行的单位施加迷雾效果',
+                flavor: '不见五指'
+            },
+            rain: {
+                id: 'rain',
+                name: '暴雨',
+                type: 'WEATHER',
+                faction: 'NEUTRAL',
+                row: 'MELEE',
+                abilities: ['WEATHER_MELEE'],
+                description: '对所有近战行的单位施加暴雨效果',
+                flavor: '狂风骤雨'
+            },
+            
+            // 间谍卡
+            enemySpy1: {
+                id: 'enemySpy1',
+                name: '敌方间谍',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'MELEE',
+                basePower: 4,
+                power: 4,
+                armor: 0,
+                rarity: 'RARE',
+                abilities: ['SPY'],
+                description: '间谍：放置到敌方战场，抽2张牌',
+                flavor: '双面间谍'
+            },
+            
+            // 医生卡
+            medic: {
+                id: 'medic',
+                name: '战地医师',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'SIEGE',
+                basePower: 5,
+                power: 5,
+                armor: 0,
+                rarity: 'RARE',
+                abilities: ['MEDIC'],
+                description: '医生：从墓地复活一个非英雄单位',
+                flavor: '救死扶伤'
+            },
+            
+            // 集结卡
+            reaverHunter: {
+                id: 'reaverHunter',
+                name: '掠夺者猎人',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'MELEE',
+                basePower: 5,
+                power: 5,
+                armor: 0,
+                rarity: 'COMMON',
+                abilities: ['MUSTER'],
+                description: '集结：召唤所有同名单位到战场',
+                flavor: '瑞达尼亚精锐'
+            },
+            
+            // 士气卡
+            dandelion: {
+                id: 'dandelion',
+                name: '丹德里恩',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'RANGED',
+                basePower: 4,
+                power: 4,
+                armor: 0,
+                rarity: 'EPIC',
+                abilities: ['MORALE'],
+                description: '士气：使同一行的所有友军单位+1战力',
+                flavor: '流浪诗人'
+            },
+            zoltan: {
+                id: 'zoltan',
+                name: '卓尔坦',
+                type: 'UNIT',
+                faction: 'NORTHERN',
+                row: 'MELEE',
+                basePower: 6,
+                power: 6,
+                armor: 1,
+                rarity: 'EPIC',
+                abilities: ['MORALE'],
+                description: '士气：使同一行的所有友军单位+1战力',
+                flavor: '矮人冒险家'
+            }
+        };
+
+        // 领袖能力
+        const LEADER_ABILITIES = {
+            player: {
+                name: '北方统帅',
+                description: '选择一行的所有单位获得+2战力',
+                cooldown: 1,
+                effect: function(row) {
+                    gameState.board.player[row].forEach(card => {
+                        if (card.type === 'UNIT') {
+                            card.power += 2;
+                            addEffectLog(`${card.name} 获得 +2 战力`, 'positive');
+                        }
+                    });
+                    updateScores();
+                    addEffectLog('领袖技能发动：北方统帅', 'special');
+                }
+            },
+            enemy: {
+                name: '帝国皇帝',
+                description: '查看敌方一张手牌，并使其-3战力',
+                cooldown: 1,
+                effect: function() {
+                    if (gameState.playerHand.length > 0) {
+                        const randomCard = gameState.playerHand[Math.floor(Math.random() * gameState.playerHand.length)];
+                        if (randomCard.type === 'UNIT') {
+                            randomCard.power = Math.max(0, randomCard.power - 3);
+                            addEffectLog(`帝国皇帝削弱了 ${randomCard.name}`, 'negative');
+                        }
+                        updateScores();
+                    }
+                    addEffectLog('敌方领袖技能发动：帝国皇帝', 'special');
+                }
+            }
+        };
+
+        // ============ Canvas 设置 ============
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // ============ 工具函数 ============
+        function deepClone(obj) {
+            const clone = JSON.parse(JSON.stringify(obj));
+            // 恢复函数引用
+            if (obj.abilities) {
+                clone.abilities = [...obj.abilities];
+            }
+            clone.currentPower = clone.power;
+            clone.armor = obj.armor || 0;
+            clone.boosts = 0;
+            clone.originalRow = obj.row;
+            return clone;
+        }
+
+        function addEffectLog(message, type = '') {
+            const log = document.getElementById('effectLog');
+            const p = document.createElement('p');
+            p.textContent = message;
+            if (type) p.className = type;
+            log.insertBefore(p, log.firstChild);
+            
+            // 限制日志数量
+            while (log.children.length > 20) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        function getCardColor(card) {
+            const rarityColors = {
+                'LEGENDARY': { bg: '#1a1510', border: '#c9a227', text: '#f0d060' },
+                'EPIC': { bg: '#151a20', border: '#a855f7', text: '#c084fc' },
+                'RARE': { bg: '#151520', border: '#3b82f6', text: '#60a5fa' },
+                'COMMON': { bg: '#151515', border: '#5a4a35', text: '#a09080' }
+            };
+            
+            if (card.type === 'SPECIAL') {
+                return { bg: '#1a1520', border: '#4ade80', text: '#86efac' };
+            }
+            if (card.type === 'WEATHER') {
+                return { bg: '#1a1520', border: '#60a5fa', text: '#93c5fd' };
+            }
+            
+            return rarityColors[card.rarity] || rarityColors['COMMON'];
+        }
+
+        function getAbilityName(ability) {
+            const names = {
+                'HERO': '英雄',
+                'SPY': '间谍',
+                'MEDIC': '医生',
+                'MUSTER': '集结',
+                'BOND': '绑定',
+                'MORALE': '士气',
+                'AGILITY': '敏捷',
+                'DASH': '冲刺',
+                'MENTOR': '导师',
+                'MAGE': '法师',
+                'SUMMON': '召唤',
+                'PIERCE': '穿透',
+                'SCORCH': '灼烧',
+                'BOOST_ROW': '号角',
+                'DECOY': '诱饵',
+                'CLEAR_WEATHER': '晴空',
+                'WEATHER_MELEE': '暴雨',
+                'WEATHER_RANGED': '迷雾',
+                'WEATHER_SIEGE': '霜冻'
+            };
+            return names[ability] || ability;
+        }
+
+        function getRowName(row) {
+            const names = {
+                'MELEE': '近战',
+                'RANGED': '远程',
+                'SIEGE': '攻城'
+            };
+            return names[row] || row;
+        }
+
+        // ============ 卡牌绘制 ============
+        function drawCard(card, x, y, width = CONFIG.CARD_WIDTH, height = CONFIG.CARD_HEIGHT, isHovered = false, faceDown = false) {
+            const colors = getCardColor(card);
+            
+            ctx.save();
+            
+            // 卡牌阴影
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            ctx.shadowBlur = isHovered ? 20 : 10;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = isHovered ? 5 : 3;
+            
+            // 悬浮效果
+            if (isHovered) {
+                ctx.translate(0, -5);
+            }
+            
+            if (faceDown) {
+                // 卡背
+                ctx.fillStyle = '#1a1815';
+                ctx.beginPath();
+                ctx.roundRect(x, y, width, height, 5);
+                ctx.fill();
+                ctx.strokeStyle = '#3a3530';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // 卡背图案
+                ctx.fillStyle = '#2a2520';
+                ctx.beginPath();
+                ctx.roundRect(x + 5, y + 5, width - 10, height - 10, 3);
+                ctx.fill();
+                
+                ctx.fillStyle = '#3a3530';
+                ctx.font = '20px serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('⚔', x + width / 2, y + height / 2);
+            } else {
+                // 卡牌背景
+                ctx.fillStyle = colors.bg;
+                ctx.beginPath();
+                ctx.roundRect(x, y, width, height, 5);
+                ctx.fill();
+                
+                // 卡牌边框
+                ctx.strokeStyle = colors.border;
+                ctx.lineWidth = isHovered ? 3 : 2;
+                ctx.stroke();
+                
+                ctx.shadowColor = 'transparent';
+                
+                // 顶部装饰条
+                ctx.fillStyle = colors.border;
+                ctx.fillRect(x, y, width, 4);
+                
+                // 稀有度指示
+                if (card.rarity === 'LEGENDARY') {
+                    ctx.fillStyle = 'rgba(201, 162, 39, 0.1)';
+                    ctx.fillRect(x, y + 4, width, height - 4);
+                }
+                
+                if (card.type === 'UNIT') {
+                    // 战力圆圈
+                    const powerRadius = 14;
+                    const powerX = x + 16;
+                    const powerY = y + 22;
+                    
+                    // 护甲显示
+                    if (card.armor > 0) {
+                        ctx.beginPath();
+                        ctx.arc(powerX + 2, powerY + 2, powerRadius + 3, 0, Math.PI * 2);
+                        ctx.fillStyle = '#3b5998';
+                        ctx.fill();
+                    }
+                    
+                    ctx.beginPath();
+                    ctx.arc(powerX, powerY, powerRadius, 0, Math.PI * 2);
+                    
+                    // 根据当前战力变色
+                    let powerColor = '#1a1815';
+                    if (card.currentPower < card.basePower) {
+                        powerColor = '#2a1515';
+                    } else if (card.currentPower > card.basePower) {
+                        powerColor = '#152a15';
+                    }
+                    ctx.fillStyle = powerColor;
+                    ctx.fill();
+                    ctx.strokeStyle = colors.border;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    
+                    // 战力数值
+                    ctx.fillStyle = card.currentPower > 0 ? '#ffffff' : '#888888';
+                    ctx.font = 'bold 14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(card.currentPower, powerX, powerY);
+                    
+                    // 护甲数值
+                    if (card.armor > 0) {
+                        ctx.fillStyle = '#60a5fa';
+                        ctx.font = 'bold 9px Arial';
+                        ctx.fillText('🛡' + card.armor, x + width - 15, y + 15);
+                    }
+                    
+                    // 增益指示
+                    if (card.boosts && card.boosts > 0) {
+                        ctx.fillStyle = '#4ade80';
+                        ctx.font = 'bold 9px Arial';
+                        ctx.fillText('↑' + card.boosts, x + width - 15, y + 28);
+                    }
+                } else {
+                    // 特殊卡显示图标
+                    ctx.fillStyle = '#2a2520';
+                    ctx.beginPath();
+                    ctx.arc(x + 16, y + 22, 14, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = colors.border;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = colors.text;
+                    ctx.font = '14px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    if (card.type === 'SPECIAL') {
+                        ctx.fillText('★', x + 16, y + 22);
+                    } else if (card.type === 'WEATHER') {
+                        ctx.fillText('☁', x + 16, y + 22);
+                    }
+                }
+                
+                // 卡牌名称
+                ctx.fillStyle = colors.text;
+                ctx.font = 'bold 9px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'top';
+                
+                const name = card.name.length > 6 ? card.name.substring(0, 5) + '..' : card.name;
+                ctx.fillText(name, x + width / 2, y + 42);
+                
+                // 卡牌类型/行
+                if (card.row) {
+                    ctx.fillStyle = '#8a7a5a';
+                    ctx.font = '8px Arial';
+                    ctx.fillText(getRowName(card.row), x + width / 2, y + 54);
+                }
+                
+                // 能力图标
+                if (card.abilities && card.abilities.length > 0) {
+                    ctx.fillStyle = '#4ade80';
+                    ctx.font = '7px Arial';
+                    const abilityText = card.abilities.slice(0, 2).map(a => getAbilityName(a)).join(' ');
+                    ctx.fillText(abilityText, x + width / 2, y + height - 18);
+                }
+            }
+            
+            ctx.restore();
+        }
+
+        // ============ 游戏初始化 ============
+        function initGame() {
+            // 重置状态
+            gameState = {
+                turn: 'player',
+                round: 1,
+                playerScore: 0,
+                enemyScore: 0,
+                playerWins: 0,
+                enemyWins: 0,
+                playerPassed: false,
+                enemyPassed: false,
+                gameOver: false,
+                leaderUsed: false,
+                enemyLeaderUsed: false,
+                selectedCard: null,
+                hoveredCard: null,
+                weather: { MELEE: false, RANGED: false, SIEGE: false },
+                board: {
+                    player: { MELEE: [], RANGED: [], SIEGE: [] },
+                    enemy: { MELEE: [], RANGED: [], SIEGE: [] }
+                },
+                playerHand: [],
+                enemyHand: [],
+                playerDeck: [],
+                enemyDeck: [],
+                graveyard: [],
+                animations: [],
+                effectQueue: []
+            };
+            
+            // 构建玩家牌组
+            const playerDeckIds = [
+                'geralt', 'ciri', 'vesemir', 'lambert', 'eskal',
+                'blueStripes', 'blueStripes', 'blueStripes',
+                'temerianSoldier', 'temerianSoldier', 'temerianSoldier',
+                'triss', 'yen', 'dwarvenSkirmisher', 'dwarvenSkirmisher',
+                'elvenArcher', 'elvenArcher',
+                'catapult', 'catapult', 'trebuchet', 'balista',
+                'medic', 'reaverHunter', 'reaverHunter', 'reaverHunter',
+                'dandelion', 'zoltan', 'enemySpy1',
+                'scorch', 'commandersHorn', 'decoy', 'clearWeather',
+                'frost', 'fog', 'rain'
+            ];
+            
+            // 构建敌方牌组（帝国风格）
+            const enemyDeckIds = [
+                'geralt', 'ciri', 'vesemir', 'lambert',
+                'blueStripes', 'blueStripes', 'temerianSoldier', 'temerianSoldier',
+                'triss', 'dwarvenSkirmisher', 'elvenArcher', 'elvenArcher',
+                'catapult', 'trebuchet', 'balista',
+                'medic', 'reaverHunter', 'reaverHunter',
+                'dandelion', 'zoltan', 'enemySpy1',
+                'scorch', 'commandersHorn', 'clearWeather',
+                'frost', 'fog', 'rain'
+            ];
+            
+            // 洗牌
+            gameState.playerDeck = shuffleArray(playerDeckIds.map(id => deepClone(CARD_DATABASE[id])));
+            gameState.enemyDeck = shuffleArray(enemyDeckIds.map(id => deepClone(CARD_DATABASE[id])));
+            
+            // 抽初始手牌
+            for (let i = 0; i < 10; i++) {
+                if (gameState.playerDeck.length > 0) {
+                    gameState.playerHand.push(gameState.playerDeck.pop());
+                }
+                if (gameState.enemyDeck.length > 0) {
+                    gameState.enemyHand.push(gameState.enemyDeck.pop());
+                }
+            }
+            
+            updateUI();
+            addEffectLog('新游戏开始！', 'special');
+        }
+
+        function shuffleArray(array) {
+            const newArray = [...array];
+            for (let i = newArray.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+            }
+            return newArray;
+        }
+
+        // ============ 游戏逻辑 ============
+        function playCard(card, player = 'player') {
+            if (card.type === 'UNIT') {
+                // 处理敏捷/可移动卡牌
+                let targetRow = card.row;
+                if (card.abilities && card.abilities.includes('AGILITY')) {
+                    // AI 随机选择行
+                    if (player === 'enemy') {
+                        const rows = ['MELEE', 'RANGED'];
+                        targetRow = rows[Math.floor(Math.random() * rows.length)];
+                    }
+                }
+                
+                gameState.board[player][targetRow].push(card);
+                
+                // 触发部署能力
+                triggerDeployAbilities(card, player, targetRow);
+            } else if (card.type === 'SPECIAL') {
+                triggerSpecialCard(card, player);
+            } else if (card.type === 'WEATHER') {
+                applyWeatherCard(card);
+            }
+            
+            // 从手牌移除
+            if (player === 'player') {
+                const index = gameState.playerHand.indexOf(card);
+                if (index > -1) gameState.playerHand.splice(index, 1);
+            } else {
+                const index = gameState.enemyHand.indexOf(card);
+                if (index > -1) gameState.enemyHand.splice(index, 1);
+            }
+            
+            // 添加到墓地
+            if (card.type !== 'WEATHER') {
+                gameState.graveyard.push(card);
+            }
+            
+            updateScores();
+            checkRoundEnd();
+        }
+
+        function triggerDeployAbilities(card, player, row) {
+            if (!card.abilities) return;
+            
+            card.abilities.forEach(ability => {
+                switch (ability) {
+                    case 'SPY':
+                        // 间谍：移动到对方战场，抽2张牌
+                        gameState.board[player][row].pop();
+                        const opponent = player === 'player' ? 'enemy' : 'player';
+                        gameState.board[opponent][row].push(card);
+                        
+                        for (let i = 0; i < 2; i++) {
+                            const deck = player === 'player' ? gameState.playerDeck : gameState.enemyDeck;
+                            const hand = player === 'player' ? gameState.playerHand : gameState.enemyHand;
+                            if (deck.length > 0) {
+                                hand.push(deck.pop());
+                            }
+                        }
+                        addEffectLog(`${card.name} 间谍能力触发，抽2张牌`, 'special');
+                        break;
+                        
+                    case 'MEDIC':
+                        // 医生：复活一个非英雄单位
+                        const validTargets = gameState.graveyard.filter(c => 
+                            c.type === 'UNIT' && !c.abilities?.includes('HERO')
+                        );
+                        if (validTargets.length > 0) {
+                            const revived = validTargets[Math.floor(Math.random() * validTargets.length)];
+                            revived.currentPower = revived.basePower;
+                            revived.power = revived.basePower;
+                            gameState.board[player][revived.row || row].push(revived);
+                            
+                            const graveIndex = gameState.graveyard.indexOf(revived);
+                            if (graveIndex > -1) gameState.graveyard.splice(graveIndex, 1);
+                            addEffectLog(`${card.name} 复活了 ${revived.name}`, 'positive');
+                        }
+                        break;
+                        
+                    case 'MUSTER':
+                        // 集结：召唤同名卡牌
+                        const deck = player === 'player' ? gameState.playerDeck : gameState.enemyDeck;
+                        const hand = player === 'player' ? gameState.playerHand : gameState.enemyHand;
+                        const mustered = [];
+                        
+                        for (let i = deck.length - 1; i >= 0; i--) {
+                            if (deck[i].name === card.name) {
+                                mustered.push(deck.splice(i, 1)[0]);
+                            }
+                        }
+                        for (let i = hand.length - 1; i >= 0; i--) {
+                            if (hand[i].name === card.name) {
+                                mustered.push(hand.splice(i, 1)[0]);
+                            }
+                        }
+                        
+                        mustered.forEach(c => {
+                            c.currentPower = c.basePower;
+                            gameState.board[player][c.row || row].push(c);
+                        });
+                        
+                        if (mustered.length > 0) {
+                            addEffectLog(`${card.name} 集结了 ${mustered.length} 张同名卡`, 'positive');
+                        }
+                        break;
+                        
+                    case 'BOND':
+                        // 紧密绑定：同名卡牌战力叠加
+                        const rowCards = gameState.board[player][row];
+                        const sameCards = rowCards.filter(c => c.name === card.name);
+                        if (sameCards.length > 1) {
+                            sameCards.forEach(c => {
+                                c.currentPower = c.basePower * sameCards.length;
+                            });
+                            addEffectLog(`${card.name} 紧密绑定 x${sameCards.length}`, 'positive');
+                        }
+                        break;
+                        
+                    case 'MORALE':
+                        // 士气：同行友军+1
+                        gameState.board[player][row].forEach(c => {
+                            if (c.type === 'UNIT' && c !== card) {
+                                c.currentPower = (c.currentPower || c.basePower) + 1;
+                                c.boosts = (c.boosts || 0) + 1;
+                            }
+                        });
+                        addEffectLog(`${card.name} 士气加成`, 'positive');
+                        break;
+                        
+                    case 'MENTOR':
+                        // 导师：使一个友军+3基础战力
+                        const allUnits = [
+                            ...gameState.board[player].MELEE,
+                            ...gameState.board[player].RANGED,
+                            ...gameState.board[player].SIEGE
+                        ].filter(c => c !== card && c.type === 'UNIT');
+                        if (allUnits.length > 0) {
+                            const target = allUnits[Math.floor(Math.random() * allUnits.length)];
+                            target.basePower += 3;
+                            target.currentPower = (target.currentPower || target.basePower) + 3;
+                            target.boosts = (target.boosts || 0) + 3;
+                            addEffectLog(`${card.name} 导师指导了 ${target.name}`, 'positive');
+                        }
+                        break;
+                        
+                    case 'MAGE':
+                        // 法师：对随机敌方造成6点伤害
+                        const enemyUnits = [
+                            ...gameState.board[player === 'player' ? 'enemy' : 'player'].MELEE,
+                            ...gameState.board[player === 'player' ? 'enemy' : 'player'].RANGED,
+                            ...gameState.board[player === 'player' ? 'enemy' : 'player'].SIEGE
+                        ].filter(c => c.type === 'UNIT');
+                        if (enemyUnits.length > 0) {
+                            const target = enemyUnits[Math.floor(Math.random() * enemyUnits.length)];
+                            applyDamage(target, 6);
+                            addEffectLog(`${card.name} 对 ${target.name} 造成6点伤害`, 'negative');
+                        }
+                        break;
+                        
+                    case 'PIERCE':
+                        // 穿透：对随机敌方造成3点伤害
+                        const enemies = [
+                            ...gameState.board[player === 'player' ? 'enemy' : 'player'].MELEE,
+                            ...gameState.board[player === 'player' ? 'enemy' : 'player'].RANGED,
+                            ...gameState.board[player === 'player' ? 'enemy' : 'player'].SIEGE
+                        ].filter(c => c.type === 'UNIT');
+                        if (enemies.length > 0) {
+                            const target = enemies[Math.floor(Math.random() * enemies.length)];
+                            applyDamage(target, 3);
+                            addEffectLog(`${card.name} 对 ${target.name} 造成3点伤害`, 'negative');
+                        }
+                        break;
+                }
+            });
+        }
+
+        function applyDamage(card, damage) {
+            // 先扣护甲
+            if (card.armor > 0) {
+                const armorAbsorb = Math.min(card.armor, damage);
+                card.armor -= armorAbsorb;
+                damage -= armorAbsorb;
+            }
+            
+            // 再扣战力
+            card.currentPower = Math.max(0, (card.currentPower || card.basePower) - damage);
+            
+            // 如果战力归零，移除卡牌
+            if (card.currentPower <= 0) {
+                removeDeadCard(card);
+            }
+        }
+
+        function removeDeadCard(card) {
+            ['player', 'enemy'].forEach(player => {
+                ['MELEE', 'RANGED', 'SIEGE'].forEach(row => {
+                    const index = gameState.board[player][row].indexOf(card);
+                    if (index > -1) {
+                        gameState.board[player][row].splice(index, 1);
+                        gameState.graveyard.push(card);
+                        addEffectLog(`${card.name} 被摧毁`, 'negative');
+                    }
+                });
+            });
+        }
+
+        function triggerSpecialCard(card, player) {
+            const opponent = player === 'player' ? 'enemy' : 'player';
+            
+            card.abilities?.forEach(ability => {
+                switch (ability) {
+                    case 'SCORCH':
+                        // 灼烧：消灭所有最强单位
+                        const allUnits = [];
+                        ['player', 'enemy'].forEach(p => {
+                            ['MELEE', 'RANGED', 'SIEGE'].forEach(row => {
+                                gameState.board[p][row].forEach(c => {
+                                    if (c.type === 'UNIT' && !c.abilities?.includes('HERO')) {
+                                        allUnits.push({ card: c, player: p, row });
+                                    }
+                                });
+                            });
+                        });
+                        
+                        if (allUnits.length > 0) {
+                            const maxPower = Math.max(...allUnits.map(u => u.card.currentPower || u.card.basePower));
+                            const toDestroy = allUnits.filter(u => (u.card.currentPower || u.card.basePower) === maxPower);
+                            
+                            toDestroy.forEach(u => {
+                                const idx = gameState.board[u.player][u.row].indexOf(u.card);
+                                if (idx > -1) {
+                                    gameState.board[u.player][u.row].splice(idx, 1);
+                                    gameState.graveyard.push(u.card);
+                                }
+                            });
+                            
+                            addEffectLog(`灼烧！消灭了 ${toDestroy.length} 张最强卡牌`, 'special');
+                        }
+                        break;
+                        
+                    case 'BOOST_ROW':
+                        // 号角：使一行所有友军战力翻倍（选择战力最高的一排）
+                        const rowOptions = ['MELEE', 'RANGED', 'SIEGE'];
+                        let bestRow = rowOptions[0];
+                        let bestPower = 0;
+
+                        rowOptions.forEach(r => {
+                            const rowPower = gameState.board[player][r]
+                                .filter(c => c.type === 'UNIT')
+                                .reduce((sum, c) => sum + (c.currentPower || c.basePower), 0);
+                            if (rowPower > bestPower) {
+                                bestPower = rowPower;
+                                bestRow = r;
+                            }
+                        });
+
+                        gameState.board[player][bestRow].forEach(c => {
+                            if (c.type === 'UNIT') {
+                                c.currentPower = (c.currentPower || c.basePower) * 2;
+                                c.boosts = (c.boosts || 0) + (c.currentPower / 2);
+                            }
+                        });
+                        addEffectLog(`号角吹响！${getRowName(bestRow)}行战力翻倍`, 'positive');
+                        break;
+                        
+                    case 'DECOY':
+                        // 诱饵：收回一个友军（简化处理）
+                        const playerUnits = [
+                            ...gameState.board[player].MELEE,
+                            ...gameState.board[player].RANGED,
+                            ...gameState.board[player].SIEGE
+                        ].filter(c => c.type === 'UNIT');
+                        
+                        if (playerUnits.length > 0) {
+                            const target = playerUnits[Math.floor(Math.random() * playerUnits.length)];
+                            
+                            ['MELEE', 'RANGED', 'SIEGE'].forEach(row => {
+                                const idx = gameState.board[player][row].indexOf(target);
+                                if (idx > -1) {
+                                    gameState.board[player][row].splice(idx, 1);
+                                }
+                            });
+                            
+                            if (player === 'player') {
+                                gameState.playerHand.push(target);
+                            } else {
+                                gameState.enemyHand.push(target);
+                            }
+                            
+                            addEffectLog(`诱饵收回了 ${target.name}`, 'special');
+                        }
+                        break;
+                        
+                    case 'CLEAR_WEATHER':
+                        // 晴空：清除所有天气
+                        gameState.weather = { MELEE: false, RANGED: false, SIEGE: false };
+                        recalculateAllPowers();
+                        addEffectLog('天气清除！', 'positive');
+                        break;
+                }
+            });
+        }
+
+        function applyWeatherCard(card) {
+            if (card.row) {
+                gameState.weather[card.row] = true;
+                recalculateAllPowers();
+                addEffectLog(`${card.name} 天气效果生效`, 'special');
+            }
+        }
+
+        function recalculateAllPowers() {
+            ['player', 'enemy'].forEach(player => {
+                ['MELEE', 'RANGED', 'SIEGE'].forEach(row => {
+                    gameState.board[player][row].forEach(card => {
+                        if (card.type === 'UNIT') {
+                            // 天气效果：使基础战力降为1
+                            if (gameState.weather[row] && !card.abilities?.includes('HERO')) {
+                                card.currentPower = Math.max(1, (card.boosts || 0));
+                            } else {
+                                card.currentPower = card.basePower + (card.boosts || 0);
+                            }
+                        }
+                    });
+                });
+            });
+            updateScores();
+        }
+
+        function updateScores() {
+            let playerTotal = 0;
+            let enemyTotal = 0;
+            
+            ['MELEE', 'RANGED', 'SIEGE'].forEach(row => {
+                gameState.board.player[row].forEach(card => {
+                    if (card.type === 'UNIT') {
+                        playerTotal += card.currentPower || card.basePower;
+                    }
+                });
+                gameState.board.enemy[row].forEach(card => {
+                    if (card.type === 'UNIT') {
+                        enemyTotal += card.currentPower || card.basePower;
+                    }
+                });
+            });
+            
+            gameState.playerScore = playerTotal;
+            gameState.enemyScore = enemyTotal;
+            
+            document.getElementById('playerScore').textContent = playerTotal;
+            document.getElementById('enemyScore').textContent = enemyTotal;
+        }
+
+        function checkRoundEnd() {
+            const playerDone = gameState.playerPassed || gameState.playerHand.length === 0;
+            const enemyDone = gameState.enemyPassed || gameState.enemyHand.length === 0;
+            
+            if (playerDone && enemyDone) {
+                endRound();
+            } else {
+                // 切换回合
+                if (gameState.turn === 'player' && !gameState.enemyPassed) {
+                    gameState.turn = 'enemy';
+                    setTimeout(() => enemyTurn(), 1000);
+                } else if (gameState.turn === 'enemy' && !gameState.playerPassed) {
+                    gameState.turn = 'player';
+                }
+            }
+            
+            updateUI();
+        }
+
+        function endRound() {
+            let winner = 'draw';
+
+            if (gameState.playerScore > gameState.enemyScore) {
+                gameState.playerWins++;
+                winner = 'player';
+                addEffectLog(`第${gameState.round}回合：玩家胜利！`, 'positive');
+            } else if (gameState.enemyScore > gameState.playerScore) {
+                gameState.enemyWins++;
+                winner = 'enemy';
+                addEffectLog(`第${gameState.round}回合：敌方胜利！`, 'negative');
+            } else {
+                // 平局：双方都失去这一局（宝石破碎）
+                addEffectLog(`第${gameState.round}回合：平局！双方都失去这一局！`, 'special');
+            }
+
+            // 更新宝石显示
+            const playerGemId = gameState.round === 1 ? 'playerGem1' : 'playerGem2';
+            const enemyGemId = gameState.round === 1 ? 'enemyGem1' : 'enemyGem2';
+
+            document.getElementById(playerGemId).className = 'round-gem player' + (winner === 'player' ? ' won' : '');
+            document.getElementById(enemyGemId).className = 'round-gem enemy' + (winner === 'enemy' ? ' won' : '');
+
+            // 检查游戏结束（三局两胜）
+            if (gameState.playerWins >= 2) {
+                gameState.gameOver = true;
+                document.getElementById('gameMessage').textContent = '游戏结束！玩家获胜！';
+                addEffectLog('游戏结束！玩家获胜！', 'special');
+                return;
+            } else if (gameState.enemyWins >= 2) {
+                gameState.gameOver = true;
+                document.getElementById('gameMessage').textContent = '游戏结束！敌方获胜！';
+                addEffectLog('游戏结束！敌方获胜！', 'special');
+                return;
+            } else if (gameState.round >= 3) {
+                // 三回合后检查最终结果
+                gameState.gameOver = true;
+                if (gameState.playerWins > gameState.enemyWins) {
+                    document.getElementById('gameMessage').textContent = '游戏结束！玩家获胜！';
+                    addEffectLog('游戏结束！玩家获胜！', 'special');
+                } else if (gameState.enemyWins > gameState.playerWins) {
+                    document.getElementById('gameMessage').textContent = '游戏结束！敌方获胜！';
+                    addEffectLog('游戏结束！敌方获胜！', 'special');
+                } else {
+                    document.getElementById('gameMessage').textContent = '游戏结束！平局！';
+                    addEffectLog('游戏结束！平局！', 'special');
+                }
+                return;
+            }
+
+            // 开始新回合
+            startNewRound();
+        }
+
+        function startNewRound() {
+            gameState.round++;
+            gameState.playerPassed = false;
+            gameState.enemyPassed = false;
+            gameState.weather = { MELEE: false, RANGED: false, SIEGE: false };
+
+            // 清空战场（所有卡牌进入墓地）
+            ['player', 'enemy'].forEach(player => {
+                ['MELEE', 'RANGED', 'SIEGE'].forEach(row => {
+                    gameState.board[player][row].forEach(card => {
+                        gameState.graveyard.push(card);
+                    });
+                    gameState.board[player][row] = [];
+                });
+            });
+            
+            // 抽牌：第二回合抽2张，第三回合抽1张
+            const drawCount = gameState.round === 2 ? 2 : 1;
+            for (let i = 0; i < drawCount; i++) {
+                if (gameState.playerDeck.length > 0) {
+                    gameState.playerHand.push(gameState.playerDeck.pop());
+                }
+                if (gameState.enemyDeck.length > 0) {
+                    gameState.enemyHand.push(gameState.enemyDeck.pop());
+                }
+            }
+            
+            gameState.turn = 'player';
+            updateScores();
+            updateUI();
+            addEffectLog(`第${gameState.round}回合开始`, 'special');
+        }
+
+        function passRound() {
+            if (gameState.turn !== 'player' || gameState.gameOver) return;
+            
+            gameState.playerPassed = true;
+            addEffectLog('玩家跳过回合', 'special');
+            checkRoundEnd();
+        }
+
+        function useLeaderAbility() {
+            if (gameState.leaderUsed || gameState.gameOver) return;
+            
+            const leader = LEADER_ABILITIES.player;
+            
+            // 选择最强的一行
+            let bestRow = 'MELEE';
+            let bestPower = 0;
+            ['MELEE', 'RANGED', 'SIEGE'].forEach(row => {
+                let power = 0;
+                gameState.board.player[row].forEach(c => {
+                    if (c.type === 'UNIT') power += c.currentPower || c.basePower;
+                });
+                if (power > bestPower) {
+                    bestPower = power;
+                    bestRow = row;
+                }
+            });
+            
+            leader.effect(bestRow);
+            gameState.leaderUsed = true;
+            document.getElementById('btnLeader').classList.add('used');
+        }
+
+        // ============ AI 逻辑 ============
+        function enemyTurn() {
+            if (gameState.gameOver || gameState.enemyPassed || gameState.turn !== 'enemy') return;
+            
+            const enemyHand = gameState.enemyHand;
+            
+            // AI 决策
+            if (enemyHand.length === 0) {
+                gameState.enemyPassed = true;
+                addEffectLog('敌方跳过回合', 'special');
+                checkRoundEnd();
+                return;
+            }
+            
+            // 计算是否应该跳过
+            const scoreDiff = gameState.enemyScore - gameState.playerScore;
+            const playerPassed = gameState.playerPassed;
+            
+            // 如果大幅领先且玩家已跳过，考虑跳过
+            if (playerPassed && scoreDiff > 20) {
+                gameState.enemyPassed = true;
+                addEffectLog('敌方跳过回合', 'special');
+                checkRoundEnd();
+                return;
+            }
+            
+            // 选择最佳卡牌
+            let bestCard = null;
+            let bestValue = -Infinity;
+            
+            enemyHand.forEach(card => {
+                let value = 0;
+                
+                if (card.type === 'UNIT') {
+                    value = card.basePower;
+                    
+                    // 考虑能力加成
+                    if (card.abilities) {
+                        card.abilities.forEach(ability => {
+                            switch (ability) {
+                                case 'SPY': value += 10; break; // 间谍抽牌很有价值
+                                case 'MEDIC': value += 8; break;
+                                case 'MUSTER': value += card.basePower * 2; break;
+                                case 'MORALE': value += 5; break;
+                            }
+                        });
+                    }
+                    
+                    // 如果落后很多，优先出高战力
+                    if (scoreDiff < -20) {
+                        value *= 1.5;
+                    }
+                } else if (card.type === 'SPECIAL') {
+                    if (card.abilities?.includes('SCORCH') && gameState.playerScore > gameState.enemyScore + 15) {
+                        value = 50; // 灼烧高战力对手
+                    } else if (card.abilities?.includes('CLEAR_WEATHER')) {
+                        const hasBadWeather = Object.values(gameState.weather).some(w => w);
+                        if (hasBadWeather) value = 30;
+                    } else {
+                        value = 5;
+                    }
+                } else if (card.type === 'WEATHER') {
+                    // 只在对己方有利时使用天气
+                    const enemyRowPower = calculateRowPower('enemy', card.row);
+                    const playerRowPower = calculateRowPower('player', card.row);
+                    if (playerRowPower > enemyRowPower) {
+                        value = 15;
+                    }
+                }
+                
+                if (value > bestValue) {
+                    bestValue = value;
+                    bestCard = card;
+                }
+            });
+            
+            if (bestCard) {
+                playCard(bestCard, 'enemy');
+                addEffectLog(`敌方打出 ${bestCard.name}`, 'negative');
+            }
+            
+            gameState.turn = 'player';
+            updateUI();
+        }
+
+        function calculateRowPower(player, row) {
+            let power = 0;
+            gameState.board[player][row].forEach(card => {
+                if (card.type === 'UNIT') {
+                    power += card.currentPower || card.basePower;
+                }
+            });
+            return power;
+        }
+
+        // ============ UI 更新 ============
+        function updateUI() {
+            document.getElementById('gamePhase').textContent = `第 ${gameState.round} 回合`;
+            document.getElementById('handCount').textContent = gameState.playerHand.length;
+            
+            if (gameState.gameOver) {
+                document.getElementById('gameMessage').textContent = gameState.playerWins >= 2 ? '胜利！' : '失败...';
+            } else if (gameState.playerPassed) {
+                document.getElementById('gameMessage').textContent = '等待敌方行动...';
+            } else {
+                document.getElementById('gameMessage').textContent = '选择卡牌出战';
+            }
+            
+            // 更新天气按钮
+            document.querySelectorAll('.weather-btn').forEach(btn => {
+                const weather = btn.dataset.weather;
+                btn.classList.toggle('active', gameState.weather[weather] || 
+                    (weather === 'CLEAR' && !Object.values(gameState.weather).some(w => w)));
+            });
+        }
+
+        // ============ 渲染循环 ============
+        function render() {
+            // 清空画布
+            ctx.fillStyle = '#0a0a0f';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制背景
+            drawBackground();
+            
+            // 绘制战场
+            drawBattlefield();
+            
+            // 绘制敌方手牌
+            drawEnemyHand();
+            
+            // 绘制玩家手牌
+            drawPlayerHand();
+            
+            // 绘制天气效果
+            drawWeatherEffects();
+            
+            requestAnimationFrame(render);
+        }
+
+        function drawBackground() {
+            // 渐变背景
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#0f0f15');
+            gradient.addColorStop(0.5, '#0a0a0f');
+            gradient.addColorStop(1, '#0f0f15');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 装饰性元素
+            ctx.strokeStyle = 'rgba(90, 74, 53, 0.1)';
+            ctx.lineWidth = 1;
+            
+            for (let i = 0; i < 10; i++) {
+                const y = (canvas.height / 10) * i;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawBattlefield() {
+            const centerX = canvas.width / 2;
+            const rowWidth = 600;
+            const startX = centerX - rowWidth / 2;
+            
+            // 绘制三行
+            const rows = ['SIEGE', 'RANGED', 'MELEE'];
+            
+            // 敌方区域
+            ctx.fillStyle = 'rgba(222, 74, 74, 0.05)';
+            ctx.fillRect(startX - 20, 160, rowWidth + 40, 200);
+            
+            // 玩家区域
+            ctx.fillStyle = 'rgba(74, 222, 128, 0.05)';
+            ctx.fillRect(startX - 20, 440, rowWidth + 40, 200);
+            
+            rows.forEach((row, index) => {
+                const enemyY = 180 + index * 60;
+                const playerY = 500 + index * 60;
+                
+                // 行标签
+                ctx.fillStyle = '#3a3530';
+                ctx.font = '12px Cinzel';
+                ctx.textAlign = 'right';
+                ctx.fillText(getRowName(row), startX - 30, enemyY + 30);
+                ctx.fillText(getRowName(row), startX - 30, playerY + 30);
+                
+                // 天气指示
+                if (gameState.weather[row]) {
+                    ctx.fillStyle = 'rgba(96, 165, 250, 0.2)';
+                    ctx.fillRect(startX - 10, enemyY - 5, rowWidth + 20, 55);
+                    ctx.fillRect(startX - 10, playerY - 5, rowWidth + 20, 55);
+                }
+                
+                // 绘制敌方卡牌
+                drawRowCards(gameState.board.enemy[row], startX, enemyY);
+                
+                // 绘制玩家卡牌
+                drawRowCards(gameState.board.player[row], startX, playerY);
+            });
+        }
+
+        function drawRowCards(cards, startX, y) {
+            const cardWidth = CONFIG.CARD_WIDTH;
+            const spacing = CONFIG.CARD_SPACING;
+            const totalWidth = cards.length * (cardWidth + spacing) - spacing;
+            let offsetX = startX;
+            
+            cards.forEach(card => {
+                drawCard(card, offsetX, y);
+                offsetX += cardWidth + spacing;
+            });
+        }
+
+        function drawEnemyHand() {
+            const hand = gameState.enemyHand;
+            const cardWidth = 50;
+            const spacing = 5;
+            const totalWidth = hand.length * (cardWidth + spacing) - spacing;
+            const startX = (canvas.width - totalWidth) / 2;
+            
+            hand.forEach((card, index) => {
+                const x = startX + index * (cardWidth + spacing);
+                drawCard(card, x, CONFIG.HAND_Y_ENEMY, cardWidth, 70, false, true);
+            });
+        }
+
+        function drawPlayerHand() {
+            const hand = gameState.playerHand;
+            const cardWidth = CONFIG.CARD_WIDTH;
+            const spacing = CONFIG.CARD_SPACING;
+            const totalWidth = hand.length * (cardWidth + spacing) - spacing;
+            let startX = (canvas.width - totalWidth) / 2;
+            
+            hand.forEach((card, index) => {
+                const x = startX + index * (cardWidth + spacing);
+                const isHovered = gameState.hoveredCard === card;
+                drawCard(card, x, CONFIG.HAND_Y, cardWidth, CONFIG.CARD_HEIGHT, isHovered, false);
+            });
+        }
+
+        function drawWeatherEffects() {
+            // 天气视觉特效
+            if (gameState.weather.MELEE) {
+                drawRainEffect();
+            }
+            if (gameState.weather.RANGED) {
+                drawFogEffect();
+            }
+            if (gameState.weather.SIEGE) {
+                drawFrostEffect();
+            }
+        }
+
+        function drawRainEffect() {
+            ctx.strokeStyle = 'rgba(96, 165, 250, 0.3)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < 50; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - 5, y + 15);
+                ctx.stroke();
+            }
+        }
+
+        function drawFogEffect() {
+            ctx.fillStyle = 'rgba(100, 100, 120, 0.1)';
+            for (let i = 0; i < 5; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const radius = 50 + Math.random() * 100;
+                
+                const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+                gradient.addColorStop(0, 'rgba(100, 100, 120, 0.2)');
+                gradient.addColorStop(1, 'transparent');
+                
+                ctx.beginPath();
+                ctx.arc(x, y, radius, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        function drawFrostEffect() {
+            ctx.fillStyle = 'rgba(200, 220, 255, 0.1)';
+            ctx.font = '20px Arial';
+            for (let i = 0; i < 20; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                ctx.fillText('❄', x, y);
+            }
+        }
+
+        // ============ 交互处理 ============
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // 检测悬浮卡牌
+            gameState.hoveredCard = null;
+            const hand = gameState.playerHand;
+            const cardWidth = CONFIG.CARD_WIDTH;
+            const spacing = CONFIG.CARD_SPACING;
+            const totalWidth = hand.length * (cardWidth + spacing) - spacing;
+            let startX = (canvas.width - totalWidth) / 2;
+            
+            hand.forEach((card, index) => {
+                const x = startX + index * (cardWidth + spacing);
+                const y = CONFIG.HAND_Y;
+                
+                if (mouseX >= x && mouseX <= x + cardWidth &&
+                    mouseY >= y && mouseY <= y + CONFIG.CARD_HEIGHT) {
+                    gameState.hoveredCard = card;
+                    showTooltip(card, e.clientX, e.clientY);
+                }
+            });
+            
+            if (!gameState.hoveredCard) {
+                document.getElementById('cardTooltip').style.display = 'none';
+            }
+        });
+
+        canvas.addEventListener('click', (e) => {
+            if (gameState.gameOver || gameState.turn !== 'player' || gameState.playerPassed) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            const hand = gameState.playerHand;
+            const cardWidth = CONFIG.CARD_WIDTH;
+            const spacing = CONFIG.CARD_SPACING;
+            const totalWidth = hand.length * (cardWidth + spacing) - spacing;
+            let startX = (canvas.width - totalWidth) / 2;
+            
+            hand.forEach((card, index) => {
+                const x = startX + index * (cardWidth + spacing);
+                const y = CONFIG.HAND_Y;
+                
+                if (mouseX >= x && mouseX <= x + cardWidth &&
+                    mouseY >= y && mouseY <= y + CONFIG.CARD_HEIGHT) {
+                    
+                    if (card.type === 'UNIT') {
+                        playCard(card, 'player');
+                        addEffectLog(`玩家打出 ${card.name}`, 'positive');
+                    } else if (card.type === 'SPECIAL' || card.type === 'WEATHER') {
+                        playCard(card, 'player');
+                        addEffectLog(`玩家使用 ${card.name}`, 'special');
+                    }
+                }
+            });
+        });
+
+        function showTooltip(card, x, y) {
+            const tooltip = document.getElementById('cardTooltip');
+            document.getElementById('tooltipName').textContent = card.name;
+            document.getElementById('tooltipDesc').textContent = card.description || '';
+            
+            const abilityDiv = document.getElementById('tooltipAbility');
+            if (card.abilities && card.abilities.length > 0) {
+                abilityDiv.innerHTML = '<strong>能力:</strong> ' + 
+                    card.abilities.map(a => getAbilityName(a)).join(', ');
+            } else {
+                abilityDiv.innerHTML = '';
+            }
+            
+            tooltip.style.display = 'block';
+            tooltip.style.left = (x + 20) + 'px';
+            tooltip.style.top = (y - 20) + 'px';
+        }
+
+        // ============ 按钮事件 ============
+        document.getElementById('btnPass').addEventListener('click', passRound);
+        document.getElementById('btnLeader').addEventListener('click', useLeaderAbility);
+        document.getElementById('btnRestart').addEventListener('click', initGame);
+
+        // 天气按钮
+        document.querySelectorAll('.weather-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const weather = btn.dataset.weather;
+                if (weather === 'CLEAR') {
+                    gameState.weather = { MELEE: false, RANGED: false, SIEGE: false };
+                    addEffectLog('天气清除', 'positive');
+                } else {
+                    gameState.weather[weather] = !gameState.weather[weather];
+                    addEffectLog(`${getRowName(weather)}天气效果${gameState.weather[weather] ? '启用' : '取消'}`, 'special');
+                }
+                recalculateAllPowers();
+                updateUI();
+            });
+        });
+
+        // ============ 启动游戏 ============
+        initGame();
+        render();
+    </script>
+</body>
+</html>
