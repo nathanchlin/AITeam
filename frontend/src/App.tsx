@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Stars } from '@react-three/drei';
+import { OrbitControls } from '@react-three/drei';
 import { Suspense, useEffect, useState } from 'react';
 import { World } from './components/Scene/World';
 import { Sidebar } from './components/UI/Sidebar';
@@ -13,11 +13,11 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { GitBranch, Folder } from 'lucide-react';
 import type { Agent } from './types';
 
-const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
+const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
 
 function AppContent() {
   const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan } = useAgentStore();
-  const { selectedAgentId, chatPanelOpen, streamContent } = useAgentStore();
+  const { selectedAgentId, chatPanelOpen, streamContent, isDraggingAgent } = useAgentStore();
   const [loading, setLoading] = useState(true);
   useWebSocket();
 
@@ -124,32 +124,36 @@ function AppContent() {
         className="w-full h-full"
       >
         <Suspense fallback={null}>
-          <ambientLight intensity={0.4} />
+          {/* Office-style warm lighting */}
+          <ambientLight intensity={0.5} color="#FFF8E7" />
           <directionalLight
-            position={[10, 10, 5]}
-            intensity={1}
+            position={[10, 15, 5]}
+            intensity={0.8}
+            color="#FFF8E7"
             castShadow
             shadow-mapSize-width={2048}
             shadow-mapSize-height={2048}
+            shadow-camera-far={50}
+            shadow-camera-left={-20}
+            shadow-camera-right={20}
+            shadow-camera-top={20}
+            shadow-camera-bottom={-20}
           />
-          <pointLight position={[-10, -10, -5]} intensity={0.3} />
+          {/* Secondary light for fill */}
+          <directionalLight
+            position={[-5, 10, -5]}
+            intensity={0.4}
+            color="#E8E0D5"
+          />
+          {/* Accent light */}
+          <pointLight position={[0, 5, 0]} intensity={0.3} color="#FFF8E7" distance={20} />
 
           <World agents={agents} />
 
-          <Stars
-            radius={100}
-            depth={50}
-            count={5000}
-            factor={4}
-            saturation={0}
-            fade
-            speed={1}
-          />
-
           <OrbitControls
-            enablePan={true}
-            enableZoom={true}
-            enableRotate={true}
+            enablePan={!isDraggingAgent}
+            enableZoom={!isDraggingAgent}
+            enableRotate={!isDraggingAgent}
             minDistance={5}
             maxDistance={25}
             maxPolarAngle={Math.PI / 2 - 0.1}

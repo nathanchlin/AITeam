@@ -5,12 +5,14 @@ interface AgentState {
   // Agents
   agents: Agent[];
   selectedAgentId: string | null;
+  isDraggingAgent: boolean;
   setAgents: (agents: Agent[]) => void;
   addAgent: (agent: Agent) => void;
   updateAgent: (id: string, updates: Partial<Agent>) => void;
   updateAgentPosition: (id: string, position: { x: number; y: number; z: number }) => Promise<void>;
   removeAgent: (id: string) => void;
   selectAgent: (id: string | null) => void;
+  setIsDraggingAgent: (isDragging: boolean) => void;
 
   // Tasks
   tasks: Task[];
@@ -70,12 +72,14 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   // Agents
   agents: [],
   selectedAgentId: null,
+  isDraggingAgent: false,
   setAgents: (agents) => set({ agents }),
   addAgent: (agent) => set((state) => ({ agents: [...state.agents, agent] })),
   updateAgent: (id, updates) =>
     set((state) => ({
       agents: state.agents.map((a) => (a.id === id ? { ...a, ...updates } : a)),
     })),
+  setIsDraggingAgent: (isDragging) => set({ isDraggingAgent: isDragging }),
   updateAgentPosition: async (id: string, position: { x: number; y: number; z: number }) => {
     // Optimistic update
     set((state) => ({
@@ -315,7 +319,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
               }
               return iter;
             });
-            get().updatePlan(data.plan_id, { iterations: updatedIterations });
+            get().updatePlan(data.plan_id as string, { iterations: updatedIterations });
           }
         }
         break;

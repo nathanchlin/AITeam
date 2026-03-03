@@ -3,7 +3,7 @@ import { X, ExternalLink, Folder, RefreshCw, MessageCircle, ChevronRight } from 
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS } from '../../types';
 
-const API_BASE = import.meta.env.PROD ? '' : 'http://localhost:8000';
+const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
 
 interface ProjectFile {
   name: string;
