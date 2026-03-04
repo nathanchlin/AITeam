@@ -89,6 +89,35 @@ async def delete_plan(plan_id: str):
     return {"message": "Plan deleted successfully", "plan_id": plan_id}
 
 
+@router.post("/plans/{plan_id}/complete")
+async def complete_plan(plan_id: str):
+    """Mark a plan as completed and broadcast update"""
+    from app.main import websocket_manager
+
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    # Update plan status
+    from datetime import datetime
+    plan.status = "completed"
+    plan.completed_at = datetime.utcnow()
+    coordinator._save_plans()
+
+    # Broadcast update to WebSocket clients
+    if websocket_manager:
+        await websocket_manager.broadcast({
+            "type": "plan_update",
+            "data": {
+                "plan_id": plan_id,
+                "status": "completed",
+                "plan": plan.model_dump(),
+            }
+        })
+
+    return {"message": "Plan completed", "plan": plan.model_dump()}
+
+
 @router.post("/plans/{plan_id}/analyze")
 async def analyze_request(plan_id: str):
     """Phase 1: Analyze the request"""
