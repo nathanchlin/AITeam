@@ -1,0 +1,3955 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>灵画师躲避弹幕</title>
+<style>
+@keyframes shake {
+0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+@keyframes waveSubtitleIn {
+from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+@keyframes waveTextIn {
+from {
+        opacity: 0;
+        transform: scale(0.5);
+        filter: blur(10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+        filter: blur(0);
+    }
+}
+.elite-badge {
+position: absolute;
+    top: -10px;
+    right: -10px;
+    background: linear-gradient(135deg, #ff4444, #ff8800);
+    color: white;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 8px;
+    font-weight: bold;
+    box-shadow: 0 0 10px rgba(255, 68, 68, 0.6);
+}
+.wave-subtitle {
+font-size: 24px;
+    color: rgba(255, 255, 255, 0.9);
+    margin-top: 10px;
+    letter-spacing: 5px;
+    animation: waveSubtitleIn 0.5s 0.2s ease-out forwards;
+    opacity: 0;
+}
+.wave-text {
+font-size: 72px;
+    font-weight: bold;
+    color: #ffd700;
+    text-shadow: 
+        0 0 20px rgba(255, 215, 0, 0.8),
+        0 0 40px rgba(255, 215, 0, 0.6),
+        0 0 60px rgba(255, 215, 0, 0.4);
+    letter-spacing: 15px;
+    animation: waveTextIn 0.5s ease-out forwards;
+}
+#waveAnnouncement {
+position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 200;
+    text-align: center;
+    pointer-events: none;
+    opacity: 0;
+}
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  body {
+    overflow: hidden;
+    background: #0a0a1a;
+    font-family: 'Microsoft YaHei', sans-serif;
+  }
+  canvas {
+    display: block;
+  }
+  #gameOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 10, 26, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+  }
+  #gameOverlay h1 {
+    color: #00ffcc;
+    font-size: 52px;
+    margin-bottom: 20px;
+    text-shadow: 0 0 30px rgba(0, 255, 204, 0.6);
+    letter-spacing: 8px;
+  }
+  #gameOverlay p {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 18px;
+    margin-bottom: 40px;
+    line-height: 1.8;
+    text-align: center;
+  }
+  #startBtn {
+    padding: 18px 60px;
+    font-size: 20px;
+    background: linear-gradient(135deg, #00ffcc, #0088ff);
+    border: none;
+    border-radius: 40px;
+    color: #0a0a1a;
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s, box-shadow 0.2s;
+    letter-spacing: 2px;
+  }
+  #startBtn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 40px rgba(0, 255, 204, 0.5);
+  }
+  .hidden {
+    display: none !important;
+  }
+  #scoreDisplay {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    color: #00ffcc;
+    font-size: 24px;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
+    z-index: 50;
+  }
+  #waveDisplay {
+    position: fixed;
+    top: 55px;
+    left: 20px;
+    color: #ffd700;
+    font-size: 18px;
+    font-weight: bold;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    z-index: 50;
+  }
+  #killDisplay {
+    position: fixed;
+    top: 85px;
+    left: 20px;
+    color: #ff6b6b;
+    font-size: 16px;
+    z-index: 50;
+  }
+  
+  /* 资源显示区域 */
+  #resourceContainer {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 50;
+  }
+  .resource-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 8px 15px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .resource-icon {
+    font-size: 18px;
+  }
+  .resource-value {
+    color: #fff;
+    font-size: 16px;
+    font-weight: bold;
+  }
+  #inkValue { color: #00ccff; }
+  #essenceValue { color: #ff66cc; }
+  #starValue { color: #ffd700; }
+  
+  #healthContainer {
+    position: fixed;
+    top: 115px;
+    left: 20px;
+    z-index: 50;
+  }
+  #hpDisplay {
+    color: #ff6b6b;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  #healthBarContainer {
+    width: 150px;
+    height: 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+  #hpBar {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #ff4444, #ff6b6b);
+    transition: width 0.2s;
+  }
+  #shieldBarContainer {
+    width: 150px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  #shieldBar {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #4488ff, #00ccff);
+    transition: width 0.2s;
+  }
+
+  /* 能量条 */
+  #energyContainer {
+    position: fixed;
+    top: 150px;
+    left: 20px;
+    z-index: 50;
+  }
+  #energyDisplay {
+    color: #44aaff;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  #energyBarContainer {
+    width: 150px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  #energyBar {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #44aaff, #00ccff);
+    transition: width 0.1s;
+  }
+
+  /* 波次主题显示 */
+  #themeDisplay {
+    position: fixed;
+    top: 115px;
+    right: 20px;
+    padding: 8px 15px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    z-index: 50;
+    display: none;
+  }
+  #themeIcon {
+    font-size: 18px;
+    margin-right: 8px;
+  }
+  #themeName {
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+  }
+  #themeDesc {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
+  /* 暂停界面 */
+  #pauseOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 10, 26, 0.9);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 195;
+  }
+  #pauseOverlay h1 {
+    color: #ffd700;
+    font-size: 48px;
+    margin-bottom: 40px;
+    text-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
+  }
+  #pauseButtons {
+    display: flex;
+    gap: 30px;
+  }
+  .pause-btn {
+    padding: 18px 40px;
+    font-size: 18px;
+    border: none;
+    border-radius: 30px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .pause-btn.resume {
+    background: linear-gradient(135deg, #00ffcc, #0088ff);
+    color: #0a0a1a;
+  }
+  .pause-btn.shop {
+    background: linear-gradient(135deg, #6633ff, #9933ff);
+    color: white;
+  }
+  .pause-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 25px rgba(255, 255, 255, 0.3);
+  }
+
+  /* Boss警告 */
+  #bossWarning {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 180;
+    text-align: center;
+    pointer-events: none;
+    display: none;
+  }
+  #bossWarning .warning-text {
+    font-size: 64px;
+    font-weight: bold;
+    color: #ff4444;
+    text-shadow:
+      0 0 20px rgba(255, 68, 68, 0.8),
+      0 0 40px rgba(255, 68, 68, 0.6),
+      0 0 60px rgba(255, 68, 68, 0.4);
+    animation: bossWarningPulse 0.5s ease-in-out infinite alternate;
+  }
+  @keyframes bossWarningPulse {
+    from { transform: scale(1); opacity: 0.8; }
+    to { transform: scale(1.1); opacity: 1; }
+  }
+
+  /* 消耗性技能容器 */
+  #consumablesContainer {
+    position: fixed;
+    bottom: 90px;
+    left: 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 55;
+  }
+  .consumable-skill {
+    width: 50px;
+    height: 50px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid #6633ff;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .consumable-skill:hover {
+    transform: scale(1.1);
+    border-color: #9933ff;
+  }
+  .consumable-skill .icon {
+    font-size: 20px;
+  }
+  .consumable-skill .key-hint {
+    position: absolute;
+    bottom: -5px;
+    right: -5px;
+    background: #ffd700;
+    color: #000;
+    font-size: 10px;
+    font-weight: bold;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+  .consumable-skill .uses {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #ff4444;
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  /* 消耗性技能选择界面 */
+  #consumableSelectOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 10, 26, 0.95);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
+  }
+  #consumableSelectOverlay h2 {
+    color: #ffd700;
+    font-size: 36px;
+    margin-bottom: 15px;
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+  }
+  #consumableSelectOverlay .subtitle {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 16px;
+    margin-bottom: 40px;
+  }
+  #consumableOptions {
+    display: flex;
+    gap: 25px;
+  }
+  .consumable-option {
+    width: 180px;
+    background: linear-gradient(145deg, #1a2a3a, #0a1a2a);
+    border: 2px solid #6633ff;
+    border-radius: 15px;
+    padding: 25px 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+  }
+  .consumable-option:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 40px rgba(102, 51, 255, 0.4);
+    border-color: #9933ff;
+  }
+  .consumable-option .icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+  }
+  .consumable-option .name {
+    color: #cc99ff;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+  .consumable-option .desc {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 12px;
+  }
+
+  /* 技能按钮 */
+  #skillTreeBtn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, #6633ff, #9933ff);
+    border: 2px solid #aa66ff;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 60;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 28px;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  #skillTreeBtn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 25px rgba(153, 51, 255, 0.6);
+  }
+  #skillTreeBtn .notification {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: #ff4444;
+    color: white;
+    font-size: 12px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    display: none;
+  }
+  
+  /* 技能树面板 */
+  #skillTreeOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 10, 26, 0.95);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
+  }
+  #skillTreePanel {
+    width: 90%;
+    max-width: 900px;
+    max-height: 80vh;
+    background: linear-gradient(180deg, #1a1a3a, #0a0a2a);
+    border-radius: 20px;
+    border: 2px solid #6633ff;
+    padding: 30px;
+    overflow-y: auto;
+  }
+  #skillTreeHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid rgba(102, 51, 255, 0.3);
+  }
+  #skillTreeHeader h2 {
+    color: #cc99ff;
+    font-size: 28px;
+    text-shadow: 0 0 15px rgba(204, 153, 255, 0.5);
+  }
+  #availablePoints {
+    color: #ffd700;
+    font-size: 18px;
+  }
+  #closeSkillTree {
+    background: transparent;
+    border: 2px solid #ff6666;
+    color: #ff6666;
+    font-size: 24px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  #closeSkillTree:hover {
+    background: #ff6666;
+    color: white;
+  }
+  
+  /* 技能分类 */
+  .skill-category {
+    margin-bottom: 25px;
+  }
+  .skill-category-title {
+    color: #00ffcc;
+    font-size: 18px;
+    margin-bottom: 15px;
+    padding-left: 10px;
+    border-left: 3px solid #00ffcc;
+  }
+  .skill-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+  }
+  
+  /* 技能节点 */
+  .skill-node {
+    background: rgba(0, 0, 0, 0.4);
+    border: 2px solid rgba(102, 51, 255, 0.3);
+    border-radius: 12px;
+    padding: 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .skill-node:hover {
+    border-color: #9933ff;
+    background: rgba(102, 51, 255, 0.1);
+    transform: translateY(-2px);
+  }
+  .skill-node.locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  .skill-node.maxed {
+    border-color: #ffd700;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+  }
+  .skill-node.unlocked {
+    border-color: #00ff88;
+    box-shadow: 0 0 10px rgba(0, 255, 136, 0.3);
+  }
+  .skill-icon-wrapper {
+    font-size: 32px;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .skill-name {
+    color: #fff;
+    font-size: 14px;
+    font-weight: bold;
+    text-align: center;
+    margin-bottom: 5px;
+  }
+  .skill-level {
+    color: #00ffcc;
+    font-size: 12px;
+    text-align: center;
+    margin-bottom: 8px;
+  }
+  .skill-desc {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 11px;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .skill-cost {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: rgba(255, 215, 0, 0.2);
+    color: #ffd700;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 8px;
+  }
+  
+  #gameOverOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 10, 26, 0.95);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 200;
+  }
+  #gameOverOverlay h1 {
+    color: #ff4444;
+    font-size: 48px;
+    margin-bottom: 20px;
+    text-shadow: 0 0 30px rgba(255, 68, 68, 0.6);
+  }
+  #gameOverOverlay p {
+    color: rgba(255, 255, 255, 0.8);
+    font-size: 18px;
+    margin-bottom: 20px;
+  }
+  #gameOverStats {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 20px 40px;
+    border-radius: 15px;
+    margin-bottom: 20px;
+  }
+  #gameOverStats p {
+    margin: 8px 0;
+  }
+  #restartBtn {
+    padding: 15px 50px;
+    font-size: 18px;
+    background: linear-gradient(135deg, #ff6b6b, #ff4444);
+    border: none;
+    border-radius: 30px;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s, box-shadow 0.2s;
+    margin-top: 20px;
+  }
+  #restartBtn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 30px rgba(255, 68, 68, 0.5);
+  }
+  
+  #waveTransitionOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 10, 26, 0.85);
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 150;
+  }
+  #waveTransitionOverlay h2 {
+    color: #ffd700;
+    font-size: 42px;
+    margin-bottom: 30px;
+    text-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
+  }
+  #upgradeOptions {
+    display: flex;
+    gap: 25px;
+    flex-wrap: wrap;
+    justify-content: center;
+    max-width: 900px;
+  }
+  .upgrade-card {
+    width: 220px;
+    background: linear-gradient(145deg, #1a2a3a, #0a1a2a);
+    border: 2px solid #00ffcc;
+    border-radius: 15px;
+    padding: 25px 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-align: center;
+  }
+  .upgrade-card:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 40px rgba(0, 255, 204, 0.3);
+    border-color: #00ff88;
+  }
+  .upgrade-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+  }
+  .upgrade-name {
+    color: #00ffcc;
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 10px;
+  }
+  .upgrade-desc {
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .upgrade-hint {
+    color: #ffd700;
+    font-size: 12px;
+    margin-top: 15px;
+    opacity: 0.8;
+  }
+  #upgradeTip {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 14px;
+    margin-top: 40px;
+    font-style: italic;
+  }
+  
+  /* 已激活技能显示 */
+  #activeSkills {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    display: flex;
+    gap: 10px;
+    z-index: 50;
+  }
+  .active-skill-icon {
+    width: 45px;
+    height: 45px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid #6633ff;
+    border-radius: 10px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 22px;
+    position: relative;
+  }
+  .active-skill-icon .level-badge {
+    position: absolute;
+    bottom: -5px;
+    right: -5px;
+    background: #ffd700;
+    color: #000;
+    font-size: 10px;
+    font-weight: bold;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+
+<!-- 资源显示 -->
+<div id="resourceContainer">
+  <div class="resource-item">
+    <span class="resource-icon">💧</span>
+    <span class="resource-value" id="inkValue">0</span>
+  </div>
+  <div class="resource-item">
+    <span class="resource-icon">✨</span>
+    <span class="resource-value" id="essenceValue">0</span>
+  </div>
+  <div class="resource-item">
+    <span class="resource-icon">⭐</span>
+    <span class="resource-value" id="starValue">0</span>
+  </div>
+</div>
+
+<!-- 已激活技能 -->
+<div id="activeSkills"></div>
+
+<!-- 技能树按钮 -->
+<button id="skillTreeBtn">
+  📜
+  <span class="notification" id="skillNotification">0</span>
+</button>
+
+<!-- 技能树面板 -->
+<div id="skillTreeOverlay">
+  <div id="skillTreePanel">
+    <div id="skillTreeHeader">
+      <h2>🌸 灵画秘典</h2>
+      <span id="availablePoints">💧<span id="headerInk">0</span> | ✨<span id="headerEssence">0</span> | ⭐<span id="headerStars">0</span></span>
+      <button id="closeSkillTree">×</button>
+    </div>
+    <div id="skillTreeContent"></div>
+  </div>
+</div>
+
+<div id="scoreDisplay">分数: <span id="score">0</span></div>
+<div id="waveDisplay">波次: <span id="wave">1</span></div>
+<div id="killDisplay">击杀: <span id="kills">0</span></div>
+
+<div id="healthContainer">
+  <div id="hpDisplay">HP: <span id="hpText">100/100</span></div>
+  <div id="healthBarContainer">
+    <div id="hpBar"></div>
+  </div>
+  <div id="shieldBarContainer">
+    <div id="shieldBar"></div>
+  </div>
+</div>
+
+<!-- 能量条 -->
+<div id="energyContainer">
+  <div id="energyDisplay">⚡ 精力</div>
+  <div id="energyBarContainer">
+    <div id="energyBar"></div>
+  </div>
+</div>
+
+<!-- 波次主题显示 -->
+<div id="themeDisplay">
+  <span id="themeIcon"></span>
+  <span id="themeName"></span>
+  <div id="themeDesc"></div>
+</div>
+
+<!-- 消耗性技能容器 -->
+<div id="consumablesContainer"></div>
+
+<!-- 暂停界面 -->
+<div id="pauseOverlay">
+  <h1>⏸️ 游戏暂停</h1>
+  <div id="pauseButtons">
+    <button class="pause-btn resume" id="resumeBtn">继续游戏</button>
+    <button class="pause-btn shop" id="pauseShopBtn">📜 技能商店</button>
+  </div>
+</div>
+
+<!-- Boss警告 -->
+<div id="bossWarning">
+  <div class="warning-text">⚠️ BOSS来袭 ⚠️</div>
+</div>
+
+<!-- 消耗性技能选择 -->
+<div id="consumableSelectOverlay">
+  <h2>🏆 获得Boss技能!</h2>
+  <p class="subtitle">选择一个一次性技能</p>
+  <div id="consumableOptions"></div>
+</div>
+
+<div id="gameOverlay">
+  <h1>灵画师</h1>
+  <p>
+    身为灵画师，你需要在画境中躲避敌人的弹幕攻击<br>
+    移动鼠标控制角色，击败画灵获得资源与经验<br>
+    收集灵墨💧和精华✨来解锁强大的技能<br>
+    每波结束可选择强化，逐步成为最强灵画师
+  </p>
+  <button id="startBtn">开始绘制</button>
+</div>
+
+<div id="gameOverOverlay">
+  <h1>画境崩塌</h1>
+  <div id="gameOverStats">
+    <p>最终分数: <span id="finalScore">0</span></p>
+    <p>到达波次: <span id="finalWave">1</span></p>
+    <p>总击杀数: <span id="finalKills">0</span></p>
+    <p>收集灵墨: <span id="finalInk">0</span></p>
+    <p>收集精华: <span id="finalEssence">0</span></p>
+    <p>收集星星: <span id="finalStars">0</span></p>
+  </div>
+  <button id="restartBtn">重绘画卷</button>
+</div>
+
+<div id="waveTransitionOverlay">
+  <h2>波次完成</h2>
+  <div id="upgradeOptions"></div>
+  <p id="upgradeTip"></p>
+  <button id="waveShopBtn" style="margin-top: 30px; padding: 12px 30px; background: linear-gradient(135deg, #6633ff, #9933ff); border: none; border-radius: 25px; color: white; font-size: 16px; cursor: pointer; font-weight: bold; transition: transform 0.2s, box-shadow 0.2s;">📜 技能商店</button>
+</div>
+
+<script>
+// ============== 游戏核心变量 ==============
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let width, height;
+let gameRunning = false;
+let animationId;
+let score = 0;
+let kills = 0;
+let wave = 1;
+let waveTimer = 0;
+let waveDuration = 45000; // 45秒一波
+let spawnTimer = 0;
+let lastTime = 0;
+let waveInProgress = false;
+let gamePaused = false;
+let bossSpawned = false;
+let bossKilled = false;
+let bossWarningShown = false;
+let currentTheme = null;
+
+// 波次主题系统
+const waveThemes = [
+  { name: '风之章', icon: '🌪️', effect: 'speed', modifier: 1.3, color: '#88ff88', desc: '敌人移动速度+30%' },
+  { name: '火之章', icon: '🔥', effect: 'damage', modifier: 1.2, color: '#ff6644', desc: '敌人伤害+20%' },
+  { name: '水之章', icon: '🌊', effect: 'hp', modifier: 1.25, color: '#4488ff', desc: '敌人生命+25%' },
+  { name: '雷之章', icon: '⚡', effect: 'attackSpeed', modifier: 1.4, color: '#ffff44', desc: '敌人攻速+40%' },
+  { name: '暗之章', icon: '🌑', effect: 'all', modifier: 1.15, color: '#aa44ff', desc: '全部属性+15%' }
+];
+
+// 消耗性技能
+const consumableSkills = [
+  { id: 'clearAll', name: '清场画笔', icon: '💫', desc: '清除所有敌人', uses: 1 },
+  { id: 'healFull', name: '生命之泉', icon: '💚', desc: '恢复全部生命', uses: 1 },
+  { id: 'shieldMax', name: '绝对防御', icon: '🛡️', desc: '护盾全满', uses: 1 },
+  { id: 'bombAll', name: '墨爆术', icon: '💥', desc: '对全体敌人造成大量伤害', uses: 1 }
+];
+
+let playerConsumables = [];
+
+// ============== 资源系统 ==============
+const resources = {
+  ink: 0,           // 灵墨 - 基础资源，常见掉落
+  essence: 0,       // 精华 - 稀有资源，较少掉落
+  stars: 0,         // 星星 - 珍贵资源，稀有掉落
+  totalInk: 0,      // 统计用
+  totalEssence: 0,  // 统计用
+  totalStars: 0     // 统计用
+};
+
+// ============== 技能树系统 ==============
+const skillTree = {
+  // 攻击系
+  powerStrike: {
+    id: 'powerStrike',
+    name: '蓄力一击',
+    icon: '⚔️',
+    category: 'attack',
+    maxLevel: 5,
+    currentLevel: 0,
+    costs: [
+      { ink: 30, essence: 10, stars: 0 },
+      { ink: 50, essence: 20, stars: 5 },
+      { ink: 80, essence: 35, stars: 10 },
+      { ink: 120, essence: 50, stars: 15 },
+      { ink: 180, essence: 75, stars: 25 }
+    ],
+    description: ['伤害+10%', '伤害+20%', '伤害+30%', '伤害+40%', '伤害+50%'],
+    effect: (level) => ({ damageBonus: level * 0.1 })
+  },
+  rapidFire: {
+    id: 'rapidFire',
+    name: '连珠画笔',
+    icon: '🖌️',
+    category: 'attack',
+    maxLevel: 5,
+    currentLevel: 0,
+    costs: [
+      { ink: 25, essence: 8, stars: 0 },
+      { ink: 40, essence: 15, stars: 3 },
+      { ink: 60, essence: 25, stars: 6 },
+      { ink: 90, essence: 40, stars: 10 },
+      { ink: 130, essence: 60, stars: 15 }
+    ],
+    description: ['射速+8%', '射速+16%', '射速+24%', '射速+32%', '射速+40%'],
+    effect: (level) => ({ fireRateBonus: level * 0.08 })
+  },
+  piercingShot: {
+    id: 'piercingShot',
+    name: '贯穿墨锋',
+    icon: '🔱',
+    category: 'attack',
+    maxLevel: 3,
+    currentLevel: 0,
+    costs: [
+      { ink: 60, essence: 30, stars: 8 },
+      { ink: 100, essence: 50, stars: 15 },
+      { ink: 150, essence: 80, stars: 25 }
+    ],
+    description: ['穿透1个敌人', '穿透2个敌人', '穿透3个敌人'],
+    effect: (level) => ({ pierce: level })
+  },
+  criticalMaster: {
+    id: 'criticalMaster',
+    name: '会心之眼',
+    icon: '👁️',
+    category: 'attack',
+    maxLevel: 5,
+    currentLevel: 0,
+    costs: [
+      { ink: 40, essence: 15, stars: 3 },
+      { ink: 60, essence: 25, stars: 6 },
+      { ink: 90, essence: 40, stars: 10 },
+      { ink: 130, essence: 60, stars: 16 },
+      { ink: 180, essence: 85, stars: 22 }
+    ],
+    description: ['暴击率+5%', '暴击率+10%', '暴击率+15%', '暴击率+20%', '暴击率+25%'],
+    effect: (level) => ({ critChance: level * 0.05 })
+  },
+
+  // 防御系
+  ironSkin: {
+    id: 'ironSkin',
+    name: '铁壁画身',
+    icon: '🛡️',
+    category: 'defense',
+    maxLevel: 5,
+    currentLevel: 0,
+    costs: [
+      { ink: 25, essence: 12, stars: 0 },
+      { ink: 45, essence: 22, stars: 4 },
+      { ink: 70, essence: 35, stars: 8 },
+      { ink: 100, essence: 50, stars: 12 },
+      { ink: 140, essence: 70, stars: 18 }
+    ],
+    description: ['最大生命+20', '最大生命+40', '最大生命+60', '最大生命+80', '最大生命+100'],
+    effect: (level) => ({ maxHPBonus: level * 20 })
+  },
+  shieldMastery: {
+    id: 'shieldMastery',
+    name: '灵盾精通',
+    icon: '🔰',
+    category: 'defense',
+    maxLevel: 5,
+    currentLevel: 0,
+    costs: [
+      { ink: 35, essence: 18, stars: 2 },
+      { ink: 55, essence: 30, stars: 5 },
+      { ink: 80, essence: 45, stars: 9 },
+      { ink: 115, essence: 65, stars: 14 },
+      { ink: 160, essence: 90, stars: 20 }
+    ],
+    description: ['护盾+15', '护盾+30', '护盾+45', '护盾+60', '护盾+75'],
+    effect: (level) => ({ shieldBonus: level * 15 })
+  },
+  regeneration: {
+    id: 'regeneration',
+    name: '墨韵恢复',
+    icon: '💚',
+    category: 'defense',
+    maxLevel: 5,
+    currentLevel: 0,
+    costs: [
+      { ink: 50, essence: 25, stars: 5 },
+      { ink: 80, essence: 40, stars: 10 },
+      { ink: 115, essence: 60, stars: 15 },
+      { ink: 160, essence: 85, stars: 22 },
+      { ink: 220, essence: 115, stars: 30 }
+    ],
+    description: ['每秒回复0.5HP', '每秒回复1HP', '每秒回复1.5HP', '每秒回复2HP', '每秒回复2.5HP'],
+    effect: (level) => ({ hpRegen: level * 0.5 })
+  },
+  damageReduction: {
+    id: 'damageReduction',
+    name: '画境守护',
+    icon: '🏛️',
+    category: 'defense',
+    maxLevel: 3,
+    currentLevel: 0,
+    costs: [
+      { ink: 80, essence: 50, stars: 12 },
+      { ink: 130, essence: 80, stars: 20 },
+      { ink: 200, essence: 120, stars: 32 }
+    ],
+    description: ['减伤5%', '减伤10%', '减伤15%'],
+    effect: (level) => ({ damageReduction: level * 0.05 })
+  },
+
+  // 移动系
+  swiftFeet: {
+    id: 'swiftFeet',
+    name: '疾风步',
+    icon: '💨',
+    category: 'movement',
+    maxLevel: 5,
+    currentLevel: 0,
+    costs: [
+      { ink: 20, essence: 8, stars: 0 },
+      { ink: 35, essence: 15, stars: 2 },
+      { ink: 55, essence: 25, stars: 5 },
+      { ink: 80, essence: 38, stars: 8 },
+      { ink: 110, essence: 55, stars: 12 }
+    ],
+    description: ['移速+6%', '移速+12%', '移速+18%', '移速+24%', '移速+30%'],
+    effect: (level) => ({ speedBonus: level * 0.06 })
+  },
+  dashMaster: {
+    id: 'dashMaster',
+    name: '闪现大师',
+    icon: '⚡',
+    category: 'movement',
+    maxLevel: 3,
+    currentLevel: 0,
+    costs: [
+      { ink: 55, essence: 30, stars: 6 },
+      { ink: 90, essence: 50, stars: 12 },
+      { ink: 140, essence: 80, stars: 20 }
+    ],
+    description: ['冲刺冷却-15%', '冲刺冷却-30%', '冲刺冷却-45%'],
+    effect: (level) => ({ dashCooldownReduction: level * 0.15 })
+  },
+  magnetism: {
+    id: 'magnetism',
+    name: '灵吸之力',
+    icon: '🧲',
+    category: 'movement',
+    maxLevel: 3,
+    currentLevel: 0,
+    costs: [
+      { ink: 40, essence: 20, stars: 4 },
+      { ink: 70, essence: 35, stars: 8 },
+      { ink: 110, essence: 55, stars: 14 }
+    ],
+    description: ['拾取范围+30%', '拾取范围+60%', '拾取范围+100%'],
+    effect: (level) => ({ pickupRange: 1 + level * 0.3 })
+  },
+
+  // 特殊系
+  luckyStar: {
+    id: 'luckyStar',
+    name: '幸运星辰',
+    icon: '🍀',
+    category: 'special',
+    maxLevel: 5,
+    currentLevel: 0,
+    costs: [
+      { ink: 45, essence: 20, stars: 5 },
+      { ink: 70, essence: 35, stars: 10 },
+      { ink: 100, essence: 55, stars: 15 },
+      { ink: 140, essence: 80, stars: 22 },
+      { ink: 200, essence: 110, stars: 30 }
+    ],
+    description: ['资源掉落+10%', '资源掉落+20%', '资源掉落+30%', '资源掉落+40%', '资源掉落+50%'],
+    effect: (level) => ({ luckBonus: level * 0.1 })
+  },
+  expBoost: {
+    id: 'expBoost',
+    name: '悟性提升',
+    icon: '📚',
+    category: 'special',
+    maxLevel: 5,
+    currentLevel: 0,
+    costs: [
+      { ink: 30, essence: 12, stars: 2 },
+      { ink: 50, essence: 22, stars: 5 },
+      { ink: 75, essence: 35, stars: 8 },
+      { ink: 105, essence: 52, stars: 12 },
+      { ink: 145, essence: 75, stars: 18 }
+    ],
+    description: ['经验获取+10%', '经验获取+20%', '经验获取+30%', '经验获取+40%', '经验获取+50%'],
+    effect: (level) => ({ expBonus: level * 0.1 })
+  },
+  soulSteal: {
+    id: 'soulSteal',
+    name: '画魂吸取',
+    icon: '💀',
+    category: 'special',
+    maxLevel: 3,
+    currentLevel: 0,
+    costs: [
+      { ink: 70, essence: 45, stars: 10 },
+      { ink: 120, essence: 75, stars: 18 },
+      { ink: 180, essence: 110, stars: 28 }
+    ],
+    description: ['击杀回复1HP', '击杀回复2HP', '击杀回复3HP'],
+    effect: (level) => ({ soulSteal: level })
+  }
+};
+
+// 获取当前所有技能效果
+function getActiveEffects() {
+  const effects = {
+    damageBonus: 0,
+    fireRateBonus: 0,
+    pierce: 0,
+    critChance: 0,
+    maxHPBonus: 0,
+    shieldBonus: 0,
+    hpRegen: 0,
+    damageReduction: 0,
+    speedBonus: 0,
+    dashCooldownReduction: 0,
+    pickupRange: 1,
+    luckBonus: 0,
+    expBonus: 0,
+    soulSteal: 0
+  };
+  
+  for (const key in skillTree) {
+    const skill = skillTree[key];
+    if (skill.currentLevel > 0) {
+      const skillEffect = skill.effect(skill.currentLevel);
+      for (const effectKey in skillEffect) {
+        if (effects.hasOwnProperty(effectKey)) {
+          if (effectKey === 'pickupRange') {
+            effects[effectKey] *= skillEffect[effectKey];
+          } else {
+            effects[effectKey] += skillEffect[effectKey];
+          }
+        }
+      }
+    }
+  }
+  
+  return effects;
+}
+
+// ============== 玩家 ==============
+let player = {
+  x: 0,
+  y: 0,
+  size: 18,
+  baseSpeed: 5,
+  speed: 5,
+  hp: 100,
+  maxHP: 100,
+  shield: 0,
+  maxShield: 30,
+  damage: 25,
+  fireRate: 250,
+  lastShot: 0,
+  color: '#00ffcc',
+  invincible: false,
+  invincibleTimer: 0,
+  dashCooldown: 2000,
+  lastDash: 0,
+  exp: 0,
+  level: 1,
+  expToLevel: 100,
+  energy: 500,
+  maxEnergy: 500,
+  energyRegenRate: 50,
+  energyConsumeRate: 20
+};
+
+// ============== 游戏对象数组 ==============
+let bullets = [];
+let enemyBullets = [];
+let monsters = [];
+let particles = [];
+let floatingTexts = [];
+let drops = []; // 掉落物
+
+// ============== 初始化 ==============
+function resize() {
+  width = window.innerWidth;
+  height = window.innerHeight;
+  canvas.width = width;
+  canvas.height = height;
+}
+
+function init() {
+  try {
+    resize();
+    window.addEventListener('resize', resize);
+
+  // 重置资源
+  resources.ink = 0;
+  resources.essence = 0;
+  resources.stars = 0;
+  resources.totalInk = 0;
+  resources.totalEssence = 0;
+  resources.totalStars = 0;
+
+  // 重置技能树
+  for (const key in skillTree) {
+    skillTree[key].currentLevel = 0;
+  }
+
+  // 重置玩家
+  player.x = width / 2;
+  player.y = height / 2;
+  player.hp = 100;
+  player.maxHP = 100;
+  player.shield = 0;
+  player.maxShield = 30;
+  player.exp = 0;
+  player.level = 1;
+  player.energy = 500;
+  player.maxEnergy = 500;
+
+  // 重置游戏状态
+  score = 0;
+  kills = 0;
+  wave = 1;
+  waveTimer = 0;
+  spawnTimer = 0;
+  bullets = [];
+  enemyBullets = [];
+  monsters = [];
+  particles = [];
+  floatingTexts = [];
+  drops = [];
+  gamePaused = false;
+  bossSpawned = false;
+  bossKilled = false;
+  bossWarningShown = false;
+  currentTheme = null;
+  playerConsumables = [];
+
+  // 隐藏主题显示
+  document.getElementById('themeDisplay').style.display = 'none';
+  document.getElementById('pauseOverlay').style.display = 'none';
+  document.getElementById('consumableSelectOverlay').style.display = 'none';
+  document.getElementById('bossWarning').style.display = 'none';
+
+  updateUI();
+  updateResourceUI();
+  updateActiveSkillsUI();
+  updateConsumablesUI();
+  updateEnergyUI();
+  renderSkillTree();
+  } catch (error) {
+    console.error('初始化错误:', error);
+  }
+}
+
+// ============== UI更新 ==============
+function updateUI() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('wave').textContent = wave;
+  document.getElementById('kills').textContent = kills;
+  document.getElementById('hpText').textContent = `${Math.ceil(player.hp)}/${player.maxHP}`;
+  document.getElementById('hpBar').style.width = `${(player.hp / player.maxHP) * 100}%`;
+  document.getElementById('shieldBar').style.width = `${(player.shield / player.maxShield) * 100}%`;
+  updateEnergyUI();
+}
+
+function updateEnergyUI() {
+  const energyBar = document.getElementById('energyBar');
+  if (energyBar) {
+    energyBar.style.width = `${(player.energy / player.maxEnergy) * 100}%`;
+  }
+}
+
+function updateResourceUI() {
+  document.getElementById('inkValue').textContent = Math.floor(resources.ink);
+  document.getElementById('essenceValue').textContent = Math.floor(resources.essence);
+  document.getElementById('starValue').textContent = Math.floor(resources.stars);
+  document.getElementById('headerInk').textContent = Math.floor(resources.ink);
+  document.getElementById('headerEssence').textContent = Math.floor(resources.essence);
+  document.getElementById('headerStars').textContent = Math.floor(resources.stars);
+
+  // 检查是否有可升级的技能
+  let affordableCount = 0;
+  for (const key in skillTree) {
+    const skill = skillTree[key];
+    if (skill.currentLevel < skill.maxLevel) {
+      const cost = skill.costs[skill.currentLevel];
+      if (resources.ink >= cost.ink && resources.essence >= cost.essence && resources.stars >= cost.stars) {
+        affordableCount++;
+      }
+    }
+  }
+
+  // 更新技能树通知
+  const notification = document.getElementById('skillNotification');
+  if (affordableCount > 0) {
+    notification.style.display = 'flex';
+    notification.textContent = affordableCount;
+  } else {
+    notification.style.display = 'none';
+  }
+}
+
+// 更新已激活技能显示
+function updateActiveSkillsUI() {
+  const container = document.getElementById('activeSkills');
+  container.innerHTML = '';
+  
+  for (const key in skillTree) {
+    const skill = skillTree[key];
+    if (skill.currentLevel > 0) {
+      const icon = document.createElement('div');
+      icon.className = 'active-skill-icon';
+      icon.innerHTML = `${skill.icon}<span class="level-badge">${skill.currentLevel}</span>`;
+      icon.title = `${skill.name} Lv.${skill.currentLevel}`;
+      container.appendChild(icon);
+    }
+  }
+}
+
+// ============== 技能树UI ==============
+function renderSkillTree() {
+  const container = document.getElementById('skillTreeContent');
+  container.innerHTML = '';
+
+  const categories = {
+    attack: { name: '⚔️ 攻击系', skills: [] },
+    defense: { name: '🛡️ 防御系', skills: [] },
+    movement: { name: '💨 移动系', skills: [] },
+    special: { name: '✨ 特殊系', skills: [] }
+  };
+
+  // 分类技能
+  for (const key in skillTree) {
+    const skill = skillTree[key];
+    if (categories[skill.category]) {
+      categories[skill.category].skills.push(skill);
+    }
+  }
+
+  // 渲染每个分类
+  for (const catKey in categories) {
+    const cat = categories[catKey];
+    if (cat.skills.length === 0) continue;
+
+    const catDiv = document.createElement('div');
+    catDiv.className = 'skill-category';
+    catDiv.innerHTML = `<div class="skill-category-title">${cat.name}</div>`;
+
+    const grid = document.createElement('div');
+    grid.className = 'skill-grid';
+
+    cat.skills.forEach(skill => {
+      const node = document.createElement('div');
+      const isMaxed = skill.currentLevel >= skill.maxLevel;
+      const cost = skill.costs[skill.currentLevel];
+      const canUpgrade = !isMaxed &&
+        resources.ink >= cost.ink &&
+        resources.essence >= cost.essence &&
+        resources.stars >= cost.stars;
+
+      node.className = `skill-node ${isMaxed ? 'maxed' : skill.currentLevel > 0 ? 'unlocked' : ''} ${!canUpgrade && !isMaxed ? 'locked' : ''}`;
+
+      // 生成成本显示字符串
+      let costStr = '';
+      if (!isMaxed) {
+        const parts = [];
+        if (cost.ink > 0) parts.push(`💧${cost.ink}`);
+        if (cost.essence > 0) parts.push(`✨${cost.essence}`);
+        if (cost.stars > 0) parts.push(`⭐${cost.stars}`);
+        costStr = parts.join(' ');
+      }
+
+      node.innerHTML = `
+        <div class="skill-icon-wrapper">${skill.icon}</div>
+        <div class="skill-name">${skill.name}</div>
+        <div class="skill-level">Lv.${skill.currentLevel}/${skill.maxLevel}</div>
+        <div class="skill-desc">${skill.description[skill.currentLevel] || '已达最高等级'}</div>
+        ${!isMaxed ? `<div class="skill-cost">${costStr}</div>` : ''}
+      `;
+
+      if (canUpgrade) {
+        node.onclick = () => upgradeSkill(skill.id);
+      }
+
+      grid.appendChild(node);
+    });
+
+    catDiv.appendChild(grid);
+    container.appendChild(catDiv);
+  }
+}
+
+function upgradeSkill(skillId) {
+  const skill = skillTree[skillId];
+  if (!skill || skill.currentLevel >= skill.maxLevel) return;
+
+  const cost = skill.costs[skill.currentLevel];
+
+  // 检查所有资源
+  if (resources.ink >= cost.ink &&
+      resources.essence >= cost.essence &&
+      resources.stars >= cost.stars) {
+
+    // 扣除成本
+    resources.ink -= cost.ink;
+    resources.essence -= cost.essence;
+    resources.stars -= cost.stars;
+    skill.currentLevel++;
+
+    // 应用技能效果
+    applySkillEffects();
+
+    // 更新UI
+    updateResourceUI();
+    updateActiveSkillsUI();
+    renderSkillTree();
+
+    // 特效
+    createUpgradeParticles();
+  }
+}
+
+function applySkillEffects() {
+  const effects = getActiveEffects();
+  
+  // 应用最大生命值加成
+  const oldMaxHP = player.maxHP;
+  player.maxHP = 100 + effects.maxHPBonus;
+  if (player.maxHP > oldMaxHP) {
+    player.hp += (player.maxHP - oldMaxHP);
+  }
+  
+  // 应用护盾加成
+  player.maxShield = 30 + effects.shieldBonus;
+  
+  // 应用速度加成
+  player.speed = player.baseSpeed * (1 + effects.speedBonus);
+}
+
+function createUpgradeParticles() {
+  for (let i = 0; i < 30; i++) {
+    particles.push({
+      x: player.x,
+      y: player.y,
+      vx: (Math.random() - 0.5) * 8,
+      vy: (Math.random() - 0.5) * 8,
+      size: Math.random() * 6 + 3,
+      color: `hsl(${270 + Math.random() * 30}, 100%, 60%)`,
+      alpha: 1,
+      decay: 0.02
+    });
+  }
+}
+
+// ============== 掉落物系统 ==============
+function spawnDrop(x, y, type, amount) {
+  const effects = getActiveEffects();
+
+  // 掉落物配置
+  const dropConfigs = {
+    ink: { size: 10, color: '#00ccff', glowColor: '#0088ff' },
+    essence: { size: 14, color: '#ff66cc', glowColor: '#ff33aa' },
+    stars: { size: 12, color: '#ffdd00', glowColor: '#ffaa00' },
+    hp: { size: 8, color: '#66ff66', glowColor: '#33ff33' },
+    shield: { size: 8, color: '#6688ff', glowColor: '#4466ff' }
+  };
+
+  const config = dropConfigs[type] || dropConfigs.ink;
+
+  drops.push({
+    x: x,
+    y: y,
+    type: type,
+    amount: amount,
+    size: config.size,
+    color: config.color,
+    glowColor: config.glowColor,
+    vx: (Math.random() - 0.5) * 4,
+    vy: (Math.random() - 0.5) * 4,
+    life: 600,
+    magnetized: false
+  });
+}
+
+function updateDrops(dt) {
+  const effects = getActiveEffects();
+  const magnetRange = 80 * effects.pickupRange;
+  
+  for (let i = drops.length - 1; i >= 0; i--) {
+    const drop = drops[i];
+    
+    // 计算与玩家距离
+    const dx = player.x - drop.x;
+    const dy = player.y - drop.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    // 磁力吸引
+    if (dist < magnetRange) {
+      drop.magnetized = true;
+      const speed = 8;
+      drop.vx += (dx / dist) * speed * 0.3;
+      drop.vy += (dy / dist) * speed * 0.3;
+    }
+    
+    // 移动
+    drop.x += drop.vx;
+    drop.y += drop.vy;
+    drop.vx *= 0.95;
+    drop.vy *= 0.95;
+    
+    // 生命周期
+    drop.life--;
+    
+    // 拾取检测
+    if (dist < player.size + drop.size) {
+      collectDrop(drop);
+      drops.splice(i, 1);
+      continue;
+    }
+    
+    // 超时
+    if (drop.life <= 0) {
+      drops.splice(i, 1);
+    }
+  }
+}
+
+function collectDrop(drop) {
+  switch (drop.type) {
+    case 'ink':
+      resources.ink += drop.amount;
+      resources.totalInk += drop.amount;
+      break;
+    case 'essence':
+      resources.essence += drop.amount;
+      resources.totalEssence += drop.amount;
+      break;
+    case 'stars':
+      resources.stars += drop.amount;
+      resources.totalStars += drop.amount;
+      break;
+    case 'hp':
+      player.hp = Math.min(player.hp + drop.amount, player.maxHP);
+      break;
+    case 'shield':
+      player.shield = Math.min(player.shield + drop.amount, player.maxShield);
+      break;
+  }
+
+  updateResourceUI();
+
+  // 拾取特效
+  for (let i = 0; i < 5; i++) {
+    particles.push({
+      x: drop.x,
+      y: drop.y,
+      vx: (Math.random() - 0.5) * 3,
+      vy: -Math.random() * 3 - 1,
+      size: 4,
+      color: drop.color,
+      alpha: 1,
+      decay: 0.05
+    });
+  }
+}
+
+function drawDrops() {
+  drops.forEach(drop => {
+    ctx.save();
+    
+    // 发光效果
+    const gradient = ctx.createRadialGradient(drop.x, drop.y, 0, drop.x, drop.y, drop.size * 2);
+    gradient.addColorStop(0, drop.glowColor);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.globalAlpha = 0.3 + Math.sin(Date.now() / 200) * 0.1;
+    ctx.beginPath();
+    ctx.arc(drop.x, drop.y, drop.size * 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 主体
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = drop.color;
+    ctx.beginPath();
+    ctx.arc(drop.x, drop.y, drop.size, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 高光
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.beginPath();
+    ctx.arc(drop.x - drop.size * 0.3, drop.y - drop.size * 0.3, drop.size * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.restore();
+  });
+}
+
+// ============== 敌人击杀与掉落 ==============
+function onEnemyKilled(enemy) {
+  kills++;
+  score += enemy.level * 100 || 100;
+
+  const effects = getActiveEffects();
+  const luckBonus = 1 + effects.luckBonus;
+
+  // 灵魂吸取
+  if (effects.soulSteal > 0) {
+    player.hp = Math.min(player.hp + effects.soulSteal, player.maxHP);
+  }
+
+  // 判断敌人类型
+  const isElite = enemy.isElite;
+  const isBoss = enemy.isBoss;
+
+  // 灵墨掉落 - 100%所有敌人
+  const inkAmount = isBoss ? 100 + wave * 10 : (isElite ? 20 + wave * 3 : 3 + wave);
+  spawnDrop(enemy.x, enemy.y, 'ink', Math.floor(inkAmount * luckBonus));
+
+  // 精华掉落 - 普通敌人40%，精英/Boss 100%
+  if (isBoss) {
+    spawnDrop(enemy.x + (Math.random() - 0.5) * 20, enemy.y + (Math.random() - 0.5) * 20, 'essence', Math.floor((30 + wave * 3) * luckBonus));
+  } else if (isElite) {
+    spawnDrop(enemy.x + (Math.random() - 0.5) * 20, enemy.y + (Math.random() - 0.5) * 20, 'essence', Math.floor((5 + wave) * luckBonus));
+  } else if (Math.random() < 0.4 * luckBonus) {
+    spawnDrop(enemy.x + (Math.random() - 0.5) * 20, enemy.y + (Math.random() - 0.5) * 20, 'essence', 1);
+  }
+
+  // 星星掉落 - 普通敌人15%，精英100% 2个，Boss 100%大量
+  if (isBoss) {
+    spawnDrop(enemy.x, enemy.y, 'stars', Math.floor((10 + wave) * luckBonus));
+  } else if (isElite) {
+    spawnDrop(enemy.x + (Math.random() - 0.5) * 20, enemy.y + (Math.random() - 0.5) * 20, 'stars', 2);
+  } else if (Math.random() < 0.15 * luckBonus) {
+    spawnDrop(enemy.x + (Math.random() - 0.5) * 20, enemy.y + (Math.random() - 0.5) * 20, 'stars', 1);
+  }
+
+  // 生命掉落（概率）
+  if (Math.random() < 0.1 * luckBonus) {
+    spawnDrop(enemy.x + (Math.random() - 0.5) * 20, enemy.y + (Math.random() - 0.5) * 20, 'hp', 10);
+  }
+
+  // 宝箱怪额外掉落
+  if (enemy.isTreasure) {
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => {
+        spawnDrop(enemy.x + (Math.random() - 0.5) * 40, enemy.y + (Math.random() - 0.5) * 40, 'ink', 20);
+      }, i * 100);
+    }
+    spawnDrop(enemy.x, enemy.y, 'essence', 5);
+    if (Math.random() < 0.5) {
+      spawnDrop(enemy.x, enemy.y, 'stars', 3);
+    }
+  }
+
+  // 死亡特效 - 根据敌人类型调整数量
+  const explosionCount = isBoss ? 40 : (isElite ? 25 : 15);
+  for (let i = 0; i < explosionCount; i++) {
+    particles.push({
+      x: enemy.x,
+      y: enemy.y,
+      vx: (Math.random() - 0.5) * 8,
+      vy: (Math.random() - 0.5) * 8,
+      size: Math.random() * 6 + 2,
+      color: enemy.isElite ? (enemy.eliteColor || '#ff8800') : (enemy.color || '#ff6666'),
+      alpha: 1,
+      decay: 0.02
+    });
+  }
+
+  // Boss击杀处理
+  if (isBoss) {
+    bossKilled = true;
+    // 播放Boss死亡音效
+    try {
+      AudioSystem.playEnemyDeath(true);
+    } catch (e) {}
+
+    // 延迟显示技能选择
+    setTimeout(() => {
+      showConsumableSelection();
+    }, 500);
+  }
+
+  updateUI();
+}
+
+// ============== 更新逻辑 ==============
+function update(dt) {
+  if (!gameRunning || gamePaused) return;
+
+  waveTimer += dt;
+
+  // 能量恢复 (当没有按住鼠标时)
+  if (!isMouseDown && player.energy < player.maxEnergy) {
+    player.energy = Math.min(player.maxEnergy, player.energy + player.energyRegenRate * dt / 1000);
+    updateEnergyUI();
+  }
+
+  // Boss生成检测 (波次结束前10秒)
+  if (waveTimer >= waveDuration - 10000 && !bossWarningShown && !bossSpawned) {
+    showBossWarning();
+  }
+
+  // 波次结束检测 - 必须击杀Boss才能结束
+  if (waveTimer >= waveDuration) {
+    if (bossSpawned && !bossKilled) {
+      // Boss还未击杀，继续战斗
+      return;
+    }
+    endWave();
+    return;
+  }
+  
+  const effects = getActiveEffects();
+  
+  // HP回复 - 同时考虑技能树效果和升级奖励
+  const skillHpRegen = effects.hpRegen || 0;
+  const upgradeHpRegen = player.hpRegen || 0;
+  const totalHpRegen = skillHpRegen + upgradeHpRegen;
+
+  if (totalHpRegen > 0) {
+    player.hp = Math.min(player.hp + totalHpRegen * dt / 1000, player.maxHP);
+  }
+  
+  // 更新玩家
+  updatePlayer(dt, effects);
+  
+  // 更新子弹
+  updateBullets(dt, effects);
+  
+  // 更新敌人
+  updateMonsters(dt, effects);
+  
+  // 更新敌人子弹
+  updateEnemyBullets(dt, effects);
+  
+  // 更新粒子
+  updateParticles(dt);
+  
+  // 更新掉落物
+  updateDrops(dt);
+  
+  // 生成敌人
+  spawnTimer += dt;
+  const spawnInterval = Math.max(800 - wave * 30, 300);
+  if (spawnTimer >= spawnInterval) {
+    spawnTimer = 0;
+    spawnEnemy();
+  }
+  
+  // 宝箱怪生成
+  if (Math.random() < 0.0003 * wave) {
+    spawnTreasureGoblin();
+  }
+  
+  updateUI();
+}
+
+function updatePlayer(dt, effects) {
+  // 无敌时间
+  if (player.invincible) {
+    player.invincibleTimer -= dt;
+    if (player.invincibleTimer <= 0) {
+      player.invincible = false;
+    }
+  }
+  
+  // 冲刺冷却
+  const dashCooldownMax = player.dashCooldown * (1 - effects.dashCooldownReduction);
+}
+
+function updateBullets(dt, effects) {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const bullet = bullets[i];
+    bullet.x += bullet.vx;
+    bullet.y += bullet.vy;
+    
+    // 移除出界子弹
+    if (bullet.x < 0 || bullet.x > width || bullet.y < 0 || bullet.y > height) {
+      bullets.splice(i, 1);
+      continue;
+    }
+    
+    // 碰撞检测
+    for (let j = monsters.length - 1; j >= 0; j--) {
+      const enemy = monsters[j];
+      const dx = bullet.x - enemy.x;
+      const dy = bullet.y - enemy.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      if (dist < bullet.size + enemy.size) {
+        // 计算伤害
+        let damage = player.damage * (1 + effects.damageBonus);
+        
+        // 暴击
+        if (Math.random() < effects.critChance) {
+          damage *= 2;
+          showFloatingText(enemy.x, enemy.y - 20, '暴击!', '#ffd700');
+        }
+        
+        enemy.hp -= damage;
+        
+        // 击中特效
+        for (let k = 0; k < 5; k++) {
+          particles.push({
+            x: bullet.x,
+            y: bullet.y,
+            vx: (Math.random() - 0.5) * 4,
+            vy: (Math.random() - 0.5) * 4,
+            size: Math.random() * 3 + 1,
+            color: bullet.color,
+            alpha: 1,
+            decay: 0.05
+          });
+        }
+        
+        // 穿透检测
+        if (effects.pierce > 0) {
+          bullet.pierceCount = (bullet.pierceCount || 0) + 1;
+          if (bullet.pierceCount > effects.pierce) {
+            bullets.splice(i, 1);
+          }
+        } else {
+          bullets.splice(i, 1);
+        }
+        
+        // 敌人死亡
+        if (enemy.hp <= 0) {
+          onEnemyKilled(enemy);
+          monsters.splice(j, 1);
+        }
+        
+        break;
+      }
+    }
+  }
+}
+
+function updateEnemyBullets(dt, effects) {
+  for (let i = enemyBullets.length - 1; i >= 0; i--) {
+    const bullet = enemyBullets[i];
+    bullet.x += bullet.vx;
+    bullet.y += bullet.vy;
+    
+    // 移除出界
+    if (bullet.x < 0 || bullet.x > width || bullet.y < 0 || bullet.y > height) {
+      enemyBullets.splice(i, 1);
+      continue;
+    }
+    
+    // 玩家碰撞
+    if (!player.invincible) {
+      const dx = bullet.x - player.x;
+      const dy = bullet.y - player.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      
+      if (dist < bullet.size + player.size) {
+        let damage = bullet.damage * (1 - effects.damageReduction);
+        
+        // 先扣护盾
+        if (player.shield > 0) {
+          const shieldDamage = Math.min(player.shield, damage);
+          player.shield -= shieldDamage;
+          damage -= shieldDamage;
+        }
+        
+        player.hp -= damage;
+        player.invincible = true;
+        player.invincibleTimer = 500;
+        
+        enemyBullets.splice(i, 1);
+        
+        // 受伤特效
+        for (let k = 0; k < 10; k++) {
+          particles.push({
+            x: player.x,
+            y: player.y,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 0.5) * 6,
+            size: Math.random() * 4 + 2,
+            color: '#ff4444',
+            alpha: 1,
+            decay: 0.03
+          });
+        }
+        
+        if (player.hp <= 0) {
+          gameOver();
+        }
+      }
+    }
+  }
+}
+
+function updateMonsters(dt, effects) {
+  monsters.forEach(enemy => {
+    // 移动向玩家
+    const dx = player.x - enemy.x;
+    const dy = player.y - enemy.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    if (dist > 0) {
+      enemy.x += (dx / dist) * enemy.speed;
+      enemy.y += (dy / dist) * enemy.speed;
+    }
+    
+    // 敌人射击
+    if (enemy.shootCooldown) {
+      enemy.shootTimer += dt;
+      if (enemy.shootTimer >= enemy.shootCooldown) {
+        enemy.shootTimer = 0;
+        enemyShoot(enemy);
+      }
+    }
+    
+    // 行为模式更新
+    enemy.pulsePhase += 0.1;
+  });
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.alpha -= p.decay;
+    p.vx *= 0.98;
+    p.vy *= 0.98;
+    
+    if (p.alpha <= 0) {
+      particles.splice(i, 1);
+    }
+  }
+  
+  // 浮动文字
+  for (let i = floatingTexts.length - 1; i >= 0; i--) {
+    const ft = floatingTexts[i];
+    ft.y += ft.vy;
+    ft.life--;
+    ft.alpha = ft.life / 60;
+    
+    if (ft.life <= 0) {
+      floatingTexts.splice(i, 1);
+    }
+  }
+}
+
+// ============== 敌人生成 ==============
+function spawnEnemy() {
+  const sides = [
+    { x: -50, y: Math.random() * height },
+    { x: width + 50, y: Math.random() * height },
+    { x: Math.random() * width, y: -50 },
+    { x: Math.random() * width, y: height + 50 }
+  ];
+  const side = sides[Math.floor(Math.random() * sides.length)];
+  
+  const types = ['NORMAL', 'FAST', 'TANK', 'SHOOTER'];
+  const weights = [50, 20 + wave, 15 + wave, 10 + wave * 2];
+  const totalWeight = weights.reduce((a, b) => a + b, 0);
+  let rand = Math.random() * totalWeight;
+  let type = 'NORMAL';
+  
+  for (let i = 0; i < types.length; i++) {
+    rand -= weights[i];
+    if (rand <= 0) {
+      type = types[i];
+      break;
+    }
+  }
+  
+  const baseHP = 30 + wave * 10;
+  let enemy = {
+    x: side.x,
+    y: side.y,
+    type: type,
+    level: wave,
+    pulsePhase: 0
+  };
+  
+  switch (type) {
+    case 'NORMAL':
+      Object.assign(enemy, {
+        size: 18,
+        hp: baseHP,
+        maxHP: baseHP,
+        speed: 2 + wave * 0.1,
+        color: '#ff6666',
+        glowColor: '#ff3333',
+        typeName: '画灵',
+        shootCooldown: null
+      });
+      break;
+    case 'FAST':
+      Object.assign(enemy, {
+        size: 12,
+        hp: baseHP * 0.5,
+        maxHP: baseHP * 0.5,
+        speed: 4 + wave * 0.15,
+        color: '#66ff66',
+        glowColor: '#33ff33',
+        typeName: '疾风画灵',
+        shootCooldown: null
+      });
+      break;
+    case 'TANK':
+      Object.assign(enemy, {
+        size: 28,
+        hp: baseHP * 2.5,
+        maxHP: baseHP * 2.5,
+        speed: 1 + wave * 0.05,
+        color: '#6666ff',
+        glowColor: '#3333ff',
+        typeName: '重甲画灵',
+        shootCooldown: 3000,
+        shootTimer: 0
+      });
+      break;
+    case 'SHOOTER':
+      Object.assign(enemy, {
+        size: 16,
+        hp: baseHP * 0.8,
+        maxHP: baseHP * 0.8,
+        speed: 1.5 + wave * 0.08,
+        color: '#ff66ff',
+        glowColor: '#ff33ff',
+        typeName: '弹幕画灵',
+        shootCooldown: 2000,
+        shootTimer: 0
+      });
+      break;
+  }
+  
+  monsters.push(enemy);
+}
+
+function enemyShoot(enemy) {
+  const dx = player.x - enemy.x;
+  const dy = player.y - enemy.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  
+  if (dist <= 0) return;
+  
+  const speed = 4 + wave * 0.2;
+  const bulletCount = enemy.type === 'TANK' ? 8 : 1;
+  
+  if (bulletCount === 1) {
+    enemyBullets.push({
+      x: enemy.x,
+      y: enemy.y,
+      vx: (dx / dist) * speed,
+      vy: (dy / dist) * speed,
+      size: 6,
+      color: enemy.color,
+      damage: 10 + wave * 2
+    });
+  } else {
+    for (let i = 0; i < bulletCount; i++) {
+      const angle = (Math.PI * 2 / bulletCount) * i;
+      enemyBullets.push({
+        x: enemy.x,
+        y: enemy.y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        size: 5,
+        color: enemy.color,
+        damage: 8 + wave
+      });
+    }
+  }
+}
+
+function spawnTreasureGoblin() {
+  const sides = [
+    { x: -50, y: Math.random() * height },
+    { x: width + 50, y: Math.random() * height },
+    { x: Math.random() * width, y: -50 },
+    { x: Math.random() * width, y: height + 50 }
+  ];
+  const side = sides[Math.floor(Math.random() * sides.length)];
+  
+  monsters.push({
+    x: side.x,
+    y: side.y,
+    size: 25,
+    hp: 20 + wave * 5,
+    maxHP: 20 + wave * 5,
+    speed: 2.5 + wave * 0.1,
+    color: '#ffd700',
+    glowColor: '#ffaa00',
+    type: 'TREASURE',
+    typeName: '宝箱画灵',
+    isTreasure: true,
+    shootCooldown: null,
+    level: wave,
+    pulsePhase: 0
+  });
+  
+  showFloatingText(width / 2, height / 3, '✨ 宝箱画灵出现了！', '#ffd700');
+}
+
+// ============== 玩家射击 ==============
+let currentTarget = null; // 当前锁定目标
+let targetLockTime = 0;   // 目标锁定时间
+
+function playerShoot() {
+  // 能量检测
+  if (player.energy <= 0) return;
+
+  const effects = getActiveEffects();
+  const now = Date.now();
+  const fireRate = player.fireRate / (1 + effects.fireRateBonus);
+
+  if (now - player.lastShot < fireRate) return;
+
+  player.lastShot = now;
+
+  // 增强的自瞄准系统
+  let angle = 0;
+  let target = findBestTarget();
+
+  if (target) {
+    // 预判射击 - 瞄准敌人移动方向的前方
+    const dx = target.x - player.x;
+    const dy = target.y - player.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // 计算预判偏移
+    const bulletSpeed = 10;
+    const flightTime = dist / bulletSpeed;
+    const predictX = target.x + (target.vx || 0) * flightTime * 0.5;
+    const predictY = target.y + (target.vy || 0) * flightTime * 0.5;
+
+    angle = Math.atan2(predictY - player.y, predictX - player.x);
+
+    // 更新锁定目标
+    currentTarget = target;
+    targetLockTime = now;
+  } else {
+    // 没有敌人时，使用鼠标移动方向
+    angle = hasAimDirection ? aimAngle : 0;
+    currentTarget = null;
+  }
+
+  const bulletSpeed = 10;
+
+  bullets.push({
+    x: player.x,
+    y: player.y,
+    vx: Math.cos(angle) * bulletSpeed,
+    vy: Math.sin(angle) * bulletSpeed,
+    size: 6,
+    color: '#00ffcc',
+    damage: player.damage * (1 + effects.damageBonus),
+    pierceCount: 0
+  });
+}
+
+// 智能目标选择
+function findBestTarget() {
+  if (monsters.length === 0) return null;
+
+  let bestTarget = null;
+  let bestScore = -Infinity;
+
+  for (const enemy of monsters) {
+    const dx = enemy.x - player.x;
+    const dy = enemy.y - player.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    // 计算目标优先级分数
+    let score = 0;
+
+    // 距离越近分数越高
+    score += 1000 - dist;
+
+    // Boss优先级最高
+    if (enemy.isBoss) {
+      score += 2000;
+    }
+    // 精英次之
+    else if (enemy.isElite) {
+      score += 1000;
+    }
+
+    // 低血量敌人优先（容易击杀）
+    const hpPercent = enemy.hp / enemy.maxHp;
+    if (hpPercent < 0.3) {
+      score += 500;
+    }
+
+    // 射手类型优先（威胁大）
+    if (enemy.type === 'shooter' || enemy.shootCooldown) {
+      score += 300;
+    }
+
+    // 保持当前锁定目标的连贯性
+    if (currentTarget === enemy && Date.now() - targetLockTime < 2000) {
+      score += 400;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestTarget = enemy;
+    }
+  }
+
+  return bestTarget;
+}
+
+// ============== 绘制 ==============
+function draw() {
+  ctx.fillStyle = '#0a0a1a';
+  ctx.fillRect(0, 0, width, height);
+  
+  // 绘制背景网格
+  drawGrid();
+  
+  // 绘制掉落物
+  drawDrops();
+  
+  // 绘制子弹
+  drawBullets();
+  
+  // 绘制敌人子弹
+  drawEnemyBullets();
+  
+  // 绘制敌人
+  drawMonsters();
+  
+  // 绘制玩家
+  drawPlayer();
+  
+  // 绘制粒子
+  drawParticles();
+  
+  // 绘制浮动文字
+  drawFloatingTexts();
+  
+  // 绘制波次进度
+  drawWaveProgress();
+}
+
+function drawGrid() {
+  ctx.strokeStyle = 'rgba(0, 255, 204, 0.05)';
+  ctx.lineWidth = 1;
+  const gridSize = 50;
+  
+  for (let x = 0; x < width; x += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+  }
+  for (let y = 0; y < height; y += gridSize) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+}
+
+function drawPlayer() {
+  // 跳过无效坐标
+  if (!isFinite(player.x) || !isFinite(player.y)) {
+    // 尝试重置玩家位置到屏幕中心
+    player.x = width / 2;
+    player.y = height / 2;
+  }
+
+  ctx.save();
+  
+  // 无敌闪烁
+  if (player.invincible && Math.floor(Date.now() / 50) % 2 === 0) {
+    ctx.globalAlpha = 0.5;
+  }
+  
+  // 外圈光晕
+  const gradient = ctx.createRadialGradient(player.x, player.y, 0, player.x, player.y, player.size * 2.5);
+  gradient.addColorStop(0, 'rgba(0, 255, 204, 0.3)');
+  gradient.addColorStop(1, 'transparent');
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.size * 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // 玩家主体
+  ctx.fillStyle = player.color;
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // 中心亮点
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, player.size * 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  
+  // 护盾显示
+  if (player.shield > 0) {
+    ctx.strokeStyle = `rgba(68, 136, 255, ${0.5 + Math.sin(Date.now() / 200) * 0.2})`;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.size + 5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+
+  // 绘制自瞄准指示器
+  drawAutoAimIndicator();
+}
+
+// 绘制自瞄准指示器
+function drawAutoAimIndicator() {
+  if (!currentTarget || !gameRunning) return;
+
+  ctx.save();
+
+  // 绘制瞄准线
+  ctx.strokeStyle = 'rgba(255, 215, 0, 0.3)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 5]);
+  ctx.beginPath();
+  ctx.moveTo(player.x, player.y);
+  ctx.lineTo(currentTarget.x, currentTarget.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 在目标上绘制锁定标记
+  const pulseSize = 1 + Math.sin(Date.now() / 100) * 0.2;
+  ctx.strokeStyle = currentTarget.isBoss ? '#ff0066' : (currentTarget.isElite ? '#ff8800' : '#ffd700');
+  ctx.lineWidth = 2;
+
+  // 绘制准星
+  const crossSize = currentTarget.size * 1.5 * pulseSize;
+  ctx.beginPath();
+  ctx.arc(currentTarget.x, currentTarget.y, crossSize, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 四角标记
+  const corners = 4;
+  for (let i = 0; i < corners; i++) {
+    const angle = (Math.PI * 2 / corners) * i + Date.now() / 500;
+    const x1 = currentTarget.x + Math.cos(angle) * crossSize;
+    const y1 = currentTarget.y + Math.sin(angle) * crossSize;
+    const x2 = currentTarget.x + Math.cos(angle) * (crossSize + 10);
+    const y2 = currentTarget.y + Math.sin(angle) * (crossSize + 10);
+
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawBullets() {
+  bullets.forEach(bullet => {
+    ctx.save();
+    
+    // 光晕
+    const gradient = ctx.createRadialGradient(bullet.x, bullet.y, 0, bullet.x, bullet.y, bullet.size * 2);
+    gradient.addColorStop(0, bullet.color);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(bullet.x, bullet.y, bullet.size * 2, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 主体
+    ctx.fillStyle = bullet.color;
+    ctx.beginPath();
+    ctx.arc(bullet.x, bullet.y, bullet.size, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.restore();
+  });
+}
+
+function drawEnemyBullets() {
+  enemyBullets.forEach(bullet => {
+    ctx.save();
+    
+    ctx.fillStyle = bullet.color;
+    ctx.beginPath();
+    ctx.arc(bullet.x, bullet.y, bullet.size, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 外圈
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    
+    ctx.restore();
+  });
+}
+
+function drawMonsters() {
+  monsters.forEach(enemy => {
+    // 跳过无效坐标的敌人
+    if (!isFinite(enemy.x) || !isFinite(enemy.y) || !isFinite(enemy.size) ||
+        !isFinite(enemy.pulsePhase)) {
+      return;
+    }
+
+    ctx.save();
+    
+    const pulse = 1 + Math.sin(enemy.pulsePhase) * 0.1;
+    
+    // 光晕
+    const gradient = ctx.createRadialGradient(enemy.x, enemy.y, 0, enemy.x, enemy.y, enemy.size * 2 * pulse);
+    gradient.addColorStop(0, enemy.glowColor);
+    gradient.addColorStop(1, 'transparent');
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, enemy.size * 2 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // 主体
+    ctx.fillStyle = enemy.color;
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, enemy.size * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    
+    // HP条
+    if (enemy.hp < enemy.maxHP) {
+      const barWidth = enemy.size * 2;
+      const barHeight = 4;
+      const barX = enemy.x - barWidth / 2;
+      const barY = enemy.y - enemy.size - 10;
+      
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(barX, barY, barWidth, barHeight);
+      
+      ctx.fillStyle = '#ff4444';
+      ctx.fillRect(barX, barY, barWidth * (enemy.hp / enemy.maxHP), barHeight);
+    }
+    
+    ctx.restore();
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.alpha;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+function drawFloatingTexts() {
+  floatingTexts.forEach(ft => {
+    ctx.save();
+    ctx.globalAlpha = ft.alpha;
+    ctx.fillStyle = ft.color;
+    ctx.font = 'bold 18px Microsoft YaHei';
+    ctx.textAlign = 'center';
+    ctx.fillText(ft.text, ft.x, ft.y);
+    ctx.restore();
+  });
+}
+
+function drawWaveProgress() {
+  const progress = waveTimer / waveDuration;
+  const barWidth = 200;
+  const barHeight = 6;
+  const barX = width / 2 - barWidth / 2;
+  const barY = height - 30;
+  
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+  ctx.fillRect(barX, barY, barWidth, barHeight);
+  
+  ctx.fillStyle = '#ffd700';
+  ctx.fillRect(barX, barY, barWidth * progress, barHeight);
+  
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+  ctx.font = '12px Microsoft YaHei';
+  ctx.textAlign = 'center';
+  ctx.fillText(`波次 ${wave} 进度`, width / 2, barY - 5);
+}
+
+function showFloatingText(x, y, text, color = '#ffffff') {
+  floatingTexts.push({
+    x: x,
+    y: y,
+    text: text,
+    color: color,
+    alpha: 1,
+    vy: -2,
+    life: 60
+  });
+}
+
+// ============== 波次系统 ==============
+function endWave() {
+  gameRunning = false;
+
+  // 清除敌人子弹
+  enemyBullets = [];
+
+  // 波次奖励 - 灵墨
+  const inkReward = 20 + wave * 10;
+  resources.ink += inkReward;
+  resources.totalInk += inkReward;
+
+  // 每3波给精华
+  if (wave % 3 === 0) {
+    const essenceReward = 5 + wave * 2;
+    resources.essence += essenceReward;
+    resources.totalEssence += essenceReward;
+  }
+
+  // 每5波给星星
+  if (wave % 5 === 0) {
+    const starReward = 3 + wave;
+    resources.stars += starReward;
+    resources.totalStars += starReward;
+  }
+
+  updateResourceUI();
+
+  showUpgradeSelection();
+}
+
+
+// ============== 音效系统 ==============
+const AudioSystem = {
+  context: null,
+  masterVolume: 0.3,
+  
+  init() {
+    this.context = new (window.AudioContext || window.webkitAudioContext)();
+  },
+  
+  // 波次开始音效 - 史诗感上升音
+  playWaveStart(waveNum) {
+    if (!this.context) this.init();
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    
+    // 基础和弦
+    const frequencies = [130.81, 164.81, 196.00, 261.63]; // C3, E3, G3, C4
+    
+    frequencies.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq * 0.5, now);
+      osc.frequency.exponentialRampToValueAtTime(freq, now + 0.3);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.8);
+      
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(500, now);
+      filter.frequency.exponentialRampToValueAtTime(2000, now + 0.5);
+      
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(this.masterVolume * 0.4, now + 0.1 + i * 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+      
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(now + i * 0.08);
+      osc.stop(now + 1.3);
+    });
+    
+    // 鼓点效果
+    for (let i = 0; i < 3; i++) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(80 + i * 20, now + i * 0.15);
+      osc.frequency.exponentialRampToValueAtTime(40, now + i * 0.15 + 0.1);
+      
+      gain.gain.setValueAtTime(this.masterVolume * 0.6, now + i * 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.15 + 0.15);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(now + i * 0.15);
+      osc.stop(now + i * 0.15 + 0.2);
+    }
+  },
+  
+  // 精英敌人出现音效 - 金属共鸣
+  playEliteSpawn() {
+    if (!this.context) this.init();
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    
+    const freqs = [440, 554.37, 659.25]; // A4, C#5, E5
+    
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, now);
+      
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(this.masterVolume * 0.15, now + 0.05);
+      gain.gain.setValueAtTime(this.masterVolume * 0.15, now + 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(now + i * 0.03);
+      osc.stop(now + 1);
+    });
+  },
+  
+  // 敌人死亡音效
+  playEnemyDeath(isElite = false) {
+    if (!this.context) this.init();
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(isElite ? 300 : 200, now);
+    osc.frequency.exponentialRampToValueAtTime(50, now + 0.15);
+    
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(isElite ? 1500 : 1000, now);
+    filter.frequency.exponentialRampToValueAtTime(100, now + 0.15);
+    
+    gain.gain.setValueAtTime(this.masterVolume * (isElite ? 0.35 : 0.2), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.start(now);
+    osc.stop(now + 0.25);
+    
+    // 精英额外爆炸音
+    if (isElite) {
+      for (let i = 0; i < 3; i++) {
+        const noise = ctx.createOscillator();
+        const noiseGain = ctx.createGain();
+        
+        noise.type = 'sine';
+        noise.frequency.setValueAtTime(100 + Math.random() * 200, now + i * 0.05);
+        
+        noiseGain.gain.setValueAtTime(this.masterVolume * 0.1, now + i * 0.05);
+        noiseGain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.05 + 0.1);
+        
+        noise.connect(noiseGain);
+        noiseGain.connect(ctx.destination);
+        
+        noise.start(now + i * 0.05);
+        noise.stop(now + i * 0.05 + 0.15);
+      }
+    }
+  },
+  
+  // 升级选择音效 - 神秘和弦
+  playUpgradeSelect() {
+    if (!this.context) this.init();
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    
+    // 闪闪发光的音效
+    const freqs = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+    
+    freqs.forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + i * 0.1);
+      
+      gain.gain.setValueAtTime(0, now + i * 0.1);
+      gain.gain.linearRampToValueAtTime(this.masterVolume * 0.2, now + i * 0.1 + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.5);
+      
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      osc.start(now + i * 0.1);
+      osc.stop(now + i * 0.1 + 0.6);
+    });
+  },
+  
+  // 受伤音效
+  playDamage() {
+    if (!this.context) this.init();
+    const ctx = this.context;
+    const now = ctx.currentTime;
+    
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(50, now + 0.1);
+    
+    gain.gain.setValueAtTime(this.masterVolume * 0.4, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.start(now);
+    osc.stop(now + 0.2);
+  }
+};
+
+// 波次公告动画
+function showWaveAnnouncement() {
+  const container = document.createElement('div');
+  container.id = 'waveAnnouncement';
+  
+  const waveNames = [
+    '初墨', '云起', '风涌', '雷动', '星落',
+    '月蚀', '日炎', '天劫', '神罚', '终焉'
+  ];
+  
+  const waveIndex = Math.min(wave - 1, waveNames.length - 1);
+  const waveName = waveNames[waveIndex];
+  const isBossWave = wave % 5 === 0;
+  
+  container.innerHTML = `
+    <div class="wave-text" style="color: ${isBossWave ? '#ff4444' : '#ffd700'}">
+      第 ${wave} 波
+    </div>
+    <div class="wave-subtitle">「${waveName}」${isBossWave ? ' - BOSS' : ''}</div>
+  `;
+  
+  document.body.appendChild(container);
+  
+  // 播放波次音效
+  AudioSystem.playWaveStart(wave);
+  
+  // 动画显示
+  setTimeout(() => {
+    container.style.opacity = '1';
+    container.style.transition = 'opacity 0.3s ease-out';
+  }, 50);
+  
+  // 淡出
+  setTimeout(() => {
+    container.style.opacity = '0';
+    setTimeout(() => container.remove(), 500);
+  }, 2000);
+}
+
+// 波次开始屏幕特效
+function createWaveStartEffect() {
+  const isBossWave = wave % 5 === 0;
+  const color = isBossWave ? '#ff4444' : '#ffd700';
+
+  // 边缘光晕效果
+  for (let i = 0; i < 30; i++) {
+    const angle = (Math.PI * 2 / 30) * i;
+    const distance = Math.max(width, height);
+
+    particles.push({
+      x: width / 2 + Math.cos(angle) * distance * 0.6,
+      y: height / 2 + Math.sin(angle) * distance * 0.6,
+      vx: -Math.cos(angle) * 3,
+      vy: -Math.sin(angle) * 3,
+      size: isBossWave ? 15 : 10,
+      color: color,
+      alpha: 1,
+      decay: 0.02,
+      trail: true
+    });
+  }
+
+  // 中心爆发
+  for (let i = 0; i < 50; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 8 + 2;
+
+    particles.push({
+      x: width / 2,
+      y: height / 2,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      size: Math.random() * 6 + 3,
+      color: isBossWave ? '#ff8844' : '#ffee88',
+      alpha: 1,
+      decay: 0.03
+    });
+  }
+  
+  // 屏幕震动效果（通过CSS）
+  canvas.style.animation = 'none';
+  canvas.offsetHeight; // 触发重绘
+  canvas.style.animation = isBossWave ? 'shake 0.5s ease-out' : 'shake 0.3s ease-out';
+}
+
+// 敌人精英视觉更新
+function updateEnemyVisual(enemy) {
+  if (!enemy.isElite) return;
+  
+  // 精英敌人光环粒子
+  if (Math.random() < 0.1) {
+    const angle = Math.random() * Math.PI * 2;
+    const distance = enemy.size * 1.5;
+    
+    particles.push({
+      x: enemy.x + Math.cos(angle) * distance,
+      y: enemy.y + Math.sin(angle) * distance,
+      vx: Math.cos(angle) * 0.5,
+      vy: Math.sin(angle) * 0.5,
+      size: 3,
+      color: enemy.eliteColor || '#ff8800',
+      alpha: 0.8,
+      decay: 0.05
+    });
+  }
+}
+
+// Boss系统
+function showBossWarning() {
+  bossWarningShown = true;
+  const warning = document.getElementById('bossWarning');
+  if (warning) {
+    warning.style.display = 'block';
+  }
+
+  // 播放警告音效（安全调用）
+  try {
+    AudioSystem.playEliteSpawn();
+  } catch (e) {
+    console.log('Audio error:', e);
+  }
+
+  // 3秒后生成Boss
+  setTimeout(() => {
+    if (warning) {
+      warning.style.display = 'none';
+    }
+    spawnBoss();
+  }, 3000);
+}
+
+function spawnBoss() {
+  bossSpawned = true;
+
+  const sides = [
+    { x: -80, y: Math.random() * height },
+    { x: width + 80, y: Math.random() * height },
+    { x: Math.random() * width, y: -80 },
+    { x: Math.random() * width, y: height + 80 }
+  ];
+  const side = sides[Math.floor(Math.random() * sides.length)];
+
+  const boss = {
+    x: side.x,
+    y: side.y,
+    size: 70,
+    hp: 200 + wave * 40,
+    maxHp: 200 + wave * 40,
+    speed: 1.2 + wave * 0.03,
+    color: '#ff0066',
+    type: 'boss',
+    isElite: true,
+    isBoss: true,
+    eliteColor: '#ff0066',
+    shootCooldown: 800,
+    shootTimer: 0,
+    angle: 0,
+    spiralAngle: 0,
+    chargeTimer: 0,
+    isCharging: false
+  };
+
+  applyThemeToEnemy(boss);
+  monsters.push(boss);
+
+  // Boss出现特效
+  for (let i = 0; i < 30; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    particles.push({
+      x: boss.x,
+      y: boss.y,
+      vx: Math.cos(angle) * 8,
+      vy: Math.sin(angle) * 8,
+      size: 8,
+      color: '#ff0066',
+      alpha: 1,
+      decay: 0.03
+    });
+  }
+
+  showFloatingText(width / 2, height / 3, '⚠️ BOSS出现了！⚠️', '#ff0066');
+}
+
+function showConsumableSelection() {
+  gamePaused = true;  // 暂停游戏，防止玩家无法交互导致卡住
+  const overlay = document.getElementById('consumableSelectOverlay');
+  const container = document.getElementById('consumableOptions');
+
+  if (!overlay || !container) {
+    console.log('Consumable selection elements not found');
+    return;
+  }
+
+  container.innerHTML = '';
+
+  // 播放选择音效（安全调用）
+  try {
+    AudioSystem.playUpgradeSelect();
+  } catch (e) {
+    console.log('Audio error:', e);
+  }
+
+  // 随机选3个技能
+  const shuffled = [...consumableSkills].sort(() => Math.random() - 0.5).slice(0, 3);
+
+  shuffled.forEach((skill, index) => {
+    const option = document.createElement('div');
+    option.className = 'consumable-option';
+    option.innerHTML = `
+      <div class="icon">${skill.icon}</div>
+      <div class="name">${skill.name}</div>
+      <div class="desc">${skill.desc}</div>
+    `;
+
+    option.onclick = () => {
+      selectConsumable(skill);
+      overlay.style.display = 'none';
+      gamePaused = false;  // 恢复游戏
+    };
+
+    container.appendChild(option);
+  });
+
+  overlay.style.display = 'flex';
+}
+
+function selectConsumable(skill) {
+  const existingIndex = playerConsumables.findIndex(s => s.id === skill.id);
+
+  if (existingIndex >= 0) {
+    playerConsumables[existingIndex].uses++;
+  } else {
+    if (playerConsumables.length < 4) {
+      playerConsumables.push({ ...skill });
+    } else {
+      // 替换第一个
+      playerConsumables[0] = { ...skill };
+    }
+  }
+
+  updateConsumablesUI();
+  showFloatingText(player.x, player.y - 30, `获得 ${skill.icon} ${skill.name}!`, '#ffd700');
+}
+
+function updateConsumablesUI() {
+  const container = document.getElementById('consumablesContainer');
+  container.innerHTML = '';
+
+  playerConsumables.forEach((skill, index) => {
+    const div = document.createElement('div');
+    div.className = 'consumable-skill';
+    div.innerHTML = `
+      <span class="icon">${skill.icon}</span>
+      <span class="key-hint">${index + 1}</span>
+      ${skill.uses > 1 ? `<span class="uses">${skill.uses}</span>` : ''}
+    `;
+    div.title = `${skill.name}: ${skill.desc}`;
+    div.onclick = () => useConsumable(index);
+    container.appendChild(div);
+  });
+}
+
+function useConsumable(index) {
+  if (!gameRunning || gamePaused) return;
+  if (index >= playerConsumables.length) return;
+
+  const skill = playerConsumables[index];
+  if (skill.uses <= 0) return;
+
+  skill.uses--;
+
+  switch (skill.id) {
+    case 'clearAll':
+      // 清除所有敌人
+      monsters.forEach(enemy => {
+        for (let i = 0; i < 10; i++) {
+          particles.push({
+            x: enemy.x,
+            y: enemy.y,
+            vx: (Math.random() - 0.5) * 6,
+            vy: (Math.random() - 0.5) * 6,
+            size: 5,
+            color: '#ffd700',
+            alpha: 1,
+            decay: 0.05
+          });
+        }
+        score += 20;
+        kills++;
+      });
+      monsters.length = 0;
+      showFloatingText(player.x, player.y - 30, '💫 清场画笔!', '#ffd700');
+      break;
+
+    case 'healFull':
+      player.hp = player.maxHP;
+      showFloatingText(player.x, player.y - 30, '💚 生命之泉!', '#66ff66');
+      break;
+
+    case 'shieldMax':
+      player.shield = player.maxShield;
+      showFloatingText(player.x, player.y - 30, '🛡️ 绝对防御!', '#4488ff');
+      break;
+
+    case 'bombAll':
+      // 对所有敌人造成大量伤害
+      const damage = 100 + wave * 10;
+      monsters.forEach(enemy => {
+        enemy.hp -= damage;
+        for (let i = 0; i < 5; i++) {
+          particles.push({
+            x: enemy.x,
+            y: enemy.y,
+            vx: (Math.random() - 0.5) * 8,
+            vy: (Math.random() - 0.5) * 8,
+            size: 6,
+            color: '#ff4444',
+            alpha: 1,
+            decay: 0.04
+          });
+        }
+      });
+      showFloatingText(player.x, player.y - 30, '💥 墨爆术!', '#ff4444');
+      break;
+  }
+
+  if (skill.uses <= 0) {
+    playerConsumables.splice(index, 1);
+  }
+
+  updateConsumablesUI();
+  updateUI();
+}
+
+function startWave() {
+  waveInProgress = true;
+  bossSpawned = false;
+  bossKilled = false;
+  bossWarningShown = false;
+
+  // 选择波次主题
+  selectWaveTheme();
+
+  // 显示波次公告
+  showWaveAnnouncement();
+
+  // 创建波次开始特效
+  setTimeout(() => {
+    createWaveStartEffect();
+  }, 500);
+  
+  // 生成敌人
+  const baseEnemyCount = 3 + Math.floor(wave * 1.5);
+  const eliteChance = 0.1 + wave * 0.02;
+  
+  setTimeout(() => {
+    for (let i = 0; i < baseEnemyCount; i++) {
+      setTimeout(() => {
+        createEnemy();
+      }, i * 300);
+    }
+  }, 1500);
+}
+
+// ============== 升级选择 ==============
+function generateRandomUpgrades(currentWave) {
+  const allUpgrades = [
+    {
+      name: '墨力增强',
+      icon: '💪',
+      desc: '攻击力永久提升15%',
+      apply: () => { player.damage *= 1.15; }
+    },
+    {
+      name: '疾风之靴',
+      icon: '👟',
+      desc: '移动速度提升12%',
+      apply: () => { player.baseSpeed *= 1.12; player.speed = player.baseSpeed; }
+    },
+    {
+      name: '生命之源',
+      icon: '❤️',
+      desc: '最大生命值+25，并恢复全部生命',
+      apply: () => { player.maxHP += 25; player.hp = player.maxHP; }
+    },
+    {
+      name: '灵盾加持',
+      icon: '🛡️',
+      desc: '最大护盾+20',
+      apply: () => { player.maxShield += 20; }
+    },
+    {
+      name: '连珠画笔',
+      icon: '🖌️',
+      desc: '射击速度提升20%',
+      apply: () => { player.fireRate *= 0.8; }
+    },
+    {
+      name: '灵墨祝福',
+      icon: '💧',
+      desc: '获得50灵墨',
+      apply: () => { resources.ink += 50; resources.totalInk += 50; updateResourceUI(); }
+    },
+    {
+      name: '精华汇聚',
+      icon: '✨',
+      desc: '获得10精华',
+      apply: () => { resources.essence += 10; resources.totalEssence += 10; updateResourceUI(); }
+    },
+    {
+      name: '星辰祝福',
+      icon: '⭐',
+      desc: '获得5星星',
+      apply: () => { resources.stars += 5; resources.totalStars += 5; updateResourceUI(); }
+    },
+    {
+      name: '恢复之光',
+      icon: '💚',
+      desc: '恢复50%生命值',
+      apply: () => { player.hp = Math.min(player.hp + player.maxHP * 0.5, player.maxHP); }
+    },
+    {
+      name: '护盾充能',
+      icon: '🔰',
+      desc: '护盾完全充能',
+      apply: () => { player.shield = player.maxShield; }
+    }
+  ];
+  
+  // 随机选择3个
+  const shuffled = allUpgrades.sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, 3);
+}
+
+function showUpgradeSelection() {
+  gameRunning = false;
+
+  const overlay = document.getElementById('waveTransitionOverlay');
+  const container = document.getElementById('upgradeOptions');
+
+  // DOM 元素验证
+  if (!overlay || !container) {
+    console.error('升级界面元素不存在，跳过升级选择');
+    wave++;  // 直接进入下一波
+    waveTimer = 0;
+    bossSpawned = false;
+    bossKilled = false;
+    bossWarningShown = false;
+    waveInProgress = true;
+    gameRunning = true;
+    setTimeout(() => {
+      showWaveAnnouncement();
+      createWaveStartEffect();
+    }, 300);
+    return;
+  }
+
+  container.innerHTML = '';
+
+  // 播放升级选择音效
+  AudioSystem.playUpgradeSelect();
+
+  // 生成升级选项
+  const upgrades = [
+    { id: 'atk', name: '画笔之力', desc: '攻击力 +20%', icon: '⚔️' },
+    { id: 'def', name: '墨韵护体', desc: '最大生命 +15%', icon: '🛡️' },
+    { id: 'spd', name: '云行风随', desc: '移速/攻速 +10%', icon: '💨' },
+    { id: 'hp', name: '灵墨再生', desc: '每秒恢复 2 点生命', icon: '💚' },
+    { id: 'shield', name: '画境结界', desc: '获得 30 点护盾', icon: '🔮' },
+    { id: 'skill', name: '技艺精进', desc: '技能冷却 -15%', icon: '✨' }
+  ];
+
+  // 随机选3个
+  const shuffled = upgrades.sort(() => Math.random() - 0.5).slice(0, 3);
+
+  shuffled.forEach(upgrade => {
+    const card = document.createElement('div');
+    card.className = 'upgrade-card';
+    card.innerHTML = `
+      <div style="font-size: 36px; margin-bottom: 10px;">${upgrade.icon}</div>
+      <div style="font-size: 18px; font-weight: bold; color: #00ffcc; margin-bottom: 8px;">${upgrade.name}</div>
+      <div style="font-size: 14px; color: rgba(255,255,255,0.8);">${upgrade.desc}</div>
+    `;
+
+    card.onclick = () => {
+      try {
+        applyUpgrade(upgrade.id);
+        createUpgradeEffect();
+        AudioSystem.playUpgradeSelect();
+        overlay.style.display = 'none';
+
+        // 关键修复：增加波次并重置计时器和Boss状态
+        wave++;
+        waveTimer = 0;
+        bossSpawned = false;      // 重置Boss生成状态
+        bossKilled = false;       // 重置Boss击杀状态
+        bossWarningShown = false; // 重置Boss警告状态
+        waveInProgress = true;    // 标记波次进行中
+        selectWaveTheme();        // 选择新波次主题
+        updateUI();  // 更新波次显示
+
+        gameRunning = true;
+
+        setTimeout(() => {
+          showWaveAnnouncement();
+          createWaveStartEffect();
+        }, 300);
+      } catch (error) {
+        console.error('升级选择错误:', error);
+        overlay.style.display = 'none';
+        wave++;
+        waveTimer = 0;
+        bossSpawned = false;
+        bossKilled = false;
+        bossWarningShown = false;
+        waveInProgress = true;
+        gameRunning = true;
+      }
+    };
+
+    container.appendChild(card);
+  });
+
+  const tips = [
+    '智者云：画如其人，心正则笔正',
+    '每一次选择都将影响你的画风',
+    '强者的道路由无数选择铺就',
+    '墨韵流转，命运由你书写',
+    '画境之中，万物皆有可能'
+  ];
+  document.getElementById('upgradeTip').textContent = tips[Math.floor(Math.random() * tips.length)];
+
+  overlay.style.display = 'flex';
+}
+
+function applyUpgrade(upgradeId) {
+  switch (upgradeId) {
+    case 'atk':
+      player.damage *= 1.2;
+      break;
+    case 'def':
+      player.maxHP *= 1.15;
+      player.hp = Math.min(player.hp + player.maxHP * 0.15, player.maxHP);
+      break;
+    case 'spd':
+      player.baseSpeed *= 1.1;
+      player.speed = player.baseSpeed;
+      player.fireRate *= 0.9;
+      break;
+    case 'hp':
+      // 每秒恢复 2 点生命的处理需要在 update 中实现
+      player.hpRegen = (player.hpRegen || 0) + 2;
+      break;
+    case 'shield':
+      player.maxShield += 30;
+      player.shield = Math.min(player.shield + 30, player.maxShield);
+      break;
+    case 'skill':
+      // 技能冷却减少
+      player.dashCooldown = (player.dashCooldown || 2000) * 0.85;
+      break;
+  }
+  updateUI();
+}
+
+function createUpgradeEffect() {
+  for (let i = 0; i < 20; i++) {
+    particles.push({
+      x: player.x,
+      y: player.y,
+      vx: (Math.random() - 0.5) * 10,
+      vy: (Math.random() - 0.5) * 10,
+      size: Math.random() * 8 + 4,
+      color: '#ffd700',
+      alpha: 1,
+      decay: 0.02
+    });
+  }
+}
+
+// ============== 游戏结束 ==============
+function gameOver() {
+  gameRunning = false;
+
+  document.getElementById('finalScore').textContent = score;
+  document.getElementById('finalWave').textContent = wave;
+  document.getElementById('finalKills').textContent = kills;
+  document.getElementById('finalInk').textContent = Math.floor(resources.totalInk);
+  document.getElementById('finalEssence').textContent = Math.floor(resources.totalEssence);
+  document.getElementById('finalStars').textContent = Math.floor(resources.totalStars);
+
+  document.getElementById('gameOverOverlay').style.display = 'flex';
+}
+
+// ============== 游戏循环 ==============
+function gameLoop(currentTime) {
+  try {
+    const dt = currentTime - lastTime;
+    lastTime = currentTime;
+
+    update(dt);
+    draw();
+
+    animationId = requestAnimationFrame(gameLoop);
+  } catch (error) {
+    console.error('游戏循环错误:', error);
+    animationId = requestAnimationFrame(gameLoop);
+  }
+}
+
+// ============== 输入处理 ==============
+let mouseX = 0;
+let mouseY = 0;
+let lastMouseX = 0;
+let lastMouseY = 0;
+let aimAngle = 0;  // 瞄准方向
+let hasAimDirection = false;
+let isMouseDown = false;
+
+canvas.addEventListener('mousemove', (e) => {
+  lastMouseX = mouseX;
+  lastMouseY = mouseY;
+  mouseX = e.clientX;
+  mouseY = e.clientY;
+
+  // 计算鼠标移动方向作为瞄准方向
+  const dx = mouseX - lastMouseX;
+  const dy = mouseY - lastMouseY;
+  const moveDist = Math.sqrt(dx * dx + dy * dy);
+
+  // 只有当鼠标移动足够距离时才更新瞄准方向
+  if (moveDist > 2) {
+    aimAngle = Math.atan2(dy, dx);
+    hasAimDirection = true;
+  }
+
+  if (gameRunning) {
+    player.x = mouseX;
+    player.y = mouseY;
+  }
+});
+
+canvas.addEventListener('mousedown', () => {
+  isMouseDown = true;
+});
+
+canvas.addEventListener('mouseup', () => {
+  isMouseDown = false;
+});
+
+// 持续射击
+setInterval(() => {
+  if (gameRunning && isMouseDown && !gamePaused) {
+    // 消耗能量
+    if (player.energy > 0) {
+      player.energy = Math.max(0, player.energy - player.energyConsumeRate * 0.05);
+      playerShoot();
+      updateEnergyUI();
+    }
+  }
+}, 50);
+
+// ============== 事件绑定 ==============
+document.getElementById('startBtn').addEventListener('click', () => {
+  document.getElementById('gameOverlay').style.display = 'none';
+  init();
+  gameRunning = true;
+  lastTime = performance.now();
+  startWave();
+  gameLoop(lastTime);
+});
+
+document.getElementById('restartBtn').addEventListener('click', () => {
+  document.getElementById('gameOverOverlay').style.display = 'none';
+  init();
+  gameRunning = true;
+  lastTime = performance.now();
+  startWave();
+  gameLoop(lastTime);
+});
+
+document.getElementById('skillTreeBtn').addEventListener('click', () => {
+  const overlay = document.getElementById('skillTreeOverlay');
+  overlay.style.display = overlay.style.display === 'flex' ? 'none' : 'flex';
+  renderSkillTree();
+});
+
+// 暂停界面按钮
+document.getElementById('resumeBtn').addEventListener('click', () => {
+  togglePause();
+});
+
+document.getElementById('pauseShopBtn').addEventListener('click', () => {
+  document.getElementById('pauseOverlay').style.display = 'none';
+  document.getElementById('skillTreeOverlay').style.display = 'flex';
+  renderSkillTree();
+});
+
+// 波次结算商店按钮
+document.getElementById('waveShopBtn').addEventListener('click', () => {
+  document.getElementById('skillTreeOverlay').style.display = 'flex';
+  renderSkillTree();
+});
+
+document.getElementById('closeSkillTree').addEventListener('click', () => {
+  document.getElementById('skillTreeOverlay').style.display = 'none';
+});
+
+// 暂停功能
+function togglePause() {
+  if (!gameRunning) return;
+
+  gamePaused = !gamePaused;
+  const pauseOverlay = document.getElementById('pauseOverlay');
+  pauseOverlay.style.display = gamePaused ? 'flex' : 'none';
+}
+
+// ESC关闭技能树 / 暂停游戏
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    // 如果有打开的overlay，先关闭它们
+    const skillOverlay = document.getElementById('skillTreeOverlay');
+    const pauseOverlay = document.getElementById('pauseOverlay');
+    const consumableOverlay = document.getElementById('consumableSelectOverlay');
+
+    if (skillOverlay.style.display === 'flex') {
+      skillOverlay.style.display = 'none';
+      return;
+    }
+    if (consumableOverlay.style.display === 'flex') {
+      return; // 不允许用ESC关闭消耗性技能选择
+    }
+
+    // 切换暂停
+    togglePause();
+  }
+
+  // P键暂停
+  if (e.key === 'p' || e.key === 'P') {
+    togglePause();
+  }
+
+  // 1-4键使用消耗性技能
+  if (e.key >= '1' && e.key <= '4') {
+    const index = parseInt(e.key) - 1;
+    useConsumable(index);
+  }
+});
+
+// 初始化尺寸
+resize();
+
+function createEnemy() {
+  // 确保 width 和 height 有效
+  if (!width || !height || !isFinite(width) || !isFinite(height)) {
+    resize(); // 重新获取尺寸
+  }
+
+  const margin = 80;
+  let x, y;
+  const side = Math.floor(Math.random() * 4);
+
+  switch (side) {
+    case 0: x = Math.random() * width; y = -margin; break;
+    case 1: x = width + margin; y = Math.random() * height; break;
+    case 2: x = Math.random() * width; y = height + margin; break;
+    case 3: x = -margin; y = Math.random() * height; break;
+  }
+  
+  const waveMultiplier = 1 + (wave - 1) * 0.1;
+  const isElite = wave > 2 && Math.random() < (0.1 + wave * 0.02);
+  const isBoss = wave % 5 === 0 && !monsters.some(e => e.isBoss);
+  
+  const types = ['normal', 'shooter', 'charger', 'splitter'];
+  let type = types[Math.floor(Math.random() * types.length)];
+  
+  // 波次越高，出现更强敌人的概率越大
+  if (wave > 3) {
+    const advancedTypes = ['shooter', 'charger', 'splitter', 'spiral'];
+    if (Math.random() < 0.3 + wave * 0.05) {
+      type = advancedTypes[Math.floor(Math.random() * advancedTypes.length)];
+    }
+  }
+  
+  let size, hp, speed, color;
+  
+  if (isBoss) {
+    size = 60;
+    hp = 100 + wave * 20;
+    speed = 1 + wave * 0.05;
+    color = '#ff0066';
+    type = 'boss';
+  } else if (isElite) {
+    size = 40;
+    hp = Math.floor((20 + wave * 5) * 2);
+    speed = 2 + wave * 0.08;
+    color = '#ff8800';
+  } else {
+    size = 25;
+    hp = 10 + wave * 3;
+    speed = 1.5 + wave * 0.1;
+    color = '#ff6b6b';
+  }
+  
+  const enemy = {
+    x, y,
+    size,
+    hp,
+    maxHp: hp,
+    speed,
+    color,
+    type,
+    isElite,
+    isBoss,
+    eliteColor: isElite ? getEliteColor(type) : null,
+    glowColor: color + '44',
+    pulsePhase: Math.random() * Math.PI * 2,
+    shootCooldown: 0,
+    angle: 0,
+    spiralAngle: 0,
+    chargeTimer: 0,
+    isCharging: false
+  };
+
+  // 应用主题效果
+  applyThemeToEnemy(enemy);
+
+  monsters.push(enemy);
+  
+  // 精英敌人出现音效
+  if (isElite || isBoss) {
+    AudioSystem.playEliteSpawn();
+    
+    // 精英出现特效
+    for (let i = 0; i < 15; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      particles.push({
+        x: enemy.x,
+        y: enemy.y,
+        vx: Math.cos(angle) * 5,
+        vy: Math.sin(angle) * 5,
+        size: 6,
+        color: enemy.eliteColor || '#ff4444',
+        alpha: 1,
+        decay: 0.04
+      });
+    }
+  }
+}
+
+// 波次主题系统
+function selectWaveTheme() {
+  const themeIndex = (wave - 1) % waveThemes.length;
+  currentTheme = waveThemes[themeIndex];
+  updateThemeDisplay();
+}
+
+function updateThemeDisplay() {
+  const display = document.getElementById('themeDisplay');
+  const icon = document.getElementById('themeIcon');
+  const name = document.getElementById('themeName');
+  const desc = document.getElementById('themeDesc');
+
+  if (currentTheme && display) {
+    display.style.display = 'block';
+    display.style.borderColor = currentTheme.color;
+    icon.textContent = currentTheme.icon;
+    name.textContent = currentTheme.name;
+    name.style.color = currentTheme.color;
+    desc.textContent = currentTheme.desc;
+  }
+}
+
+function applyThemeToEnemy(enemy) {
+  if (!currentTheme) return;
+
+  switch (currentTheme.effect) {
+    case 'speed':
+      enemy.speed *= currentTheme.modifier;
+      break;
+    case 'hp':
+      enemy.hp = Math.floor(enemy.hp * currentTheme.modifier);
+      enemy.maxHp = Math.floor(enemy.maxHp * currentTheme.modifier);
+      break;
+    case 'damage':
+      // 敌人伤害加成需要在enemyShoot中处理
+      enemy.damageModifier = currentTheme.modifier;
+      break;
+    case 'attackSpeed':
+      enemy.attackSpeedModifier = currentTheme.modifier;
+      if (enemy.shootCooldown) {
+        enemy.shootCooldown = Math.floor(enemy.shootCooldown / currentTheme.modifier);
+      }
+      break;
+    case 'all':
+      enemy.speed *= currentTheme.modifier;
+      enemy.hp = Math.floor(enemy.hp * currentTheme.modifier);
+      enemy.maxHp = Math.floor(enemy.maxHp * currentTheme.modifier);
+      enemy.damageModifier = currentTheme.modifier;
+      break;
+  }
+}
+
+function getEliteColor(type) {
+  const colors = {
+    'normal': '#ff8800',
+    'shooter': '#00ff88',
+    'charger': '#ff0088',
+    'splitter': '#8800ff',
+    'spiral': '#00ffff',
+    'boss': '#ff0066'
+  };
+  return colors[type] || '#ff8800';
+}
+
+function drawEnemies() {
+  monsters.forEach(enemy => {
+    ctx.save();
+    ctx.translate(enemy.x, enemy.y);
+    
+    // 更新精英视觉
+    updateEnemyVisual(enemy);
+    
+    // 精英/BOSS光环
+    if (enemy.isElite || enemy.isBoss) {
+      const glowColor = enemy.eliteColor || '#ff4444';
+      
+      // 外层脉动光环
+      const pulseSize = Math.sin(Date.now() / 200) * 5 + enemy.size * 1.5;
+      const gradient = ctx.createRadialGradient(0, 0, enemy.size, 0, 0, pulseSize);
+      gradient.addColorStop(0, glowColor + '40');
+      gradient.addColorStop(0.5, glowColor + '20');
+      gradient.addColorStop(1, 'transparent');
+      
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(0, 0, pulseSize, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 旋转光环
+      ctx.strokeStyle = glowColor + '60';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0, 0, enemy.size + 8, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // 光环装饰点
+      for (let i = 0; i < 4; i++) {
+        const angle = (Date.now() / 500) + (Math.PI / 2) * i;
+        const dotX = Math.cos(angle) * (enemy.size + 8);
+        const dotY = Math.sin(angle) * (enemy.size + 8);
+        
+        ctx.fillStyle = glowColor;
+        ctx.beginPath();
+        ctx.arc(dotX, dotY, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    
+    // 敌人身体
+    ctx.fillStyle = enemy.color;
+    ctx.beginPath();
+    
+    switch (enemy.type) {
+      case 'boss':
+        // BOSS - 复杂多边形
+        const points = 8;
+        for (let i = 0; i < points; i++) {
+          const angle = (Math.PI * 2 / points) * i - Math.PI / 2;
+          const radius = enemy.size * (i % 2 === 0 ? 1 : 0.7);
+          const px = Math.cos(angle) * radius;
+          const py = Math.sin(angle) * radius;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        break;
+        
+      case 'shooter':
+        // 射手 - 菱形
+        ctx.moveTo(0, -enemy.size);
+        ctx.lineTo(enemy.size, 0);
+        ctx.lineTo(0, enemy.size);
+        ctx.lineTo(-enemy.size, 0);
+        ctx.closePath();
+        break;
+        
+      case 'charger':
+        // 冲锋 - 三角形
+        const chargeAngle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
+        ctx.rotate(chargeAngle);
+        ctx.moveTo(enemy.size, 0);
+        ctx.lineTo(-enemy.size * 0.7, -enemy.size * 0.7);
+        ctx.lineTo(-enemy.size * 0.7, enemy.size * 0.7);
+        ctx.closePath();
+        break;
+        
+      case 'splitter':
+        // 分裂 - 六边形
+        for (let i = 0; i < 6; i++) {
+          const angle = (Math.PI / 3) * i - Math.PI / 2;
+          const px = Math.cos(angle) * enemy.size;
+          const py = Math.sin(angle) * enemy.size;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        break;
+        
+      case 'spiral':
+        // 螺旋 - 五角星
+        for (let i = 0; i < 10; i++) {
+          const angle = (Math.PI / 5) * i - Math.PI / 2;
+          const radius = enemy.size * (i % 2 === 0 ? 1 : 0.5);
+          const px = Math.cos(angle) * radius;
+          const py = Math.sin(angle) * radius;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        break;
+        
+      default:
+        // 普通 - 圆形
+        ctx.arc(0, 0, enemy.size, 0, Math.PI * 2);
+    }
+    
+    ctx.fill();
+    
+    // 敌人内部纹理
+    if (enemy.isElite || enemy.isBoss) {
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    
+    // 血条
+    if (enemy.hp < enemy.maxHp) {
+      const barWidth = enemy.size * 2;
+      const barHeight = 4;
+      const hpPercent = enemy.hp / enemy.maxHp;
+      
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(-barWidth / 2, -enemy.size - 12, barWidth, barHeight);
+      
+      ctx.fillStyle = enemy.isElite ? '#ff8800' : (enemy.isBoss ? '#ff0066' : '#ff4444');
+      ctx.fillRect(-barWidth / 2, -enemy.size - 12, barWidth * hpPercent, barHeight);
+    }
+    
+    // 精英标识
+    if (enemy.isElite && !enemy.isBoss) {
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 12px Microsoft YaHei';
+      ctx.textAlign = 'center';
+      ctx.fillText('★', 0, -enemy.size - 18);
+    }
+    
+    // BOSS标识
+    if (enemy.isBoss) {
+      ctx.fillStyle = '#ff0066';
+      ctx.font = 'bold 14px Microsoft YaHei';
+      ctx.textAlign = 'center';
+      ctx.fillText('BOSS', 0, -enemy.size - 18);
+    }
+    
+    ctx.restore();
+  });
+}
+
+function playerTakeDamage(damage) {
+  // 护盾优先吸收
+  if (player.shield > 0) {
+    const shieldAbsorb = Math.min(player.shield, damage);
+    player.shield -= shieldAbsorb;
+    damage -= shieldAbsorb;
+  }
+  
+  if (damage > 0) {
+    player.hp -= damage;
+    
+    // 播放受伤音效
+    AudioSystem.playDamage();
+    
+    // 受伤视觉效果
+    for (let i = 0; i < 10; i++) {
+      particles.push({
+        x: player.x,
+        y: player.y,
+        vx: (Math.random() - 0.5) * 8,
+        vy: (Math.random() - 0.5) * 8,
+        size: 5,
+        color: '#ff4444',
+        alpha: 1,
+        decay: 0.04
+      });
+    }
+    
+    // 屏幕闪红
+    canvas.style.boxShadow = 'inset 0 0 100px rgba(255, 0, 0, 0.5)';
+    setTimeout(() => {
+      canvas.style.boxShadow = 'none';
+    }, 100);
+  }
+  
+  if (player.hp <= 0) {
+    gameOver();
+  }
+  
+  updateUI();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Archive and Offline Earnings System</title>
+<style>
+  body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+const config = {
+  canvas: document.getElementById('gameCanvas'),
+  ctx: config.canvas.getContext('2d'),
+  scale: 1,
+  width: window.innerWidth,
+  height: window.innerHeight
+};
+
+class ResourceManager {
+  constructor() {
+    this.resources = {};
+  }
+
+  load(url, callback) {
+    const image = new Image();
+    image.onload = () => {
+      this.resources[url] = image;
+      if (callback) callback(image);
+    };
+    image.src = url;
+  }
+
+  get(url) {
+    return this.resources[url];
+  }
+}
+
+class PlayerData {
+  constructor() {
+    this.level = 1;
+    this.resources = { wood: 100, stone: 100 };
+    this.equipment = [];
+    this.pets = [];
+    this.lastOnlineTime = new Date().getTime();
+  }
+
+  save() {
+    const data = JSON.stringify(this);
+    localStorage.setItem('playerData', data);
+  }
+
+  load() {
+    const data = localStorage.getItem('playerData');
+    if (data) {
+      Object.assign(this, JSON.parse(data));
+      this.lastOnlineTime = new Date().getTime();
+    }
+  }
+
+  offlineEarnings() {
+    const now = new Date().getTime();
+    const offlineTime = now - this.lastOnlineTime;
+    const hoursOffline = offlineTime / (1000 * 60 * 60);
+    const resourcesGained = {
+      wood: Math.min(Math.floor(hoursOffline * 10), 1000),
+      stone: Math.min(Math.floor(hoursOffline * 5), 500)
+    };
+    this.resources.wood += resourcesGained.wood;
+    this.resources.stone += resourcesGained.stone;
+    this.save();
+  }
+}
+
+const playerData = new PlayerData();
+playerData.load();
+
+window.addEventListener('load', () => {
+  playerData.offlineEarnings();
+});
+
+window.addEventListener('resize', () => {
+  config.width = window.innerWidth;
+  config.height = window.innerHeight;
+  config.canvas.width = config.width;
+  config.canvas.height = config.height;
+});
+
+setInterval(() => {
+  if (!document.hidden) {
+    playerData.offlineEarnings();
+  }
+}, 1000 * 60); // Check every minute
+
+class Game {
+  constructor() {
+    this.resourceManager = new ResourceManager();
+    this.init();
+  }
+
+  init() {
+    this.resourceManager.load('path/to/your/resourceImage.png', (image) => {
+      this.render(image);
+    });
+  }
+
+  render(image) {
+    // Clear the canvas
+    config.ctx.clearRect(0, 0, config.width, config.height);
+    // Draw background
+    config.ctx.fillStyle = 'skyblue';
+    config.ctx.fillRect(0, 0, config.width, config.height);
+    // Draw resources
+    config.ctx.drawImage(image, 50, 50, 50, 50); // Placeholder for wood
+    config.ctx.drawImage(image, 150, 50, 50, 50); // Placeholder for stone
+  }
+}
+
+const game = new Game();
+</script>
+</body>
+</html>

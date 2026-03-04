@@ -1,0 +1,1509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>飞机大战游戏</title>
+<style>
+  canvas {
+    border: 1px solid #333;
+    background-color: #1a1a2e;
+    display: block;
+    margin: 0 auto;
+  }
+  body {
+    background-color: #0a0a15;
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .debug-panel {
+    color: #00ff00;
+    font-family: monospace;
+    font-size: 14px;
+    margin-top: 10px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<div class="debug-panel" id="debugPanel">调试模式: ON | 按 D 键切换</div>
+<script>
+// ==================== 游戏配置 ====================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const gameWidth = canvas.width;
+const gameHeight = canvas.height;
+let score = 0;
+
+// 🐛 调试模式开关 - 用于视口调试
+let debugMode = true;
+
+// ==================== 飞机类 ====================
+class Plane {
+  constructor(x, y, width, height, color) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.color = color;
+  }
+
+  draw() {
+    // 绘制飞机主体
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+    
+    // 绘制飞机形状（三角形机头）
+    ctx.beginPath();
+    ctx.moveTo(this.x + this.width / 2, this.y);
+    ctx.lineTo(this.x, this.y + this.height);
+    ctx.lineTo(this.x + this.width, this.y + this.height);
+    ctx.closePath();
+    ctx.fillStyle = this.color;
+    ctx.fill();
+    
+    // 🐛 调试模式：显示边框和坐标
+    if (debugMode) {
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(this.x, this.y, this.width, this.height);
+      ctx.fillStyle = '#00ff00';
+      ctx.font = '12px monospace';
+      ctx.fillText(`Player: (${Math.round(this.x)}, ${Math.round(this.y)})`, this.x, this.y - 30);
+      ctx.fillText(`Size: ${this.width}x${this.height}`, this.x, this.y - 15);
+    }
+  }
+
+  move(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+}
+
+// ==================== 敌机类 ====================
+class Enemy {
+  constructor(x, y, width, height, color) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.color = color;
+    this.speed = Math.random() * 2 + 1;
+  }
+
+  draw() {
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+    
+    // 🐛 调试模式：显示敌机边框
+    if (debugMode) {
+      ctx.strokeStyle = '#ff6600';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(this.x, this.y, this.width, this.height);
+      ctx.fillStyle = '#ff6600';
+      ctx.font = '10px monospace';
+      ctx.fillText(`E`, this.x + 20, this.y - 5);
+    }
+  }
+
+  move() {
+    this.y += this.speed;
+  }
+}
+
+// ==================== 子弹类 ====================
+class Bullet {
+  constructor(x, y, width, height, color) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.color = color;
+    this.speed = -8;
+  }
+
+  draw() {
+    // 子弹发光效果
+    ctx.shadowColor = '#00ff00';
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x, this.y, this.width, this.height);
+    ctx.shadowBlur = 0;
+    
+    // 🐛 调试模式：显示子弹边框
+    if (debugMode) {
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(this.x - 1, this.y - 1, this.width + 2, this.height + 2);
+    }
+  }
+
+  move() {
+    this.y += this.speed;
+  }
+}
+
+// ==================== 爆炸动画类 ====================
+class Explosion {
+  constructor(x, y, frames) {
+    this.x = x;
+    this.y = y;
+    this.frames = frames;
+    this.currentFrame = 0;
+    this.finished = false;
+  }
+
+  draw() {
+    const radius = 10 * (this.currentFrame + 1);
+    ctx.fillStyle = `rgba(255, ${150 - this.currentFrame * 30}, 0, ${1 - this.currentFrame * 0.2})`;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, radius, 0, Math.PI * 2, true);
+    ctx.fill();
+  }
+
+  update() {
+    if (this.currentFrame < this.frames) {
+      this.currentFrame++;
+    } else {
+      this.finished = true;
+    }
+  }
+}
+
+// ==================== 初始化游戏对象 ====================
+// 创建玩家飞机（确保在可视区域内）
+const player = new Plane(gameWidth / 2 - 25, gameHeight - 80, 50, 50, '#4488ff');
+
+// 敌机数组
+let enemies = [];
+for (let i = 0; i < 5; i++) {
+  // 敌机从屏幕上方开始，避免在边缘
+  enemies.push(new Enemy(
+    50 + Math.random() * (gameWidth - 100),
+    -100 - Math.random() * 200,
+    40,
+    40,
+    '#ff4444'
+  ));
+}
+
+// 子弹数组
+let bullets = [];
+
+// 爆炸数组
+let explosions = [];
+
+// ==================== 调试函数 ====================
+// 绘制视口调试网格
+function drawDebugGrid() {
+  if (!debugMode) return;
+  
+  // 绘制网格
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+  ctx.lineWidth = 1;
+  
+  for (let x = 0; x <= gameWidth; x += 100) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, gameHeight);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.font = '10px monospace';
+    ctx.fillText(x.toString(), x + 2, 12);
+  }
+  
+  for (let y = 0; y <= gameHeight; y += 100) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(gameWidth, y);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.fillText(y.toString(), 2, y + 12);
+  }
+  
+  // 绘制画布边界（红色醒目框）
+  ctx.strokeStyle = '#ff0000';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, gameWidth - 4, gameHeight - 4);
+  
+  // 显示中心十字线
+  ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(gameWidth / 2, 0);
+  ctx.lineTo(gameWidth / 2, gameHeight);
+  ctx.moveTo(0, gameHeight / 2);
+  ctx.lineTo(gameWidth, gameHeight / 2);
+  ctx.stroke();
+}
+
+// 绘制得分板
+function drawScore() {
+  ctx.fillStyle = 'white';
+  ctx.font = '20px Arial';
+  ctx.fillText('Score: ' + score, 10, 30);
+  
+  // 🐛 调试模式下显示更多信息
+  if (debugMode) {
+    ctx.font = '12px monospace';
+    ctx.fillStyle = '#00ff00';
+    ctx.fillText(`Canvas: ${gameWidth}x${gameHeight}`, 10, 50);
+    ctx.fillText(`Enemies: ${enemies.length} | Bullets: ${bullets.length}`, 10, 65);
+    ctx.fillText(`Player Pos: (${Math.round(player.x)}, ${Math.round(player.y)})`, 10, 80);
+  }
+}
+
+// 生成新敌机
+function spawnEnemy() {
+  if (enemies.length < 8 && Math.random() < 0.03) {
+    enemies.push(new Enemy(
+      50 + Math.random() * (gameWidth - 100),
+      -50,
+      40,
+      40,
+      '#ff4444'
+    ));
+  }
+}
+
+// ==================== 主游戏循环 ====================
+function gameLoop() {
+  // 1. 清除画布
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, gameWidth, gameHeight);
+  
+  // 🐛 调试模式：绘制网格和中心线
+  if (debugMode) {
+    drawDebugGrid();
+  }
+  
+  // 2. 绘制玩家飞机（关键！）
+  if (player) {
+    player.draw();
+  }
+  
+  // 3. 更新和绘制敌机
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const enemy = enemies[i];
+    enemy.move();
+    enemy.draw();
+    
+    // 移除超出画布的敌机
+    if (enemy.y > gameHeight) {
+      enemies.splice(i, 1);
+    }
+  }
+  
+  // 4. 更新和绘制子弹
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const bullet = bullets[i];
+    bullet.move();
+    bullet.draw();
+    
+    // 移除超出画布的子弹
+    if (bullet.y < 0) {
+      bullets.splice(i, 1);
+    }
+  }
+  
+  // 5. 更新和绘制爆炸效果
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    const explosion = explosions[i];
+    explosion.update();
+    explosion.draw();
+    
+    if (explosion.finished) {
+      explosions.splice(i, 1);
+    }
+  }
+  
+  // 6. 碰撞检测
+  checkCollisions();
+  
+  // 7. 随机生成敌机
+  if (Math.random() < 0.02) {
+    spawnEnemy();
+  }
+  
+  // 8. 绘制分数
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '20px Arial';
+  ctx.fillText('分数: ' + score, 20, 30);
+  
+  // 继续游戏循环
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== 键盘事件绑定 ====================
+document.addEventListener('keydown', (e) => {
+  let newX = player.x;
+  let newY = player.y;
+  
+  switch (e.key) {
+    case 'ArrowLeft':
+    case 'a':
+    case 'A':
+      newX = Math.max(0, player.x - 10);
+      e.preventDefault();
+      break;
+    case 'ArrowRight':
+    case 'd':
+      e.preventDefault();
+      newX = Math.min(gameWidth - player.width, player.x + 10);
+      break;
+    case 'ArrowUp':
+    case 'w':
+    case 'W':
+      newY = Math.max(0, player.y - 10);
+      e.preventDefault();
+      break;
+    case 'ArrowDown':
+    case 's':
+    case 'S':
+      newY = Math.min(gameHeight - player.height, player.y + 10);
+      e.preventDefault();
+      break;
+    case ' ':
+      // 发射子弹（从飞机中心发出）
+      bullets.push(new Bullet(
+        player.x + player.width / 2 - 3,
+        player.y,
+        6,
+        15,
+        '#00ff00'
+      ));
+      e.preventDefault();
+      break;
+    case 'D':
+      // 切换调试模式
+      debugMode = !debugMode;
+      console.log('调试模式:', debugMode ? '开启' : '关闭');
+      break;
+  }
+  
+  player.move(newX, newY);
+});
+
+// ==================== 初始化游戏 ====================
+window.onload = function() {
+  console.log('========================================');
+  console.log('🎮 飞机大战游戏 - 调试信息');
+  console.log('========================================');
+  console.log('Canvas 尺寸:', gameWidth, 'x', gameHeight);
+  console.log('玩家初始位置:', player.x, player.y);
+  console.log('玩家尺寸:', player.width, 'x', player.height);
+  console.log('敌机数量:', enemies.length);
+  console.log('----------------------------------------');
+  console.log('操作说明:');
+  console.log('  方向键/WASD - 移动飞机');
+  console.log('  空格键 - 发射子弹');
+  console.log('  D键 - 切换调试模式');
+  console.log('========================================');
+  
+  // 启动游戏循环
+  gameLoop();
+};
+
+document.addEventListener('keydown', (e) => {
+  let newX = player ? player.x : 0;
+  let newY = player ? player.y : 0;
+  
+  switch (e.key) {
+    case 'ArrowLeft':
+    case 'a':
+    case 'A':
+      newX = Math.max(0, newX - 10);
+      e.preventDefault();
+      break;
+    case 'ArrowRight':
+    case 'd':
+      e.preventDefault();
+      newX = Math.min(gameWidth - 50, newX + 10);
+      break;
+    case 'ArrowUp':
+    case 'w':
+    case 'W':
+      newY = Math.max(0, newY - 10);
+      e.preventDefault();
+      break;
+    case 'ArrowDown':
+    case 's':
+    case 'S':
+      newY = Math.min(gameHeight - 50, newY + 10);
+      e.preventDefault();
+      break;
+    case ' ':
+      // 发射子弹
+      if (player) {
+        bullets.push(new Bullet(
+          player.x + player.width / 2 - 3,
+          player.y,
+          6,
+          15,
+          '#00ff00'
+        ));
+        Logger.debug('发射子弹');
+      }
+      e.preventDefault();
+      break;
+    case 'D':
+      // 切换调试模式
+      debugMode = !debugMode;
+      Logger.info('调试模式:', debugMode ? '开启' : '关闭');
+      break;
+    case 'L':
+      // 切换日志级别
+      const levels = [LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR];
+      const currentIndex = levels.indexOf(currentLogLevel);
+      const nextIndex = (currentIndex + 1) % levels.length;
+      Logger.setLevel(levels[nextIndex]);
+      break;
+  }
+  
+  if (player) {
+    player.move(newX, newY);
+  }
+});
+
+window.onload = function() {
+  console.log('========================================');
+  console.log('🎮 飞机大战游戏');
+  console.log('========================================');
+  console.log('Canvas 尺寸:', gameWidth, 'x', gameHeight);
+  console.log('----------------------------------------');
+  console.log('操作说明:');
+  console.log('  方向键/WASD - 移动飞机');
+  console.log('  空格键 - 发射子弹');
+  console.log('  D键 - 切换调试模式');
+  console.log('  L键 - 切换日志级别');
+  console.log('========================================');
+  
+  // 初始化玩家飞机（关键修复！）
+  initPlayer();
+  
+  if (!player) {
+    Logger.error('玩家飞机初始化失败！');
+    return;
+  }
+  
+  Logger.info('游戏启动成功');
+  
+  // 启动游戏循环
+  gameLoop();
+};
+
+// ==================== 日志级别系统 ====================
+const LogLevel = {
+  DEBUG: 0,  // 详细调试信息（仅开发时开启）
+  INFO: 1,   // 一般信息（关键事件）
+  WARN: 2,   // 警告信息
+  ERROR: 3,  // 错误信息
+  NONE: 4    // 关闭所有日志
+};
+
+// 当前日志级别（生产环境建议设为 INFO 或 WARN）
+let currentLogLevel = LogLevel.INFO;
+
+const Logger = {
+  debug: (...args) => {
+    if (currentLogLevel <= LogLevel.DEBUG) {
+      console.log('[DEBUG]', ...args);
+    }
+  },
+  info: (...args) => {
+    if (currentLogLevel <= LogLevel.INFO) {
+      console.log('[INFO]', ...args);
+    }
+  },
+  warn: (...args) => {
+    if (currentLogLevel <= LogLevel.WARN) {
+      console.warn('[WARN]', ...args);
+    }
+  },
+  error: (...args) => {
+    if (currentLogLevel <= LogLevel.ERROR) {
+      console.error('[ERROR]', ...args);
+    }
+  },
+  setLevel: (level) => {
+    currentLogLevel = level;
+    Logger.info('日志级别已设置为:', Object.keys(LogLevel).find(k => LogLevel[k] === level));
+  }
+};
+
+// ==================== 初始化玩家飞机 ====================
+// 注意：必须在 Plane 类定义之后创建实例
+let player = null;
+let enemies = [];
+let bullets = [];
+let explosions = [];
+
+// ==================== 初始化游戏变量 ====================
+let player = null;
+let enemies = [];
+let bullets = [];
+let explosions = [];
+
+// ==================== 初始化玩家飞机 ====================
+function initPlayer() {
+  player = new Plane(
+    gameWidth / 2 - 25,  // 居中
+    gameHeight - 80,     // 底部
+    50,                  // 宽度
+    50,                  // 高度
+    '#00ccff'            // 颜色
+  );
+  Logger.info('玩家飞机已初始化，位置: (' + player.x + ', ' + player.y + ')');
+  return player;
+}
+// ==================== 游戏主循环 ====================
+let lastTime = 0;
+let frameCount = 0;
+let fps = 0;
+let fpsUpdateTime = 0;
+
+function gameLoop(timestamp) {
+  // 🎯 性能监控：计算 FPS
+  frameCount++;
+  if (timestamp - fpsUpdateTime >= 1000) {
+    fps = frameCount;
+    frameCount = 0;
+    fpsUpdateTime = timestamp;
+  }
+  
+  // 清空画布（必要的重绘）
+  ctx.clearRect(0, 0, gameWidth, gameHeight);
+  
+  // 绘制背景星空
+  drawStarfield();
+  
+  // 🎯 优化：先更新所有对象状态，再统一绘制
+  updateEnemies();
+  updateBullets();
+  updateExplosions();
+  
+  // 随机生成敌机
+  if (Math.random() < 0.02) {
+    spawnEnemy();
+  }
+  
+  // 🎯 绘制所有对象
+  enemies.forEach(enemy => enemy.draw());
+  bullets.forEach(bullet => bullet.draw());
+  explosions.forEach(exp => exp.draw());
+  
+  // 🎯 关键：绘制玩家飞机
+  if (player) {
+    player.draw();
+  }
+  
+  // 碰撞检测
+  checkCollisions();
+  
+  // 绘制 UI
+  drawUI();
+  
+  // 继续循环
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== 背景星空（性能优化版）====================
+const stars = [];
+for (let i = 0; i < 100; i++) {
+  stars.push({
+    x: Math.random() * gameWidth,
+    y: Math.random() * gameHeight,
+    size: Math.random() * 2 + 1,
+    speed: Math.random() * 0.5 + 0.2
+  });
+}
+
+function drawStarfield() {
+  ctx.fillStyle = '#ffffff';
+  stars.forEach(star => {
+    star.y += star.speed;
+    if (star.y > gameHeight) {
+      star.y = 0;
+      star.x = Math.random() * gameWidth;
+    }
+    ctx.globalAlpha = 0.5 + Math.random() * 0.5;
+    ctx.fillRect(star.x, star.y, star.size, star.size);
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ==================== 更新敌机 ====================
+function updateEnemies() {
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    enemies[i].move();
+    if (enemies[i].y > gameHeight) {
+      enemies.splice(i, 1);
+    }
+  }
+}
+
+// ==================== 生成敌机 ====================
+function spawnEnemy() {
+  enemies.push(new Enemy(
+    Math.random() * (gameWidth - 40),
+    -40,
+    40,
+    40,
+    '#ff4444'
+  ));
+}
+
+// ==================== 更新子弹 ====================
+function updateBullets() {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    bullets[i].move();
+    if (bullets[i].y < -20) {
+      bullets.splice(i, 1);
+    }
+  }
+}
+
+// ==================== 更新爆炸效果 ====================
+function updateExplosions() {
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    explosions[i].update();
+    if (explosions[i].finished) {
+      explosions.splice(i, 1);
+    }
+  }
+}
+
+// ==================== 碰撞检测 ====================
+function checkCollisions() {
+  // 子弹 vs 敌机
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      if (isColliding(bullets[i], enemies[j])) {
+        explosions.push(new Explosion(
+          enemies[j].x + enemies[j].width / 2,
+          enemies[j].y + enemies[j].height / 2,
+          5
+        ));
+        bullets.splice(i, 1);
+        enemies.splice(j, 1);
+        score += 100;
+        break;
+      }
+    }
+  }
+  
+  // 玩家 vs 敌机
+  if (player) {
+    for (let i = enemies.length - 1; i >= 0; i--) {
+      if (isColliding(player, enemies[i])) {
+        explosions.push(new Explosion(
+          player.x + player.width / 2,
+          player.y + player.height / 2,
+          8
+        ));
+        enemies.splice(i, 1);
+        score = Math.max(0, score - 50);
+      }
+    }
+  }
+}
+
+function isColliding(a, b) {
+  return a.x < b.x + b.width &&
+         a.x + a.width > b.x &&
+         a.y < b.y + b.height &&
+         a.y + a.height > b.y;
+}
+
+// ==================== 绘制 UI ====================
+function drawUI() {
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 20px Arial';
+  ctx.fillText('分数: ' + score, 20, 30);
+  
+  if (debugMode) {
+    ctx.fillStyle = '#00ff00';
+    ctx.font = '12px monospace';
+    ctx.fillText('FPS: ' + fps, 20, 50);
+    ctx.fillText('敌机: ' + enemies.length, 20, 65);
+    ctx.fillText('子弹: ' + bullets.length, 20, 80);
+    ctx.fillText('调试: D键 | 日志: L键', 20, gameHeight - 10);
+  }
+}
+
+
+update() {
+    if (this.currentFrame < this.frames) {
+      this.currentFrame++;
+    } else {
+      this.finished = true;
+    }
+  }
+
+// 玩家飞机实例（初始位置在画布底部中央）
+let player = null;
+
+// 子弹、敌机、爆炸效果数组
+let bullets = [];
+let enemies = [];
+let explosions = [];
+
+// 星空背景
+let stars = [];
+
+// FPS 计算
+let lastTime = 0;
+let fps = 0;
+
+// 鼠标位置
+let mouseX = gameWidth / 2;
+let mouseY = gameHeight - 100;
+
+// ==================== 游戏主循环 ====================
+function gameLoop(timestamp) {
+  // 计算 FPS
+  if (lastTime) {
+    fps = Math.round(1000 / (timestamp - lastTime));
+  }
+  lastTime = timestamp;
+
+  // 清空画布
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, gameWidth, gameHeight);
+
+  // 绘制星空背景
+  drawStarfield();
+
+  // 更新和绘制子弹
+  updateBullets();
+  bullets.forEach(bullet => bullet.draw());
+
+  // 更新和绘制敌机
+  updateEnemies();
+  enemies.forEach(enemy => enemy.draw());
+
+  // 更新爆炸效果
+  updateExplosions();
+  explosions.forEach(exp => exp.draw());
+
+  // 碰撞检测
+  checkCollisions();
+
+  // 🎯 绘制玩家飞机（关键！）
+  if (player) {
+    player.draw();
+  }
+
+  // 绘制 UI
+  drawUI();
+
+  // 随机生成敌机
+  if (Math.random() < 0.02) {
+    spawnEnemy();
+  }
+
+  // 继续循环
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== 初始化游戏 ====================
+function init() {
+  // 🎯 创建玩家飞机（关键！）
+  player = new Plane(
+    gameWidth / 2 - 25,  // X: 水平居中
+    gameHeight - 80,     // Y: 靠近底部
+    50,                  // 宽度
+    60,                  // 高度
+    '#00ccff'            // 颜色：青蓝色
+  );
+
+  // 初始化星空
+  for (let i = 0; i < 100; i++) {
+    stars.push({
+      x: Math.random() * gameWidth,
+      y: Math.random() * gameHeight,
+      size: Math.random() * 2 + 1,
+      speed: Math.random() * 0.5 + 0.2
+    });
+  }
+
+  // 鼠标移动控制飞机
+  canvas.addEventListener('mousemove', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mouseX = e.clientX - rect.left;
+    mouseY = e.clientY - rect.top;
+    if (player) {
+      player.move(mouseX - player.width / 2, mouseY - player.height / 2);
+    }
+  });
+
+  // 鼠标点击发射子弹
+  canvas.addEventListener('click', () => {
+    if (player) {
+      bullets.push(new Bullet(
+        player.x + player.width / 2 - 3,
+        player.y,
+        6,
+        15,
+        '#00ff00'
+      ));
+    }
+  });
+
+  // 键盘控制
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'd' || e.key === 'D') {
+      debugMode = !debugMode;
+      document.getElementById('debugPanel').textContent = 
+        `调试模式: ${debugMode ? 'ON' : 'OFF'} | 按 D 键切换`;
+    }
+  });
+
+  // 启动游戏循环
+  requestAnimationFrame(gameLoop);
+}
+
+// 页面加载完成后启动游戏
+window.onload = init;
+
+draw() {
+    ctx.save();
+    
+    // 飞机中心点
+    const centerX = this.x + this.width / 2;
+    const centerY = this.y + this.height / 2;
+    
+    // 🎨 绘制飞机发光效果（让飞机更明显）
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 15;
+    
+    // 绘制飞机主体（改进的战斗机形状）
+    ctx.beginPath();
+    // 机头
+    ctx.moveTo(centerX, this.y);
+    // 右侧机身
+    ctx.lineTo(centerX + 8, this.y + 20);
+    ctx.lineTo(this.x + this.width, this.y + this.height - 10);
+    // 右尾翼
+    ctx.lineTo(centerX + 15, this.y + this.height);
+    // 左尾翼
+    ctx.lineTo(centerX - 15, this.y + this.height);
+    // 左侧机身
+    ctx.lineTo(this.x, this.y + this.height - 10);
+    ctx.lineTo(centerX - 8, this.y + 20);
+    ctx.closePath();
+    
+    // 填充飞机
+    const gradient = ctx.createLinearGradient(centerX, this.y, centerX, this.y + this.height);
+    gradient.addColorStop(0, '#66e0ff');
+    gradient.addColorStop(0.5, this.color);
+    gradient.addColorStop(1, '#006688');
+    ctx.fillStyle = gradient;
+    ctx.fill();
+    
+    // 绘制驾驶舱
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.ellipse(centerX, this.y + 25, 6, 12, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#aaffff';
+    ctx.fill();
+    
+    // 绘制引擎火焰
+    ctx.beginPath();
+    ctx.moveTo(centerX - 8, this.y + this.height);
+    ctx.lineTo(centerX, this.y + this.height + 15 + Math.random() * 5);
+    ctx.lineTo(centerX + 8, this.y + this.height);
+    ctx.closePath();
+    ctx.fillStyle = `rgba(255, ${150 + Math.random() * 100}, 0, 0.8)`;
+    ctx.fill();
+    
+    ctx.restore();
+    
+    // 🐛 调试模式：显示边框和坐标（确保可见）
+    if (debugMode) {
+      ctx.save();
+      
+      // 绘制边框（红色虚线，更明显）
+      ctx.strokeStyle = '#ff0000';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 3]);
+      ctx.strokeRect(this.x, this.y, this.width, this.height);
+      ctx.setLineDash([]);
+      
+      // 绘制中心十字准星
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(centerX - 10, centerY);
+      ctx.lineTo(centerX + 10, centerY);
+      ctx.moveTo(centerX, centerY - 10);
+      ctx.lineTo(centerX, centerY + 10);
+      ctx.stroke();
+      
+      // 计算调试信息位置（确保在画布内）
+      const labelX = Math.max(5, Math.min(this.x, gameWidth - 170));
+      const labelY = Math.max(50, this.y - 10);
+      
+      // 绘制调试信息背景
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillRect(labelX - 5, labelY - 45, 170, 50);
+      
+      // 绘制调试信息边框
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(labelX - 5, labelY - 45, 170, 50);
+      
+      // 绘制调试文字
+      ctx.fillStyle = '#00ff00';
+      ctx.font = 'bold 11px monospace';
+      ctx.fillText(`✈ Player Position`, labelX, labelY - 30);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '11px monospace';
+      ctx.fillText(`X: ${Math.round(this.x)}  Y: ${Math.round(this.y)}`, labelX, labelY - 15);
+      ctx.fillText(`W: ${this.width}  H: ${this.height}`, labelX, labelY);
+      
+      ctx.restore();
+    }
+  }
+
+class Plane {
+  constructor(x, y, width, height, color) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.color = color;
+    this.speed = 6;
+  }
+
+  update() {
+    // 根据键盘状态移动飞机
+    if (keys.ArrowLeft || keys.a) {
+      this.x -= this.speed;
+    }
+    if (keys.ArrowRight || keys.d) {
+      this.x += this.speed;
+    }
+    if (keys.ArrowUp || keys.w) {
+      this.y -= this.speed;
+    }
+    if (keys.ArrowDown || keys.s) {
+      this.y += this.speed;
+    }
+    
+    // 边界检测，确保飞机不会飞出画布
+    this.x = Math.max(0, Math.min(gameWidth - this.width, this.x));
+    this.y = Math.max(0, Math.min(gameHeight - this.height, this.y));
+  }
+
+  draw() {
+    ctx.save();
+    
+    const centerX = this.x + this.width / 2;
+    const centerY = this.y + this.height / 2;
+    
+    // 引擎火焰效果
+    ctx.shadowColor = '#ff6600';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.moveTo(centerX - 6, this.y + this.height);
+    ctx.lineTo(centerX, this.y + this.height + 12 + Math.random() * 8);
+    ctx.lineTo(centerX + 6, this.y + this.height);
+    ctx.closePath();
+    const flameGradient = ctx.createLinearGradient(centerX, this.y + this.height, centerX, this.y + this.height + 20);
+    flameGradient.addColorStop(0, '#ffff00');
+    flameGradient.addColorStop(0.5, '#ff6600');
+    flameGradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+    ctx.fillStyle = flameGradient;
+    ctx.fill();
+    
+    // 飞机发光
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 15;
+    
+    // 飞机主体
+    ctx.beginPath();
+    ctx.moveTo(centerX, this.y);
+    ctx.lineTo(centerX + 8, this.y + 18);
+    ctx.lineTo(this.x + this.width, this.y + this.height - 8);
+    ctx.lineTo(centerX + 12, this.y + this.height);
+    ctx.lineTo(centerX - 12, this.y + this.height);
+    ctx.lineTo(this.x, this.y + this.height - 8);
+    ctx.lineTo(centerX - 8, this.y + 18);
+    ctx.closePath();
+    
+    const gradient = ctx.createLinearGradient(centerX, this.y, centerX, this.y + this.height);
+    gradient.addColorStop(0, '#66e0ff');
+    gradient.addColorStop(0.5, this.color);
+    gradient.addColorStop(1, '#006688');
+    ctx.fillStyle = gradient;
+    ctx.fill();
+    
+    // 驾驶舱
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.ellipse(centerX, this.y + 20, 5, 10, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#aaffff';
+    ctx.fill();
+    
+    ctx.restore();
+    
+    // 调试模式
+    if (debugMode) {
+      ctx.save();
+      ctx.strokeStyle = '#ff0000';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 3]);
+      ctx.strokeRect(this.x, this.y, this.width, this.height);
+      ctx.setLineDash([]);
+      
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(centerX - 10, centerY);
+      ctx.lineTo(centerX + 10, centerY);
+      ctx.moveTo(centerX, centerY - 10);
+      ctx.lineTo(centerX, centerY + 10);
+      ctx.stroke();
+      
+      const labelX = Math.max(5, Math.min(this.x, gameWidth - 140));
+      const labelY = Math.max(50, this.y - 5);
+      
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillRect(labelX - 5, labelY - 40, 140, 45);
+      ctx.strokeStyle = '#00ff00';
+      ctx.strokeRect(labelX - 5, labelY - 40, 140, 45);
+      
+      ctx.fillStyle = '#00ff00';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText('Player', labelX, labelY - 25);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '10px monospace';
+      ctx.fillText(`X:${Math.round(this.x)} Y:${Math.round(this.y)}`, labelX, labelY - 10);
+      ctx.fillText(`Speed: ${this.speed}`, labelX, labelY + 2);
+      ctx.restore();
+    }
+  }
+
+  move(x, y) {
+    this.x = x;
+    this.y = y;
+  }
+}
+
+// 键盘状态追踪
+const keys = {
+  ArrowLeft: false,
+  ArrowRight: false,
+  ArrowUp: false,
+  ArrowDown: false,
+  w: false,
+  a: false,
+  s: false,
+  d: false
+};
+
+// 键盘事件监听
+document.addEventListener('keydown', (e) => {
+  if (keys.hasOwnProperty(e.key)) {
+    keys[e.key] = true;
+    e.preventDefault();
+  }
+});
+
+document.addEventListener('keyup', (e) => {
+  if (keys.hasOwnProperty(e.key)) {
+    keys[e.key] = false;
+  }
+});
+
+class Plane {
+  constructor(x, y, width, height, color) {
+    this.x = x;
+    this.y = y;
+    this.width = width;
+    this.height = height;
+    this.color = color;
+    this.speed = 8;
+  }
+
+  draw() {
+    ctx.save();
+    
+    const centerX = this.x + this.width / 2;
+    const centerY = this.y + this.height / 2;
+    
+    // 飞机尾部火焰
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.moveTo(centerX - 6, this.y + this.height);
+    ctx.lineTo(centerX, this.y + this.height + 15 + Math.random() * 8);
+    ctx.lineTo(centerX + 6, this.y + this.height);
+    ctx.closePath();
+    const flameGradient = ctx.createLinearGradient(centerX, this.y + this.height, centerX, this.y + this.height + 25);
+    flameGradient.addColorStop(0, '#ffff00');
+    flameGradient.addColorStop(0.5, '#ff6600');
+    flameGradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+    ctx.fillStyle = flameGradient;
+    ctx.fill();
+    
+    // 飞机主体发光
+    ctx.shadowColor = '#00ccff';
+    ctx.shadowBlur = 12;
+    
+    // 飞机主体
+    ctx.beginPath();
+    ctx.moveTo(centerX, this.y);
+    ctx.lineTo(centerX + 10, this.y + 20);
+    ctx.lineTo(this.x + this.width, this.y + this.height - 6);
+    ctx.lineTo(centerX + 15, this.y + this.height);
+    ctx.lineTo(centerX - 15, this.y + this.height);
+    ctx.lineTo(this.x, this.y + this.height - 6);
+    ctx.lineTo(centerX - 10, this.y + 20);
+    ctx.closePath();
+    
+    const gradient = ctx.createLinearGradient(centerX, this.y, centerX, this.y + this.height);
+    gradient.addColorStop(0, '#88ffff');
+    gradient.addColorStop(0.4, this.color);
+    gradient.addColorStop(1, '#005577');
+    ctx.fillStyle = gradient;
+    ctx.fill();
+    
+    // 驾驶舱
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.ellipse(centerX, this.y + 18, 5, 9, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#aaffff';
+    ctx.fill();
+    
+    ctx.restore();
+    
+    // 调试模式：显示碰撞框和信息
+    if (debugMode) {
+      ctx.save();
+      ctx.strokeStyle = '#00ff00';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 3]);
+      ctx.strokeRect(this.x, this.y, this.width, this.height);
+      ctx.setLineDash([]);
+      
+      // 十字准心
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(centerX - 15, centerY);
+      ctx.lineTo(centerX + 15, centerY);
+      ctx.moveTo(centerX, centerY - 15);
+      ctx.lineTo(centerX, centerY + 15);
+      ctx.stroke();
+      
+      // 信息标签
+      const labelX = Math.max(5, Math.min(this.x, gameWidth - 130));
+      const labelY = Math.max(45, this.y - 8);
+      
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+      ctx.fillRect(labelX - 3, labelY - 38, 130, 42);
+      ctx.strokeStyle = '#00ff00';
+      ctx.strokeRect(labelX - 3, labelY - 38, 130, 42);
+      
+      ctx.fillStyle = '#00ff00';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText('[Player]', labelX, labelY - 24);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '10px monospace';
+      ctx.fillText(`X:${Math.round(this.x)} Y:${Math.round(this.y)}`, labelX, labelY - 10);
+      ctx.fillText(`W:${this.width} H:${this.height}`, labelX, labelY + 2);
+      ctx.restore();
+    }
+  }
+
+  move(x, y) {
+    // 边界限制
+    this.x = Math.max(0, Math.min(gameWidth - this.width, x));
+    this.y = Math.max(0, Math.min(gameHeight - this.height, y));
+  }
+}
+
+// ==================== 游戏状态变量 ====================
+let player = null;
+let enemies = [];
+let bullets = [];
+let explosions = [];
+let gameRunning = false;
+let lastTime = 0;
+let enemySpawnTimer = 0;
+let shootCooldown = 0;
+
+// 鼠标位置追踪
+let mouseX = gameWidth / 2;
+let mouseY = gameHeight - 100;
+
+// ==================== 鼠标事件监听 ====================
+canvas.addEventListener('mousemove', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+  mouseY = e.clientY - rect.top;
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.touches[0].clientX - rect.left;
+  mouseY = e.touches[0].clientY - rect.top;
+}, { passive: false });
+
+// ==================== 游戏初始化 ====================
+function initGame() {
+  // 创建玩家飞机（居中底部）
+  player = new Plane(
+    gameWidth / 2 - 25,  // X位置
+    gameHeight - 80,     // Y位置
+    50,                  // 宽度
+    50,                  // 高度
+    '#00aaff'            // 颜色
+  );
+  
+  enemies = [];
+  bullets = [];
+  explosions = [];
+  score = 0;
+  gameRunning = true;
+  lastTime = performance.now();
+  
+  console.log('🎮 游戏初始化完成');
+  console.log('✈️ 玩家飞机已创建:', player);
+  
+  // 启动游戏循环
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== 游戏主循环 ====================
+function gameLoop(currentTime) {
+  if (!gameRunning) return;
+  
+  const deltaTime = currentTime - lastTime;
+  lastTime = currentTime;
+  
+  // 更新游戏状态
+  updateGame(deltaTime);
+  
+  // 渲染游戏画面
+  renderGame();
+  
+  // 继续下一帧
+  requestAnimationFrame(gameLoop);
+}
+
+// ==================== 更新游戏状态 ====================
+function updateGame(deltaTime) {
+  // 键盘移动
+  const moveSpeed = player.speed;
+  let targetX = player.x;
+  let targetY = player.y;
+  
+  if (keys.ArrowLeft || keys.a) targetX -= moveSpeed;
+  if (keys.ArrowRight || keys.d) targetX += moveSpeed;
+  if (keys.ArrowUp || keys.w) targetY -= moveSpeed;
+  if (keys.ArrowDown || keys.s) targetY += moveSpeed;
+  
+  // 鼠标跟随（平滑过渡）
+  const mouseTargetX = mouseX - player.width / 2;
+  const mouseTargetY = mouseY - player.height / 2;
+  
+  // 如果鼠标移动距离较大，使用鼠标控制
+  if (Math.abs(mouseTargetX - player.x) > 5 || Math.abs(mouseTargetY - player.y) > 5) {
+    targetX += (mouseTargetX - player.x) * 0.15;
+    targetY += (mouseTargetY - player.y) * 0.15;
+  }
+  
+  player.move(targetX, targetY);
+  
+  // 更新敌机
+  enemySpawnTimer += deltaTime;
+  if (enemySpawnTimer > 1500) {  // 每1.5秒生成敌机
+    spawnEnemy();
+    enemySpawnTimer = 0;
+  }
+  
+  // 移动敌机
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    enemies[i].move();
+    if (enemies[i].y > gameHeight + 50) {
+      enemies.splice(i, 1);
+    }
+  }
+  
+  // 自动射击
+  shootCooldown += deltaTime;
+  if (shootCooldown > 200) {  // 每200ms射击一次
+    shootBullet();
+    shootCooldown = 0;
+  }
+  
+  // 移动子弹
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    bullets[i].move();
+    if (bullets[i].y < -20) {
+      bullets.splice(i, 1);
+    }
+  }
+  
+  // 更新爆炸效果
+  for (let i = explosions.length - 1; i >= 0; i--) {
+    explosions[i].update();
+    if (explosions[i].finished) {
+      explosions.splice(i, 1);
+    }
+  }
+  
+  // 碰撞检测
+  checkCollisions();
+}
+
+// ==================== 渲染游戏画面 ====================
+function renderGame() {
+  // 清空画布（使用半透明实现拖尾效果）
+  ctx.fillStyle = 'rgba(26, 26, 46, 0.3)';
+  ctx.fillRect(0, 0, gameWidth, gameHeight);
+  
+  // 绘制背景星星（性能优化：只绘制固定数量的星星）
+  drawStars();
+  
+  // 绘制子弹
+  bullets.forEach(bullet => bullet.draw());
+  
+  // 绘制敌机
+  enemies.forEach(enemy => enemy.draw());
+  
+  // 绘制玩家飞机
+  if (player) {
+    player.draw();
+  }
+  
+  // 绘制爆炸效果
+  explosions.forEach(explosion => explosion.draw());
+  
+  // 绘制分数和状态
+  drawHUD();
+}
+
+// ==================== 背景星星 ====================
+const stars = [];
+for (let i = 0; i < 100; i++) {
+  stars.push({
+    x: Math.random() * gameWidth,
+    y: Math.random() * gameHeight,
+    size: Math.random() * 2 + 1,
+    speed: Math.random() * 2 + 0.5
+  });
+}
+
+function drawStars() {
+  ctx.fillStyle = '#ffffff';
+  stars.forEach(star => {
+    star.y += star.speed;
+    if (star.y > gameHeight) {
+      star.y = 0;
+      star.x = Math.random() * gameWidth;
+    }
+    ctx.globalAlpha = Math.random() * 0.5 + 0.5;
+    ctx.beginPath();
+    ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+}
+
+// ==================== 生成敌机 ====================
+function spawnEnemy() {
+  const enemy = new Enemy(
+    Math.random() * (gameWidth - 40),
+    -50,
+    40,
+    40,
+    '#ff4444'
+  );
+  enemies.push(enemy);
+}
+
+// ==================== 发射子弹 ====================
+function shootBullet() {
+  if (!player) return;
+  const bullet = new Bullet(
+    player.x + player.width / 2 - 3,
+    player.y - 10,
+    6,
+    15,
+    '#00ff88'
+  );
+  bullets.push(bullet);
+}
+
+// ==================== 碰撞检测 ====================
+function checkCollisions() {
+  // 子弹与敌机碰撞
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    for (let j = enemies.length - 1; j >= 0; j--) {
+      if (isColliding(bullets[i], enemies[j])) {
+        // 创建爆炸效果
+        explosions.push(new Explosion(
+          enemies[j].x + enemies[j].width / 2,
+          enemies[j].y + enemies[j].height / 2,
+          5
+        ));
+        enemies.splice(j, 1);
+        bullets.splice(i, 1);
+        score += 100;
+        break;
+      }
+    }
+  }
+}
+
+function isColliding(a, b) {
+  return a.x < b.x + b.width &&
+         a.x + a.width > b.x &&
+         a.y < b.y + b.height &&
+         a.y + a.height > b.y;
+}
+
+// ==================== HUD 显示 ====================
+function drawHUD() {
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 20px monospace';
+  ctx.fillText(`得分: ${score}`, 20, 35);
+  
+  // 调试信息
+  if (debugMode) {
+    ctx.fillStyle = '#00ff00';
+    ctx.font = '12px monospace';
+    ctx.fillText(`敌机: ${enemies.length} | 子弹: ${bullets.length} | 爆炸: ${explosions.length}`, 20, gameHeight - 15);
+    
+    // 更新调试面板
+    const debugPanel = document.getElementById('debugPanel');
+    if (debugPanel) {
+      debugPanel.textContent = `调试模式: ON | 按 D 键切换 | 飞机位置: (${Math.round(player.x)}, ${Math.round(player.y)})`;
+    }
+  }
+}
+
+// ==================== 调试模式切换 ====================
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'd' || e.key === 'D') {
+    debugMode = !debugMode;
+    console.log('调试模式:', debugMode ? 'ON' : 'OFF');
+  }
+});
+
+// ==================== 启动游戏 ====================
+window.addEventListener('load', () => {
+  console.log('🚀 飞机大战游戏加载中...');
+  initGame();
+});
+</script>
+</body>
+</html>

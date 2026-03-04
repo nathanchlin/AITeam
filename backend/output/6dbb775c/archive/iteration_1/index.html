@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>黑白棋游戏</title>
+<style>
+  body {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+  }
+  canvas {
+    border: 2px solid #000;
+  }
+  #scoreboard {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+  }
+  #scoreboard p {
+    margin: 5px 0;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="400" height="400"></canvas>
+<div id="scoreboard">
+  <p>Score - Black: <span id="scoreBlack">2</span></p>
+  <p>Score - White: <span id="scoreWhite">2</span></p>
+  <p>Current: <span id="currentPlayer">Black</span></p>
+</div>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const boardSize = 8;
+  const cellSize = canvas.width / boardSize;
+  
+  let board = [];
+  let currentPlayer = 'black';
+  let scoreBlack = 2;
+  let scoreWhite = 2;
+
+  // 8个方向：上、下、左、右、四个对角
+  const DIRECTIONS = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [0, -1],           [0, 1],
+    [1, -1],  [1, 0],  [1, 1]
+  ];
+
+  function initializeBoard() {
+    board = [];
+    for (let i = 0; i < boardSize; i++) {
+      board[i] = [];
+      for (let j = 0; j < boardSize; j++) {
+        board[i][j] = null;
+      }
+    }
+    // 标准黑白棋初始布局
+    board[3][3] = 'white';
+    board[3][4] = 'black';
+    board[4][3] = 'black';
+    board[4][4] = 'white';
+    
+    scoreBlack = 2;
+    scoreWhite = 2;
+    currentPlayer = 'black';
+  }
+
+  function drawBoard() {
+    // 深绿色棋盘背景
+    ctx.fillStyle = '#2E8B57';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // 绘制网格线
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= boardSize; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * cellSize, 0);
+      ctx.lineTo(i * cellSize, canvas.height);
+      ctx.stroke();
+      
+      ctx.beginPath();
+      ctx.moveTo(0, i * cellSize);
+      ctx.lineTo(canvas.width, i * cellSize);
+      ctx.stroke();
+    }
+
+    // 绘制棋子
+    for (let i = 0; i < boardSize; i++) {
+      for (let j = 0; j < boardSize; j++) {
+        if (board[i][j]) {
+          drawPiece(i, j, board[i][j]);
+        }
+      }
+    }
+    drawScore();
+  }
+
+  function drawPiece(row, col, color) {
+    const centerX = col * cellSize + cellSize / 2;
+    const centerY = row * cellSize + cellSize / 2;
+    const radius = cellSize / 2 - 4;
+
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    ctx.fillStyle = color === 'black' ? '#000000' : '#FFFFFF';
+    ctx.fill();
+    
+    ctx.strokeStyle = '#333333';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  function drawScore() {
+    document.getElementById('scoreBlack').textContent = scoreBlack;
+    document.getElementById('scoreWhite').textContent = scoreWhite;
+    document.getElementById('currentPlayer').textContent = 
+      currentPlayer === 'black' ? 'Black' : 'White';
+  }
+
+  function onCanvasClick(event) {
+    const col = Math.floor(event.offsetX / cellSize);
+    const row = Math.floor(event.offsetY / cellSize);
+
+    // 边界检查
+    if (row < 0 || row >= boardSize || col < 0 || col >= boardSize) {
+      return;
+    }
+
+    // 必须落在空位
+    if (board[row][col] !== null) {
+      return;
+    }
+
+    // 先临时落子
+    board[row][col] = currentPlayer;
+    
+    // 检查并翻转棋子
+    const flippedCount = updateScore(row, col);
+    
+    if (flippedCount > 0) {
+      // 有效落子，切换玩家
+      currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
+      saveGameState();
+      drawBoard();
+    } else {
+      // 无效落子，撤销
+      board[row][col] = null;
+    }
+  }
+
+  function updateScore(row, col) {
+    const player = currentPlayer;
+    const opponent = player === 'black' ? 'white' : 'black';
+    let totalFlipped = [];
+
+    // 检查8个方向
+    for (const [dr, dc] of DIRECTIONS) {
+      let r = row + dr;
+      let c = col + dc;
+      let toFlip = [];
+
+      // 沿方向寻找连续的对方棋子
+      while (r >= 0 && r < boardSize && c >= 0 && c < boardSize && board[r][c] === opponent) {
+        toFlip.push([r, c]);
+        r += dr;
+        c += dc;
+      }
+
+      // 如果末端是自己的棋子，则中间的对方棋子可以被翻转
+      if (toFlip.length > 0 && 
+          r >= 0 && r < boardSize && 
+          c >= 0 && c < boardSize && 
+          board[r][c] === player) {
+        totalFlipped = totalFlipped.concat(toFlip);
+      }
+    }
+
+    // 执行翻转
+    for (const [fr, fc] of totalFlipped) {
+      board[fr][fc] = player;
+    }
+
+    // 更新分数统计
+    scoreBlack = 0;
+    scoreWhite = 0;
+    for (let i = 0; i < boardSize; i++) {
+      for (let j = 0; j < boardSize; j++) {
+        if (board[i][j] === 'black') {
+          scoreBlack++;
+        } else if (board[i][j] === 'white') {
+          scoreWhite++;
+        }
+      }
+    }
+    
+    drawScore();
+    return totalFlipped.length;
+  }
+
+  function saveGameState() {
+    const state = {
+      board: board,
+      currentPlayer: currentPlayer,
+      scoreBlack: scoreBlack,
+      scoreWhite: scoreWhite
+    };
+    localStorage.setItem('othelloGameState', JSON.stringify(state));
+  }
+
+  function loadGameState() {
+    const state = localStorage.getItem('othelloGameState');
+    if (state) {
+      try {
+        const loadedState = JSON.parse(state);
+        board = loadedState.board;
+        currentPlayer = loadedState.currentPlayer;
+        scoreBlack = loadedState.scoreBlack;
+        scoreWhite = loadedState.scoreWhite;
+      } catch (e) {
+        initializeBoard();
+      }
+    }
+  }
+
+  window.onload = function() {
+    canvas.addEventListener('click', onCanvasClick);
+    initializeBoard();
+    loadGameState();
+    drawBoard();
+  };
+</script>
+</body>
+</html>

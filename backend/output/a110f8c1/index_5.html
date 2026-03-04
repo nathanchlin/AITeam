@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Battle Effects System</title>
+<style>
+  body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #hitEffect {
+    position: absolute;
+    width: 50px;
+    height: 50px;
+    background-color: red;
+    border-radius: 50%;
+    opacity: 0;
+    pointer-events: none;
+  }
+  #damagePopup {
+    position: absolute;
+    font-size: 24px;
+    color: white;
+    opacity: 0;
+    transition: opacity 0.5s;
+  }
+  #button {
+    position: absolute;
+    width: 100px;
+    height: 50px;
+    background-color: blue;
+    color: white;
+    border: none;
+    cursor: pointer;
+  }
+  #button:hover {
+    animation: ripple 1s;
+  }
+  @keyframes ripple {
+    0% {
+      transform: scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(3);
+      opacity: 0;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="hitEffect"></div>
+<div id="damagePopup"></div>
+<button id="button">Click Me</button>
+<script>
+const config = {
+  canvas: document.getElementById('gameCanvas'),
+  ctx: config.canvas.getContext('2d'),
+  scale: 1,
+  width: window.innerWidth,
+  height: window.innerHeight
+};
+
+class ResourceManager {
+  constructor() {
+    this.resources = {};
+  }
+
+  load(url, callback) {
+    const image = new Image();
+    image.onload = () => {
+      this.resources[url] = image;
+      if (callback) callback(image);
+    };
+    image.src = url;
+  }
+
+  get(url) {
+    return this.resources[url];
+  }
+}
+
+class HitEffect {
+  constructor(x, y) {
+    this.x = x;
+    this.y = y;
+    this.size = 50;
+    this.opacity = 1;
+  }
+
+  update() {
+    this.opacity -= 0.01;
+    if (this.opacity <= 0) {
+      this.opacity = 0;
+    }
+  }
+
+  draw() {
+    config.ctx.save();
+    config.ctx.globalAlpha = this.opacity;
+    config.ctx.beginPath();
+    config.ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    config.ctx.fill();
+    config.ctx.restore();
+  }
+}
+
+class DamagePopup {
+  constructor(x, y, text, color) {
+    this.x = x;
+    this.y = y;
+    this.text = text;
+    this.color = color;
+    this.opacity = 1;
+  }
+
+  update() {
+    this.opacity -= 0.02;
+    if (this.opacity <= 0) {
+      this.opacity = 0;
+    }
+  }
+
+  draw() {
+    config.ctx.save();
+    config.ctx.globalAlpha = this.opacity;
+    config.ctx.fillStyle = this.color;
+    config.ctx.fillText(this.text, this.x, this.y);
+    config.ctx.restore();
+  }
+}
+
+class Game {
+  constructor() {
+    this.resourceManager = new ResourceManager();
+    this.hitEffects = [];
+    this.damagePopups = [];
+    this.init();
+  }
+
+  init() {
+    window.addEventListener('resize', () => {
+      config.width = window.innerWidth;
+      config.height = window.innerHeight;
+      config.canvas.width = config.width;
+      config.canvas.height = config.height;
+    });
+    document.getElementById('button').addEventListener('click', () => {
+      this.addHitEffect(config.canvas.width / 2, config.canvas.height / 2);
+      this.addDamagePopup(config.canvas.width / 2, config.canvas.height / 2, '100', 'gold');
+    });
+    requestAnimationFrame(this.gameLoop.bind(this));
+  }
+
+  gameLoop() {
+    this.update();
+    this.render();
+    requestAnimationFrame(this.gameLoop.bind(this));
+  }
+
+  update() {
+    this.hitEffects.forEach(effect => {
+      effect.update();
+      if (effect.opacity <= 0) {
+        this.hitEffects.splice(this.hitEffects.indexOf(effect), 1);
+      }
+    });
+    this.damagePopups.forEach(popup => {
+      popup.update();
+      if (popup.opacity <= 0) {
+        this.damagePopups.splice(this.damagePopups.indexOf(popup), 1);
+      }
+    });
+  }
+
+  render() {
+    config.ctx.clearRect(0, 0, config.width, config.height);
+    this.hitEffects.forEach(effect => effect.draw());
+    this.damagePopups.forEach(popup => popup.draw());
+  }
+
+  addHitEffect(x, y) {
+    const effect = new HitEffect(x, y);
+    this.hitEffects.push(effect);
+  }
+
+  addDamagePopup(x, y, text, color) {
+    const popup = new DamagePopup(x, y, text, color);
+    this.damagePopups.push(popup);
+  }
+}
+
+const game = new Game();
+</script>
+</body>
+</html>

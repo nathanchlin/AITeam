@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寻道大千 - 砍树修仙</title>
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #080810;
+            --bg-secondary: #101020;
+            --fg-primary: #e8e4d9;
+            --fg-secondary: #7a7a8a;
+            --accent-gold: #d4a54a;
+            --accent-cyan: #3ecdc4;
+            --accent-red: #d64545;
+            --accent-green: #45b76c;
+            --accent-wood: #8b6914;
+            --accent-spirit: #64b5f6;
+            --card-bg: rgba(16, 16, 32, 0.9);
+            --border-gold: rgba(212, 165, 74, 0.3);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--fg-primary);
+            font-family: 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+            min-height: 100vh;
+            user-select: none;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            cursor: crosshair;
+        }
+        
+        #gameCanvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        /* 顶部资源栏 */
+        .resource-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 20px;
+            background: linear-gradient(180deg, rgba(8,8,16,0.98) 0%, rgba(8,8,16,0.7) 80%, transparent 100%);
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            z-index: 20;
+        }
+        
+        .resource-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: rgba(20, 20, 35, 0.8);
+            border: 1px solid var(--border-gold);
+            border-radius: 25px;
+            min-width: 160px;
+        }
+        
+        .resource-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        
+        .resource-icon.wood {
+            background: linear-gradient(135deg, #5d4037 0%, #3e2723 100%);
+            border: 2px solid #8d6e63;
+        }
+        
+        .resource-icon.spirit {
+            background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%);
+            border: 2px solid #42a5f5;
+        }
+        
+        .resource-info {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .resource-label {
+            font-size: 11px;
+            color: var(--fg-secondary);
+        }
+        
+        .resource-value {
+            font-size: 18px;
+            font-weight: 700;
+            font-family: 'Ma Shan Zheng', cursive;
+        }
+        
+        .resource-value.wood { color: #d7a86e; }
+        .resource-value.spirit { color: #64b5f6; }
+        
+        /* 连击显示 */
+        .combo-display {
+            position: fixed;
+            top: 100px;
+            right: 30px;
+            text-align: right;
+            z-index: 20;
+            opacity: 0;
+            transform: scale(0.8);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        .combo-display.active {
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        .combo-count {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 64px;
+            color: var(--accent-gold);
+            text-shadow: 0 0 30px rgba(212, 165, 74, 0.6),
+                         0 4px 8px rgba(0,0,0,0.5);
+            line-height: 1;
+        }
+        
+        .combo-label {
+            font-size: 18px;
+            color: var(--accent-cyan);
+            letter-spacing: 8px;
+        }
+        
+        .combo-bonus {
+            font-size: 14px;
+            color: var(--accent-green);
+            margin-top: 5px;
+        }
+        
+        /* 底部信息 */
+        .bottom-info {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 20;
+        }
+        
+        .dps-display {
+            padding: 10px 25px;
+            background: rgba(20, 20, 35, 0.85);
+            border: 1px solid var(--border-gold);
+            border-radius: 20px;
+            font-size: 14px;
+        }
+        
+        .dps-value {
+            color: var(--accent-gold);
+            font-weight: 600;
+        }
+        
+        /* 提示文字 */
+        .hint-text {
+            position: fixed;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 14px;
+            color: var(--fg-secondary);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        
+        /* 境界显示 */
+        .realm-display {
+            position: fixed;
+            top: 80px;
+            left: 20px;
+            padding: 12px 18px;
+            background: rgba(20, 20, 35, 0.9);
+            border: 1px solid var(--border-gold);
+            border-radius: 12px;
+            z-index: 20;
+        }
+        
+        .realm-title {
+            font-size: 12px;
+            color: var(--fg-secondary);
+            margin-bottom: 4px;
+        }
+        
+        .realm-name {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 22px;
+            color: var(--accent-cyan);
+        }
+        
+        .realm-bar {
+            width: 120px;
+            height: 4px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        
+        .realm-progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-gold));
+            border-radius: 2px;
+            transition: width 0.3s ease;
+        }
+        
+        /* 伤害数字动画 */
+        @keyframes floatUp {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-80px) scale(0.8);
+            }
+        }
+        
+        .damage-number {
+            position: absolute;
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 28px;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            z-index: 100;
+        }
+        
+        /* 响应式 */
+        @media (max-width: 600px) {
+            .resource-bar {
+                gap: 15px;
+                padding: 10px;
+            }
+            .resource-item {
+                min-width: 120px;
+                padding: 6px 12px;
+            }
+            .resource-value {
+                font-size: 16px;
+            }
+            .combo-display {
+                right: 15px;
+                top: 85px;
+            }
+            .combo-count {
+                font-size: 48px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <!-- 资源栏 -->
+        <div class="resource-bar">
+            <div class="resource-item">
+                <div class="resource-icon wood">木</div>
+                <div class="resource-info">
+                    <span class="resource-label">仙木</span>
+                    <span class="resource-value wood" id="woodValue">0</span>
+                </div>
+            </div>
+            <div class="resource-item">
+                <div class="resource-icon spirit">灵</div>
+                <div class="resource-info">
+                    <span class="resource-label">灵石</span>
+                    <span class="resource-value spirit" id="spiritValue">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 连击显示 -->
+        <div class="combo-display" id="comboDisplay">
+            <div class="combo-count" id="comboCount">0</div>
+            <div class="combo-label">连击</div>
+            <div class="combo-bonus" id="comboBonus">+0% 加成</div>
+        </div>
+        
+        <!-- 境界显示 -->
+        <div class="realm-display">
+            <div class="realm-title">当前境界</div>
+            <div class="realm-name" id="realmName">凡人</div>
+            <div class="realm-bar">
+                <div class="realm-progress" id="realmProgress" style="width: 0%"></div>
+            </div>
+        </div>
+        
+        <!-- 提示 -->
+        <div class="hint-text">点击仙树开始砍伐</div>
+        
+        <!-- DPS显示 -->
+        <div class="bottom-info">
+            <div class="dps-display">
+                每秒产出: <span class="dps-value" id="dpsValue">0</span> 仙木
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // ============ 游戏核心配置 ============
+    const CONFIG = {
+        FPS: 60,
+        COMBO_TIMEOUT: 2000,      // 连击超时时间(ms)
+        COMBO_DECAY_RATE: 0.02,   // 连击衰减速率
+        BASE_WOOD: 1,             // 基础木材产出
+        BASE_SPIRIT_CHANCE: 0.05, // 基础灵石掉落概率
+        TREE_SHAKE_DURATION: 150, // 树震动持续时间
+        PARTICLE_COUNT: 8,        // 每次点击粒子数
+    };
+
+    // ============ 境界系统 ============
+    const REALMS = [
+        { name: '凡人', multiplier: 1, woodRequired: 0 },
+        { name: '练气', multiplier: 1.5, woodRequired: 100 },
+        { name: '筑基', multiplier: 2, woodRequired: 500 },
+        { name: '金丹', multiplier: 3, woodRequired: 2000 },
+        { name: '元婴', multiplier: 5, woodRequired: 8000 },
+        { name: '化神', multiplier: 8, woodRequired: 30000 },
+        { name: '炼虚', multiplier: 12, woodRequired: 100000 },
+        { name: '合体', multiplier: 20, woodRequired: 500000 },
+        { name: '大乘', multiplier: 35, woodRequired: 2000000 },
+        { name: '渡劫', multiplier: 50, woodRequired: 10000000 },
+        { name: '真仙', multiplier: 100, woodRequired: 50000000 },
+    ];
+
+    // ============ 游戏状态 ============
+    const GameState = {
+        wood: 0,
+        spirit: 0,
+        totalWood: 0,
+        combo: 0,
+        lastClickTime: 0,
+        currentRealmIndex: 0,
+        dps: 0,
+        dpsHistory: [],
+        isShaking: false,
+        shakeStartTime: 0,
+        shakeOffset: { x: 0, y: 0 },
+    };
+
+    // ============ Canvas 设置 ============
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+
+    function resizeCanvas() {
+        dpr = Math.min(window.devicePixelRatio || 1, 2);
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width * dpr;
+        canvas.height = height * dpr;
+        canvas.style.width = width + 'px';
+        canvas.style.height = height + 'px';
+        ctx.scale(dpr, dpr);
+    }
+
+    // ============ 粒子系统 ============
+    class Particle {
+        constructor(x, y, type) {
+            this.x = x;
+            this.y = y;
+            this.type = type; // 'wood' or 'spirit'
+            this.vx = (Math.random() - 0.5) * 8;
+            this.vy = -Math.random() * 6 - 4;
+            this.gravity = 0.15;
+            this.life = 1;
+            this.decay = 0.015 + Math.random() * 0.01;
+            this.size = type === 'spirit' ? 8 : 6;
+            this.rotation = Math.random() * Math.PI * 2;
+            this.rotationSpeed = (Math.random() - 0.5) * 0.2;
+        }
+
+        update() {
+            this.x += this.vx;
+            this.vy += this.gravity;
+            this.y += this.vy;
+            this.life -= this.decay;
+            this.rotation += this.rotationSpeed;
+            this.vx *= 0.98;
+            return this.life > 0;
+        }
+
+        draw(ctx) {
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.rotation);
+            ctx.globalAlpha = this.life;
+
+            if (this.type === 'wood') {
+                // 木材粒子 - 方块
+                const gradient = ctx.createLinearGradient(-this.size/2, -this.size/2, this.size/2, this.size/2);
+                gradient.addColorStop(0, '#d7a86e');
+                gradient.addColorStop(1, '#8b6914');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+            } else {
+                // 灵石粒子 - 菱形发光
+                ctx.shadowColor = '#64b5f6';
+                ctx.shadowBlur = 15;
+                ctx.fillStyle = '#64b5f6';
+                ctx.beginPath();
+                ctx.moveTo(0, -this.size);
+                ctx.lineTo(this.size * 0.6, 0);
+                ctx.lineTo(0, this.size);
+                ctx.lineTo(-this.size * 0.6, 0);
+                ctx.closePath();
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+    }
+
+    const particles = [];
+
+    // ============ 飘字系统 ============
+    class FloatingText {
+        constructor(x, y, text, color, size) {
+            this.x = x;
+            this.y = y;
+            this.text = text;
+            this.color = color;
+            this.size = size || 28;
+            this.life = 1;
+            this.vy = -2;
+            this.offsetX = (Math.random() - 0.5) * 40;
+        }
+
+        update() {
+            this.y += this.vy;
+            this.vy *= 0.95;
+            this.life -= 0.02;
+            return this.life > 0;
+        }
+
+        draw(ctx) {
+            ctx.save();
+            ctx.globalAlpha = this.life;
+            ctx.font = `bold ${this.size}px "Ma Shan Zheng", cursive`;
+            ctx.textAlign = 'center';
+            ctx.fillStyle = this.color;
+            ctx.shadowColor = this.color;
+            ctx.shadowBlur = 10;
+            ctx.fillText(this.text, this.x + this.offsetX, this.y);
+            ctx.restore();
+        }
+    }
+
+    const floatingTexts = [];
+
+    // ============ 仙树绘制 ============
+    class ImmortalTree {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.baseWidth = 80;
+            this.treeHeight = 280;
+            this.time = 0;
+            this.glowIntensity = 0;
+        }
+
+        update(dt) {
+            this.time += dt;
+            // 发光效果随时间波动
+            this.glowIntensity = 0.3 + Math.sin(this.time * 2) * 0.2;
+        }
+
+        draw(ctx, shakeX, shakeY) {
+            ctx.save();
+            ctx.translate(this.x + shakeX, this.y + shakeY);
+
+            // 树的光晕效果
+            const glowGradient = ctx.createRadialGradient(0, -this.treeHeight/2, 0, 0, -this.treeHeight/2, 200);
+            glowGradient.addColorStop(0, `rgba(100, 181, 246, ${this.glowIntensity * 0.3})`);
+            glowGradient.addColorStop(0.5, `rgba(100, 181, 246, ${this.glowIntensity * 0.1})`);
+            glowGradient.addColorStop(1, 'rgba(100, 181, 246, 0)');
+            ctx.fillStyle = glowGradient;
+            ctx.beginPath();
+            ctx.arc(0, -this.treeHeight/2, 200, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 树干
+            this.drawTrunk(ctx);
+            
+            // 树枝和树叶
+            this.drawBranches(ctx);
+            
+            // 树冠
+            this.drawCrown(ctx);
+
+            // 符文效果
+            this.drawRunes(ctx);
+
+            ctx.restore();
+        }
+
+        drawTrunk(ctx) {
+            // 主树干
+            const trunkGradient = ctx.createLinearGradient(-this.baseWidth/2, 0, this.baseWidth/2, 0);
+            trunkGradient.addColorStop(0, '#2d1f14');
+            trunkGradient.addColorStop(0.3, '#4a3728');
+            trunkGradient.addColorStop(0.7, '#4a3728');
+            trunkGradient.addColorStop(1, '#2d1f14');
+
+            ctx.fillStyle = trunkGradient;
+            ctx.beginPath();
+            ctx.moveTo(-this.baseWidth/2, 0);
+            
+            // 树干轮廓 - 略微不规则
+            const points = [
+                [-this.baseWidth/2, 0],
+                [-this.baseWidth/2 + 5, -50],
+                [-this.baseWidth/3, -120],
+                [-this.baseWidth/4, -180],
+                [-this.baseWidth/6, -this.treeHeight + 50],
+                [0, -this.treeHeight],
+                [this.baseWidth/6, -this.treeHeight + 50],
+                [this.baseWidth/4, -180],
+                [this.baseWidth/3, -120],
+                [this.baseWidth/2 - 5, -50],
+                [this.baseWidth/2, 0],
+            ];
+
+            ctx.moveTo(points[0][0], points[0][1]);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i][0], points[i][1]);
+            }
+            ctx.closePath();
+            ctx.fill();
+
+            // 树干纹理
+            ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < 8; i++) {
+                const y = -30 - i * 30;
+                const widthFactor = 1 - i * 0.08;
+                ctx.beginPath();
+                ctx.moveTo(-this.baseWidth/3 * widthFactor, y);
+                ctx.quadraticCurveTo(0, y - 10, this.baseWidth/3 * widthFactor, y);
+                ctx.stroke();
+            }
+        }
+
+        drawBranches(ctx) {
+            ctx.strokeStyle = '#3d2a1a';
+            ctx.lineWidth = 8;
+            ctx.lineCap = 'round';
+
+            const branches = [
+                { x: -60, y: -180, angle: -0.8, length: 70 },
+                { x: 55, y: -170, angle: 0.7, length: 65 },
+                { x: -45, y: -220, angle: -1.0, length: 50 },
+                { x: 40, y: -210, angle: 0.9, length: 55 },
+                { x: -30, y: -250, angle: -1.2, length: 40 },
+                { x: 25, y: -240, angle: 1.1, length: 45 },
+            ];
+
+            branches.forEach(b => {
+                ctx.beginPath();
+                ctx.moveTo(b.x, b.y);
+                const endX = b.x + Math.cos(b.angle) * b.length;
+                const endY = b.y + Math.sin(b.angle) * b.length * 0.5;
+                ctx.quadraticCurveTo(
+                    b.x + Math.cos(b.angle) * b.length * 0.5,
+                    b.y + b.length * 0.2,
+                    endX, endY
+                );
+                ctx.stroke();
+            });
+        }
+
+        drawCrown(ctx) {
+            // 多层树叶
+            const leafLayers = [
+                { y: -this.treeHeight + 30, radius: 90, color: '#1a4d1a' },
+                { y: -this.treeHeight + 10, radius: 100, color: '#2d5a2d' },
+                { y: -this.treeHeight - 10, radius: 95, color: '#3d6b3d' },
+                { y: -this.treeHeight - 30, radius: 80, color: '#4a7a4a' },
+            ];
+
+            leafLayers.forEach(layer => {
+                // 主树冠
+                const gradient = ctx.createRadialGradient(0, layer.y, 0, 0, layer.y, layer.radius);
+                gradient.addColorStop(0, layer.color);
+                gradient.addColorStop(0.7, layer.color);
+                gradient.addColorStop(1, 'rgba(26, 77, 26, 0.3)');
+
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                
+                // 不规则圆形树冠
+                for (let a = 0; a < Math.PI * 2; a += 0.1) {
+                    const r = layer.radius * (0.85 + Math.sin(a * 5 + this.time) * 0.15);
+                    const x = Math.cos(a) * r;
+                    const y = layer.y + Math.sin(a) * r * 0.7;
+                    if (a === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            // 发光点缀
+            for (let i = 0; i < 15; i++) {
+                const angle = (i / 15) * Math.PI * 2 + this.time * 0.5;
+                const radius = 50 + Math.sin(this.time * 3 + i) * 20;
+                const x = Math.cos(angle) * radius;
+                const y = -this.treeHeight + Math.sin(angle) * radius * 0.5;
+                
+                const glowSize = 3 + Math.sin(this.time * 4 + i * 0.5) * 2;
+                const gradient = ctx.createRadialGradient(x, y, 0, x, y, glowSize * 3);
+                gradient.addColorStop(0, 'rgba(100, 255, 200, 0.8)');
+                gradient.addColorStop(0.5, 'rgba(100, 255, 200, 0.3)');
+                gradient.addColorStop(1, 'rgba(100, 255, 200, 0)');
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(x, y, glowSize * 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        drawRunes(ctx) {
+            // 树干上的符文
+            ctx.font = '16px "Ma Shan Zheng"';
+            ctx.fillStyle = `rgba(100, 181, 246, ${0.3 + Math.sin(this.time * 2) * 0.2})`;
+            ctx.shadowColor = '#64b5f6';
+            ctx.shadowBlur = 10;
+            ctx.textAlign = 'center';
+            
+            const runes = ['道', '仙', '灵', '玄'];
+            runes.forEach((rune, i) => {
+                const y = -60 - i * 50;
+                const wobble = Math.sin(this.time * 3 + i) * 3;
+                ctx.fillText(rune, wobble, y);
+            });
+            ctx.shadowBlur = 0;
+        }
+
+        // 检测点击是否在树上
+        isPointOnTree(px, py) {
+            const dx = px - this.x;
+            const dy = py - this.y;
+            
+            // 简化的碰撞检测 - 椭圆区域
+            const inTrunk = Math.abs(dx) < this.baseWidth/2 + 20 && dy < 0 && dy > -this.treeHeight;
+            const inCrown = Math.sqrt(dx*dx + (dy + this.treeHeight - 30) * (dy + this.treeHeight - 30) / 0.5) < 100;
+            
+            return inTrunk || inCrown;
+        }
+    }
+
+    // ============ 背景绘制 ============
+    function drawBackground(ctx) {
+        // 渐变夜空
+        const skyGradient = ctx.createLinearGradient(0, 0, 0, height);
+        skyGradient.addColorStop(0, '#050510');
+        skyGradient.addColorStop(0.5, '#0a0a1a');
+        skyGradient.addColorStop(1, '#151525');
+        ctx.fillStyle = skyGradient;
+        ctx.fillRect(0, 0, width, height);
+
+        // 星星
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        for (let i = 0; i < 100; i++) {
+            const x = (i * 137.5) % width;
+            const y = (i * 73.3) % (height * 0.6);
+            const size = 0.5 + Math.sin(Date.now() * 0.001 + i) * 0.5;
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 月亮
+        const moonGradient = ctx.createRadialGradient(width - 100, 80, 0, width - 100, 80, 50);
+        moonGradient.addColorStop(0, 'rgba(255, 250, 220, 0.9)');
+        moonGradient.addColorStop(0.5, 'rgba(255, 250, 220, 0.4)');
+        moonGradient.addColorStop(1, 'rgba(255, 250, 220, 0)');
+        ctx.fillStyle = moonGradient;
+        ctx.beginPath();
+        ctx.arc(width - 100, 80, 50, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 远山
+        drawMountains(ctx);
+
+        // 地面
+        const groundGradient = ctx.createLinearGradient(0, height - 100, 0, height);
+        groundGradient.addColorStop(0, '#1a1a2e');
+        groundGradient.addColorStop(1, '#0f0f1a');
+        ctx.fillStyle = groundGradient;
+        ctx.fillRect(0, height - 100, width, 100);
+
+        // 草地纹理
+        ctx.strokeStyle = 'rgba(34, 85, 34, 0.3)';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < width; i += 15) {
+            const h = 10 + Math.random() * 15;
+            ctx.beginPath();
+            ctx.moveTo(i, height - 100);
+            ctx.quadraticCurveTo(i + 5, height - 100 - h, i + 10, height - 100);
+            ctx.stroke();
+        }
+    }
+
+    function drawMountains(ctx) {
+        // 远山层1
+        ctx.fillStyle = 'rgba(20, 20, 35, 0.8)';
+        ctx.beginPath();
+        ctx.moveTo(0, height - 150);
+        for (let x = 0; x <= width; x += 50) {
+            const y = height - 200 + Math.sin(x * 0.01) * 50 + Math.sin(x * 0.005) * 30;
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo(width, height - 100);
+        ctx.lineTo(0, height - 100);
+        ctx.closePath();
+        ctx.fill();
+
+        // 远山层2
+        ctx.fillStyle = 'rgba(30, 30, 50, 0.6)';
+        ctx.beginPath();
+        ctx.moveTo(0, height - 180);
+        for (let x = 0; x <= width; x += 40) {
+            const y = height - 250 + Math.sin(x * 0.015 + 1) * 60 + Math.sin(x * 0.008) * 20;
+            ctx.lineTo(x, y);
+        }
+        ctx.lineTo(width, height - 150);
+        ctx.lineTo(0, height - 150);
+        ctx.closePath();
+        ctx.fill();
+    }
+
+    // ============ 资源产出计算 ============
+    function calculateResourceOutput() {
+        const realm = REALMS[GameState.currentRealmIndex];
+        const comboBonus = 1 + (GameState.combo * 0.05); // 每连击+5%
+        
+        // 木材产出
+        const wood = Math.floor(CONFIG.BASE_WOOD * realm.multiplier * comboBonus * (1 + Math.random() * 0.2));
+        
+        // 灵石产出（概率性）
+        let spirit = 0;
+        const spiritChance = CONFIG.BASE_SPIRIT_CHANCE * (1 + GameState.combo * 0.01);
+        if (Math.random() < spiritChance) {
+            spirit = Math.floor(1 + realm.multiplier * 0.5 * (1 + Math.random()));
+        }
+        
+        return { wood, spirit };
+    }
+
+    // ============ 连击系统 ============
+    function updateCombo() {
+        const now = Date.now();
+        if (now - GameState.lastClickTime > CONFIG.COMBO_TIMEOUT) {
+            // 连击超时，重置
+            GameState.combo = 0;
+            document.getElementById('comboDisplay').classList.remove('active');
+        }
+    }
+
+    function addCombo() {
+        GameState.combo++;
+        GameState.lastClickTime = Date.now();
+        
+        const comboDisplay = document.getElementById('comboDisplay');
+        const comboCount = document.getElementById('comboCount');
+        const comboBonus = document.getElementById('comboBonus');
+        
+        comboDisplay.classList.add('active');
+        comboCount.textContent = GameState.combo;
+        comboBonus.textContent = `+${Math.floor(GameState.combo * 5)}% 加成`;
+        
+        // 动画效果
+        comboCount.style.transform = 'scale(1.2)';
+        setTimeout(() => {
+            comboCount.style.transform = 'scale(1)';
+        }, 100);
+    }
+
+    // ============ 境界系统 ============
+    function updateRealm() {
+        const currentRealm = REALMS[GameState.currentRealmIndex];
+        const nextRealm = REALMS[GameState.currentRealmIndex + 1];
+        
+        if (nextRealm && GameState.totalWood >= nextRealm.woodRequired) {
+            GameState.currentRealmIndex++;
+            document.getElementById('realmName').textContent = nextRealm.name;
+            
+            // 境界提升特效
+            showRealmUpEffect(nextRealm.name);
+        }
+        
+        // 更新进度条
+        if (nextRealm) {
+            const progress = ((GameState.totalWood - currentRealm.woodRequired) / 
+                             (nextRealm.woodRequired - currentRealm.woodRequired)) * 100;
+            document.getElementById('realmProgress').style.width = Math.min(100, Math.max(0, progress)) + '%';
+        } else {
+            document.getElementById('realmProgress').style.width = '100%';
+        }
+    }
+
+    function showRealmUpEffect(realmName) {
+        const text = new FloatingText(width/2, height/2, `突破至 ${realmName}!`, '#64b5f6', 48);
+        floatingTexts.push(text);
+        
+        // 大量粒子
+        for (let i = 0; i < 30; i++) {
+            const p = new Particle(width/2, height/2, 'spirit');
+            p.vx = (Math.random() - 0.5) * 20;
+            p.vy = (Math.random() - 0.5) * 20;
+            particles.push(p);
+        }
+    }
+
+    // ============ UI 更新 ============
+    function updateUI() {
+        document.getElementById('woodValue').textContent = formatNumber(GameState.wood);
+        document.getElementById('spiritValue').textContent = formatNumber(GameState.spirit);
+    }
+
+    function formatNumber(num) {
+        if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    }
+
+    function updateDPS(woodGained) {
+        const now = Date.now();
+        GameState.dpsHistory.push({ time: now, amount: woodGained });
+        
+        // 只保留最近1秒的数据
+        GameState.dpsHistory = GameState.dpsHistory.filter(item => now - item.time < 1000);
+        
+        // 计算DPS
+        const totalDPS = GameState.dpsHistory.reduce((sum, item) => sum + item.amount, 0);
+        document.getElementById('dpsValue').textContent = formatNumber(totalDPS);
+    }
+
+    // ============ 震动效果 ============
+    function triggerShake() {
+        GameState.isShaking = true;
+        GameState.shakeStartTime = Date.now();
+    }
+
+    function updateShake() {
+        if (!GameState.isShaking) {
+            GameState.shakeOffset = { x: 0, y: 0 };
+            return;
+        }
+        
+        const elapsed = Date.now() - GameState.shakeStartTime;
+        if (elapsed > CONFIG.TREE_SHAKE_DURATION) {
+            GameState.isShaking = false;
+            GameState.shakeOffset = { x: 0, y: 0 };
+            return;
+        }
+        
+        const intensity = 1 - (elapsed / CONFIG.TREE_SHAKE_DURATION);
+        const shakeAmount = 8 * intensity;
+        GameState.shakeOffset = {
+            x: (Math.random() - 0.5) * shakeAmount * 2,
+            y: (Math.random() - 0.5) * shakeAmount
+        };
+    }
+
+    // ============ 点击处理 ============
+    let tree = null;
+
+    function handleClick(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        if (tree && tree.isPointOnTree(x, y)) {
+            // 计算资源产出
+            const output = calculateResourceOutput();
+            
+            // 更新资源
+            GameState.wood += output.wood;
+            GameState.totalWood += output.wood;
+            if (output.spirit > 0) {
+                GameState.spirit += output.spirit;
+            }
+            
+            // 更新连击
+            addCombo();
+            
+            // 触发震动
+            triggerShake();
+            
+            // 生成粒子
+            for (let i = 0; i < CONFIG.PARTICLE_COUNT; i++) {
+                const type = i < CONFIG.PARTICLE_COUNT - 1 ? 'wood' : 
+                            (output.spirit > 0 ? 'spirit' : 'wood');
+                particles.push(new Particle(x, y, type));
+            }
+            
+            // 飘字
+            const woodText = new FloatingText(x, y - 20, `+${output.wood}`, '#d7a86e');
+            floatingTexts.push(woodText);
+            
+            if (output.spirit > 0) {
+                const spiritText = new FloatingText(x + 30, y - 40, `+${output.spirit} 灵石`, '#64b5f6', 22);
+                floatingTexts.push(spiritText);
+            }
+            
+            // 更新DPS
+            updateDPS(output.wood);
+            
+            // 更新UI
+            updateUI();
+            updateRealm();
+        }
+    }
+
+    // ============ 游戏主循环 ============
+    let lastTime = 0;
+
+    function gameLoop(timestamp) {
+        const deltaTime = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+
+        // 清空画布
+        ctx.clearRect(0, 0, width, height);
+
+        // 更新
+        updateShake();
+        updateCombo();
+        
+        // 绘制背景
+        drawBackground(ctx);
+        
+        // 更新和绘制树
+        if (tree) {
+            tree.update(deltaTime);
+            tree.draw(ctx, GameState.shakeOffset.x, GameState.shakeOffset.y);
+        }
+        
+        // 更新和绘制粒子
+        for (let i = particles.length - 1; i >= 0; i--) {
+            if (!particles[i].update()) {
+                particles.splice(i, 1);
+            } else {
+                particles[i].draw(ctx);
+            }
+        }
+        
+        // 更新和绘制飘字
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            if (!floatingTexts[i].update()) {
+                floatingTexts.splice(i, 1);
+            } else {
+                floatingTexts[i].draw(ctx);
+            }
+        }
+
+        requestAnimationFrame(gameLoop);
+    }
+
+    // ============ 初始化 ============
+    function init() {
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // 创建仙树
+        tree = new ImmortalTree(width / 2, height - 100);
+        
+        // 绑定点击事件
+        canvas.addEventListener('click', handleClick);
+        
+        // 触摸事件支持
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleClick({ clientX: touch.clientX, clientY: touch.clientY });
+        }, { passive: false });
+        
+        // 初始化UI
+        updateUI();
+        
+        // 开始游戏循环
+        lastTime = performance.now();
+        requestAnimationFrame(gameLoop);
+    }
+
+    // DOM加载完成后初始化
+    window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

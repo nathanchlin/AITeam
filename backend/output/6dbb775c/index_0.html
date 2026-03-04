@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>黑白棋游戏</title>
+<style>
+  body {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+  }
+  canvas {
+    border: 2px solid #000;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="400" height="400"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const boardSize = 8;
+  const cellSize = canvas.width / boardSize;
+  let board = [];
+  let currentPlayer = 'black';
+
+  function initializeBoard() {
+    for (let i = 0; i < boardSize; i++) {
+      board[i] = [];
+      for (let j = 0; j < boardSize; j++) {
+        board[i][j] = null;
+      }
+    }
+  }
+
+  function drawBoard() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+    ctx.moveTo(0, cellSize);
+    ctx.lineTo(canvas.width, cellSize);
+    ctx.moveTo(0, 2 * cellSize);
+    ctx.lineTo(canvas.width, 2 * cellSize);
+    // ... 继续绘制棋盘线
+    for (let i = 0; i < boardSize; i++) {
+      for (let j = 0; j < boardSize; j++) {
+        if (board[i][j]) {
+          drawPiece(i, j, board[i][j]);
+        }
+      }
+    }
+  }
+
+  function drawPiece(x, y, color) {
+    const offset = 10;
+    const pieceSize = cellSize - 2 * offset;
+    const startX = x * cellSize + offset;
+    const startY = y * cellSize + offset;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(startX + pieceSize / 2, startY + pieceSize / 2, pieceSize / 2, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+
+  function onCanvasClick(event) {
+    const x = Math.floor((event.offsetX - 10) / cellSize);
+    const y = Math.floor((event.offsetY - 10) / cellSize);
+    if (board[x][y] === null) {
+      board[x][y] = currentPlayer;
+      currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
+      drawBoard();
+    }
+  }
+
+  function startGameLoop() {
+    requestAnimationFrame(startGameLoop);
+    drawBoard();
+  }
+
+  window.onload = function() {
+    canvas.addEventListener('click', onCanvasClick);
+    initializeBoard();
+    drawBoard();
+    startGameLoop();
+  };
+</script>
+</body>
+</html>

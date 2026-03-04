@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas Scene and Character Rendering</title>
+<style>
+  body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+const config = {
+  canvas: document.getElementById('gameCanvas'),
+  ctx: config.canvas.getContext('2d'),
+  scale: 1,
+  width: window.innerWidth,
+  height: window.innerHeight
+};
+
+class ResourceManager {
+  constructor() {
+    this.resources = {};
+  }
+
+  load(url, callback) {
+    const image = new Image();
+    image.onload = () => {
+      this.resources[url] = image;
+      if (callback) callback(image);
+    };
+    image.src = url;
+  }
+
+  get(url) {
+    return this.resources[url];
+  }
+}
+
+class GameStateMachine {
+  constructor() {
+    this.states = {
+      menu: {
+        enter: () => console.log('Entering Menu State'),
+        exit: () => console.log('Exiting Menu State'),
+        update: () => console.log('Updating Menu State'),
+        render: () => console.log('Rendering Menu State')
+      },
+      battle: {
+        enter: () => console.log('Entering Battle State'),
+        exit: () => console.log('Exiting Battle State'),
+        update: () => console.log('Updating Battle State'),
+        render: () => this.renderBattle
+      },
+      idle: {
+        enter: () => console.log('Entering Idle State'),
+        exit: () => console.log('Exiting Idle State'),
+        update: () => console.log('Updating Idle State'),
+        render: () => this.renderIdle
+      }
+    };
+    this.currentState = null;
+  }
+
+  changeState(state) {
+    if (this.currentState) {
+      this.currentState.exit();
+    }
+    this.currentState = this.states[state];
+    if (this.currentState) {
+      this.currentState.enter();
+    }
+  }
+
+  renderBattle() {
+    // Clear the canvas
+    config.ctx.clearRect(0, 0, config.width, config.height);
+    // Draw background layers
+    this.drawBackground('clouds.png', 0.5);
+    this.drawBackground('mountains.png', 1);
+    this.drawBackground('bamboo.png', 1.5);
+    // Draw the character
+    this.drawCharacter('character.png', 100, 100);
+  }
+
+  renderIdle() {
+    // Similar to renderBattle, but without the attack animation
+    // ...
+  }
+
+  drawBackground(imageSrc, speed) {
+    const image = config.resourceManager.get(imageSrc);
+    config.ctx.drawImage(image, 0, 0, config.width, config.height);
+    config.ctx.drawImage(image, 0, 0, config.width, config.height);
+  }
+
+  drawCharacter(imageSrc, x, y) {
+    const image = config.resourceManager.get(imageSrc);
+    config.ctx.drawImage(image, x, y);
+  }
+}
+
+class Game {
+  constructor() {
+    this.resourceManager = new ResourceManager();
+    this.gameStateMachine = new GameStateMachine();
+    this.gameStateMachine.changeState('menu');
+    this.init();
+  }
+
+  init() {
+    this.resourceManager.load('clouds.png', () => {
+      this.resourceManager.load('mountains.png', () => {
+        this.resourceManager.load('bamboo.png', () => {
+          this.resourceManager.load('character.png', () => {
+            this.gameStateMachine.changeState('battle');
+          });
+        });
+      });
+    });
+    window.addEventListener('resize', () => {
+      config.width = window.innerWidth;
+      config.height = window.innerHeight;
+      config.canvas.width = config.width;
+      config.canvas.height = config.height;
+      config.scale = Math.min(config.width / 800, config.height / 600);
+      config.canvas.style.width = `${config.width}px`;
+      config.canvas.style.height = `${config.height}px`;
+    });
+  }
+
+  update() {
+    if (this.gameStateMachine.currentState) {
+      this.gameStateMachine.currentState.update();
+    }
+  }
+
+  render() {
+    config.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+    config.ctx.fillRect(0, 0, config.width, config.height);
+    this.update();
+    requestAnimationFrame(this.render.bind(this));
+  }
+}
+
+window.onload = () => {
+  const game = new Game();
+  game.render();
+};
+</script>
+</body>
+</html>

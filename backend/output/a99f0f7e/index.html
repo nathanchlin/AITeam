@@ -166,8 +166,9 @@
         </div>
     </div>
 
-    <script>
-        // 游戏配置
+    
+<script>
+// 游戏配置
         const CONFIG = {
             canvasWidth: 1000,
             canvasHeight: 600,
@@ -270,14 +271,14 @@
         }
 
         // 食物类
-        class Food extends Ball {
-            constructor(x, y) {
-                super(x, y, 
-                    Math.random() * (CONFIG.maxFoodSize - CONFIG.minFoodSize) + CONFIG.minFoodSize,
-                    `hsl(${Math.random() * 360}, 70%, 60%)`
-                );
-            }
-        }
+
+
+
+
+
+
+
+
 
         // 敌人类
         class Enemy extends Ball {
@@ -305,33 +306,33 @@
         }
 
         // 玩家类
-        class Player extends Ball {
-            constructor(x, y) {
-                super(x, y, 20, '#4CAF50');
-                this.isAlive = true;
-            }
 
-            move() {
-                // 使用鼠标位置控制移动
-                const targetX = mouseX;
-                const targetY = mouseY;
-                
-                // 计算方向向量
-                const dx = targetX - this.x;
-                const dy = targetY - this.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-                
-                // 如果距离大于0，则移动
-                if (distance > 0) {
-                    // 根据球的大小调整速度
-                    const speed = CONFIG.playerSpeed * (1 - this.radius / 200);
-                    this.dx = (dx / distance) * speed;
-                    this.dy = (dy / distance) * speed;
-                    
-                    super.move();
-                }
-            }
-        }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
         // 鼠标位置
         let mouseX = canvas.width / 2;
@@ -532,8 +533,7 @@
 
         // 初始化游戏循环
         gameLoop();
-    </script>
-<script>
+
 // From code_1.js
 // 游戏主类
 class Game {

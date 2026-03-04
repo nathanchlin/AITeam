@@ -1,0 +1,2666 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>心跳回忆 - 校园物语</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-dark: #1a1a2e;
+            --bg-medium: #16213e;
+            --bg-lighter: #1f2b4d;
+            --accent-sakura: #ffb7c5;
+            --accent-gold: #ffd700;
+            --text-light: #f0e6d3;
+            --text-dim: #a0a0b0;
+            --ui-glass: rgba(255, 255, 255, 0.1);
+            --stat-knowledge: #6b8cce;
+            --stat-charm: #ff6b8a;
+            --stat-stamina: #4ecdc4;
+            --stat-social: #ffd700;
+            --stat-art: #9b59b6;
+            --stat-fitness: #e67e22;
+            --glass-bg: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(22, 33, 62, 0.95));
+            --glass-border: rgba(255, 183, 197, 0.3);
+            --danger: #e74c3c;
+            --success: #2ecc71;
+        }
+
+        body {
+            background: var(--bg-dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Hiragino Sans', 'Microsoft YaHei', sans-serif;
+            overflow: hidden;
+        }
+
+        .game-wrapper {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .game-container {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 
+                0 0 60px rgba(255, 183, 197, 0.3),
+                0 20px 60px rgba(0, 0, 0, 0.5);
+            transform-origin: center center;
+            transition: transform 0.3s ease;
+        }
+
+        #gameCanvas {
+            display: block;
+            cursor: pointer;
+        }
+
+        /* 主菜单界面 */
+        .main-menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            background: linear-gradient(180deg, 
+                rgba(26, 26, 46, 0.95) 0%,
+                rgba(22, 33, 62, 0.9) 50%,
+                rgba(26, 26, 46, 0.95) 100%);
+            transition: opacity 0.5s ease;
+        }
+
+        .main-menu.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .menu-bg-decor {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .menu-title {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .menu-title h1 {
+            font-size: 52px;
+            font-weight: 300;
+            color: var(--accent-sakura);
+            text-shadow: 
+                0 0 40px rgba(255, 183, 197, 0.5),
+                0 4px 20px rgba(0, 0, 0, 0.3);
+            letter-spacing: 8px;
+            animation: titleGlow 3s ease-in-out infinite;
+        }
+
+        .menu-title .subtitle {
+            font-size: 16px;
+            color: var(--text-light);
+            opacity: 0.7;
+            letter-spacing: 12px;
+            margin-top: 10px;
+        }
+
+        @keyframes titleGlow {
+            0%, 100% { text-shadow: 0 0 40px rgba(255, 183, 197, 0.5), 0 4px 20px rgba(0, 0, 0, 0.3); }
+            50% { text-shadow: 0 0 60px rgba(255, 183, 197, 0.8), 0 4px 20px rgba(0, 0, 0, 0.3); }
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .menu-btn {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 30px;
+            padding: 14px 50px;
+            color: var(--text-light);
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+            min-width: 260px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            letter-spacing: 3px;
+        }
+
+        .menu-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, 
+                transparent, 
+                rgba(255, 183, 197, 0.2), 
+                transparent);
+            transition: left 0.5s ease;
+        }
+
+        .menu-btn:hover::before {
+            left: 100%;
+        }
+
+        .menu-btn:hover {
+            border-color: var(--accent-sakura);
+            box-shadow: 0 0 30px rgba(255, 183, 197, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .menu-btn:active {
+            transform: translateY(0);
+        }
+
+        /* 游戏HUD */
+        .game-hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .game-hud.hidden {
+            display: none;
+        }
+
+        .hud-left {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .time-panel {
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(22, 33, 62, 0.95));
+            border: 1px solid rgba(255, 183, 197, 0.3);
+            border-radius: 12px;
+            padding: 12px 18px;
+            backdrop-filter: blur(10px);
+            pointer-events: auto;
+            min-width: 160px;
+        }
+
+        .date-display {
+            font-size: 13px;
+            color: var(--accent-sakura);
+            margin-bottom: 4px;
+            letter-spacing: 1px;
+        }
+
+        .time-display {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--accent-gold);
+            text-shadow: 0 0 15px rgba(255, 215, 0, 0.4);
+            letter-spacing: 2px;
+        }
+
+        .period-display {
+            font-size: 11px;
+            color: var(--text-light);
+            margin-top: 3px;
+            letter-spacing: 2px;
+            opacity: 0.8;
+        }
+
+        .location-panel {
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.9), rgba(22, 33, 62, 0.9));
+            border: 1px solid rgba(255, 183, 197, 0.2);
+            border-radius: 8px;
+            padding: 8px 14px;
+            pointer-events: auto;
+        }
+
+        .location-name {
+            font-size: 14px;
+            color: var(--text-light);
+            letter-spacing: 1px;
+        }
+
+        .hud-right {
+            display: flex;
+            gap: 10px;
+            pointer-events: auto;
+        }
+
+        .hud-btn {
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.9), rgba(22, 33, 62, 0.9));
+            border: 1px solid rgba(255, 183, 197, 0.3);
+            border-radius: 8px;
+            padding: 10px 16px;
+            color: var(--text-light);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .hud-btn:hover {
+            border-color: var(--accent-sakura);
+            box-shadow: 0 0 20px rgba(255, 183, 197, 0.2);
+        }
+
+        /* 对话框 */
+        .dialogue-box {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 40px);
+            max-width: 900px;
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.97), rgba(22, 33, 62, 0.97));
+            border: 1px solid rgba(255, 183, 197, 0.4);
+            border-radius: 16px;
+            padding: 20px 25px;
+            backdrop-filter: blur(15px);
+            z-index: 100;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .dialogue-box.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .dialogue-speaker {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--accent-sakura);
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 183, 197, 0.2);
+        }
+
+        .dialogue-text {
+            font-size: 15px;
+            line-height: 1.8;
+            color: var(--text-light);
+            min-height: 60px;
+        }
+
+        .dialogue-continue {
+            position: absolute;
+            bottom: 12px;
+            right: 20px;
+            font-size: 12px;
+            color: var(--text-dim);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50%, 100% { opacity: 1; }
+            25%, 75% { opacity: 0.3; }
+        }
+
+        /* 选项面板 */
+        .choices-panel {
+            position: absolute;
+            bottom: 180px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 110;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .choices-panel.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .choice-btn {
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(22, 33, 62, 0.95));
+            border: 1px solid rgba(255, 183, 197, 0.4);
+            border-radius: 25px;
+            padding: 12px 30px;
+            color: var(--text-light);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            min-width: 280px;
+            text-align: center;
+        }
+
+        .choice-btn:hover {
+            border-color: var(--accent-sakura);
+            box-shadow: 0 0 25px rgba(255, 183, 197, 0.3);
+            transform: translateX(5px);
+        }
+
+        /* 属性面板 */
+        .stats-panel {
+            position: absolute;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(22, 33, 62, 0.95));
+            border: 1px solid rgba(255, 183, 197, 0.3);
+            border-radius: 14px;
+            padding: 18px;
+            backdrop-filter: blur(10px);
+            z-index: 80;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            min-width: 200px;
+        }
+
+        .stats-panel.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .stats-title {
+            font-size: 14px;
+            color: var(--accent-sakura);
+            margin-bottom: 15px;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+
+        .stat-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: var(--text-dim);
+            width: 50px;
+        }
+
+        .stat-bar-bg {
+            flex: 1;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .stat-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+
+        .stat-value {
+            font-size: 11px;
+            color: var(--text-light);
+            width: 35px;
+            text-align: right;
+            margin-left: 8px;
+        }
+
+        /* 好感度面板 */
+        .affection-panel {
+            position: absolute;
+            top: 50%;
+            left: 20px;
+            transform: translateY(-50%);
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(22, 33, 62, 0.95));
+            border: 1px solid rgba(255, 183, 197, 0.3);
+            border-radius: 14px;
+            padding: 18px;
+            backdrop-filter: blur(10px);
+            z-index: 80;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            min-width: 180px;
+        }
+
+        .affection-panel.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .affection-title {
+            font-size: 14px;
+            color: var(--accent-sakura);
+            margin-bottom: 15px;
+            text-align: center;
+            letter-spacing: 2px;
+        }
+
+        .affection-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .affection-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid rgba(255, 183, 197, 0.5);
+        }
+
+        .affection-info {
+            flex: 1;
+        }
+
+        .affection-name {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-bottom: 4px;
+        }
+
+        .affection-hearts {
+            display: flex;
+            gap: 3px;
+        }
+
+        .heart {
+            width: 12px;
+            height: 12px;
+            opacity: 0.3;
+            transition: opacity 0.3s ease;
+        }
+
+        .heart.filled {
+            opacity: 1;
+        }
+
+        /* 存档界面 */
+        .save-load-panel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.98), rgba(22, 33, 62, 0.98));
+            border: 1px solid rgba(255, 183, 197, 0.4);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(15px);
+            z-index: 150;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            min-width: 500px;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+
+        .save-load-panel.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 183, 197, 0.2);
+        }
+
+        .panel-title {
+            font-size: 18px;
+            color: var(--accent-sakura);
+            letter-spacing: 3px;
+        }
+
+        .close-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 24px;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .close-btn:hover {
+            color: var(--accent-sakura);
+        }
+
+        .save-slots {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .save-slot {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 183, 197, 0.2);
+            border-radius: 10px;
+            padding: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-height: 100px;
+        }
+
+        .save-slot:hover {
+            border-color: var(--accent-sakura);
+            background: rgba(255, 183, 197, 0.1);
+        }
+
+        .save-slot.empty {
+            opacity: 0.6;
+        }
+
+        .slot-number {
+            font-size: 12px;
+            color: var(--accent-gold);
+            margin-bottom: 6px;
+        }
+
+        .slot-info {
+            font-size: 11px;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+
+        .slot-info .scene-name {
+            color: var(--text-light);
+        }
+
+        /* 行动选择面板 */
+        .action-panel {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            z-index: 90;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .action-panel.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .action-btn {
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.9), rgba(22, 33, 62, 0.9));
+            border: 1px solid rgba(255, 183, 197, 0.3);
+            border-radius: 12px;
+            padding: 15px 20px;
+            color: var(--text-light);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            text-align: center;
+            min-width: 100px;
+        }
+
+        .action-btn:hover {
+            border-color: var(--accent-sakura);
+            box-shadow: 0 0 20px rgba(255, 183, 197, 0.2);
+            transform: translateY(-3px);
+        }
+
+        .action-btn .icon {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        /* 提示消息 */
+        .toast-message {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: linear-gradient(135deg, rgba(26, 26, 46, 0.95), rgba(22, 33, 62, 0.95));
+            border: 1px solid rgba(255, 183, 197, 0.4);
+            border-radius: 25px;
+            padding: 12px 25px;
+            color: var(--text-light);
+            font-size: 14px;
+            z-index: 200;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.4s ease;
+        }
+
+        .toast-message.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast-message.success {
+            border-color: var(--success);
+        }
+
+        .toast-message.error {
+            border-color: var(--danger);
+        }
+
+        /* 转场效果 */
+        .transition-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: var(--bg-dark);
+            z-index: 300;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        .transition-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* 心跳特效 */
+        .heartbeat-effect {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 120;
+        }
+
+        .pulse-ring {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            border: 2px solid var(--accent-sakura);
+            border-radius: 50%;
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.5);
+        }
+
+        .pulse-ring.animate {
+            animation: pulseExpand 1s ease-out forwards;
+        }
+
+        @keyframes pulseExpand {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0.8; }
+            100% { transform: translate(-50%, -50%) scale(2); opacity: 0; }
+        }
+
+        /* 樱花粒子容器 */
+        .sakura-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 60;
+        }
+
+        .sakura-petal {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: radial-gradient(ellipse at center, var(--accent-sakura), transparent);
+            border-radius: 50% 0 50% 50%;
+            opacity: 0.6;
+            animation: fall linear infinite;
+        }
+
+        @keyframes fall {
+            0% { transform: translateY(-10px) rotate(0deg); }
+            100% { transform: translateY(720px) rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-wrapper">
+        <div class="game-container" id="gameContainer">
+            <canvas id="gameCanvas"></canvas>
+            
+            <!-- 主菜单 -->
+            <div class="main-menu" id="mainMenu">
+                <div class="menu-bg-decor" id="menuBgDecor"></div>
+                <div class="menu-title">
+                    <h1>心跳回忆</h1>
+                    <div class="subtitle">校园物语</div>
+                </div>
+                <div class="menu-buttons">
+                    <button class="menu-btn" id="newGameBtn">开始新游戏</button>
+                    <button class="menu-btn" id="continueBtn">继续游戏</button>
+                    <button class="menu-btn" id="loadBtn">读取存档</button>
+                    <button class="menu-btn" id="settingsBtn">游戏设置</button>
+                </div>
+            </div>
+
+            <!-- 游戏HUD -->
+            <div class="game-hud hidden" id="gameHud">
+                <div class="hud-left">
+                    <div class="time-panel">
+                        <div class="date-display" id="dateDisplay">2024年4月1日 周一</div>
+                        <div class="time-display" id="timeDisplay">08:00</div>
+                        <div class="period-display" id="periodDisplay">早晨</div>
+                    </div>
+                    <div class="location-panel">
+                        <div class="location-name" id="locationName">教室</div>
+                    </div>
+                </div>
+                <div class="hud-right">
+                    <button class="hud-btn" id="showStatsBtn">属性</button>
+                    <button class="hud-btn" id="showAffectionBtn">好感</button>
+                    <button class="hud-btn" id="saveBtn">存档</button>
+                    <button class="hud-btn" id="menuBtn">菜单</button>
+                </div>
+            </div>
+
+            <!-- 对话框 -->
+            <div class="dialogue-box" id="dialogueBox">
+                <div class="dialogue-speaker" id="dialogueSpeaker">???</div>
+                <div class="dialogue-text" id="dialogueText"></div>
+                <div class="dialogue-continue">点击继续 ▼</div>
+            </div>
+
+            <!-- 选项面板 -->
+            <div class="choices-panel" id="choicesPanel"></div>
+
+            <!-- 属性面板 -->
+            <div class="stats-panel" id="statsPanel">
+                <div class="stats-title">角色属性</div>
+                <div id="statsContent"></div>
+            </div>
+
+            <!-- 好感度面板 -->
+            <div class="affection-panel" id="affectionPanel">
+                <div class="affection-title">好感度</div>
+                <div id="affectionContent"></div>
+            </div>
+
+            <!-- 存档面板 -->
+            <div class="save-load-panel" id="saveLoadPanel">
+                <div class="panel-header">
+                    <div class="panel-title" id="saveLoadTitle">存档管理</div>
+                    <button class="close-btn" id="closeSavePanel">&times;</button>
+                </div>
+                <div class="save-slots" id="saveSlots"></div>
+            </div>
+
+            <!-- 行动选择面板 -->
+            <div class="action-panel" id="actionPanel">
+                <button class="action-btn" data-action="study">
+                    <div class="icon">📚</div>
+                    <div>学习</div>
+                </button>
+                <button class="action-btn" data-action="exercise">
+                    <div class="icon">🏃</div>
+                    <div>运动</div>
+                </button>
+                <button class="action-btn" data-action="rest">
+                    <div class="icon">☕</div>
+                    <div>休息</div>
+                </button>
+                <button class="action-btn" data-action="socialize">
+                    <div class="icon">💬</div>
+                    <div>社交</div>
+                </button>
+                <button class="action-btn" data-action="explore">
+                    <div class="icon">🚶</div>
+                    <div>探索</div>
+                </button>
+            </div>
+
+            <!-- 提示消息 -->
+            <div class="toast-message" id="toastMessage"></div>
+
+            <!-- 转场效果 -->
+            <div class="transition-overlay" id="transitionOverlay"></div>
+
+            <!-- 心跳特效 -->
+            <div class="heartbeat-effect" id="heartbeatEffect">
+                <div class="pulse-ring"></div>
+                <div class="pulse-ring"></div>
+            </div>
+
+            <!-- 樱花粒子 -->
+            <div class="sakura-container" id="sakuraContainer"></div>
+        </div>
+    </div>
+
+    
+
+<script>
+// ============================================
+    // 游戏配置
+    // ============================================
+    const CONFIG = {
+        CANVAS_WIDTH: 1200,
+        CANVAS_HEIGHT: 700,
+        TIME_SPEED: 0.0001,
+        DAY_LENGTH: 24 * 60 * 60 * 1000,
+        PARTICLE_COUNT: 60,
+        STAR_COUNT: 100,
+        TYPE_SPEED: 30,
+        TYPE_SPEED_FAST: 10,
+        AUTO_SAVE_INTERVAL: 60000,
+        MAX_SAVE_SLOTS: 9
+    };
+
+    // ============================================
+    // 场景名称映射
+    // ============================================
+    const SceneNames = {
+        'menu': '主菜单',
+        'game': '校园生活',
+        'classroom': '教室',
+        'library': '图书馆',
+        'roof': '天台',
+        'garden': '中庭花园',
+        'gym': '体育馆',
+        'cafe': '咖啡厅',
+        'park': '公园',
+        'home': '家中',
+        'dialogue': '对话中',
+        'date': '约会中'
+    };
+
+    // ============================================
+    // 游戏状态
+    // ============================================
+    const GameState = {
+        currentScreen: 'menu',
+        currentScene: 'classroom',
+        player: {
+            name: '玩家',
+            stats: {
+                knowledge: 45,
+                charm: 32,
+                stamina: 80,
+                social: 50,
+                art: 25,
+                fitness: 40,
+                money: 5000
+            }
+        },
+        time: {
+            year: 2024,
+            month: 4,
+            day: 1,
+            hour: 8,
+            minute: 0,
+            dayOfWeek: 1
+        },
+        affections: {
+            sakura: { level: 2, exp: 150, max: 500, name: '樱井美雪', color: '#ffb7c5' },
+            yuki: { level: 1, exp: 50, max: 500, name: '雪村凛', color: '#87ceeb' },
+            haru: { level: 1, exp: 80, max: 500, name: '春日阳太', color: '#98fb98' }
+        },
+        flags: {
+            tutorialComplete: false,
+            firstMeeting: {}
+        },
+        dialogue: {
+            current: null,
+            currentIndex: 0,
+            isTyping: false,
+            textQueue: [],
+            currentText: '',
+            typewriterTimer: null
+        },
+        settings: {
+            bgmVolume: 80,
+            sfxVolume: 100,
+            textSpeed: 30,
+            autoPlay: false
+        },
+        stats: {
+            totalPlayTime: 0,
+            daysPlayed: 0,
+            saveCount: 0
+        }
+    };
+
+    // ============================================
+    // 存档管理系统
+    // ============================================
+    class SaveManager {
+        constructor() {
+            this.SAVE_KEY_PREFIX = 'tokimemo_save_';
+            this.AUTO_SAVE_KEY = 'tokimemo_autosave';
+            this.CONFIG_KEY = 'tokimemo_config';
+            this.VERSION = '1.0.0';
+            this.CHECKSUM_SALT = 'tokimemo_2024';
+            this.isStorageAvailable = this.checkStorage();
+        }
+
+        checkStorage() {
+            try {
+                const test = '__test__';
+                localStorage.setItem(test, test);
+                localStorage.removeItem(test);
+                return true;
+            } catch (e) {
+                console.warn('LocalStorage 不可用，存档功能将禁用');
+                return false;
+            }
+        }
+
+        sortObjectKeys(obj) {
+            if (typeof obj !== 'object' || obj === null) return obj;
+            if (Array.isArray(obj)) return obj.map(item => this.sortObjectKeys(item));
+            
+            return Object.keys(obj).sort().reduce((acc, key) => {
+                acc[key] = this.sortObjectKeys(obj[key]);
+                return acc;
+            }, {});
+        }
+
+        calculateChecksum(data) {
+            const sortedData = this.sortObjectKeys(data);
+            const str = JSON.stringify(sortedData) + this.CHECKSUM_SALT;
+            
+            let hash = 5381;
+            for (let i = 0; i < str.length; i++) {
+                hash = ((hash << 5) + hash) + str.charCodeAt(i);
+            }
+            return (hash >>> 0).toString(16);
+        }
+
+        serializeGameState() {
+            const saveData = {
+                version: this.VERSION,
+                timestamp: Date.now(),
+                playtime: GameState.stats.totalPlayTime || 0,
+                scene: GameState.currentScene || 'classroom',
+                player: JSON.parse(JSON.stringify(GameState.player)),
+                time: JSON.parse(JSON.stringify(GameState.time)),
+                affections: JSON.parse(JSON.stringify(GameState.affections)),
+                flags: JSON.parse(JSON.stringify(GameState.flags)),
+                dialogue: {
+                    current: GameState.dialogue.current,
+                    currentIndex: GameState.dialogue.currentIndex
+                },
+                settings: JSON.parse(JSON.stringify(GameState.settings)),
+                stats: JSON.parse(JSON.stringify(GameState.stats))
+            };
+            
+            saveData.checksum = this.calculateChecksum({
+                player: saveData.player,
+                time: saveData.time,
+                affections: saveData.affections
+            });
+            
+            return JSON.stringify(saveData);
+        }
+
+        deserializeGameState(jsonString) {
+            try {
+                const data = JSON.parse(jsonString);
+                if (!this.validateSaveData(data)) {
+                    console.error('存档数据校验失败');
+                    return null;
+                }
+                return data;
+            } catch (e) {
+                console.error('存档解析失败:', e);
+                return null;
+            }
+        }
+
+        validateSaveData(data) {
+            if (!data || typeof data !== 'object') return false;
+            if (!data.version || !data.timestamp) return false;
+            if (!data.player || !data.time || !data.affections) return false;
+            
+            if (data.checksum) {
+                const expectedChecksum = this.calculateChecksum({
+                    player: data.player,
+                    time: data.time,
+                    affections: data.affections
+                });
+                if (data.checksum !== expectedChecksum) {
+                    console.warn('存档校验和不匹配');
+                }
+            }
+            
+            if (!data.player.stats || typeof data.player.stats !== 'object') return false;
+            if (typeof data.time.year !== 'number' || 
+                typeof data.time.month !== 'number' ||
+                typeof data.time.day !== 'number') return false;
+            
+            return true;
+        }
+
+        saveToSlot(slotIndex) {
+            if (!this.isStorageAvailable) {
+                return { success: false, message: '浏览器存储不可用' };
+            }
+            
+            if (slotIndex < 0 || slotIndex >= CONFIG.MAX_SAVE_SLOTS) {
+                return { success: false, message: '无效的存档槽位' };
+            }
+            
+            try {
+                const key = this.SAVE_KEY_PREFIX + slotIndex;
+                const data = this.serializeGameState();
+                localStorage.setItem(key, data);
+                
+                GameState.stats.saveCount++;
+                
+                return { success: true, message: '保存成功' };
+            } catch (e) {
+                console.error('保存失败:', e);
+                if (e.name === 'QuotaExceededError') {
+                    return { success: false, message: '存储空间不足' };
+                }
+                return { success: false, message: '保存失败: ' + e.message };
+            }
+        }
+
+        loadFromSlot(slotIndex) {
+            if (!this.isStorageAvailable) {
+                return { success: false, message: '浏览器存储不可用' };
+            }
+            
+            const key = this.SAVE_KEY_PREFIX + slotIndex;
+            const data = localStorage.getItem(key);
+            
+            if (!data) {
+                return { success: false, message: '存档不存在' };
+            }
+            
+            const parsed = this.deserializeGameState(data);
+            if (!parsed) {
+                return { success: false, message: '存档数据损坏' };
+            }
+            
+            this.applySaveData(parsed);
+            
+            return { success: true, message: '读取成功', data: parsed };
+        }
+
+        applySaveData(data) {
+            GameState.currentScene = data.scene || 'classroom';
+            GameState.player = JSON.parse(JSON.stringify(data.player));
+            GameState.time = JSON.parse(JSON.stringify(data.time));
+            GameState.affections = JSON.parse(JSON.stringify(data.affections));
+            GameState.flags = data.flags ? JSON.parse(JSON.stringify(data.flags)) : {};
+            GameState.dialogue = data.dialogue ? JSON.parse(JSON.stringify(data.dialogue)) : { current: null, currentIndex: 0, isTyping: false, textQueue: [], currentText: '' };
+            GameState.settings = data.settings ? JSON.parse(JSON.stringify(data.settings)) : GameState.settings;
+            GameState.stats = data.stats ? JSON.parse(JSON.stringify(data.stats)) : GameState.stats;
+        }
+
+        deleteSlot(slotIndex) {
+            const key = this.SAVE_KEY_PREFIX + slotIndex;
+            localStorage.removeItem(key);
+            return { success: true, message: '删除成功' };
+        }
+
+        getSlotPreview(slotIndex) {
+            const key = this.SAVE_KEY_PREFIX + slotIndex;
+            const data = localStorage.getItem(key);
+            
+            if (!data) return null;
+            
+            const parsed = this.deserializeGameState(data);
+            if (!parsed) return null;
+            
+            return {
+                index: slotIndex,
+                exists: true,
+                timestamp: parsed.timestamp,
+                scene: parsed.scene,
+                sceneName: SceneNames[parsed.scene] || parsed.scene,
+                player: parsed.player,
+                time: parsed.time,
+                playtime: parsed.playtime || 0
+            };
+        }
+
+        getAllSaveSlots() {
+            const slots = [];
+            for (let i = 0; i < CONFIG.MAX_SAVE_SLOTS; i++) {
+                const preview = this.getSlotPreview(i);
+                if (preview) {
+                    slots.push(preview);
+                } else {
+                    slots.push({ index: i, exists: false });
+                }
+            }
+            return slots;
+        }
+
+        autoSave() {
+            if (!this.isStorageAvailable) return { success: false };
+            
+            try {
+                const data = this.serializeGameState();
+                localStorage.setItem(this.AUTO_SAVE_KEY, data);
+                return { success: true };
+            } catch (e) {
+                console.error('自动存档失败:', e);
+                return { success: false };
+            }
+        }
+
+        getAutoSave() {
+            const data = localStorage.getItem(this.AUTO_SAVE_KEY);
+            if (!data) return null;
+            return this.deserializeGameState(data);
+        }
+
+        formatTimestamp(timestamp) {
+            const date = new Date(timestamp);
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hour = String(date.getHours()).padStart(2, '0');
+            const minute = String(date.getMinutes()).padStart(2, '0');
+            return `${year}/${month}/${day} ${hour}:${minute}`;
+        }
+
+        formatPlaytime(seconds) {
+            if (!seconds || seconds < 0) return '0分钟';
+            const hours = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            if (hours > 0) {
+                return `${hours}小时${mins}分钟`;
+            }
+            return `${mins}分钟`;
+        }
+
+        saveSettings() {
+            try {
+                localStorage.setItem(this.CONFIG_KEY, JSON.stringify(GameState.settings));
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        loadSettings() {
+            try {
+                const data = localStorage.getItem(this.CONFIG_KEY);
+                if (data) {
+                    GameState.settings = { ...GameState.settings, ...JSON.parse(data) };
+                }
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+    }
+
+    const saveManager = new SaveManager();
+
+    // ============================================
+    // 场景定义
+    // ============================================
+    const SceneDefinitions = {
+        classroom: {
+            name: '教室',
+            bgColor: '#2a3a5c',
+            groundColor: '#3d4a6b',
+            hasWindow: true,
+            lightColor: 'rgba(255, 220, 180, 0.3)'
+        },
+        library: {
+            name: '图书馆',
+            bgColor: '#1e2a3a',
+            groundColor: '#2a3545',
+            hasWindow: true,
+            lightColor: 'rgba(255, 200, 150, 0.2)'
+        },
+        roof: {
+            name: '天台',
+            bgColor: '#1a2a4a',
+            groundColor: '#3a4a6a',
+            hasWindow: false,
+            lightColor: 'rgba(255, 255, 255, 0.1)'
+        },
+        garden: {
+            name: '中庭花园',
+            bgColor: '#1a3a2a',
+            groundColor: '#2a5a3a',
+            hasWindow: false,
+            lightColor: 'rgba(255, 183, 197, 0.15)'
+        },
+        gym: {
+            name: '体育馆',
+            bgColor: '#2a2a3a',
+            groundColor: '#3a3a4a',
+            hasWindow: true,
+            lightColor: 'rgba(255, 255, 255, 0.2)'
+        },
+        cafe: {
+            name: '咖啡厅',
+            bgColor: '#3a2a1a',
+            groundColor: '#4a3a2a',
+            hasWindow: true,
+            lightColor: 'rgba(255, 200, 100, 0.3)'
+        },
+        park: {
+            name: '公园',
+            bgColor: '#1a3a2a',
+            groundColor: '#2a4a3a',
+            hasWindow: false,
+            lightColor: 'rgba(255, 255, 200, 0.1)'
+        },
+        home: {
+            name: '家中',
+            bgColor: '#2a2a3a',
+            groundColor: '#3a3a4a',
+            hasWindow: true,
+            lightColor: 'rgba(255, 220, 180, 0.25)'
+        }
+    };
+
+    // ============================================
+    // 对话数据
+    // ============================================
+    const DialogueData = {
+        intro: [
+            {
+                speaker: '系统',
+                text: '新学期的第一天，阳光透过樱花树洒落在校园里...',
+                effect: 'fadeIn'
+            },
+            {
+                speaker: '系统',
+                text: '你作为转学生来到了这所著名的私立高中——樱花学园。'
+            },
+            {
+                speaker: '???',
+                text: '嘿！你就是那个新来的转学生吧？'
+            },
+            {
+                speaker: '樱井美雪',
+                text: '我叫樱井美雪，是班上的班长。欢迎来到樱花学园！',
+                character: 'sakura',
+                expression: 'happy'
+            },
+            {
+                speaker: '樱井美雪',
+                text: '如果有什么不懂的地方，随时可以来问我哦~',
+                character: 'sakura',
+                expression: 'smile',
+                choices: [
+                    { text: '请多指教，班长同学', next: 'intro_polite', affection: { sakura: 10 } },
+                    { text: '谢谢，我会自己搞定的', next: 'intro_cool', affection: { sakura: -5 } },
+                    { text: '那我们可以成为朋友吗？', next: 'intro_friendly', affection: { sakura: 15 } }
+                ]
+            }
+        ],
+        intro_polite: [
+            {
+                speaker: '樱井美雪',
+                text: '嗯嗯，真有礼貌！我就喜欢你这样的转学生~',
+                character: 'sakura',
+                expression: 'happy'
+            },
+            {
+                speaker: '樱井美雪',
+                text: '那么，我先带你参观一下校园吧！',
+                character: 'sakura',
+                expression: 'smile',
+                nextScene: 'garden'
+            }
+        ],
+        intro_cool: [
+            {
+                speaker: '樱井美雪',
+                text: '欸...这、这样啊。那如果你改变主意的话...',
+                character: 'sakura',
+                expression: 'sad'
+            },
+            {
+                speaker: '樱井美雪',
+                text: '算了，祝你在樱花学园一切顺利。',
+                character: 'sakura',
+                expression: 'normal'
+            }
+        ],
+        intro_friendly: [
+            {
+                speaker: '樱井美雪',
+                text: '诶？！当、当然可以！我们会成为很好的朋友的！',
+                character: 'sakura',
+                expression: 'blush'
+            },
+            {
+                speaker: '系统',
+                text: '美雪的脸微微泛红，似乎对你的直率有些害羞。'
+            },
+            {
+                speaker: '樱井美雪',
+                text: '那、那我们从今天开始就是朋友了！我来带你参观校园！',
+                character: 'sakura',
+                expression: 'happy',
+                nextScene: 'garden'
+            }
+        ],
+        garden_chat: [
+            {
+                speaker: '樱井美雪',
+                text: '这里就是中庭花园了。春天的时候，樱花会开得很漂亮哦~',
+                character: 'sakura',
+                expression: 'smile'
+            },
+            {
+                speaker: '樱井美雪',
+                text: '我最喜欢在这里看书了，很安静很舒服。',
+                character: 'sakura',
+                expression: 'happy'
+            }
+        ],
+        daily_greeting: [
+            {
+                speaker: '樱井美雪',
+                text: '早上好！今天天气真不错呢~',
+                character: 'sakura',
+                expression: 'happy'
+            }
+        ]
+    };
+
+    // ============================================
+    // 角色立绘系统
+    // ============================================
+    class CharacterRenderer {
+        constructor(ctx) {
+            this.ctx = ctx;
+            this.characters = {
+                sakura: {
+                    name: '樱井美雪',
+                    baseColor: '#ffb7c5',
+                    hairColor: '#ff8fa3',
+                    skinColor: '#ffe4d6',
+                    eyeColor: '#ff6b8a',
+                    dressColor: '#ffffff'
+                },
+                yuki: {
+                    name: '雪村凛',
+                    baseColor: '#87ceeb',
+                    hairColor: '#4a6fa5',
+                    skinColor: '#f5f0eb',
+                    eyeColor: '#5a7fb5',
+                    dressColor: '#2a4a6a'
+                },
+                haru: {
+                    name: '春日阳太',
+                    baseColor: '#98fb98',
+                    hairColor: '#8b4513',
+                    skinColor: '#deb887',
+                    eyeColor: '#228b22',
+                    dressColor: '#3a5a3a'
+                }
+            };
+        }
+
+        draw(characterId, x, y, expression = 'normal', scale = 1) {
+            const char = this.characters[characterId];
+            if (!char) return;
+
+            const ctx = this.ctx;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(scale, scale);
+
+            // 呼吸动画偏移
+            const breathOffset = Math.sin(Date.now() / 1000) * 2;
+
+            // 身体
+            this.drawBody(ctx, char, breathOffset);
+            
+            // 脸部
+            this.drawFace(ctx, char, expression, breathOffset);
+            
+            // 头发
+            this.drawHair(ctx, char, breathOffset);
+
+            ctx.restore();
+        }
+
+        drawBody(ctx, char, breathOffset) {
+            // 裙子/衣服
+            ctx.fillStyle = char.dressColor;
+            ctx.beginPath();
+            ctx.moveTo(-40, 100 + breathOffset);
+            ctx.quadraticCurveTo(-50, 200, -60, 300);
+            ctx.lineTo(60, 300);
+            ctx.quadraticCurveTo(50, 200, 40, 100 + breathOffset);
+            ctx.closePath();
+            ctx.fill();
+
+            // 身体轮廓光
+            const bodyGlow = ctx.createLinearGradient(-50, 100, 50, 100);
+            bodyGlow.addColorStop(0, 'rgba(255,255,255,0.1)');
+            bodyGlow.addColorStop(0.5, 'rgba(255,255,255,0.2)');
+            bodyGlow.addColorStop(1, 'rgba(255,255,255,0.1)');
+            ctx.fillStyle = bodyGlow;
+            ctx.fill();
+        }
+
+        drawFace(ctx, char, expression, breathOffset) {
+            // 脸部
+            ctx.fillStyle = char.skinColor;
+            ctx.beginPath();
+            ctx.ellipse(0, 30 + breathOffset, 45, 55, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 脸部高光
+            const faceGradient = ctx.createRadialGradient(-15, 10 + breathOffset, 0, 0, 30 + breathOffset, 55);
+            faceGradient.addColorStop(0, 'rgba(255,255,255,0.3)');
+            faceGradient.addColorStop(1, 'rgba(255,255,255,0)');
+            ctx.fillStyle = faceGradient;
+            ctx.fill();
+
+            // 眼睛
+            this.drawEyes(ctx, char, expression, breathOffset);
+
+            // 嘴巴
+            this.drawMouth(ctx, expression, breathOffset);
+
+            // 脸红效果
+            if (expression === 'blush' || expression === 'shy') {
+                ctx.fillStyle = 'rgba(255, 150, 150, 0.4)';
+                ctx.beginPath();
+                ctx.ellipse(-25, 45 + breathOffset, 12, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(25, 45 + breathOffset, 12, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        drawEyes(ctx, char, expression, breathOffset) {
+            const eyeY = 25 + breathOffset;
+            const blinkPhase = (Date.now() / 3000) % 1;
+            const eyeHeight = blinkPhase < 0.05 ? 1 : 8;
+
+            // 左眼
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.ellipse(-15, eyeY, 10, eyeHeight, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 右眼
+            ctx.beginPath();
+            ctx.ellipse(15, eyeY, 10, eyeHeight, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            if (eyeHeight > 2) {
+                // 瞳孔
+                ctx.fillStyle = char.eyeColor;
+                ctx.beginPath();
+                ctx.ellipse(-15, eyeY + 2, 6, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(15, eyeY + 2, 6, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 瞳孔高光
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(-17, eyeY, 2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.arc(13, eyeY, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 表情变化
+                if (expression === 'happy' || expression === 'smile') {
+                    // 微笑的眼睛
+                    ctx.strokeStyle = char.skinColor;
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(-15, eyeY + 5, 7, 0.2 * Math.PI, 0.8 * Math.PI);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.arc(15, eyeY + 5, 7, 0.2 * Math.PI, 0.8 * Math.PI);
+                    ctx.stroke();
+                }
+            }
+        }
+
+        drawMouth(ctx, expression, breathOffset) {
+            const mouthY = 55 + breathOffset;
+            ctx.strokeStyle = '#d4a09a';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+
+            switch (expression) {
+                case 'happy':
+                case 'smile':
+                    ctx.beginPath();
+                    ctx.arc(0, mouthY - 5, 10, 0.1 * Math.PI, 0.9 * Math.PI);
+                    ctx.stroke();
+                    break;
+                case 'sad':
+                    ctx.beginPath();
+                    ctx.arc(0, mouthY + 10, 8, 1.2 * Math.PI, 1.8 * Math.PI);
+                    ctx.stroke();
+                    break;
+                case 'blush':
+                case 'shy':
+                    ctx.beginPath();
+                    ctx.moveTo(-5, mouthY);
+                    ctx.lineTo(5, mouthY);
+                    ctx.stroke();
+                    break;
+                default:
+                    ctx.beginPath();
+                    ctx.moveTo(-6, mouthY);
+                    ctx.quadraticCurveTo(0, mouthY + 3, 6, mouthY);
+                    ctx.stroke();
+            }
+        }
+
+        drawHair(ctx, char, breathOffset) {
+            ctx.fillStyle = char.hairColor;
+
+            // 刘海
+            ctx.beginPath();
+            ctx.moveTo(-45, -20 + breathOffset);
+            ctx.quadraticCurveTo(-30, 10, -20, -10 + breathOffset);
+            ctx.quadraticCurveTo(-10, 5, 0, -15 + breathOffset);
+            ctx.quadraticCurveTo(10, 5, 20, -10 + breathOffset);
+            ctx.quadraticCurveTo(30, 10, 45, -20 + breathOffset);
+            ctx.quadraticCurveTo(50, -40, 30, -60 + breathOffset);
+            ctx.quadraticCurveTo(0, -80, -30, -60 + breathOffset);
+            ctx.quadraticCurveTo(-50, -40, -45, -20 + breathOffset);
+            ctx.fill();
+
+            // 侧发
+            ctx.beginPath();
+            ctx.moveTo(-45, 0 + breathOffset);
+            ctx.quadraticCurveTo(-55, 80, -50, 150);
+            ctx.quadraticCurveTo(-45, 160, -40, 150);
+            ctx.quadraticCurveTo(-45, 80, -38, 20 + breathOffset);
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.moveTo(45, 0 + breathOffset);
+            ctx.quadraticCurveTo(55, 80, 50, 150);
+            ctx.quadraticCurveTo(45, 160, 40, 150);
+            ctx.quadraticCurveTo(45, 80, 38, 20 + breathOffset);
+            ctx.fill();
+
+            // 头发高光
+            const hairGradient = ctx.createLinearGradient(-30, -60, 30, -40);
+            hairGradient.addColorStop(0, 'rgba(255,255,255,0.1)');
+            hairGradient.addColorStop(0.5, 'rgba(255,255,255,0.3)');
+            hairGradient.addColorStop(1, 'rgba(255,255,255,0.1)');
+            ctx.fillStyle = hairGradient;
+            ctx.beginPath();
+            ctx.moveTo(-30, -50 + breathOffset);
+            ctx.quadraticCurveTo(0, -70, 30, -50 + breathOffset);
+            ctx.quadraticCurveTo(0, -55, -30, -50 + breathOffset);
+            ctx.fill();
+        }
+    }
+
+    // ============================================
+    // 场景渲染器
+    // ============================================
+    class SceneRenderer {
+        constructor(ctx, width, height) {
+            this.ctx = ctx;
+            this.width = width;
+            this.height = height;
+            this.characterRenderer = new CharacterRenderer(ctx);
+            this.particles = [];
+            this.initParticles();
+        }
+
+        initParticles() {
+            for (let i = 0; i < 30; i++) {
+                this.particles.push({
+                    x: Math.random() * this.width,
+                    y: Math.random() * this.height,
+                    size: Math.random() * 8 + 4,
+                    speedX: Math.random() * 1 - 0.5,
+                    speedY: Math.random() * 0.5 + 0.2,
+                    opacity: Math.random() * 0.5 + 0.3,
+                    rotation: Math.random() * 360
+                });
+            }
+        }
+
+        render(sceneId, timeOfDay) {
+            const scene = SceneDefinitions[sceneId] || SceneDefinitions.classroom;
+            const ctx = this.ctx;
+
+            // 计算昼夜颜色
+            const dayProgress = this.calculateDayProgress(timeOfDay);
+            const lightColor = this.calculateLightColor(dayProgress);
+
+            // 背景层
+            this.drawBackground(scene, dayProgress, lightColor);
+
+            // 场景元素
+            this.drawSceneElements(scene, dayProgress);
+
+            // 光影效果
+            this.drawLighting(scene, dayProgress, lightColor);
+
+            // 粒子效果
+            this.drawParticles(dayProgress);
+
+            // 角色层（在外部调用）
+        }
+
+        calculateDayProgress(timeOfDay) {
+            const hour = timeOfDay.hour + timeOfDay.minute / 60;
+            return hour / 24;
+        }
+
+        calculateLightColor(progress) {
+            // 日出5-7, 白天7-17, 日落17-19, 夜晚19-5
+            const hour = progress * 24;
+            
+            if (hour < 5 || hour >= 20) {
+                return { ambient: 'rgba(30, 30, 60, 0.4)', sun: 'rgba(100, 100, 150, 0.3)' };
+            } else if (hour < 7) {
+                return { ambient: 'rgba(255, 180, 120, 0.3)', sun: 'rgba(255, 150, 100, 0.4)' };
+            } else if (hour < 17) {
+                return { ambient: 'rgba(255, 255, 240, 0.2)', sun: 'rgba(255, 255, 200, 0.3)' };
+            } else if (hour < 20) {
+                return { ambient: 'rgba(255, 120, 80, 0.35)', sun: 'rgba(255, 100, 80, 0.4)' };
+            }
+            return { ambient: 'rgba(30, 30, 60, 0.4)', sun: 'rgba(100, 100, 150, 0.3)' };
+        }
+
+        drawBackground(scene, dayProgress, lightColor) {
+            const ctx = this.ctx;
+            
+            // 天空渐变
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, this.height);
+            
+            const hour = dayProgress * 24;
+            if (hour < 5 || hour >= 20) {
+                // 夜晚
+                skyGradient.addColorStop(0, '#0a0a20');
+                skyGradient.addColorStop(0.5, '#1a1a3a');
+                skyGradient.addColorStop(1, '#2a2a4a');
+            } else if (hour < 7) {
+                // 黎明
+                skyGradient.addColorStop(0, '#1a2a4a');
+                skyGradient.addColorStop(0.3, '#4a3a5a');
+                skyGradient.addColorStop(0.6, '#8a5a6a');
+                skyGradient.addColorStop(1, '#ffa07a');
+            } else if (hour < 17) {
+                // 白天
+                skyGradient.addColorStop(0, '#3a5a8a');
+                skyGradient.addColorStop(0.5, '#5a8aba');
+                skyGradient.addColorStop(1, '#8ab4d8');
+            } else {
+                // 黄昏
+                skyGradient.addColorStop(0, '#2a3a5a');
+                skyGradient.addColorStop(0.3, '#6a4a5a');
+                skyGradient.addColorStop(0.6, '#aa6a5a');
+                skyGradient.addColorStop(1, '#ffa070');
+            }
+
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, this.width, this.height);
+
+            // 添加星星（夜晚）
+            if (hour < 5 || hour >= 20) {
+                this.drawStars();
+            }
+        }
+
+        drawStars() {
+            const ctx = this.ctx;
+            for (let i = 0; i < 50; i++) {
+                const x = (i * 137.5) % this.width;
+                const y = (i * 73.3) % (this.height * 0.6);
+                const twinkle = Math.sin(Date.now() / 500 + i) * 0.3 + 0.7;
+                
+                ctx.fillStyle = `rgba(255, 255, 255, ${twinkle * 0.8})`;
+                ctx.beginPath();
+                ctx.arc(x, y, Math.random() * 1.5 + 0.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        drawSceneElements(scene, dayProgress) {
+            const ctx = this.ctx;
+            
+            // 地面
+            const groundGradient = ctx.createLinearGradient(0, this.height * 0.6, 0, this.height);
+            groundGradient.addColorStop(0, scene.groundColor);
+            groundGradient.addColorStop(1, this.darkenColor(scene.groundColor, 0.3));
+            
+            ctx.fillStyle = groundGradient;
+            ctx.fillRect(0, this.height * 0.6, this.width, this.height * 0.4);
+
+            // 根据场景绘制元素
+            switch (SceneNames[GameState.currentScene] || scene.name) {
+                case '教室':
+                    this.drawClassroom();
+                    break;
+                case '中庭花园':
+                    this.drawGarden();
+                    break;
+                case '图书馆':
+                    this.drawLibrary();
+                    break;
+                case '天台':
+                    this.drawRooftop();
+                    break;
+                default:
+                    this.drawGenericScene();
+            }
+        }
+
+        drawClassroom() {
+            const ctx = this.ctx;
+            
+            // 黑板
+            ctx.fillStyle = '#2a4a3a';
+            ctx.fillRect(100, 150, 400, 200);
+            ctx.strokeStyle = '#5a3a2a';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(100, 150, 400, 200);
+
+            // 窗户
+            ctx.fillStyle = 'rgba(150, 200, 255, 0.3)';
+            ctx.fillRect(700, 120, 150, 250);
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(700, 120, 150, 250);
+            ctx.beginPath();
+            ctx.moveTo(775, 120);
+            ctx.lineTo(775, 370);
+            ctx.moveTo(700, 245);
+            ctx.lineTo(850, 245);
+            ctx.stroke();
+
+            // 课桌
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 4; col++) {
+                    const x = 150 + col * 180;
+                    const y = 420 + row * 80;
+                    ctx.fillStyle = '#6a5040';
+                    ctx.fillRect(x, y, 80, 50);
+                    ctx.fillStyle = '#5a4030';
+                    ctx.fillRect(x, y + 50, 80, 15);
+                }
+            }
+        }
+
+        drawGarden() {
+            const ctx = this.ctx;
+            
+            // 樱花树
+            this.drawSakuraTree(200, this.height * 0.5, 1.2);
+            this.drawSakuraTree(800, this.height * 0.55, 1.0);
+            this.drawSakuraTree(1000, this.height * 0.6, 0.8);
+
+            // 小路
+            ctx.fillStyle = '#c9b896';
+            ctx.beginPath();
+            ctx.moveTo(0, this.height * 0.75);
+            ctx.quadraticCurveTo(300, this.height * 0.7, 600, this.height * 0.8);
+            ctx.quadraticCurveTo(900, this.height * 0.85, this.width, this.height * 0.75);
+            ctx.lineTo(this.width, this.height);
+            ctx.lineTo(0, this.height);
+            ctx.closePath();
+            ctx.fill();
+
+            // 长椅
+            ctx.fillStyle = '#5a4030';
+            ctx.fillRect(500, this.height * 0.72, 120, 15);
+            ctx.fillRect(510, this.height * 0.72, 10, 40);
+            ctx.fillRect(600, this.height * 0.72, 10, 40);
+        }
+
+        drawSakuraTree(x, y, scale) {
+            const ctx = this.ctx;
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.scale(scale, scale);
+
+            // 树干
+            ctx.fillStyle = '#4a3525';
+            ctx.beginPath();
+            ctx.moveTo(-20, 0);
+            ctx.lineTo(-15, -150);
+            ctx.lineTo(15, -150);
+            ctx.lineTo(20, 0);
+            ctx.closePath();
+            ctx.fill();
+
+            // 树冠（樱花）
+            const pinkGradient = ctx.createRadialGradient(0, -180, 0, 0, -180, 120);
+            pinkGradient.addColorStop(0, 'rgba(255, 200, 210, 0.9)');
+            pinkGradient.addColorStop(0.5, 'rgba(255, 183, 197, 0.7)');
+            pinkGradient.addColorStop(1, 'rgba(255, 150, 170, 0.3)');
+            
+            ctx.fillStyle = pinkGradient;
+            ctx.beginPath();
+            ctx.arc(0, -180, 120, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 添加樱花斑点
+            for (let i = 0; i < 20; i++) {
+                const angle = (i / 20) * Math.PI * 2;
+                const radius = Math.random() * 80 + 20;
+                const px = Math.cos(angle) * radius;
+                const py = -180 + Math.sin(angle) * radius;
+                
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.beginPath();
+                ctx.arc(px, py, Math.random() * 8 + 3, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
+        drawLibrary() {
+            const ctx = this.ctx;
+            
+            // 书架
+            for (let i = 0; i < 4; i++) {
+                const x = 100 + i * 250;
+                ctx.fillStyle = '#3a2a1a';
+                ctx.fillRect(x, 100, 200, 400);
+                
+                // 书本
+                for (let j = 0; j < 5; j++) {
+                    for (let k = 0; k < 8; k++) {
+                        const bookColors = ['#8a4a4a', '#4a6a4a', '#4a4a8a', '#8a8a4a', '#8a4a8a'];
+                        ctx.fillStyle = bookColors[k % bookColors.length];
+                        ctx.fillRect(x + 10 + k * 22, 120 + j * 75, 18, 60);
+                    }
+                }
+            }
+
+            // 桌子
+            ctx.fillStyle = '#5a4535';
+            ctx.fillRect(400, 520, 400, 80);
+        }
+
+        drawRooftop() {
+            const ctx = this.ctx;
+            
+            // 栏杆
+            ctx.fillStyle = '#5a5a6a';
+            ctx.fillRect(0, 200, this.width, 10);
+            
+            for (let i = 0; i < 20; i++) {
+                ctx.fillRect(50 + i * 60, 150, 8, 60);
+            }
+
+            // 地面
+            ctx.fillStyle = '#4a4a5a';
+            ctx.fillRect(0, this.height * 0.5, this.width, this.height * 0.5);
+
+            // 水箱等设施
+            ctx.fillStyle = '#6a6a7a';
+            ctx.fillRect(900, 280, 150, 200);
+        }
+
+        drawGenericScene() {
+            const ctx = this.ctx;
+            // 默认场景元素
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillRect(100, 300, 200, 200);
+            ctx.fillRect(500, 350, 150, 150);
+        }
+
+        drawLighting(scene, dayProgress, lightColor) {
+            const ctx = this.ctx;
+            
+            // 环境光叠加
+            ctx.fillStyle = lightColor.ambient;
+            ctx.fillRect(0, 0, this.width, this.height);
+
+            // 太阳光/月光
+            const sunGradient = ctx.createRadialGradient(
+                this.width * 0.8, 100, 0,
+                this.width * 0.8, 100, 300
+            );
+            sunGradient.addColorStop(0, lightColor.sun);
+            sunGradient.addColorStop(1, 'transparent');
+            ctx.fillStyle = sunGradient;
+            ctx.fillRect(0, 0, this.width, this.height);
+        }
+
+        drawParticles(dayProgress) {
+            const ctx = this.ctx;
+            const hour = dayProgress * 24;
+            
+            // 只在花园场景且有光时显示花瓣
+            if (GameState.currentScene !== 'garden') return;
+            if (hour < 6 || hour > 19) return;
+
+            this.particles.forEach(particle => {
+                particle.x += particle.speedX;
+                particle.y += particle.speedY;
+                particle.rotation += 1;
+
+                if (particle.y > this.height) {
+                    particle.y = -20;
+                    particle.x = Math.random() * this.width;
+                }
+                if (particle.x < 0) particle.x = this.width;
+                if (particle.x > this.width) particle.x = 0;
+
+                ctx.save();
+                ctx.translate(particle.x, particle.y);
+                ctx.rotate(particle.rotation * Math.PI / 180);
+                ctx.globalAlpha = particle.opacity;
+                
+                // 樱花花瓣形状
+                ctx.fillStyle = '#ffb7c5';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, particle.size, particle.size / 2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            });
+        }
+
+        drawCharacter(characterId, x, y, expression = 'normal', scale = 1) {
+            this.characterRenderer.draw(characterId, x, y, expression, scale);
+        }
+
+        darkenColor(hex, factor) {
+            const num = parseInt(hex.slice(1), 16);
+            const r = Math.floor((num >> 16) * (1 - factor));
+            const g = Math.floor(((num >> 8) & 0x00FF) * (1 - factor));
+            const b = Math.floor((num & 0x0000FF) * (1 - factor));
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+    }
+
+    // ============================================
+    // 游戏主类
+    // ============================================
+    class Game {
+        constructor() {
+            this.canvas = document.getElementById('gameCanvas');
+            this.ctx = this.canvas.getContext('2d');
+            this.container = document.getElementById('gameContainer');
+            
+            this.canvas.width = CONFIG.CANVAS_WIDTH;
+            this.canvas.height = CONFIG.CANVAS_HEIGHT;
+            
+            this.sceneRenderer = new SceneRenderer(this.ctx, this.canvas.width, this.canvas.height);
+            this.lastTime = 0;
+            this.playTimeAccumulator = 0;
+            
+            this.initializeUI();
+            this.bindEvents();
+            this.resizeGame();
+            this.loadAutoSave();
+            
+            window.addEventListener('resize', () => this.resizeGame());
+        }
+
+        initializeUI() {
+            // 菜单背景粒子
+            this.createMenuParticles();
+            
+            // 更新存档按钮状态
+            const hasAutoSave = saveManager.getAutoSave();
+            document.getElementById('continueBtn').style.opacity = hasAutoSave ? '1' : '0.5';
+        }
+
+        createMenuParticles() {
+            const container = document.getElementById('menuBgDecor');
+            for (let i = 0; i < 20; i++) {
+                const particle = document.createElement('div');
+                particle.style.cssText = `
+                    position: absolute;
+                    width: ${Math.random() * 10 + 5}px;
+                    height: ${Math.random() * 10 + 5}px;
+                    background: radial-gradient(circle, rgba(255,183,197,0.8), transparent);
+                    border-radius: 50%;
+                    left: ${Math.random() * 100}%;
+                    top: ${Math.random() * 100}%;
+                    animation: float ${Math.random() * 10 + 10}s ease-in-out infinite;
+                    animation-delay: ${Math.random() * 5}s;
+                `;
+                container.appendChild(particle);
+            }
+
+            // 添加浮动动画
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes float {
+                    0%, 100% { transform: translate(0, 0) rotate(0deg); opacity: 0.3; }
+                    25% { transform: translate(20px, -30px) rotate(90deg); opacity: 0.6; }
+                    50% { transform: translate(-10px, -50px) rotate(180deg); opacity: 0.4; }
+                    75% { transform: translate(30px, -20px) rotate(270deg); opacity: 0.7; }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        bindEvents() {
+            // 主菜单按钮
+            document.getElementById('newGameBtn').addEventListener('click', () => this.startNewGame());
+            document.getElementById('continueBtn').addEventListener('click', () => this.continueGame());
+            document.getElementById('loadBtn').addEventListener('click', () => this.showSaveLoadPanel('load'));
+            document.getElementById('settingsBtn').addEventListener('click', () => this.showToast('设置功能开发中...', 'info'));
+
+            // HUD按钮
+            document.getElementById('showStatsBtn').addEventListener('click', () => this.togglePanel('statsPanel'));
+            document.getElementById('showAffectionBtn').addEventListener('click', () => this.togglePanel('affectionPanel'));
+            document.getElementById('saveBtn').addEventListener('click', () => this.showSaveLoadPanel('save'));
+            document.getElementById('menuBtn').addEventListener('click', () => this.returnToMenu());
+
+            // 存档面板
+            document.getElementById('closeSavePanel').addEventListener('click', () => this.hideSaveLoadPanel());
+
+            // 对话框点击
+            document.getElementById('dialogueBox').addEventListener('click', () => this.advanceDialogue());
+
+            // 行动按钮
+            document.querySelectorAll('.action-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => this.handleAction(e.currentTarget.dataset.action));
+            });
+
+            // Canvas点击
+            this.canvas.addEventListener('click', (e) => this.handleCanvasClick(e));
+        }
+
+        resizeGame() {
+            const wrapper = document.querySelector('.game-wrapper');
+            const container = this.container;
+            
+            const wrapperWidth = wrapper.clientWidth;
+            const wrapperHeight = wrapper.clientHeight;
+            
+            const scaleX = wrapperWidth / CONFIG.CANVAS_WIDTH;
+            const scaleY = wrapperHeight / CONFIG.CANVAS_HEIGHT;
+            const scale = Math.min(scaleX, scaleY, 1.2);
+            
+            container.style.transform = `scale(${scale})`;
+        }
+
+        startNewGame() {
+            // 重置游戏状态
+            GameState.currentScreen = 'game';
+            GameState.currentScene = 'classroom';
+            GameState.player.stats = {
+                knowledge: 45, charm: 32, stamina: 80,
+                social: 50, art: 25, fitness: 40, money: 5000
+            };
+            GameState.time = { year: 2024, month: 4, day: 1, hour: 8, minute: 0, dayOfWeek: 1 };
+            GameState.affections = {
+                sakura: { level: 2, exp: 150, max: 500, name: '樱井美雪', color: '#ffb7c5' },
+                yuki: { level: 1, exp: 50, max: 500, name: '雪村凛', color: '#87ceeb' },
+                haru: { level: 1, exp: 80, max: 500, name: '春日阳太', color: '#98fb98' }
+            };
+            GameState.flags = { tutorialComplete: false, firstMeeting: {} };
+            
+            this.enterGame();
+            this.startDialogue('intro');
+        }
+
+        continueGame() {
+            const autoSave = saveManager.getAutoSave();
+            if (autoSave) {
+                saveManager.applySaveData(autoSave);
+                this.enterGame();
+                this.showToast('读取自动存档成功', 'success');
+            } else {
+                this.showToast('没有找到自动存档', 'error');
+            }
+        }
+
+        enterGame() {
+            document.getElementById('mainMenu').classList.add('hidden');
+            document.getElementById('gameHud').classList.remove('hidden');
+            document.getElementById('actionPanel').classList.add('active');
+            
+            this.updateHUD();
+            this.startAutoSave();
+            
+            if (!this.isRunning) {
+                this.isRunning = true;
+                requestAnimationFrame((t) => this.gameLoop(t));
+            }
+        }
+
+        returnToMenu() {
+            saveManager.autoSave();
+            
+            document.getElementById('mainMenu').classList.remove('hidden');
+            document.getElementById('gameHud').classList.add('hidden');
+            document.getElementById('actionPanel').classList.remove('active');
+            document.getElementById('dialogueBox').classList.remove('active');
+            document.getElementById('statsPanel').classList.remove('active');
+            document.getElementById('affectionPanel').classList.remove('active');
+            
+            this.isRunning = false;
+        }
+
+        gameLoop(timestamp) {
+            if (!this.isRunning) return;
+
+            const deltaTime = timestamp - this.lastTime;
+            this.lastTime = timestamp;
+
+            // 更新游戏时间
+            this.updatePlayTime(deltaTime);
+
+            // 渲染场景
+            this.render();
+
+            requestAnimationFrame((t) => this.gameLoop(t));
+        }
+
+        updatePlayTime(deltaTime) {
+            this.playTimeAccumulator += deltaTime;
+            if (this.playTimeAccumulator >= 1000) {
+                GameState.stats.totalPlayTime += Math.floor(this.playTimeAccumulator / 1000);
+                this.playTimeAccumulator %= 1000;
+            }
+        }
+
+        render() {
+            const ctx = this.ctx;
+            ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+            // 渲染场景
+            this.sceneRenderer.render(GameState.currentScene, GameState.time);
+
+            // 渲染角色（如果有对话且显示角色）
+            if (GameState.dialogue.current) {
+                const currentDialogue = DialogueData[GameState.dialogue.current];
+                if (currentDialogue && currentDialogue[GameState.dialogue.currentIndex]) {
+                    const dialogue = currentDialogue[GameState.dialogue.currentIndex];
+                    if (dialogue.character) {
+                        this.sceneRenderer.drawCharacter(
+                            dialogue.character,
+                            this.canvas.width * 0.7,
+                            this.canvas.height * 0.3,
+                            dialogue.expression || 'normal',
+                            0.8
+                        );
+                    }
+                }
+            }
+        }
+
+        updateHUD() {
+            const time = GameState.time;
+            const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+            const periods = ['深夜', '凌晨', '早晨', '上午', '中午', '下午', '傍晚', '夜晚'];
+            
+            document.getElementById('dateDisplay').textContent = 
+                `${time.year}年${time.month}月${time.day}日 ${days[time.dayOfWeek]}`;
+            
+            const hour = String(time.hour).padStart(2, '0');
+            const minute = String(time.minute).padStart(2, '0');
+            document.getElementById('timeDisplay').textContent = `${hour}:${minute}`;
+            
+            const periodIndex = Math.floor(time.hour / 3);
+            document.getElementById('periodDisplay').textContent = periods[periodIndex];
+            
+            document.getElementById('locationName').textContent = 
+                SceneNames[GameState.currentScene] || GameState.currentScene;
+            
+            // 更新属性面板
+            this.updateStatsPanel();
+            this.updateAffectionPanel();
+        }
+
+        updateStatsPanel() {
+            const stats = GameState.player.stats;
+            const statConfig = {
+                knowledge: { name: '学力', color: '#6b8cce' },
+                charm: { name: '魅力', color: '#ff6b8a' },
+                stamina: { name: '体力', color: '#4ecdc4' },
+                social: { name: '社交', color: '#ffd700' },
+                art: { name: '艺术', color: '#9b59b6' },
+                fitness: { name: '运动', color: '#e67e22' }
+            };
+
+            let html = '';
+            for (const [key, config] of Object.entries(statConfig)) {
+                const value = stats[key] || 0;
+                const percentage = Math.min(value, 100);
+                html += `
+                    <div class="stat-row">
+                        <span class="stat-label">${config.name}</span>
+                        <div class="stat-bar-bg">
+                            <div class="stat-bar-fill" style="width: ${percentage}%; background: ${config.color};"></div>
+                        </div>
+                        <span class="stat-value">${value}</span>
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="stat-row" style="margin-top: 15px; padding-top: 10px; border-top: 1px solid rgba(255,183,197,0.2);">
+                    <span class="stat-label">金钱</span>
+                    <span class="stat-value" style="color: #ffd700;">¥${stats.money}</span>
+                </div>
+            `;
+            
+            document.getElementById('statsContent').innerHTML = html;
+        }
+
+        updateAffectionPanel() {
+            const affections = GameState.affections;
+            
+            let html = '';
+            for (const [key, data] of Object.entries(affections)) {
+                const hearts = Math.min(data.level, 5);
+                let heartsHtml = '';
+                for (let i = 0; i < 5; i++) {
+                    heartsHtml += `<svg class="heart ${i < hearts ? 'filled' : ''}" viewBox="0 0 24 24" fill="${data.color}">
+                        <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+                    </svg>`;
+                }
+                
+                html += `
+                    <div class="affection-row">
+                        <div class="affection-avatar" style="background: ${data.color};"></div>
+                        <div class="affection-info">
+                            <div class="affection-name">${data.name}</div>
+                            <div class="affection-hearts">${heartsHtml}</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            document.getElementById('affectionContent').innerHTML = html;
+        }
+
+        startDialogue(dialogueId) {
+            const dialogue = DialogueData[dialogueId];
+            if (!dialogue || dialogue.length === 0) return;
+
+            GameState.dialogue.current = dialogueId;
+            GameState.dialogue.currentIndex = 0;
+            GameState.dialogue.isTyping = false;
+            GameState.dialogue.currentText = '';
+
+            document.getElementById('actionPanel').classList.remove('active');
+            this.showDialogue();
+        }
+
+        showDialogue() {
+            const dialogueData = DialogueData[GameState.dialogue.current];
+            if (!dialogueData) return;
+
+            const currentDialogue = dialogueData[GameState.dialogue.currentIndex];
+            if (!currentDialogue) {
+                this.endDialogue();
+                return;
+            }
+
+            const dialogueBox = document.getElementById('dialogueBox');
+            dialogueBox.classList.add('active');
+            
+            document.getElementById('dialogueSpeaker').textContent = currentDialogue.speaker || '???';
+            
+            this.typewriterEffect(currentDialogue.text);
+        }
+
+        typewriterEffect(text) {
+            if (GameState.dialogue.typewriterTimer) {
+                clearTimeout(GameState.dialogue.typewriterTimer);
+            }
+
+            let charIndex = 0;
+            GameState.dialogue.currentText = '';
+            GameState.dialogue.isTyping = true;
+
+            const typeChar = () => {
+                if (charIndex < text.length) {
+                    GameState.dialogue.currentText += text[charIndex];
+                    document.getElementById('dialogueText').textContent = GameState.dialogue.currentText;
+                    charIndex++;
+                    GameState.dialogue.typewriterTimer = setTimeout(typeChar, CONFIG.TYPE_SPEED);
+                } else {
+                    GameState.dialogue.isTyping = false;
+                    this.onTypewriterComplete();
+                }
+            };
+
+            typeChar();
+        }
+
+        onTypewriterComplete() {
+            const dialogueData = DialogueData[GameState.dialogue.current];
+            if (!dialogueData) return;
+
+            const currentDialogue = dialogueData[GameState.dialogue.currentIndex];
+            if (!currentDialogue) return;
+
+            // 显示选项
+            if (currentDialogue.choices) {
+                this.showChoices(currentDialogue.choices);
+            }
+        }
+
+        showChoices(choices) {
+            const panel = document.getElementById('choicesPanel');
+            panel.innerHTML = '';
+            panel.classList.add('active');
+
+            choices.forEach((choice, index) => {
+                const btn = document.createElement('button');
+                btn.className = 'choice-btn';
+                btn.textContent = choice.text;
+                btn.addEventListener('click', () => this.selectChoice(choice));
+                panel.appendChild(btn);
+            });
+        }
+
+        selectChoice(choice) {
+            document.getElementById('choicesPanel').classList.remove('active');
+
+            // 处理好感度变化
+            if (choice.affection) {
+                for (const [charId, change] of Object.entries(choice.affection)) {
+                    if (GameState.affections[charId]) {
+                        GameState.affections[charId].exp += change;
+                        if (change > 0) {
+                            this.triggerHeartbeat();
+                        }
+                        // 检查升级
+                        while (GameState.affections[charId].exp >= GameState.affections[charId].max) {
+                            GameState.affections[charId].exp -= GameState.affections[charId].max;
+                            GameState.affections[charId].level++;
+                            this.showToast(`${GameState.affections[charId].name}的好感度提升了！`, 'success');
+                        }
+                    }
+                }
+                this.updateAffectionPanel();
+            }
+
+            // 跳转到下一段对话
+            if (choice.next && DialogueData[choice.next]) {
+                GameState.dialogue.current = choice.next;
+                GameState.dialogue.currentIndex = 0;
+                this.showDialogue();
+            } else {
+                this.advanceDialogue();
+            }
+        }
+
+        advanceDialogue() {
+            if (GameState.dialogue.isTyping) {
+                // 跳过打字机效果
+                const dialogueData = DialogueData[GameState.dialogue.current];
+                if (dialogueData) {
+                    const currentDialogue = dialogueData[GameState.dialogue.currentIndex];
+                    if (currentDialogue) {
+                        clearTimeout(GameState.dialogue.typewriterTimer);
+                        GameState.dialogue.currentText = currentDialogue.text;
+                        document.getElementById('dialogueText').textContent = currentDialogue.text;
+                        GameState.dialogue.isTyping = false;
+                        this.onTypewriterComplete();
+                    }
+                }
+                return;
+            }
+
+            const dialogueData = DialogueData[GameState.dialogue.current];
+            if (!dialogueData) return;
+
+            const currentDialogue = dialogueData[GameState.dialogue.currentIndex];
+            
+            // 如果有选项，等待选择
+            if (currentDialogue && currentDialogue.choices) {
+                return;
+            }
+
+            // 检查场景切换
+            if (currentDialogue && currentDialogue.nextScene) {
+                GameState.currentScene = currentDialogue.nextScene;
+                this.updateHUD();
+            }
+
+            GameState.dialogue.currentIndex++;
+            
+            if (GameState.dialogue.currentIndex >= dialogueData.length) {
+                this.endDialogue();
+            } else {
+                this.showDialogue();
+            }
+        }
+
+        endDialogue() {
+            document.getElementById('dialogueBox').classList.remove('active');
+            document.getElementById('choicesPanel').classList.remove('active');
+            
+            GameState.dialogue.current = null;
+            GameState.dialogue.currentIndex = 0;
+            
+            document.getElementById('actionPanel').classList.add('active');
+        }
+
+        handleAction(action) {
+            const actions = {
+                study: { stats: { knowledge: 5 }, time: 1, message: '认真学习了！学力+5' },
+                exercise: { stats: { fitness: 5, stamina: -10 }, time: 1, message: '锻炼身体！运动+5，体力-10' },
+                rest: { stats: { stamina: 20 }, time: 1, message: '休息一下~体力+20' },
+                socialize: { stats: { social: 3 }, time: 1, message: '与同学交流！社交+3' },
+                explore: { stats: { charm: 2 }, time: 2, message: '探索校园！魅力+2' }
+            };
+
+            const actionData = actions[action];
+            if (!actionData) return;
+
+            // 应用属性变化
+            for (const [stat, change] of Object.entries(actionData.stats)) {
+                if (GameState.player.stats[stat] !== undefined) {
+                    GameState.player.stats[stat] = Math.max(0, Math.min(100, GameState.player.stats[stat] + change));
+                }
+            }
+
+            // 推进时间
+            this.advanceTime(actionData.time);
+
+            // 显示反馈
+            this.showToast(actionData.message, 'success');
+            this.updateStatsPanel();
+            this.updateHUD();
+
+            // 随机触发对话
+            if (Math.random() < 0.3) {
+                setTimeout(() => {
+                    this.startDialogue('daily_greeting');
+                }, 500);
+            }
+        }
+
+        advanceTime(hours) {
+            GameState.time.hour += hours;
+            
+            while (GameState.time.hour >= 24) {
+                GameState.time.hour -= 24;
+                GameState.time.day++;
+                GameState.time.dayOfWeek = (GameState.time.dayOfWeek + 1) % 7;
+                GameState.stats.daysPlayed++;
+                
+                // 简单的月份处理
+                const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+                if (GameState.time.day > daysInMonth[GameState.time.month - 1]) {
+                    GameState.time.day = 1;
+                    GameState.time.month++;
+                    if (GameState.time.month > 12) {
+                        GameState.time.month = 1;
+                        GameState.time.year++;
+                    }
+                }
+            }
+        }
+
+        handleCanvasClick(e) {
+            // 处理Canvas上的点击（可以扩展用于场景交互）
+        }
+
+        togglePanel(panelId) {
+            const panel = document.getElementById(panelId);
+            panel.classList.toggle('active');
+        }
+
+        showSaveLoadPanel(mode) {
+            const panel = document.getElementById('saveLoadPanel');
+            const title = document.getElementById('saveLoadTitle');
+            
+            title.textContent = mode === 'save' ? '保存游戏' : '读取存档';
+            panel.dataset.mode = mode;
+            panel.classList.add('active');
+            
+            this.renderSaveSlots(mode);
+        }
+
+        hideSaveLoadPanel() {
+            document.getElementById('saveLoadPanel').classList.remove('active');
+        }
+
+        renderSaveSlots(mode) {
+            const container = document.getElementById('saveSlots');
+            const slots = saveManager.getAllSaveSlots();
+            
+            let html = '';
+            slots.forEach(slot => {
+                if (slot.exists) {
+                    html += `
+                        <div class="save-slot" data-slot="${slot.index}">
+                            <div class="slot-number">存档 ${slot.index + 1}</div>
+                            <div class="slot-info">
+                                <div class="scene-name">${slot.sceneName}</div>
+                                <div>${saveManager.formatTimestamp(slot.timestamp)}</div>
+                                <div>游玩时间: ${saveManager.formatPlaytime(slot.playtime)}</div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="save-slot empty" data-slot="${slot.index}">
+                            <div class="slot-number">存档 ${slot.index + 1}</div>
+                            <div class="slot-info">空槽位</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            container.innerHTML = html;
+            
+            // 绑定点击事件
+            container.querySelectorAll('.save-slot').forEach(slotEl => {
+                slotEl.addEventListener('click', () => {
+                    const slotIndex = parseInt(slotEl.dataset.slot);
+                    const mode = document.getElementById('saveLoadPanel').dataset.mode;
+                    
+                    if (mode === 'save') {
+                        const result = saveManager.saveToSlot(slotIndex);
+                        this.showToast(result.message, result.success ? 'success' : 'error');
+                        if (result.success) {
+                            this.hideSaveLoadPanel();
+                            this.renderSaveSlots(mode);
+                        }
+                    } else {
+                        const result = saveManager.loadFromSlot(slotIndex);
+                        if (result.success) {
+                            this.hideSaveLoadPanel();
+                            this.enterGame();
+                            this.showToast('读取存档成功', 'success');
+                        } else {
+                            this.showToast(result.message, 'error');
+                        }
+                    }
+                });
+            });
+        }
+
+        startAutoSave() {
+            setInterval(() => {
+                if (GameState.currentScreen === 'game') {
+                    saveManager.autoSave();
+                }
+            }, CONFIG.AUTO_SAVE_INTERVAL);
+        }
+
+        loadAutoSave() {
+            saveManager.loadSettings();
+        }
+
+        triggerHeartbeat() {
+            const effect = document.getElementById('heartbeatEffect');
+            const rings = effect.querySelectorAll('.pulse-ring');
+            
+            rings.forEach((ring, i) => {
+                ring.classList.remove('animate');
+                void ring.offsetWidth; // 强制重绘
+                setTimeout(() => {
+                    ring.classList.add('animate');
+                }, i * 200);
+            });
+        }
+
+        showToast(message, type = 'info') {
+            const toast = document.getElementById('toastMessage');
+            toast.textContent = message;
+            toast.className = `toast-message show ${type}`;
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+    }
+
+    // ============================================
+    // 初始化游戏
+    // ============================================
+    let game;
+    
+    window.addEventListener('DOMContentLoaded', () => {
+        game = new Game();
+    });
+</script>
+</body>
+</html>

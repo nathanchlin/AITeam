@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寻道大千 - 挂机类游戏</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #status {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 5px;
+    border-radius: 5px;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="status">Score: 0</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const status = document.getElementById('status');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  let player = {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    width: 50,
+    height: 50,
+    color: 'blue',
+    score: 0,
+    health: 100,
+    animationFrameId: null
+  };
+
+  let map = {
+    width: canvas.width,
+    height: canvas.height,
+    color: 'green'
+  };
+
+  function drawRect(x, y, width, height, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  function drawPlayer() {
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    ctx.fillStyle = 'white';
+    ctx.fillText(`Score: ${player.score}`, 10, 30);
+    ctx.fillText(`Health: ${player.health}`, 10, 50);
+  }
+
+  function drawMap() {
+    drawRect(map.x, map.y, map.width, map.height, map.color);
+  }
+
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawMap();
+    drawPlayer();
+    requestAnimationFrame(gameLoop);
+  }
+
+  function handleKeyPress(event) {
+    const { keyCode } = event;
+    const step = 10;
+
+    switch (keyCode) {
+      case 37: // Left arrow
+        player.x = Math.max(0, player.x - step);
+        break;
+      case 38: // Up arrow
+        player.y = Math.max(0, player.y - step);
+        break;
+      case 39: // Right arrow
+        player.x = Math.min(canvas.width - player.width, player.x + step);
+        break;
+      case 40: // Down arrow
+        player.y = Math.min(canvas.height - player.height, player.y + step);
+        break;
+    }
+  }
+
+  function checkCollision(player, map) {
+    return player.x < map.x + map.width &&
+           player.x + player.width > map.x &&
+           player.y < map.y + map.height &&
+           player.y + player.height > map.y;
+  }
+
+  function updateScore() {
+    if (checkCollision(player, map)) {
+      player.score += 10;
+      player.health -= 5; // Deduct health on collision
+      animateHit();
+    }
+  }
+
+  function animateHit() {
+    if (player.animationFrameId) {
+      cancelAnimationFrame(player.animationFrameId);
+    }
+    player.animationFrameId = requestAnimationFrame(function animate() {
+      ctx.fillStyle = 'red';
+      ctx.globalAlpha = 0.3; // Semi-transparent red
+      drawRect(player.x, player.y, player.width, player.height);
+      ctx.globalAlpha = 1; // Reset alpha
+      if (player.health > 0) {
+        animate(); // Continue animation
+      }
+    });
+  }
+
+  window.onload = function() {
+    document.addEventListener('keydown', handleKeyPress);
+    gameLoop();
+  };
+
+  setInterval(updateScore, 1000); // Update score every second
+
+// From code_4.js
+class ParticleSystem {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.particles = [];
+    this.maxParticles = 1000;
+  }
+
+  addParticle(x, y, velocity) {
+    if (this.particles.length < this.maxParticles) {
+      const particle = { x, y, velocity, age: 0 };
+      this.particles.push(particle);
+    }
+  }
+
+  update() {
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const particle = this.particles[i];
+      particle.x += particle.velocity.x;
+      particle.y += particle.velocity.y;
+      particle.age++;
+
+      if (particle.age > 10) {
+        this.particles.splice(i, 1);
+      }
+    }
+  }
+
+  render() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.particles.forEach(particle => {
+      this.ctx.fillStyle = 'white';
+      this.ctx.beginPath();
+      this.ctx.arc(particle.x, particle.y, 2, 0, Math.PI * 2);
+      this.ctx.fill();
+    });
+  }
+}
+// From code_5.js
+class LODManager {
+  constructor() {
+    this.models = [];
+  }
+
+  addModel(modelName, distances, models) {
+    this.models.push({ name: modelName, distances, models });
+  }
+
+  getModelForDistance(distance) {
+    for (let i = 0; i < this.models.length; i++) {
+      if (distance < this.models[i].distances[i]) {
+        return this.models[i].models[i];
+      }
+    }
+    return this.models[this.models.length - 1].models[this.models.length - 1];
+  }
+}
+</script>
+</body>
+</html>

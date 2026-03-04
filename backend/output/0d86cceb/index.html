@@ -1,0 +1,1766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寻道大千 - 挂机类游戏</title>
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #status {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 5px;
+    border-radius: 5px;
+  }
+
+  body {
+    margin: 0;
+    overflow: hidden;
+    font-family: 'Microsoft YaHei', sans-serif;
+    user-select: none;
+  }
+  canvas {
+    display: block;
+    background: #2c3e50;
+  }
+  /* 隐藏旧的 Status，使用新的 HUD 系统替代 */
+  #status {
+    display: none;
+  }
+  
+  /* --- UI Framework Styles --- */
+  #game-ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* 允许点击穿透到 Canvas */
+  }
+
+  .ui-panel {
+    background: linear-gradient(135deg, rgba(20, 20, 20, 0.8), rgba(40, 40, 40, 0.6));
+    border: 2px solid #8b4513;
+    border-radius: 8px;
+    color: #fff;
+    padding: 10px;
+    pointer-events: auto; /* 恢复 UI 元素的点击 */
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+
+  /* Top HUD */
+  .top-hud {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    height: 60px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .player-info {
+    width: 300px;
+  }
+
+  .stat-bar {
+    height: 20px;
+    background: #333;
+    border-radius: 10px;
+    margin-bottom: 5px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bar-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+  }
+  .hp-fill { background: linear-gradient(90deg, #e74c3c, #c0392b); }
+  .exp-fill { background: linear-gradient(90deg, #f39c12, #e67e22); }
+
+  .bar-text {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    top: 2px;
+    font-size: 12px;
+    text-shadow: 1px 1px 2px black;
+  }
+
+  .game-stats {
+    font-size: 18px;
+    color: #f1c40f;
+    font-weight: bold;
+  }
+
+  /* Bottom Action Bar */
+  .bottom-bar {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 10px;
+  }
+
+  .skill-slot {
+    width: 50px;
+    height: 50px;
+    background: rgba(0,0,0,0.6);
+    border: 2px solid #555;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .skill-slot:hover {
+    border-color: #f39c12;
+  }
+
+  /* Right Side Menu */
+  .side-menu {
+    position: absolute;
+    top: 80px;
+    right: 10px;
+    width: 50px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .menu-btn {
+    width: 40px;
+    height: 40px;
+    background: #2c3e50;
+    border-radius: 50%;
+    border: 2px solid #ecf0f1;
+    color: #ecf0f1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+  }
+
+/* ==================== UI反馈效果样式 ==================== */
+  
+  /* 涟漪效果 */
+  .ripple-btn {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .ripple-effect {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(0);
+    animation: ripple-animation 0.6s ease-out;
+    pointer-events: none;
+  }
+  
+  @keyframes ripple-animation {
+    to {
+      transform: scale(4);
+      opacity: 0;
+    }
+  }
+  
+  /* 游戏按钮基础样式 */
+  .game-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #4a5568, #2d3748);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .game-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    filter: brightness(1.1);
+  }
+  
+  .game-btn:active:not(:disabled) {
+    transform: scale(0.95) translateY(0);
+  }
+  
+  .game-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+  
+  .game-btn .btn-icon {
+    font-size: 16px;
+  }
+  
+  /* 按钮变体 */
+  .game-btn.btn-success {
+    background: linear-gradient(135deg, #48bb78, #2f855a);
+  }
+  
+  .game-btn.btn-danger {
+    background: linear-gradient(135deg, #f56565, #c53030);
+  }
+  
+  .game-btn.btn-warning {
+    background: linear-gradient(135deg, #ed8936, #c05621);
+  }
+  
+  /* 按钮加载状态 */
+  .game-btn.btn-loading {
+    pointer-events: none;
+  }
+  
+  .btn-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 8px;
+  }
+  
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  
+  /* 按钮动画 */
+  .game-btn.btn-pulse {
+    animation: btn-pulse 0.5s ease;
+  }
+  
+  @keyframes btn-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+  
+  .game-btn.btn-shake {
+    animation: btn-shake 0.5s ease;
+  }
+  
+  @keyframes btn-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-5px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+  
+  /* Toast通知 */
+  #toastContainer {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10001;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+  }
+  
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 20px;
+    background: rgba(30, 30, 40, 0.95);
+    border-radius: 10px;
+    color: #fff;
+    font-size: 14px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+    pointer-events: auto;
+    cursor: pointer;
+    animation: toast-slide-in 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    min-width: 200px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  @keyframes toast-slide-in {
+    from {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(0);
+      opacity: 1;
+    }
+  }
+  
+  .toast.toast-fade-out {
+    animation: toast-fade-out 0.3s ease forwards;
+  }
+  
+  @keyframes toast-fade-out {
+    to {
+      transform: translateX(100%);
+      opacity: 0;
+    }
+  }
+  
+  .toast-icon {
+    font-size: 18px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+  }
+  
+  .toast-success .toast-icon { background: rgba(72, 187, 120, 0.3); color: #48bb78; }
+  .toast-error .toast-icon { background: rgba(245, 101, 101, 0.3); color: #f56565; }
+  .toast-warning .toast-icon { background: rgba(237, 137, 54, 0.3); color: #ed8936; }
+  .toast-info .toast-icon { background: rgba(66, 153, 225, 0.3); color: #4299e1; }
+  
+  .toast-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #4299e1, #63b3ed);
+    animation: toast-progress linear forwards;
+  }
+  
+  @keyframes toast-progress {
+    from { width: 100%; }
+    to { width: 0%; }
+  }
+  
+  /* 加载遮罩 */
+  #loadingOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(10, 10, 20, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10003;
+  }
+  
+  .loading-content {
+    text-align: center;
+    color: #fff;
+  }
+  
+  .loading-spinner {
+    width: 60px;
+    height: 60px;
+    border: 4px solid rgba(100, 200, 255, 0.2);
+    border-top-color: #64c8ff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+  }
+  
+  .loading-text {
+    font-size: 18px;
+    margin-bottom: 15px;
+    color: #64c8ff;
+  }
+  
+  .loading-progress {
+    width: 200px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 0 auto;
+  }
+  
+  .loading-progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #64c8ff, #a78bfa);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+  
+  /* 浮动数字 */
+  .floating-number {
+    position: fixed;
+    font-size: 24px;
+    font-weight: bold;
+    text-shadow: 0 0 10px currentColor;
+    pointer-events: none;
+    z-index: 10000;
+    animation: float-up 1.5s ease-out forwards;
+  }
+  
+  @keyframes float-up {
+    0% {
+      transform: translateY(0) scale(0.5);
+      opacity: 0;
+    }
+    20% {
+      transform: translateY(-20px) scale(1.2);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-80px) scale(0.8);
+      opacity: 0;
+    }
+  }
+  
+  /* 伤害数字 */
+  .damage-number {
+    position: fixed;
+    font-size: 28px;
+    font-weight: bold;
+    color: #ff4444;
+    text-shadow: 0 0 10px #ff0000, 2px 2px 0 #000;
+    pointer-events: none;
+    z-index: 10000;
+    animation: damage-pop 1s ease-out forwards;
+  }
+  
+  .damage-number.critical {
+    font-size: 36px;
+    color: #ffcc00;
+    text-shadow: 0 0 15px #ffcc00, 2px 2px 0 #000;
+    animation: critical-pop 1.2s ease-out forwards;
+  }
+  
+  @keyframes damage-pop {
+    0% {
+      transform: translateY(0) scale(0.5);
+      opacity: 0;
+    }
+    20% {
+      transform: translateY(-30px) scale(1.3);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-60px) scale(0.9);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes critical-pop {
+    0% {
+      transform: translateY(0) scale(0.3) rotate(-10deg);
+      opacity: 0;
+    }
+    20% {
+      transform: translateY(-40px) scale(1.5) rotate(5deg);
+      opacity: 1;
+    }
+    40% {
+      transform: translateY(-50px) scale(1.3) rotate(-3deg);
+    }
+    100% {
+      transform: translateY(-80px) scale(0.8) rotate(0deg);
+      opacity: 0;
+    }
+  }
+  
+  /* 屏幕闪烁 */
+  .screen-flash {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 9999;
+    animation: flash-fade 0.15s ease-out forwards;
+  }
+  
+  @keyframes flash-fade {
+    0% { opacity: 0.8; }
+    100% { opacity: 0; }
+  }
+  
+  /* 演示面板 */
+  #demoPanel {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20, 20, 30, 0.9);
+    padding: 15px 20px;
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(100, 200, 255, 0.2);
+    z-index: 10000;
+  }
+  
+  #demoPanel .demo-title {
+    text-align: center;
+    color: #64c8ff;
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 15px;
+  }
+  
+  #demoPanel .demo-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    max-width: 600px;
+  }
+  
+  /* 切换按钮样式 */
+  .toggle-btn {
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+  }
+  
+  .toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  
+  /* 响应式调整 */
+  @media screen and (max-width: 600px) {
+    #demoPanel {
+      left: 10px;
+      right: 10px;
+      transform: none;
+      padding: 10px 15px;
+    }
+    
+    #demoPanel .demo-buttons {
+      gap: 8px;
+    }
+    
+    .game-btn {
+      padding: 10px 15px;
+      font-size: 12px;
+    }
+    
+    #toastContainer {
+      right: 10px;
+      left: 10px;
+    }
+    
+    .toast {
+      font-size: 13px;
+      padding: 12px 15px;
+    }
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="status">Score: 0</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const status = document.getElementById('status');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  let player = {
+    animationFrameId: null
+  };
+
+  let map = {
+  };
+
+  function drawRect(x, y, width, height, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  function drawPlayer() {
+    // 仅绘制角色，不绘制文字UI，交由 UIManager 处理
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    
+    // 绘制角色动画或特效（例如呼吸效果）
+    if (player.isHit) {
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+        ctx.globalAlpha = 1.0;
+        player.isHit = false; // 重置状态
+    }
+  }
+
+  function drawMap() {
+    drawRect(map.x, map.y, map.width, map.height, map.color);
+  }
+
+  
+// ==================== 性能监控器 ====================
+  class PerformanceMonitor {
+    constructor() {
+      this.fps = 0;
+      this.frameTime = 0;
+      this.lastTime = performance.now();
+      this.frameCount = 0;
+      this.fpsHistory = [];
+      this.maxHistoryLength = 60;
+      this.isVisible = true;
+      
+      // 性能等级
+      this.performanceLevel = 'high';
+      this.recommendedSettings = {
+      };
+      
+      this.createPanel();
+      this.startMonitoring();
+    }
+    
+    createPanel() {
+      this.panel = document.createElement('div');
+      this.panel.id = 'performancePanel';
+      this.panel.innerHTML = `
+        <div class="panel-header">
+          <span class="panel-title">📊 性能监控</span>
+          <span id="perfToggle" style="cursor:pointer;color:#888;">_</span>
+        </div>
+        <div id="perfContent">
+          <div class="stat-row">
+            <span class="stat-label">FPS:</span>
+            <span id="fpsValue" style="color:#0f0;font-weight:bold;">60</span>
+          </div>
+          <div class="fps-bar"><div class="fps-fill" id="fpsBar" style="width:100%"></div></div>
+          <div class="stat-row">
+            <span class="stat-label">帧时间:</span>
+            <span id="frameTime">16.67ms</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">性能等级:</span>
+            <span id="perfLevel" style="color:#0f0;">HIGH</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">粒子数:</span>
+            <span id="particleCount">0</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">内存:</span>
+            <span id="memoryUsage">--</span>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(this.panel);
+      
+      // 最小化切换
+      document.getElementById('perfToggle').onclick = () => {
+        const content = document.getElementById('perfContent');
+        const toggle = document.getElementById('perfToggle');
+        this.isVisible = !this.isVisible;
+        content.style.display = this.isVisible ? 'block' : 'none';
+        toggle.textContent = this.isVisible ? '_' : '□';
+      };
+    }
+    
+    startMonitoring() {
+      this.monitorInterval = setInterval(() => {
+        this.calculatePerformance();
+        this.updatePanel();
+        this.adjustPerformanceLevel();
+      }, 500);
+    }
+    
+    calculatePerformance() {
+      const now = performance.now();
+      if (this.frameCount > 0) {
+        this.fps = Math.round((this.frameCount * 1000) / (now - this.lastTime));
+        this.frameTime = ((now - this.lastTime) / this.frameCount).toFixed(2);
+      }
+      this.frameCount = 0;
+      this.lastTime = now;
+      
+      this.fpsHistory.push(this.fps);
+      if (this.fpsHistory.length > this.maxHistoryLength) {
+        this.fpsHistory.shift();
+      }
+    }
+    
+    tick() {
+      this.frameCount++;
+    }
+    
+    adjustPerformanceLevel() {
+      if (this.fpsHistory.length < 10) return;
+      
+      const recentFps = this.fpsHistory.slice(-10);
+      const avgFps = recentFps.reduce((a, b) => a + b, 0) / recentFps.length;
+      
+      const prevLevel = this.performanceLevel;
+      
+      if (avgFps >= 50) {
+        this.performanceLevel = 'high';
+      } else if (avgFps >= 30) {
+        this.performanceLevel = 'medium';
+      } else {
+        this.performanceLevel = 'low';
+      }
+      
+      if (prevLevel !== this.performanceLevel) {
+        console.log(`[PerformanceMonitor] 性能等级调整为: ${this.performanceLevel.toUpperCase()}`);
+        this.applyPerformanceSettings();
+      }
+    }
+    
+    applyPerformanceSettings() {
+      const settings = this.recommendedSettings[this.performanceLevel];
+      
+      // 调整粒子系统
+      if (typeof ParticleSystem !== 'undefined' && window.particleSystem) {
+        window.particleSystem.maxParticles = settings.maxParticles;
+      }
+      
+      console.log('[PerformanceMonitor] 应用设置:', settings);
+    }
+    
+    updatePanel() {
+      if (!this.isVisible) return;
+      
+      const fpsEl = document.getElementById('fpsValue');
+      const fpsBar = document.getElementById('fpsBar');
+      const frameTimeEl = document.getElementById('frameTime');
+      const perfLevelEl = document.getElementById('perfLevel');
+      const particleEl = document.getElementById('particleCount');
+      const memoryEl = document.getElementById('memoryUsage');
+      
+      // FPS 颜色
+      let fpsColor = '#0f0';
+      if (this.fps < 30) fpsColor = '#f00';
+      else if (this.fps < 50) fpsColor = '#ff0';
+      
+      fpsEl.textContent = this.fps;
+      fpsEl.style.color = fpsColor;
+      fpsBar.style.width = Math.min(100, (this.fps / 60) * 100) + '%';
+      
+      frameTimeEl.textContent = this.frameTime + 'ms';
+      
+      // 性能等级颜色
+      const levelColors = { high: '#0f0', medium: '#ff0', low: '#f00' };
+      perfLevelEl.textContent = this.performanceLevel.toUpperCase();
+      perfLevelEl.style.color = levelColors[this.performanceLevel];
+      
+      // 粒子数
+      if (window.particleSystem) {
+        particleEl.textContent = window.particleSystem.particles.length;
+      }
+      
+      // 内存使用
+      if (performance.memory) {
+        const usedMB = (performance.memory.usedJSHeapSize / 1048576).toFixed(1);
+        const totalMB = (performance.memory.jsHeapSizeLimit / 1048576).toFixed(0);
+        memoryEl.textContent = `${usedMB}MB / ${totalMB}MB`;
+      }
+    }
+    
+    getSettings() {
+      return this.recommendedSettings[this.performanceLevel];
+    }
+    
+    destroy() {
+      clearInterval(this.monitorInterval);
+      this.panel.remove();
+    }
+  }
+
+  // ==================== 兼容性测试器 ====================
+  class CompatibilityTester {
+    constructor() {
+      this.results = {};
+      this.createButton();
+      this.createPanel();
+    }
+    
+    createButton() {
+      const btn = document.createElement('button');
+      btn.id = 'testButton';
+      btn.textContent = '🔍 兼容性测试';
+      btn.onclick = () => this.runTests();
+      document.body.appendChild(btn);
+    }
+    
+    createPanel() {
+      this.panel = document.createElement('div');
+      this.panel.id = 'compatibilityPanel';
+      document.body.appendChild(this.panel);
+    }
+    
+    runTests() {
+      this.results = {
+      };
+      
+      this.showResults();
+    }
+    
+    testScreen() {
+      return {
+        '屏幕分辨率': { value: `${screen.width}x${screen.height}`, status: 'pass' },
+        '窗口大小': { value: `${window.innerWidth}x${window.innerHeight}`, status: 'pass' },
+        '设备像素比': { value: window.devicePixelRatio || 1, status: window.devicePixelRatio > 2 ? 'warn' : 'pass' },
+        '色彩深度': { value: screen.colorDepth + 'bit', status: 'pass' },
+        '屏幕方向': { value: screen.orientation ? screen.orientation.type : 'unknown', status: 'pass' }
+      };
+    }
+    
+    testBrowser() {
+      const ua = navigator.userAgent;
+      let browser = 'Unknown';
+      if (ua.includes('Chrome')) browser = 'Chrome';
+      else if (ua.includes('Firefox')) browser = 'Firefox';
+      else if (ua.includes('Safari')) browser = 'Safari';
+      else if (ua.includes('Edge')) browser = 'Edge';
+      
+      return {
+        '浏览器': { value: browser, status: 'pass' },
+        '用户代理': { value: ua.substring(0, 50) + '...', status: 'pass' },
+        '语言': { value: navigator.language, status: 'pass' },
+        'Cookies启用': { value: navigator.cookieEnabled ? '是' : '否', status: navigator.cookieEnabled ? 'pass' : 'warn' },
+        '在线状态': { value: navigator.onLine ? '在线' : '离线', status: navigator.onLine ? 'pass' : 'warn' }
+      };
+    }
+    
+    testGraphics() {
+      const canvas = document.createElement('canvas');
+      const ctx2d = canvas.getContext('2d');
+      const webgl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+      
+      return {
+        'Canvas 2D': { value: ctx2d ? '支持' : '不支持', status: ctx2d ? 'pass' : 'fail' },
+        'WebGL': { value: webgl ? '支持' : '不支持', status: webgl ? 'pass' : 'warn' },
+        'WebGL 2': { 
+        },
+        '最大纹理尺寸': { 
+        }
+      };
+    }
+    
+    testInput() {
+      return {
+        '触摸支持': { 
+        },
+        '指针事件': { 
+        },
+        '鼠标支持': { value: 'onmousemove' in window ? '支持' : '不支持', status: 'pass' },
+        '键盘支持': { value: 'onkeydown' in window ? '支持' : '不支持', status: 'pass' }
+      };
+    }
+    
+    testPerformance() {
+      const cores = navigator.hardwareConcurrency || '未知';
+      const memory = navigator.deviceMemory || '未知';
+      
+      return {
+        'CPU核心数': { 
+        },
+        '设备内存': { 
+        },
+        '请求动画帧': { 
+        }
+      };
+    }
+    
+    testStorage() {
+      let localStorageTest = false;
+      try {
+        localStorage.setItem('test', 'test');
+        localStorage.removeItem('test');
+        localStorageTest = true;
+      } catch(e) {}
+      
+      return {
+        'LocalStorage': { value: localStorageTest ? '支持' : '不支持', status: localStorageTest ? 'pass' : 'warn' },
+        'SessionStorage': { 
+        },
+        'IndexedDB': { 
+        }
+      };
+    }
+    
+    showResults() {
+      let html = `
+        <div class="compat-title">📋 兼容性测试报告</div>
+        <div class="test-section">
+          <strong>🖥️ 屏幕信息</strong>
+          ${this.renderSection(this.results.screen)}
+        </div>
+        <div class="test-section">
+          <strong>🌐 浏览器信息</strong>
+          ${this.renderSection(this.results.browser)}
+        </div>
+        <div class="test-section">
+          <strong>🎨 图形支持</strong>
+          ${this.renderSection(this.results.graphics)}
+        </div>
+        <div class="test-section">
+          <strong>👆 输入设备</strong>
+          ${this.renderSection(this.results.input)}
+        </div>
+        <div class="test-section">
+          <strong>⚡ 性能指标</strong>
+          ${this.renderSection(this.results.performance)}
+        </div>
+        <div class="test-section">
+          <strong>💾 存储支持</strong>
+          ${this.renderSection(this.results.storage)}
+        </div>
+        <button class="close-btn" onclick="document.getElementById('compatibilityPanel').style.display='none'">关闭</button>
+      `;
+      
+      this.panel.innerHTML = html;
+      this.panel.style.display = 'block';
+    }
+    
+    renderSection(section) {
+      return Object.entries(section).map(([key, data]) => `
+        <div class="test-item">
+          <span>${key}</span>
+          <span class="test-result ${data.status}">${data.value}</span>
+        </div>
+      `).join('');
+    }
+  }
+
+  // ==================== 响应式布局管理器 ====================
+  class ResponsiveManager {
+    constructor() {
+      this.breakpoints = {
+      };
+      this.currentBreakpoint = this.getBreakpoint();
+      this.listeners = [];
+      
+      window.addEventListener('resize', () => this.handleResize());
+      this.handleResize();
+    }
+    
+    getBreakpoint() {
+      const width = window.innerWidth;
+      if (width < this.breakpoints.mobile) return 'mobile';
+      if (width < this.breakpoints.tablet) return 'tablet';
+      return 'desktop';
+    }
+    
+    handleResize() {
+      const newBreakpoint = this.getBreakpoint();
+      
+      if (newBreakpoint !== this.currentBreakpoint) {
+        console.log(`[ResponsiveManager] 断点变化: ${this.currentBreakpoint} -> ${newBreakpoint}`);
+        this.currentBreakpoint = newBreakpoint;
+        this.notifyListeners(newBreakpoint);
+      }
+      
+      this.adjustUILayout();
+    }
+    
+    adjustUILayout() {
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      
+      // 调整游戏画布
+      canvas.width = width;
+      canvas.height = height;
+      
+      // 调整UI元素缩放
+      const scale = Math.min(width / 1280, height / 720);
+      document.documentElement.style.setProperty('--ui-scale', Math.max(0.7, Math.min(1, scale)));
+      
+      // 低分辨率适配
+      if (width < 480 || height < 360) {
+        document.body.classList.add('low-resolution');
+      } else {
+        document.body.classList.remove('low-resolution');
+      }
+    }
+    
+    onChange(callback) {
+      this.listeners.push(callback);
+    }
+    
+    notifyListeners(breakpoint) {
+      this.listeners.forEach(cb => cb(breakpoint));
+    }
+  }
+
+  // 全局实例
+  let performanceMonitor = null;
+  let compatibilityTester = null;
+  let responsiveManager = null;
+function gameLoop() {
+    // 性能监控计数
+    if (performanceMonitor) {
+      performanceMonitor.tick();
+    }
+    
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 动态调整画布大小（如果窗口改变）
+    if (canvas.width !== window.innerWidth) canvas.width = window.innerWidth;
+    if (canvas.height !== window.innerHeight) canvas.height = window.innerHeight;
+
+    updateScore(); 
+    
+    drawMap();
+    drawPlayer();
+    
+    // 关键：每帧更新 UI 数据
+    if (typeof UIManager !== 'undefined') {
+        UIManager.update(player);
+    }
+    
+    requestAnimationFrame(gameLoop);
+}
+
+  function handleKeyPress(event) {
+    const { keyCode } = event;
+    const step = 10;
+
+    switch (keyCode) {
+      case 37: // Left arrow
+        player.x = Math.max(0, player.x - step);
+        break;
+      case 38: // Up arrow
+        player.y = Math.max(0, player.y - step);
+        break;
+      case 39: // Right arrow
+        player.x = Math.min(canvas.width - player.width, player.x + step);
+        break;
+      case 40: // Down arrow
+        player.y = Math.min(canvas.height - player.height, player.y + step);
+        break;
+    }
+  }
+
+  function checkCollision(player, map) {
+    return player.x < map.x + map.width &&
+           player.x + player.width > map.x &&
+           player.y < map.y + map.height &&
+           player.y + player.height > map.y;
+  }
+
+  function updateScore() {
+    if (checkCollision(player, map)) {
+      player.score += 10;
+      player.health -= 5; // Deduct health on collision
+      animateHit();
+    }
+  }
+
+  function animateHit() {
+    // 简化动画逻辑，通过状态标记驱动绘制
+    player.isHit = true;
+    UIManager.logMessage("受到伤害！生命值: " + player.health);
+  }
+
+  setInterval(updateScore, 1000); // Update score every second
+
+// From code_4.js
+class ParticleSystem {
+  constructor(canvas) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.particles = [];
+    this.maxParticles = 1000;
+  }
+
+  addParticle(x, y, velocity) {
+    if (this.particles.length < this.maxParticles) {
+      const particle = { x, y, velocity, age: 0 };
+      this.particles.push(particle);
+    }
+  }
+
+  update() {
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const particle = this.particles[i];
+      particle.x += particle.velocity.x;
+      particle.y += particle.velocity.y;
+      particle.age++;
+
+      if (particle.age > 10) {
+        this.particles.splice(i, 1);
+      }
+    }
+  }
+
+  render() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.particles.forEach(particle => {
+      this.ctx.fillStyle = 'white';
+      this.ctx.beginPath();
+      this.ctx.arc(particle.x, particle.y, 2, 0, Math.PI * 2);
+      this.ctx.fill();
+    });
+  }
+}
+// From code_5.js
+class LODManager {
+  constructor() {
+    this.models = [];
+  }
+
+  addModel(modelName, distances, models) {
+    this.models.push({ name: modelName, distances, models });
+  }
+
+  getModelForDistance(distance) {
+    for (let i = 0; i < this.models.length; i++) {
+      if (distance < this.models[i].distances[i]) {
+        return this.models[i].models[i];
+      }
+    }
+    return this.models[this.models.length - 1].models[this.models.length - 1];
+  }
+}
+
+
+
+// --- 交互管理器：处理滑动和点击逻辑 ---
+  class InteractionManager {
+    static init(zone, knob) {
+      this.zone = zone;
+      this.knob = knob;
+      this.isDragging = false;
+      this.startX = 0;
+      this.startY = 0;
+      
+      // 绑定触摸/鼠标事件
+      const eventStart = window.ontouchstart !== undefined ? 'touchstart' : 'mousedown';
+      const eventMove = window.ontouchmove !== undefined ? 'touchmove' : 'mousemove';
+      const eventEnd = window.ontouchend !== undefined ? 'touchend' : 'mouseup';
+
+      // 将事件绑定到整个 document 以确保松开时能捕捉
+      document.addEventListener(eventStart, (e) => this.handleStart(e), { passive: false });
+      document.addEventListener(eventMove, (e) => this.handleMove(e), { passive: false });
+      document.addEventListener(eventEnd, (e) => this.handleEnd(e));
+    }
+
+    static handleStart(e) {
+      // 检查是否点击在了摇杆区域内
+      const rect = this.zone.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+      // 简单判断：如果点击在摇杆区域附近，则激活拖动
+      const dist = Math.sqrt(Math.pow(clientX - (rect.left + rect.width/2), 2) + Math.pow(clientY - (rect.top + rect.height/2), 2));
+      
+      if (dist < 60) { // 60px 激活半径
+        this.isDragging = true;
+        this.startX = clientX;
+        this.startY = clientY;
+        this.zone.style.background = 'rgba(255,255,255,0.2)';
+        e.preventDefault(); // 防止滚动
+      }
+    }
+
+    static handleMove(e) {
+      if (!this.isDragging) return;
+      
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      
+      const dx = clientX - this.startX;
+      const dy = clientY - this.startY;
+      
+      // 限制摇杆移动范围
+      const maxDist = 40;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const angle = Math.atan2(dy, dx);
+      
+      const limitedX = Math.min(maxDist, dist) * Math.cos(angle);
+      const limitedY = Math.min(maxDist, dist) * Math.sin(angle);
+
+      // 移动摇杆 UI
+      this.knob.style.transform = `translate(${limitedX}px, ${limitedY}px)`;
+      
+      // 更新玩家位置 (滑动操作 -> 移动逻辑)
+      const speed = 5;
+      player.x += (limitedX / maxDist) * speed;
+      player.y += (limitedY / maxDist) * speed;
+
+      // 边界限制
+      player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+      player.y = Math.max(0, Math.min(canvas.height - player.height, player.y));
+    }
+
+    static handleEnd(e) {
+      if (this.isDragging) {
+        this.isDragging = false;
+        // 复位摇杆
+        this.knob.style.transform = `translate(0px, 0px)`;
+        this.zone.style.background = 'rgba(255,255,255,0.1)';
+      }
+    }
+  }
+  
+  // 全局实例化
+  
+  // ==================== UI 管理器 ====================
+  class UIManager {
+    constructor() {
+      this.layer = null;
+      this.hpBar = null;
+      this.expBar = null;
+      this.scoreText = null;
+      this.logConsole = null;
+    }
+
+    init() {
+      // 创建 UI 层容器
+      this.layer = document.createElement('div');
+      this.layer.id = 'game-ui-layer';
+      document.body.appendChild(this.layer);
+
+      // 1. 生成顶部 HUD
+      const topHud = document.createElement('div');
+      topHud.className = 'top-hud';
+      topHud.innerHTML = `
+        <div class="player-info">
+          <div class="stat-bar"><div class="bar-fill hp-fill" style="width: 100%"></div><span class="bar-text">HP: 100/100</span></div>
+          <div class="stat-bar"><div class="bar-fill exp-fill" style="width: 0%"></div><span class="bar-text">EXP: 0/100</span></div>
+        </div>
+        <div class="game-stats">灵石: <span id="score-val">0</span></div>
+      `;
+      this.layer.appendChild(topHud);
+      this.hpBar = topHud.querySelector('.hp-fill');
+      this.expBar = topHud.querySelector('.exp-fill');
+      this.scoreText = document.getElementById('score-val');
+
+      // 2. 生成底部技能栏
+      const bottomBar = document.createElement('div');
+      bottomBar.className = 'bottom-bar';
+      const skills = ['技能1', '技能2', '技能3', '技能4'];
+      skills.forEach(text => {
+        const btn = document.createElement('div');
+        btn.className = 'skill-slot';
+        btn.innerText = text;
+        btn.onclick = () => this.logMessage(`释放了 ${text}！`);
+        bottomBar.appendChild(btn);
+      });
+      this.layer.appendChild(bottomBar);
+
+      // 3. 生成右侧菜单按钮
+      const sideMenu = document.createElement('div');
+      sideMenu.className = 'side-menu';
+      
+      const menuItems = [
+        { text: '背', title: '背包' },
+        { text: '修', title: '修炼' },
+        { text: '设', title: '设置' }
+      ];
+
+      menuItems.forEach(item => {
+        const btn = document.createElement('div');
+        btn.className = 'menu-btn';
+        btn.innerText = item.text;
+        btn.onclick = () => this.showModal(item.title);
+        sideMenu.appendChild(btn);
+      });
+      this.layer.appendChild(sideMenu);
+
+      // 4. 生成弹窗容器
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.id = 'game-modal';
+      modal.innerHTML = `
+        <div class="modal-content">
+          <span class="close-btn" onclick="UIManager.hideModal()">X</span>
+          <h2 id="modal-title">标题</h2>
+          <div id="modal-body">内容区域</div>
+        </div>
+      `;
+      this.layer.appendChild(modal);
+      this.modal = modal;
+
+      // 5. 生成虚拟摇杆区域
+      const joystickZone = document.createElement('div');
+      joystickZone.id = 'joystick-zone';
+      joystickZone.innerHTML = `<div id="joystick-knob"></div>`;
+      this.layer.appendChild(joystickZone);
+      
+      // 初始化交互控制器
+      InteractionManager.init(joystickZone, document.getElementById('joystick-knob'));
+    }
+
+    update(player) {
+      // 更新 HP
+      const hpPercent = Math.max(0, player.health);
+      this.hpBar.style.width = hpPercent + '%';
+      this.hpBar.nextElementSibling.innerText = `HP: ${player.health}/100`;
+
+      // 更新分数
+      if (this.scoreText) this.scoreText.innerText = player.score;
+    }
+
+    showModal(title) {
+      document.getElementById('modal-title').innerText = title;
+      document.getElementById('modal-body').innerText = `这是 ${title} 的交互内容。\n通过点击按钮打开。`;
+      this.modal.style.display = 'flex';
+      this.logMessage(`打开了 ${title} 面板`);
+    }
+
+    hideModal() {
+      this.modal.style.display = 'none';
+    }
+
+    logMessage(msg) {
+      console.log(`[GameLog]: ${msg}`);
+    }
+  }
+
+  // --- 交互管理器：处理滑动和点击逻辑 ---
+
+
+  // 全局实例化
+  window.UIManager = new UIManager();
+
+window.onload = function() {
+    document.addEventListener('keydown', handleKeyPress);
+    
+    // 初始化性能监控
+    performanceMonitor = new PerformanceMonitor();
+    console.log('[系统] 性能监控器已启动');
+    
+    // 初始化兼容性测试
+    compatibilityTester = new CompatibilityTester();
+    console.log('[系统] 兼容性测试器已就绪');
+    
+    // 初始化响应式管理
+    responsiveManager = new ResponsiveManager();
+    console.log('[系统] 响应式管理器已启动');
+    
+    // 监听断点变化
+    responsiveManager.onChange((breakpoint) => {
+      if (typeof UIManager !== 'undefined') {
+        UIManager.logMessage(`屏幕适配: ${breakpoint}`);
+      }
+    });
+    
+    // 自动运行一次兼容性检测（静默模式）
+    setTimeout(() => {
+      console.log('[系统] 设备信息:', compatibilityTester.results);
+    }, 1000);
+    
+    gameLoop();
+};
+
+/* 性能监控面板 */
+
+  #performancePanel .panel-header {
+}
+
+  #performancePanel .panel-title {
+  }
+
+  #performancePanel .fps-bar {
+  }
+
+  #performancePanel .fps-fill {
+  }
+
+  #performancePanel .stat-row {
+  }
+
+  #performancePanel .stat-label {
+  }
+
+  /* 兼容性测试面板 */
+
+  #compatibilityPanel .compat-title {
+  }
+
+  #compatibilityPanel .test-section {
+  }
+
+  #compatibilityPanel .test-item {
+  }
+
+  #compatibilityPanel .test-result {
+  }
+
+  #compatibilityPanel .pass { color: #0f0; }
+  #compatibilityPanel .warn { color: #ff0; }
+  #compatibilityPanel .fail { color: #f00; }
+
+  #compatibilityPanel .close-btn {
+  }
+
+  #compatibilityPanel .close-btn:hover {
+  }
+
+// ==================== UI反馈管理器 ====================
+class UIFeedbackManager {
+  constructor() {
+    this.initRippleEffect();
+    this.initButtonAnimations();
+    this.initToasts();
+  }
+  
+  // 初始化涟漪效果
+  initRippleEffect() {
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.ripple-btn, .game-btn');
+      if (!btn) return;
+      
+      const ripple = document.createElement('span');
+      ripple.className = 'ripple-effect';
+      
+      const rect = btn.getBoundingClientRect();
+      const size = Math.max(rect.width, rect.height);
+      const x = e.clientX - rect.left - size / 2;
+      const y = e.clientY - rect.top - size / 2;
+      
+      ripple.style.cssText = `
+      `;
+      
+      btn.appendChild(ripple);
+      ripple.addEventListener('animationend', () => ripple.remove());
+      
+      // 震动反馈（移动端）
+      if (navigator.vibrate) {
+        navigator.vibrate(10);
+      }
+    });
+  }
+  
+  // 初始化按钮动画
+  initButtonAnimations() {
+    document.querySelectorAll('.game-btn').forEach(btn => {
+      btn.addEventListener('mousedown', () => {
+        btn.style.transform = 'scale(0.95)';
+      });
+      btn.addEventListener('mouseup', () => {
+        btn.style.transform = 'scale(1)';
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.transform = 'scale(1)';
+      });
+    });
+  }
+  
+  // 初始化Toast容器
+  initToasts() {
+    if (!document.getElementById('toastContainer')) {
+      const container = document.createElement('div');
+      container.id = 'toastContainer';
+      document.body.appendChild(container);
+    }
+  }
+  
+  // 显示Toast通知
+  showToast(message, type = 'info', duration = 3000) {
+    const container = document.getElementById('toastContainer');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    
+    const icons = {
+    };
+    
+    toast.innerHTML = `
+      <span class="toast-icon">${icons[type]}</span>
+      <span class="toast-message">${message}</span>
+      <div class="toast-progress"></div>
+    `;
+    
+    container.appendChild(toast);
+    
+    // 进度条动画
+    const progress = toast.querySelector('.toast-progress');
+    progress.style.animationDuration = `${duration}ms`;
+    
+    setTimeout(() => {
+      toast.classList.add('toast-fade-out');
+      setTimeout(() => toast.remove(), 300);
+    }, duration);
+    
+    // 点击关闭
+    toast.addEventListener('click', () => {
+      toast.classList.add('toast-fade-out');
+      setTimeout(() => toast.remove(), 300);
+    });
+  }
+  
+  // 按钮加载状态
+  setButtonLoading(btn, isLoading, loadingText = '处理中...') {
+    if (isLoading) {
+      btn.dataset.originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = `<span class="btn-spinner"></span>${loadingText}`;
+      btn.classList.add('btn-loading');
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = btn.dataset.originalText;
+      btn.classList.remove('btn-loading');
+    }
+  }
+  
+  // 数字飘动效果
+  showFloatingNumber(x, y, value, color = '#ffcc00') {
+    const floater = document.createElement('div');
+    floater.className = 'floating-number';
+    floater.style.cssText = `
+    `;
+    floater.textContent = value > 0 ? `+${value}` : value;
+    document.body.appendChild(floater);
+    
+    floater.addEventListener('animationend', () => floater.remove());
+  }
+  
+  // 屏幕闪烁效果
+  flashScreen(color = 'white', duration = 100) {
+    const flash = document.createElement('div');
+    flash.className = 'screen-flash';
+    flash.style.cssText = `
+    `;
+    document.body.appendChild(flash);
+    flash.addEventListener('animationend', () => flash.remove());
+  }
+  
+  // 伤害数字效果
+  showDamageNumber(x, y, damage, isCritical = false) {
+    const dmg = document.createElement('div');
+    dmg.className = `damage-number ${isCritical ? 'critical' : ''}`;
+    dmg.style.cssText = `left: ${x}px; top: ${y}px;`;
+    dmg.textContent = isCritical ? `暴击! -${damage}` : `-${damage}`;
+    document.body.appendChild(dmg);
+    dmg.addEventListener('animationend', () => dmg.remove());
+  }
+}
+
+// ==================== 加载管理器 ====================
+class LoadingManager {
+  constructor() {
+    this.activeLoaders = new Set();
+    this.createOverlay();
+  }
+  
+  createOverlay() {
+    this.overlay = document.createElement('div');
+    this.overlay.id = 'loadingOverlay';
+    this.overlay.innerHTML = `
+      <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">加载中...</div>
+        <div class="loading-progress">
+          <div class="loading-progress-bar"></div>
+        </div>
+      </div>
+    `;
+    this.overlay.style.display = 'none';
+    document.body.appendChild(this.overlay);
+    
+    this.progressBar = this.overlay.querySelector('.loading-progress-bar');
+    this.loadingText = this.overlay.querySelector('.loading-text');
+  }
+  
+  show(text = '加载中...', progress = 0) {
+    this.overlay.style.display = 'flex';
+    this.loadingText.textContent = text;
+    this.setProgress(progress);
+    this.activeLoaders.add('main');
+  }
+  
+  hide() {
+    this.activeLoaders.delete('main');
+    if (this.activeLoaders.size === 0) {
+      this.overlay.style.display = 'none';
+    }
+  }
+  
+  setProgress(percent) {
+    this.progressBar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+  }
+  
+  setText(text) {
+    this.loadingText.textContent = text;
+  }
+  
+  // 模拟加载过程
+  async simulateLoading(steps) {
+    this.show();
+    for (let i = 0; i < steps.length; i++) {
+      this.setText(steps[i].text);
+      this.setProgress((i + 1) / steps.length * 100);
+      await new Promise(r => setTimeout(r, steps[i].duration || 500));
+    }
+    this.hide();
+  }
+}
+
+// ==================== 按钮悬停效果管理器 ====================
+class ButtonHoverEffect {
+  constructor() {
+    this.init();
+  }
+  
+  init() {
+    document.addEventListener('mouseover', (e) => {
+      const btn = e.target.closest('.game-btn, .ripple-btn');
+      if (btn && !btn.disabled) {
+        btn.classList.add('btn-hover');
+      }
+    });
+    
+    document.addEventListener('mouseout', (e) => {
+      const btn = e.target.closest('.game-btn, .ripple-btn');
+      if (btn) {
+        btn.classList.remove('btn-hover');
+      }
+    });
+  }
+}
+
+// 全局UI管理器实例
+let uiFeedback;
+let loadingManager;
+
+// ==================== UI演示按钮 ====================
+function createDemoButtons() {
+  const demoPanel = document.createElement('div');
+  demoPanel.id = 'demoPanel';
+  demoPanel.innerHTML = `
+    <div class="demo-title">🎮 UI交互演示</div>
+    <div class="demo-buttons">
+      <button class="game-btn ripple-btn" id="btnToast">
+        <span class="btn-icon">💬</span>
+        <span>显示通知</span>
+      </button>
+      <button class="game-btn ripple-btn" id="btnLoading">
+        <span class="btn-icon">⏳</span>
+        <span>加载演示</span>
+      </button>
+      <button class="game-btn ripple-btn" id="btnDamage">
+        <span class="btn-icon">⚔</span>
+        <span>伤害数字</span>
+      </button>
+      <button class="game-btn ripple-btn" id="btnFlash">
+        <span class="btn-icon">✨</span>
+        <span>屏幕闪烁</span>
+      </button>
+      <button class="game-btn ripple-btn" id="btnFloat">
+        <span class="btn-icon">💰</span>
+        <span>飘数字</span>
+      </button>
+      <button class="game-btn ripple-btn btn-success" id="btnSuccess">
+        <span class="btn-icon">✓</span>
+        <span>成功操作</span>
+      </button>
+      <button class="game-btn ripple-btn btn-danger" id="btnError">
+        <span class="btn-icon">✕</span>
+        <span>危险操作</span>
+      </button>
+      <button class="game-btn ripple-btn btn-warning" id="btnWarning">
+        <span class="btn-icon">⚠</span>
+        <span>警告操作</span>
+      </button>
+    </div>
+  `;
+  document.body.appendChild(demoPanel);
+  
+  // 绑定事件
+  document.getElementById('btnToast').addEventListener('click', () => {
+    const types = ['success', 'error', 'warning', 'info'];
+    const messages = ['操作成功！', '发生错误！', '请注意！', '提示信息'];
+    const idx = Math.floor(Math.random() * 4);
+    uiFeedback.showToast(messages[idx], types[idx]);
+  });
+  
+  document.getElementById('btnLoading').addEventListener('click', async function() {
+    uiFeedback.setButtonLoading(this, true, '加载中...');
+    await new Promise(r => setTimeout(r, 2000));
+    uiFeedback.setButtonLoading(this, false);
+    uiFeedback.showToast('加载完成！', 'success');
+  });
+  
+  document.getElementById('btnDamage').addEventListener('click', () => {
+    const x = canvas.width / 2 + (Math.random() - 0.5) * 100;
+    const y = canvas.height / 2 + (Math.random() - 0.5) * 100;
+    const damage = Math.floor(Math.random() * 999) + 1;
+    const isCritical = Math.random() > 0.7;
+    uiFeedback.showDamageNumber(x, y, damage, isCritical);
+  });
+  
+  document.getElementById('btnFlash').addEventListener('click', () => {
+    const colors = ['white', 'red', 'yellow', 'blue'];
+    uiFeedback.flashScreen(colors[Math.floor(Math.random() * colors.length)], 150);
+  });
+  
+  document.getElementById('btnFloat').addEventListener('click', () => {
+    const x = canvas.width / 2 + (Math.random() - 0.5) * 200;
+    const y = canvas.height / 2;
+    const value = Math.floor(Math.random() * 100) + 10;
+    const colors = ['#ffcc00', '#00ff88', '#ff6600', '#00ccff'];
+    uiFeedback.showFloatingNumber(x, y, value, colors[Math.floor(Math.random() * colors.length)]);
+  });
+  
+  document.getElementById('btnSuccess').addEventListener('click', function() {
+    this.classList.add('btn-pulse');
+    uiFeedback.showToast('✓ 操作成功执行！', 'success');
+    setTimeout(() => this.classList.remove('btn-pulse'), 500);
+  });
+  
+  document.getElementById('btnError').addEventListener('click', function() {
+    this.classList.add('btn-shake');
+    uiFeedback.showToast('✕ 操作失败！', 'error');
+    setTimeout(() => this.classList.remove('btn-shake'), 500);
+  });
+  
+  document.getElementById('btnWarning').addEventListener('click', function() {
+    this.classList.add('btn-pulse');
+    uiFeedback.showToast('⚠ 请确认操作！', 'warning', 4000);
+    setTimeout(() => this.classList.remove('btn-pulse'), 500);
+  });
+}
+
+// 初始化UI反馈系统
+function initUIFeedback() {
+  uiFeedback = new UIFeedbackManager();
+  loadingManager = new LoadingManager();
+  new ButtonHoverEffect();
+  createDemoButtons();
+  
+  // 显示欢迎通知
+  setTimeout(() => {
+    uiFeedback.showToast('欢迎来到寻道大千！', 'info', 3000);
+  }, 500);
+  
+  // 模拟初始加载
+  loadingManager.simulateLoading([
+    { text: '加载游戏资源...', duration: 600 },
+    { text: '初始化游戏世界...', duration: 500 },
+    { text: '准备就绪！', duration: 300 }
+  ]);
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', initUIFeedback);
+</script>
+</body>
+</html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Woodcutting Game</title>
+<style>
+  body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+const config = {
+  canvas: document.getElementById('gameCanvas'),
+  ctx: config.canvas.getContext('2d'),
+  scale: 1,
+  width: window.innerWidth,
+  height: window.innerHeight
+};
+
+class ResourceManager {
+  constructor() {
+    this.resources = {};
+  }
+
+  load(url, callback) {
+    const image = new Image();
+    image.onload = () => {
+      this.resources[url] = image;
+      if (callback) callback(image);
+    };
+    image.src = url;
+  }
+
+  get(url) {
+    return this.resources[url];
+  }
+}
+
+class GameStateMachine {
+  constructor() {
+    this.states = {
+      idle: {
+        enter: () => console.log('Entering Idle State'),
+        exit: () => console.log('Exiting Idle State'),
+        update: () => this.updateIdle,
+        render: () => this.renderIdle
+      }
+    };
+    this.currentState = null;
+    this.tree = { x: 100, y: 100, health: 100 };
+    this.resources = { wood: 0, stone: 0 };
+    this.lastClickTime = 0;
+    this.clickCount = 0;
+    this.shakeDuration = 0;
+  }
+
+  changeState(state) {
+    if (this.currentState) {
+      this.currentState.exit();
+    }
+    this.currentState = this.states[state];
+    if (this.currentState) {
+      this.currentState.enter();
+    }
+  }
+
+  updateIdle() {
+    const now = Date.now();
+    if (this.shakeDuration > 0) {
+      this.shakeDuration--;
+    }
+    if (this.tree.health > 0) {
+      const clickInterval = now - this.lastClickTime;
+      if (clickInterval < 1000) { // Less than 1 second between clicks
+        this.clickCount++;
+      } else {
+        this.clickCount = 1;
+      }
+      this.lastClickTime = now;
+      const damage = this.calculateDamage(this.clickCount);
+      this.tree.health -= damage;
+      if (this.tree.health <= 0) {
+        this.resources.wood += 10; // Reward 10 wood for cutting down the tree
+        this.tree.health = 100; // Reset tree health
+        this.clickCount = 0;
+      }
+    }
+  }
+
+  calculateDamage(clickCount) {
+    return 10 + (clickCount - 1) * 5; // Base damage is 10, increases by 5 per extra click
+  }
+
+  renderIdle() {
+    // Clear the canvas
+    config.ctx.clearRect(0, 0, config.width, config.height);
+    // Draw background
+    config.ctx.fillStyle = 'skyblue';
+    config.ctx.fillRect(0, 0, config.width, config.height);
+    // Draw the tree
+    config.ctx.fillStyle = 'green';
+    config.ctx.fillRect(this.tree.x, this.tree.y, 100, 100);
+    // Draw the health bar of the tree
+    config.ctx.fillStyle = 'red';
+    config.ctx.fillRect(this.tree.x, this.tree.y + 100, 100, 10);
+    config.ctx.fillStyle = 'green';
+    config.ctx.fillRect(this.tree.x, this.tree.y + 100, 100 * (this.tree.health / 100), 10);
+    // Draw the resource display
+    config.ctx.fillStyle = 'black';
+    config.ctx.fillText(`Wood: ${this.resources.wood}`, 10, 20);
+    config.ctx.fillText(`Stone: ${this.resources.stone}`, 10, 40);
+    // Shake effect
+    if (this.shakeDuration > 0) {
+      config.ctx.translate(Math.random() * 5 - 2.5, Math.random() * 5 - 2.5);
+    }
+    // Reset shake effect
+    if (this.shakeDuration <= 0) {
+      config.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+  }
+
+  startShake() {
+    this.shakeDuration = 30; // Shake for 30 frames
+  }
+}
+
+class Game {
+  constructor() {
+    this.resourceManager = new ResourceManager();
+    this.gameStateMachine = new GameStateMachine();
+    this.gameStateMachine.changeState('idle');
+    this.init();
+  }
+
+  init() {
+    this.resourceManager.load('tree.png', (treeImage) => {
+      config.resourceManager.get('tree.png') = treeImage;
+      this.gameLoop();
+    });
+    window.addEventListener('resize', () => {
+      config.width = window.innerWidth;
+      config.height = window.innerHeight;
+      config.canvas.width = config.width;
+      config.canvas.height = config.height;
+      config.scale = Math.min(config.width / 800, config.height / 600);
+      config.canvas.style.width = `${config.width}px`;
+      config.canvas.style.height = `${config.height}px`;
+    });
+    config.canvas.addEventListener('click', () => {
+      this.gameStateMachine.startShake();
+    });
+  }
+
+  gameLoop() {
+    this.gameStateMachine.update();
+    this.gameStateMachine.render();
+    requestAnimationFrame(this.gameLoop.bind(this));
+  }
+}
+
+window.onload = () => {
+  new Game();
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,2110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寻道大千 - 挂机修仙</title>
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #080810;
+            --bg-secondary: #101020;
+            --fg-primary: #e8e4d9;
+            --fg-secondary: #7a7a8a;
+            --accent-gold: #d4a54a;
+            --accent-cyan: #3ecdc4;
+            --accent-red: #d64545;
+            --accent-green: #45b76c;
+            --card-bg: rgba(16, 16, 32, 0.9);
+            --border-gold: rgba(212, 165, 74, 0.3);
+            --shadow-gold: rgba(212, 165, 74, 0.15);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--fg-primary);
+            font-family: 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+            min-height: 100vh;
+            user-select: none;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #gameCanvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        #uiLayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        #uiLayer > * { pointer-events: auto; }
+        
+        /* 顶部状态栏 */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 20px;
+            background: linear-gradient(180deg, rgba(8,8,16,0.98) 0%, rgba(8,8,16,0.8) 70%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 20;
+        }
+        
+        .player-info {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .player-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-gold);
+            background: linear-gradient(135deg, #1a1a2e 0%, #0a0a1a 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 22px;
+            color: var(--accent-gold);
+            box-shadow: 0 0 15px var(--shadow-gold);
+        }
+        
+        .player-stats { display: flex; flex-direction: column; gap: 3px; }
+        .player-name { font-size: 15px; font-weight: 600; color: var(--fg-primary); }
+        .player-realm { font-size: 12px; color: var(--accent-cyan); font-weight: 500; }
+        
+        .resource-bar {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .resource-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--border-gold);
+            transition: all 0.2s ease;
+        }
+        
+        .resource-item:hover {
+            border-color: var(--accent-gold);
+            box-shadow: 0 0 10px var(--shadow-gold);
+        }
+        
+        .resource-icon { width: 18px; height: 18px; }
+        .resource-value { font-size: 14px; font-weight: 600; min-width: 30px; }
+        
+        /* 底部导航 */
+        .bottom-nav {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+            background: var(--card-bg);
+            border-radius: 28px;
+            border: 1px solid var(--border-gold);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }
+        
+        .nav-btn {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: var(--fg-secondary);
+            cursor: pointer;
+            transition: all 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            font-size: 10px;
+            font-family: 'Noto Sans SC', sans-serif;
+        }
+        
+        .nav-btn:hover {
+            background: rgba(212, 165, 74, 0.15);
+            color: var(--accent-gold);
+            transform: translateY(-2px);
+        }
+        
+        .nav-btn.active {
+            background: linear-gradient(135deg, var(--accent-gold) 0%, #a67c30 100%);
+            color: var(--bg-primary);
+            box-shadow: 0 0 20px var(--shadow-gold);
+        }
+        
+        .nav-btn svg { width: 22px; height: 22px; }
+        
+        /* 侧边面板 */
+        .side-panel {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 260px;
+            background: var(--card-bg);
+            border-radius: 16px;
+            border: 1px solid var(--border-gold);
+            backdrop-filter: blur(12px);
+            overflow: hidden;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .side-panel.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .panel-header {
+            padding: 14px 16px;
+            background: rgba(212, 165, 74, 0.08);
+            border-bottom: 1px solid var(--border-gold);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .panel-title {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 20px;
+            color: var(--accent-gold);
+        }
+        
+        .panel-close {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: none;
+            background: transparent;
+            color: var(--fg-secondary);
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .panel-close:hover {
+            background: rgba(214, 69, 69, 0.2);
+            color: var(--accent-red);
+        }
+        
+        .panel-content {
+            padding: 14px;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        
+        /* 战斗信息面板 */
+        .battle-panel {
+            position: absolute;
+            left: 20px;
+            top: 80px;
+            width: 240px;
+        }
+        
+        .status-card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border-gold);
+            padding: 14px;
+            margin-bottom: 12px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .status-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .status-name { font-size: 14px; font-weight: 600; }
+        .status-level { font-size: 11px; color: var(--fg-secondary); }
+        
+        .hp-bar {
+            width: 100%;
+            height: 18px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 9px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .hp-fill {
+            height: 100%;
+            border-radius: 9px;
+            transition: width 0.25s ease;
+        }
+        
+        .hp-fill.enemy { background: linear-gradient(90deg, #c0392b, #e74c3c); }
+        .hp-fill.player { background: linear-gradient(90deg, #27ae60, #2ecc71); }
+        
+        .hp-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 10px;
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+        
+        /* 战斗日志 */
+        .battle-log {
+            position: absolute;
+            left: 20px;
+            bottom: 100px;
+            width: 280px;
+            height: 130px;
+            background: var(--card-bg);
+            border-radius: 10px;
+            border: 1px solid var(--border-gold);
+            padding: 10px;
+            overflow-y: auto;
+            font-size: 11px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .battle-log.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            color: var(--fg-secondary);
+            line-height: 1.4;
+        }
+        
+        .log-entry.damage { color: var(--accent-red); }
+        .log-entry.reward { color: var(--accent-gold); }
+        .log-entry.info { color: var(--accent-cyan); }
+        .log-entry.levelup { color: var(--accent-green); font-weight: 600; }
+        
+        /* 菜单屏幕 */
+        .menu-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(ellipse at 50% 30%, rgba(20,20,40,0.95) 0%, rgba(8,8,16,0.98) 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            opacity: 1;
+            visibility: visible;
+            transition: all 0.5s ease;
+        }
+        
+        .menu-screen.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        
+        .game-title {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 68px;
+            color: var(--accent-gold);
+            text-shadow: 0 0 40px var(--shadow-gold), 0 4px 20px rgba(0,0,0,0.5);
+            margin-bottom: 8px;
+            animation: titlePulse 4s ease-in-out infinite;
+        }
+        
+        @keyframes titlePulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.02); opacity: 0.95; }
+        }
+        
+        .game-subtitle {
+            font-size: 16px;
+            color: var(--fg-secondary);
+            margin-bottom: 50px;
+            letter-spacing: 6px;
+        }
+        
+        .menu-buttons { display: flex; flex-direction: column; gap: 14px; }
+        
+        .menu-btn {
+            padding: 14px 50px;
+            font-size: 16px;
+            font-family: 'Noto Sans SC', sans-serif;
+            font-weight: 500;
+            border: 2px solid var(--accent-gold);
+            background: transparent;
+            color: var(--accent-gold);
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 180px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .menu-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(212,165,74,0.2), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .menu-btn:hover::before { left: 100%; }
+        
+        .menu-btn:hover {
+            background: var(--accent-gold);
+            color: var(--bg-primary);
+            box-shadow: 0 0 25px var(--shadow-gold);
+            transform: translateY(-2px);
+        }
+        
+        /* 加载界面 */
+        .loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 200;
+            transition: all 0.5s ease;
+        }
+        
+        .loading-screen.hidden {
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
+        }
+        
+        .loading-text {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 28px;
+            color: var(--accent-gold);
+            margin-bottom: 30px;
+        }
+        
+        .loading-bar {
+            width: 280px;
+            height: 6px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        
+        .loading-progress {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-gold));
+            border-radius: 3px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        
+        .loading-percent {
+            margin-top: 15px;
+            font-size: 13px;
+            color: var(--fg-secondary);
+        }
+        
+        /* 设置面板 */
+        .settings-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 150;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .settings-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .settings-panel {
+            background: var(--card-bg);
+            border-radius: 16px;
+            border: 1px solid var(--border-gold);
+            padding: 24px;
+            width: 320px;
+        }
+        
+        .settings-title {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 24px;
+            color: var(--accent-gold);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .setting-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .setting-label { font-size: 14px; }
+        
+        .setting-toggle {
+            width: 44px;
+            height: 24px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .setting-toggle.active { background: var(--accent-gold); }
+        
+        .setting-toggle::after {
+            content: '';
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background: #fff;
+            border-radius: 50%;
+            top: 3px;
+            left: 3px;
+            transition: all 0.3s ease;
+        }
+        
+        .setting-toggle.active::after { left: 23px; }
+        
+        /* 属性面板 */
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        
+        .stat-label { color: var(--fg-secondary); font-size: 13px; }
+        .stat-value { color: var(--fg-primary); font-size: 13px; font-weight: 500; }
+        .stat-value.highlight { color: var(--accent-gold); }
+        
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .side-panel { display: none; }
+            .game-title { font-size: 48px; }
+            .resource-bar { display: none; }
+            .battle-log { width: calc(100% - 40px); }
+            .battle-panel { width: calc(100% - 40px); left: 20px; right: 20px; }
+        }
+        
+        /* 滚动条 */
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb { background: var(--accent-gold); border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="uiLayer">
+            <!-- 加载界面 -->
+            <div class="loading-screen" id="loadingScreen">
+                <div class="loading-text">正在加载修仙资源</div>
+                <div class="loading-bar">
+                    <div class="loading-progress" id="loadingProgress"></div>
+                </div>
+                <div class="loading-percent" id="loadingPercent">0%</div>
+            </div>
+            
+            <!-- 主菜单 -->
+            <div class="menu-screen hidden" id="menuScreen">
+                <h1 class="game-title">寻道大千</h1>
+                <p class="game-subtitle">修仙挂机 问道长生</p>
+                <div class="menu-buttons">
+                    <button class="menu-btn" id="startBtn">开始修仙</button>
+                    <button class="menu-btn" id="continueBtn">继续游戏</button>
+                    <button class="menu-btn" id="settingsBtn">游戏设置</button>
+                </div>
+            </div>
+            
+            <!-- 设置面板 -->
+            <div class="settings-overlay" id="settingsOverlay">
+                <div class="settings-panel">
+                    <div class="settings-title">游戏设置</div>
+                    <div class="setting-item">
+                        <span class="setting-label">音效</span>
+                        <div class="setting-toggle active" data-setting="sound"></div>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">背景音乐</span>
+                        <div class="setting-toggle active" data-setting="music"></div>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">粒子效果</span>
+                        <div class="setting-toggle active" data-setting="particles"></div>
+                    </div>
+                    <div class="setting-item">
+                        <span class="setting-label">自动保存</span>
+                        <div class="setting-toggle active" data-setting="autosave"></div>
+                    </div>
+                    <button class="menu-btn" id="closeSettings" style="margin-top: 20px; width: 100%;">返回</button>
+                </div>
+            </div>
+            
+            <!-- 游戏UI -->
+            <div class="top-bar" id="topBar" style="display: none;">
+                <div class="player-info">
+                    <div class="player-avatar">道</div>
+                    <div class="player-stats">
+                        <div class="player-name" id="playerName">无名修士</div>
+                        <div class="player-realm" id="playerRealm">炼气期 一层</div>
+                    </div>
+                </div>
+                <div class="resource-bar">
+                    <div class="resource-item">
+                        <svg class="resource-icon" viewBox="0 0 24 24" fill="none" stroke="#d4a54a" stroke-width="2">
+                            <circle cx="12" cy="12" r="8"/>
+                            <path d="M12 8v4l2 2"/>
+                        </svg>
+                        <span class="resource-value" id="spiritStones">0</span>
+                    </div>
+                    <div class="resource-item">
+                        <svg class="resource-icon" viewBox="0 0 24 24" fill="none" stroke="#3ecdc4" stroke-width="2">
+                            <polygon points="12,2 15,8 22,9 17,14 18,21 12,17 6,21 7,14 2,9 9,8"/>
+                        </svg>
+                        <span class="resource-value" id="spiritualGems">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 战斗面板 -->
+            <div class="battle-panel" id="battlePanel" style="display: none;">
+                <div class="status-card">
+                    <div class="status-header">
+                        <span class="status-name" id="enemyName">妖兽</span>
+                        <span class="status-level" id="enemyLevel">Lv.1</span>
+                    </div>
+                    <div class="hp-bar">
+                        <div class="hp-fill enemy" id="enemyHpFill" style="width: 100%"></div>
+                        <div class="hp-text" id="enemyHpText">100/100</div>
+                    </div>
+                </div>
+                <div class="status-card">
+                    <div class="status-header">
+                        <span class="status-name" style="color: var(--accent-cyan);">自身</span>
+                        <span class="status-level" id="playerLevel">Lv.1</span>
+                    </div>
+                    <div class="hp-bar">
+                        <div class="hp-fill player" id="playerHpFill" style="width: 100%"></div>
+                        <div class="hp-text" id="playerHpText">100/100</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 战斗日志 -->
+            <div class="battle-log" id="battleLog"></div>
+            
+            <!-- 底部导航 -->
+            <div class="bottom-nav" id="bottomNav" style="display: none;">
+                <button class="nav-btn active" data-state="idle" title="洞府">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                        <polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                    <span>洞府</span>
+                </button>
+                <button class="nav-btn" data-state="battle" title="战斗">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14.5 17.5L3 6V3h3l11.5 11.5"/>
+                        <path d="M13 19l6-6M16 16l4 4M19 21l2-2"/>
+                    </svg>
+                    <span>战斗</span>
+                </button>
+                <button class="nav-btn" data-state="cultivate" title="修炼">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 6v6l4 2"/>
+                    </svg>
+                    <span>修炼</span>
+                </button>
+                <button class="nav-btn" data-panel="bag" title="背包">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+                        <line x1="3" y1="6" x2="21" y2="6"/>
+                        <path d="M16 10a4 4 0 01-8 0"/>
+                    </svg>
+                    <span>背包</span>
+                </button>
+                <button class="nav-btn" data-panel="skills" title="功法">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="12,2 15.09,8.26 22,9.27 17,14.14 18.18,21.02 12,17.77 5.82,21.02 7,14.14 2,9.27 8.91,8.26"/>
+                    </svg>
+                    <span>功法</span>
+                </button>
+            </div>
+            
+            <!-- 侧边面板 -->
+            <div class="side-panel" id="sidePanel">
+                <div class="panel-header">
+                    <span class="panel-title" id="panelTitle">背包</span>
+                    <button class="panel-close" id="panelClose">×</button>
+                </div>
+                <div class="panel-content" id="panelContent"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+        
+        // ============================================
+        // 游戏配置
+        // ============================================
+        const GameConfig = {
+            TARGET_FPS: 60,
+            AUTO_SAVE_INTERVAL: 30000,
+            PARTICLE_LIMIT: 150,
+            
+            REALMS: [
+                { name: '炼气期', layers: 9, baseExp: 100, hpBonus: 20, atkBonus: 3 },
+                { name: '筑基期', layers: 9, baseExp: 400, hpBonus: 40, atkBonus: 6 },
+                { name: '金丹期', layers: 9, baseExp: 1600, hpBonus: 80, atkBonus: 12 },
+                { name: '元婴期', layers: 9, baseExp: 6400, hpBonus: 160, atkBonus: 24 },
+                { name: '化神期', layers: 9, baseExp: 25600, hpBonus: 320, atkBonus: 48 },
+                { name: '炼虚期', layers: 9, baseExp: 102400, hpBonus: 640, atkBonus: 96 },
+                { name: '合体期', layers: 9, baseExp: 409600, hpBonus: 1280, atkBonus: 192 },
+                { name: '大乘期', layers: 9, baseExp: 1638400, hpBonus: 2560, atkBonus: 384 }
+            ],
+            
+            ENEMIES: [
+                { name: '妖狼', hp: 40, attack: 5, defense: 2, exp: 8, gold: 3 },
+                { name: '魔猿', hp: 80, attack: 10, defense: 4, exp: 20, gold: 8 },
+                { name: '血蝠', hp: 60, attack: 15, defense: 2, exp: 25, gold: 10 },
+                { name: '妖蛇', hp: 100, attack: 12, defense: 6, exp: 35, gold: 15 },
+                { name: '蛟龙', hp: 200, attack: 20, defense: 10, exp: 60, gold: 30 },
+                { name: '天魔', hp: 400, attack: 35, defense: 15, exp: 120, gold: 60 },
+                { name: '魔将', hp: 800, attack: 50, defense: 25, exp: 250, gold: 120 },
+                { name: '魔王', hp: 1600, attack: 80, defense: 40, exp: 500, gold: 250 }
+            ],
+            
+            SKILLS: [
+                { id: 'basic_cultivate', name: '基础吐纳', desc: '修炼速度+10%', type: 'passive', effect: { cultivateSpeed: 0.1 } },
+                { id: 'sword_art', name: '灵剑术', desc: '攻击力+5', type: 'passive', effect: { attack: 5 } },
+                { id: 'body_refine', name: '炼体诀', desc: '生命上限+50', type: 'passive', effect: { maxHp: 50 } },
+                { id: 'spirit_shield', name: '灵气护盾', desc: '防御力+3', type: 'passive', effect: { defense: 3 } }
+            ]
+        };
+
+        // ============================================
+        // 工具函数
+        // ============================================
+        const Utils = {
+            clamp: (val, min, max) => Math.max(min, Math.min(max, val)),
+            lerp: (a, b, t) => a + (b - a) * t,
+            random: (min, max) => Math.random() * (max - min) + min,
+            randomInt: (min, max) => Math.floor(Math.random() * (max - min + 1)) + min,
+            formatNumber: (num) => {
+                if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+                if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+                return Math.floor(num).toString();
+            },
+            formatTime: (seconds) => {
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                const s = Math.floor(seconds % 60);
+                if (h > 0) return `${h}时${m}分${s}秒`;
+                if (m > 0) return `${m}分${s}秒`;
+                return `${s}秒`;
+            }
+        };
+
+        // ============================================
+        // 资源加载管理器
+        // ============================================
+        class ResourceManager {
+            constructor() {
+                this.resources = new Map();
+                this.totalCount = 0;
+                this.loadedCount = 0;
+                this.progress = 0;
+            }
+            
+            async loadAll() {
+                const resources = [
+                    { name: 'config', type: 'data', data: GameConfig }
+                ];
+                
+                this.totalCount = resources.length + 3;
+                
+                for (let i = 0; i < resources.length; i++) {
+                    await this.simulateLoad(resources[i].name, 200);
+                }
+                
+                await this.simulateLoad('particles', 300);
+                await this.simulateLoad('background', 200);
+                await this.simulateLoad('ui', 150);
+                
+                this.progress = 100;
+                this.updateUI();
+                
+                return true;
+            }
+            
+            async simulateLoad(name, delay) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+                this.loadedCount++;
+                this.progress = (this.loadedCount / this.totalCount) * 100;
+                this.updateUI();
+            }
+            
+            updateUI() {
+                const progressBar = document.getElementById('loadingProgress');
+                const percentText = document.getElementById('loadingPercent');
+                if (progressBar) progressBar.style.width = this.progress + '%';
+                if (percentText) percentText.textContent = Math.floor(this.progress) + '%';
+            }
+            
+            get(name) {
+                return this.resources.get(name);
+            }
+        }
+
+        // ============================================
+        // 游戏状态机
+        // ============================================
+        class GameStateMachine {
+            constructor() {
+                this.currentState = null;
+                this.previousState = null;
+                this.states = new Map();
+                this.stateData = {};
+            }
+            
+            register(name, state) {
+                this.states.set(name, state);
+            }
+            
+            change(name, data = {}) {
+                if (this.currentState === name) return;
+                
+                const oldState = this.states.get(this.currentState);
+                if (oldState && oldState.exit) {
+                    oldState.exit();
+                }
+                
+                this.previousState = this.currentState;
+                this.currentState = name;
+                this.stateData = data;
+                
+                const newState = this.states.get(name);
+                if (newState && newState.enter) {
+                    newState.enter(data);
+                }
+                
+                console.log(`[状态机] ${this.previousState} -> ${this.currentState}`);
+            }
+            
+            update(dt) {
+                const state = this.states.get(this.currentState);
+                if (state && state.update) {
+                    state.update(dt);
+                }
+            }
+            
+            render(ctx) {
+                const state = this.states.get(this.currentState);
+                if (state && state.render) {
+                    state.render(ctx);
+                }
+            }
+        }
+
+        // ============================================
+        // 粒子系统
+        // ============================================
+        class Particle {
+            constructor(x, y, config) {
+                this.x = x;
+                this.y = y;
+                this.vx = config.vx !== undefined ? config.vx : Utils.random(-2, 2);
+                this.vy = config.vy !== undefined ? config.vy : Utils.random(-2, 2);
+                this.size = Utils.clamp(config.size || Utils.random(1, 4), 0.5, 10);
+                this.color = config.color || '#d4a54a';
+                this.alpha = Utils.clamp(config.alpha || 1, 0, 1);
+                this.decay = config.decay || 0.02;
+                this.gravity = config.gravity || 0;
+            }
+            
+            update(dt) {
+                this.x += this.vx * dt * 60;
+                this.y += this.vy * dt * 60;
+                this.vy += this.gravity * dt * 60;
+                this.alpha -= this.decay * dt * 60;
+                this.size *= 0.995;
+                return this.alpha > 0 && this.size > 0.3;
+            }
+            
+            render(ctx) {
+                ctx.save();
+                ctx.globalAlpha = Utils.clamp(this.alpha, 0, 1);
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, Utils.clamp(this.size, 0.5, 10), 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class ParticleSystem {
+            constructor(limit) {
+                this.particles = [];
+                this.limit = limit || 150;
+            }
+            
+            emit(x, y, count, config) {
+                const actualCount = Math.min(count, this.limit - this.particles.length);
+                for (let i = 0; i < actualCount; i++) {
+                    this.particles.push(new Particle(x, y, config || {}));
+                }
+            }
+            
+            burst(x, y, count, colors) {
+                for (let i = 0; i < count; i++) {
+                    const angle = (Math.PI * 2 / count) * i + Utils.random(-0.2, 0.2);
+                    const speed = Utils.random(2, 5);
+                    this.particles.push(new Particle(x, y, {
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        color: colors[Utils.randomInt(0, colors.length - 1)],
+                        size: Utils.random(2, 5),
+                        decay: 0.03,
+                        gravity: 0.05
+                    }));
+                }
+            }
+            
+            update(dt) {
+                this.particles = this.particles.filter(p => p.update(dt));
+            }
+            
+            render(ctx) {
+                this.particles.forEach(p => p.render(ctx));
+            }
+        }
+
+        // ============================================
+        // 背景渲染器
+        // ============================================
+        class BackgroundRenderer {
+            constructor(width, height) {
+                this.width = width;
+                this.height = height;
+                this.time = 0;
+                this.stars = [];
+                this.mist = [];
+                this.init();
+            }
+            
+            init() {
+                // 星星
+                for (let i = 0; i < 80; i++) {
+                    this.stars.push({
+                        x: Utils.random(0, 1) * this.width,
+                        y: Utils.random(0, 0.6) * this.height,
+                        size: Utils.random(0.5, 2),
+                        phase: Utils.random(0, Math.PI * 2),
+                        speed: Utils.random(0.5, 2)
+                    });
+                }
+                
+                // 云雾
+                for (let i = 0; i < 4; i++) {
+                    this.mist.push({
+                        x: Utils.random(0, 1) * this.width,
+                        y: this.height * Utils.random(0.3, 0.7),
+                        radius: Utils.random(100, 200),
+                        speed: Utils.random(0.1, 0.3),
+                        alpha: Utils.random(0.03, 0.08)
+                    });
+                }
+            }
+            
+            resize(width, height) {
+                this.width = width;
+                this.height = height;
+            }
+            
+            update(dt) {
+                this.time += dt;
+                
+                this.mist.forEach(m => {
+                    m.x += m.speed * dt * 60;
+                    if (m.x > this.width + m.radius) {
+                        m.x = -m.radius;
+                    }
+                });
+            }
+            
+            render(ctx, battleMode) {
+                // 主背景渐变
+                const bgGrad = ctx.createLinearGradient(0, 0, 0, this.height);
+                if (battleMode) {
+                    bgGrad.addColorStop(0, '#0a0a14');
+                    bgGrad.addColorStop(0.5, '#100810');
+                    bgGrad.addColorStop(1, '#0a0a14');
+                } else {
+                    bgGrad.addColorStop(0, '#080812');
+                    bgGrad.addColorStop(0.4, '#0c0c1a');
+                    bgGrad.addColorStop(1, '#0a0a16');
+                }
+                ctx.fillStyle = bgGrad;
+                ctx.fillRect(0, 0, this.width, this.height);
+                
+                // 星星
+                this.stars.forEach(star => {
+                    const twinkle = Math.sin(this.time * star.speed + star.phase) * 0.5 + 0.5;
+                    const alpha = 0.3 + twinkle * 0.5;
+                    const size = star.size * (0.8 + twinkle * 0.4);
+                    
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, Utils.clamp(size, 0.5, 3), 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                });
+                
+                // 云雾
+                this.mist.forEach(m => {
+                    ctx.save();
+                    ctx.globalAlpha = m.alpha;
+                    const grad = ctx.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.radius);
+                    grad.addColorStop(0, 'rgba(62, 205, 196, 0.15)');
+                    grad.addColorStop(0.5, 'rgba(212, 165, 74, 0.08)');
+                    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(m.x, m.y, m.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                });
+                
+                // 中央光晕
+                const cx = this.width * 0.5;
+                const cy = this.height * 0.45;
+                const pulse = Math.sin(this.time * 0.8) * 20 + 150;
+                
+                const auraGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, pulse);
+                auraGrad.addColorStop(0, 'rgba(212, 165, 74, 0.08)');
+                auraGrad.addColorStop(0.5, 'rgba(62, 205, 196, 0.04)');
+                auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = auraGrad;
+                ctx.beginPath();
+                ctx.arc(cx, cy, pulse, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // ============================================
+        // 玩家数据
+        // ============================================
+        class PlayerData {
+            constructor() {
+                this.reset();
+            }
+            
+            reset() {
+                this.name = '无名修士';
+                this.realmIndex = 0;
+                this.realmLayer = 1;
+                this.exp = 0;
+                this.maxExp = 100;
+                this.hp = 100;
+                this.maxHp = 100;
+                this.attack = 10;
+                this.defense = 5;
+                this.critRate = 0.05;
+                this.critDamage = 1.5;
+                this.spiritStones = 0;
+                this.spiritualGems = 0;
+                this.cultivateSpeed = 1;
+                this.skills = ['basic_cultivate', 'sword_art'];
+                this.kills = 0;
+                this.playTime = 0;
+            }
+            
+            getRealm() {
+                const realm = GameConfig.REALMS[this.realmIndex];
+                return realm ? { name: realm.name, layer: this.realmLayer } : { name: '飞升', layer: 0 };
+            }
+            
+            getDisplayRealm() {
+                const realm = this.getRealm();
+                return `${realm.name} ${realm.layer}层`;
+            }
+            
+            getLevel() {
+                let level = 0;
+                for (let i = 0; i < this.realmIndex; i++) {
+                    level += GameConfig.REALMS[i].layers;
+                }
+                return level + this.realmLayer;
+            }
+            
+            addExp(amount) {
+                const actualAmount = Math.floor(amount * this.cultivateSpeed);
+                this.exp += actualAmount;
+                
+                let leveledUp = false;
+                while (this.exp >= this.maxExp && this.realmIndex < GameConfig.REALMS.length) {
+                    this.exp -= this.maxExp;
+                    this.levelUp();
+                    leveledUp = true;
+                }
+                
+                if (this.realmIndex >= GameConfig.REALMS.length) {
+                    this.exp = 0;
+                }
+                
+                return { amount: actualAmount, leveledUp };
+            }
+            
+            levelUp() {
+                const currentRealm = GameConfig.REALMS[this.realmIndex];
+                
+                this.realmLayer++;
+                if (this.realmLayer > 9) {
+                    this.realmLayer = 1;
+                    this.realmIndex = Math.min(this.realmIndex + 1, GameConfig.REALMS.length - 1);
+                }
+                
+                const newRealm = GameConfig.REALMS[this.realmIndex];
+                this.maxExp = newRealm.baseExp * this.realmLayer;
+                this.maxHp += newRealm.hpBonus;
+                this.hp = this.maxHp;
+                this.attack += newRealm.atkBonus;
+                this.defense += 1;
+                
+                return true;
+            }
+            
+            takeDamage(amount) {
+                const actual = Math.max(1, amount - this.defense);
+                this.hp = Math.max(0, this.hp - actual);
+                return actual;
+            }
+            
+            heal(amount) {
+                this.hp = Math.min(this.maxHp, this.hp + amount);
+            }
+            
+            calculateDamage() {
+                const isCrit = Math.random() < this.critRate;
+                const base = this.attack + Utils.randomInt(-2, 2);
+                return {
+                    damage: Math.floor(isCrit ? base * this.critDamage : base),
+                    isCrit
+                };
+            }
+            
+            recalculateStats() {
+                // 根据技能重新计算属性
+                this.cultivateSpeed = 1;
+                let bonusAttack = 0;
+                let bonusHp = 0;
+                let bonusDef = 0;
+                
+                this.skills.forEach(skillId => {
+                    const skill = GameConfig.SKILLS.find(s => s.id === skillId);
+                    if (skill && skill.effect) {
+                        if (skill.effect.cultivateSpeed) this.cultivateSpeed += skill.effect.cultivateSpeed;
+                        if (skill.effect.attack) bonusAttack += skill.effect.attack;
+                        if (skill.effect.maxHp) bonusHp += skill.effect.maxHp;
+                        if (skill.effect.defense) bonusDef += skill.effect.defense;
+                    }
+                });
+                
+                // 基础攻击力需要加上加成
+                this.attack = 10 + this.realmIndex * 10 + bonusAttack;
+                this.maxHp = 100 + bonusHp;
+                this.defense = 5 + this.realmIndex + bonusDef;
+            }
+            
+            save() {
+                const data = {
+                    name: this.name,
+                    realmIndex: this.realmIndex,
+                    realmLayer: this.realmLayer,
+                    exp: this.exp,
+                    hp: this.hp,
+                    maxHp: this.maxHp,
+                    attack: this.attack,
+                    defense: this.defense,
+                    spiritStones: this.spiritStones,
+                    spiritualGems: this.spiritualGems,
+                    skills: this.skills,
+                    kills: this.kills,
+                    playTime: this.playTime
+                };
+                try {
+                    localStorage.setItem('xiandao_save', JSON.stringify(data));
+                    return true;
+                } catch (e) {
+                    console.error('保存失败:', e);
+                    return false;
+                }
+            }
+            
+            load() {
+                try {
+                    const saved = localStorage.getItem('xiandao_save');
+                    if (saved) {
+                        const data = JSON.parse(saved);
+                        Object.assign(this, data);
+                        this.recalculateStats();
+                        return true;
+                    }
+                } catch (e) {
+                    console.error('读取失败:', e);
+                }
+                return false;
+            }
+        }
+
+        // ============================================
+        // 敌人
+        // ============================================
+        class Enemy {
+            constructor(config, playerLevel) {
+                this.name = config.name;
+                this.maxHp = config.hp;
+                this.hp = config.hp;
+                this.attack = config.attack;
+                this.defense = config.defense;
+                this.exp = config.exp;
+                this.gold = config.gold;
+                this.level = Math.max(1, playerLevel + Utils.randomInt(-2, 2));
+                this.shakeX = 0;
+                this.shakeY = 0;
+            }
+            
+            takeDamage(amount) {
+                const actual = Math.max(1, amount - this.defense);
+                this.hp = Math.max(0, this.hp - actual);
+                this.shakeX = Utils.random(-15, 15);
+                this.shakeY = Utils.random(-10, 10);
+                return actual;
+            }
+            
+            isDead() {
+                return this.hp <= 0;
+            }
+            
+            update(dt) {
+                this.shakeX *= 0.85;
+                this.shakeY *= 0.85;
+            }
+            
+            render(ctx, x, y, time) {
+                const rx = x + this.shakeX;
+                const ry = y + this.shakeY;
+                const size = 55;
+                
+                ctx.save();
+                
+                // 阴影
+                ctx.fillStyle = 'rgba(0,0,0,0.4)';
+                ctx.beginPath();
+                ctx.ellipse(rx, ry + size * 0.9, size * 0.6, size * 0.15, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 身体光晕
+                const glowGrad = ctx.createRadialGradient(rx, ry, 0, rx, ry, size * 1.3);
+                glowGrad.addColorStop(0, 'rgba(214, 69, 69, 0.2)');
+                glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = glowGrad;
+                ctx.beginPath();
+                ctx.arc(rx, ry, size * 1.3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 身体
+                const bodyGrad = ctx.createRadialGradient(rx - size * 0.3, ry - size * 0.3, 0, rx, ry, size);
+                bodyGrad.addColorStop(0, '#4a4a5a');
+                bodyGrad.addColorStop(0.6, '#2a2a3a');
+                bodyGrad.addColorStop(1, '#1a1a28');
+                ctx.fillStyle = bodyGrad;
+                ctx.beginPath();
+                ctx.arc(rx, ry, size, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 眼睛
+                const eyeGlow = Math.sin(time * 3) * 0.2 + 0.8;
+                ctx.fillStyle = `rgba(231, 76, 60, ${eyeGlow})`;
+                ctx.shadowColor = '#e74c3c';
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.arc(rx - size * 0.25, ry - size * 0.15, size * 0.12, 0, Math.PI * 2);
+                ctx.arc(rx + size * 0.25, ry - size * 0.15, size * 0.12, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 名字
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = '#e8e4d9';
+                ctx.font = '600 14px "Noto Sans SC"';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.name, rx, ry + size + 22);
+                ctx.fillStyle = '#7a7a8a';
+                ctx.font = '12px "Noto Sans SC"';
+                ctx.fillText(`Lv.${this.level}`, rx, ry + size + 38);
+                
+                ctx.restore();
+            }
+        }
+
+        // ============================================
+        // 战斗系统
+        // ============================================
+        class BattleSystem {
+            constructor(game) {
+                this.game = game;
+                this.player = game.player;
+                this.enemy = null;
+                this.isBattling = false;
+                this.logs = [];
+                this.attackCooldown = 0;
+                this.enemyCooldown = 0;
+                this.attackInterval = 0.8;
+            }
+            
+            startBattle() {
+                const playerLevel = this.player.getLevel();
+                const availableEnemies = GameConfig.ENEMIES.filter(e => e.hp <= this.player.attack * 20);
+                const enemyPool = availableEnemies.length > 0 ? availableEnemies : [GameConfig.ENEMIES[GameConfig.ENEMIES.length - 1]];
+                const config = enemyPool[Utils.randomInt(0, enemyPool.length - 1)];
+                
+                this.enemy = new Enemy(config, playerLevel);
+                this.isBattling = true;
+                this.attackCooldown = 0;
+                this.enemyCooldown = 0;
+                
+                this.addLog(`遭遇 ${this.enemy.name}！`, 'info');
+                this.updateUI();
+            }
+            
+            endBattle(victory) {
+                if (victory && this.enemy) {
+                    const expResult = this.player.addExp(this.enemy.exp);
+                    const gold = this.enemy.gold;
+                    this.player.spiritStones += gold;
+                    this.player.kills++;
+                    
+                    this.addLog(`击败 ${this.enemy.name}！`, 'reward');
+                    this.addLog(`+${expResult.amount} 经验  +${gold} 灵石`, 'reward');
+                    
+                    if (expResult.leveledUp) {
+                        this.addLog(`突破！${this.player.getDisplayRealm()}`, 'levelup');
+                    }
+                    
+                    if (Math.random() < 0.08) {
+                        this.player.spiritualGems++;
+                        this.addLog('获得 1 灵玉！', 'reward');
+                    }
+                    
+                    this.game.particles.burst(
+                        this.game.width / 2,
+                        this.game.height / 2,
+                        25,
+                        ['#d4a54a', '#3ecdc4', '#45b76c']
+                    );
+                } else if (! victory) {
+                    this.addLog('战斗失败，恢复中...', 'damage');
+                    this.player.hp = this.player.maxHp;
+                }
+                
+                this.isBattling = false;
+                this.enemy = null;
+                this.updateUI();
+                this.game.updateTopBar();
+            }
+            
+            update(dt) {
+                if (!this.isBattling || !this.enemy) return;
+                
+                this.attackCooldown -= dt;
+                this.enemyCooldown -= dt;
+                
+                // 玩家攻击
+                if (this.attackCooldown <= 0) {
+                    this.attackCooldown = this.attackInterval;
+                    const result = this.player.calculateDamage();
+                    const damage = this.enemy.takeDamage(result.damage);
+                    
+                    const msg = result.isCrit 
+                        ? `暴击！对 ${this.enemy.name} 造成 ${damage} 伤害`
+                        : `对 ${this.enemy.name} 造成 ${damage} 伤害`;
+                    this.addLog(msg, 'damage');
+                    
+                    this.game.particles.emit(
+                        this.game.width / 2 + 40,
+                        this.game.height / 2 - 20,
+                        8,
+                        { color: '#e74c3c', decay: 0.04, size: Utils.random(2, 4) }
+                    );
+                    
+                    if (this.enemy.isDead()) {
+                        this.endBattle(true);
+                        return;
+                    }
+                }
+                
+                // 敌人攻击
+                if (this.enemyCooldown <= 0) {
+                    this.enemyCooldown = this.attackInterval * 1.3;
+                    const damage = this.player.takeDamage(this.enemy.attack);
+                    this.addLog(`${this.enemy.name} 对你造成 ${damage} 伤害`, 'damage');
+                    
+                    this.game.particles.emit(
+                        this.game.width / 2 - 80,
+                        this.game.height / 2,
+                        8,
+                        { color: '#d64545', decay: 0.04, size: Utils.random(2, 4) }
+                    );
+                    
+                    if (this.player.hp <= 0) {
+                        this.endBattle(false);
+                        return;
+                    }
+                }
+                
+                this.enemy.update(dt);
+                this.updateUI();
+            }
+            
+            addLog(msg, type) {
+                this.logs.push({ msg, type, time: Date.now() });
+                if (this.logs.length > 30) this.logs.shift();
+                this.renderLog();
+            }
+            
+            renderLog() {
+                const el = document.getElementById('battleLog');
+                if (!el) return;
+                
+                const recent = this.logs.slice(-8);
+                el.innerHTML = recent.map(l => 
+                    `<div class="log-entry ${l.type}">${l.msg}</div>`
+                ).join('');
+                el.scrollTop = el.scrollHeight;
+            }
+            
+            updateUI() {
+                const enemyHpFill = document.getElementById('enemyHpFill');
+                const enemyHpText = document.getElementById('enemyHpText');
+                const enemyName = document.getElementById('enemyName');
+                const enemyLevel = document.getElementById('enemyLevel');
+                
+                if (this.enemy) {
+                    const pct = Utils.clamp((this.enemy.hp / this.enemy.maxHp) * 100, 0, 100);
+                    if (enemyHpFill) enemyHpFill.style.width = pct + '%';
+                    if (enemyHpText) enemyHpText.textContent = `${Math.ceil(this.enemy.hp)}/${this.enemy.maxHp}`;
+                    if (enemyName) enemyName.textContent = this.enemy.name;
+                    if (enemyLevel) enemyLevel.textContent = `Lv.${this.enemy.level}`;
+                } else {
+                    if (enemyHpFill) enemyHpFill.style.width = '100%';
+                    if (enemyHpText) enemyHpText.textContent = '等待战斗';
+                    if (enemyName) enemyName.textContent = '妖兽';
+                }
+                
+                const playerHpFill = document.getElementById('playerHpFill');
+                const playerHpText = document.getElementById('playerHpText');
+                const playerLevel = document.getElementById('playerLevel');
+                
+                const playerPct = Utils.clamp((this.player.hp / this.player.maxHp) * 100, 0, 100);
+                if (playerHpFill) playerHpFill.style.width = playerPct + '%';
+                if (playerHpText) playerHpText.textContent = `${Math.ceil(this.player.hp)}/${this.player.maxHp}`;
+                if (playerLevel) playerLevel.textContent = `Lv.${this.player.getLevel()}`;
+            }
+            
+            render(ctx, time) {
+                if (this.enemy && this.isBattling) {
+                    this.enemy.render(ctx, ctx.canvas.width / 2, ctx.canvas.height / 2 - 30, time);
+                }
+            }
+        }
+
+        // ============================================
+        // 修炼系统
+        // ============================================
+        class CultivationSystem {
+            constructor(game) {
+                this.game = game;
+                this.player = game.player;
+                this.timer = 0;
+                this.interval = 1;
+                this.bonusMultiplier = 1;
+            }
+            
+            setBonus(mult) {
+                this.bonusMultiplier = mult;
+            }
+            
+            update(dt) {
+                this.timer += dt;
+                
+                if (this.timer >= this.interval) {
+                    this.timer = 0;
+                    const baseExp = 1 + Math.floor(this.player.realmIndex * 0.5);
+                    const result = this.player.addExp(baseExp * this.bonusMultiplier);
+                    
+                    // 修炼特效
+                    if (Math.random() < 0.15) {
+                        this.game.particles.emit(
+                            this.game.width * 0.3,
+                            this.game.height * 0.6,
+                            2,
+                            {
+                                color: '#3ecdc4',
+                                vx: Utils.random(-1, 1),
+                                vy: Utils.random(-3, -1),
+                                decay: 0.015,
+                                size: Utils.random(3, 6)
+                            }
+                        );
+                    }
+                    
+                    this.game.updateTopBar();
+                }
+            }
+        }
+
+        // ============================================
+        // 主游戏类
+        // ============================================
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.width = 0;
+                this.height = 0;
+                
+                this.running = false;
+                this.lastTime = 0;
+                this.deltaTime = 0;
+                this.fps = 0;
+                this.frameCount = 0;
+                this.fpsTimer = 0;
+                
+                this.resourceManager = new ResourceManager();
+                this.stateMachine = new GameStateMachine();
+                this.particles = null;
+                this.background = null;
+                
+                this.player = new PlayerData();
+                this.battleSystem = null;
+                this.cultivationSystem = null;
+                
+                this.settings = {
+                    sound: true,
+                    music: true,
+                    particles: true,
+                    autosave: true
+                };
+                
+                this.autoSaveTimer = 0;
+                this.currentPanel = null;
+                
+                this.init();
+            }
+            
+            init() {
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                
+                this.particles = new ParticleSystem(GameConfig.PARTICLE_LIMIT);
+                this.background = new BackgroundRenderer(this.width, this.height);
+                
+                this.setupStates();
+                this.setupEvents();
+                
+                this.stateMachine.change('loading');
+            }
+            
+            resize() {
+                const dpr = Math.min(window.devicePixelRatio || 1, 2);
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                
+                this.canvas.width = rect.width * dpr;
+                this.canvas.height = rect.height * dpr;
+                this.canvas.style.width = rect.width + 'px';
+                this.canvas.style.height = rect.height + 'px';
+                
+                this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+                this.ctx.scale(dpr, dpr);
+                
+                this.width = rect.width;
+                this.height = rect.height;
+                
+                if (this.background) {
+                    this.background.resize(this.width, this.height);
+                }
+            }
+            
+            setupStates() {
+                // 加载状态
+                this.stateMachine.register('loading', {
+                    enter: async () => {
+                        document.getElementById('loadingScreen').classList.remove('hidden');
+                        document.getElementById('menuScreen').classList.add('hidden');
+                        
+                        await this.resourceManager.loadAll();
+                        
+                        setTimeout(() => {
+                            this.stateMachine.change('menu');
+                        }, 300);
+                    }
+                });
+                
+                // 菜单状态
+                this.stateMachine.register('menu', {
+                    enter: () => {
+                        document.getElementById('loadingScreen').classList.add('hidden');
+                        document.getElementById('menuScreen').classList.remove('hidden');
+                        document.getElementById('topBar').style.display = 'none';
+                        document.getElementById('bottomNav').style.display = 'none';
+                        document.getElementById('battlePanel').style.display = 'none';
+                        document.getElementById('battleLog').classList.remove('visible');
+                        document.getElementById('sidePanel').classList.remove('visible');
+                    },
+                    exit: () => {
+                        document.getElementById('menuScreen').classList.add('hidden');
+                    },
+                    render: (ctx) => {
+                        if (this.background) this.background.render(ctx, false);
+                    }
+                });
+                
+                // 洞府挂机状态
+                this.stateMachine.register('idle', {
+                    enter: () => {
+                        this.showGameUI();
+                        document.getElementById('battlePanel').style.display = 'none';
+                        document.getElementById('battleLog').classList.remove('visible');
+                        document.getElementById('sidePanel').classList.remove('visible');
+                        this.cultivationSystem.setBonus(1);
+                    },
+                    update: (dt) => {
+                        this.cultivationSystem.update(dt);
+                    },
+                    render: (ctx) => {
+                        this.renderIdleScene(ctx);
+                    }
+                });
+                
+                // 战斗状态
+                this.stateMachine.register('battle', {
+                    enter: () => {
+                        this.showGameUI();
+                        document.getElementById('battlePanel').style.display = 'block';
+                        document.getElementById('battleLog').classList.add('visible');
+                        document.getElementById('sidePanel').classList.remove('visible');
+                        this.cultivationSystem.setBonus(0.5);
+                        
+                        if (!this.battleSystem.isBattling) {
+                            this.battleSystem.startBattle();
+                        }
+                    },
+                    update: (dt) => {
+                        this.battleSystem.update(dt);
+                        this.cultivationSystem.update(dt);
+                        
+                        // 自动开始下一场战斗
+                        if (!this.battleSystem.isBattling) {
+                            setTimeout(() => {
+                                if (this.stateMachine.currentState === 'battle' && !this.battleSystem.isBattling) {
+                                    this.battleSystem.startBattle();
+                                }
+                            }, 1500);
+                        }
+                    },
+                    render: (ctx) => {
+                        this.renderBattleScene(ctx);
+                    }
+                });
+                
+                // 修炼状态
+                this.stateMachine.register('cultivate', {
+                    enter: () => {
+                        this.showGameUI();
+                        document.getElementById('battlePanel').style.display = 'none';
+                        document.getElementById('battleLog').classList.remove('visible');
+                        document.getElementById('sidePanel').classList.remove('visible');
+                        this.cultivationSystem.setBonus(3);
+                    },
+                    update: (dt) => {
+                        this.cultivationSystem.update(dt);
+                    },
+                    render: (ctx) => {
+                        this.renderCultivateScene(ctx);
+                    }
+                });
+            }
+            
+            showGameUI() {
+                document.getElementById('topBar').style.display = 'flex';
+                document.getElementById('bottomNav').style.display = 'flex';
+            }
+            
+            setupEvents() {
+                // 菜单按钮
+                document.getElementById('startBtn').addEventListener('click', () => {
+                    this.player.reset();
+                    this.startGame();
+                });
+                
+                document.getElementById('continueBtn').addEventListener('click', () => {
+                    if (this.player.load()) {
+                        this.startGame();
+                    }
+                });
+                
+                document.getElementById('settingsBtn').addEventListener('click', () => {
+                    document.getElementById('settingsOverlay').classList.add('visible');
+                });
+                
+                document.getElementById('closeSettings').addEventListener('click', () => {
+                    document.getElementById('settingsOverlay').classList.remove('visible');
+                });
+                
+                // 设置开关
+                document.querySelectorAll('.setting-toggle').forEach(toggle => {
+                    toggle.addEventListener('click', () => {
+                        toggle.classList.toggle('active');
+                        const setting = toggle.dataset.setting;
+                        this.settings[setting] = toggle.classList.contains('active');
+                    });
+                });
+                
+                // 底部导航
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const state = btn.dataset.state;
+                        const panel = btn.dataset.panel;
+                        
+                        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        
+                        if (state) {
+                            this.stateMachine.change(state);
+                        }
+                        if (panel) {
+                            this.showPanel(panel);
+                        }
+                    });
+                });
+                
+                // 面板关闭
+                document.getElementById('panelClose').addEventListener('click', () => {
+                    document.getElementById('sidePanel').classList.remove('visible');
+                    this.currentPanel = null;
+                });
+                
+                // 键盘
+                window.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        if (this.stateMachine.currentState !== 'menu') {
+                            this.stateMachine.change('menu');
+                        } else {
+                            document.getElementById('settingsOverlay').classList.remove('visible');
+                        }
+                    }
+                    if ((e.key === ' ' || e.key === 'Enter') && this.stateMachine.currentState === 'menu') {
+                        this.startGame();
+                    }
+                });
+                
+                // 画布点击
+                this.canvas.addEventListener('click', (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    this.handleClick(x, y);
+                });
+            }
+            
+            handleClick(x, y) {
+                if (this.stateMachine.currentState === 'battle') {
+                    if (this.battleSystem && this.battleSystem.isBattling) {
+                        this.battleSystem.attackCooldown = 0;
+                        if (this.settings.particles) {
+                            this.particles.emit(x, y, 12, {
+                                color: '#d4a54a',
+                                decay: 0.04,
+                                size: Utils.random(2, 5)
+                            });
+                        }
+                    }
+                }
+            }
+            
+            startGame() {
+                if (!this.battleSystem) {
+                    this.battleSystem = new BattleSystem(this);
+                }
+                if (!this.cultivationSystem) {
+                    this.cultivationSystem = new CultivationSystem(this);
+                }
+                
+                this.updateTopBar();
+                this.stateMachine.change('idle');
+                
+                if (!this.running) {
+                    this.running = true;
+                    this.lastTime = performance.now();
+                    requestAnimationFrame((t) => this.gameLoop(t));
+                }
+            }
+            
+            gameLoop(currentTime) {
+                if (!this.running) return;
+                
+                this.deltaTime = Math.min((currentTime - this.lastTime) / 1000, 0.1);
+                this.lastTime = currentTime;
+                
+                // FPS
+                this.frameCount++;
+                this.fpsTimer += this.deltaTime;
+                if (this.fpsTimer >= 1) {
+                    this.fps = this.frameCount;
+                    this.frameCount = 0;
+                    this.fpsTimer = 0;
+                }
+                
+                // 自动保存
+                if (this.settings.autosave) {
+                    this.autoSaveTimer += this.deltaTime * 1000;
+                    if (this.autoSaveTimer >= GameConfig.AUTO_SAVE_INTERVAL) {
+                        this.autoSaveTimer = 0;
+                        this.player.save();
+                    }
+                }
+                
+                this.player.playTime += this.deltaTime;
+                
+                this.update(this.deltaTime);
+                this.render();
+                
+                requestAnimationFrame((t) => this.gameLoop(t));
+            }
+            
+            update(dt) {
+                if (this.background) this.background.update(dt);
+                if (this.settings.particles && this.particles) this.particles.update(dt);
+                this.stateMachine.update(dt);
+            }
+            
+            render() {
+                this.ctx.clearRect(0, 0, this.width, this.height);
+                
+                const battleMode = this.stateMachine.currentState === 'battle';
+                if (this.background) this.background.render(this.ctx, battleMode);
+                
+                this.stateMachine.render(this.ctx);
+                
+                if (this.settings.particles && this.particles) this.particles.render(this.ctx);
+                
+                // 调试信息
+                this.ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                this.ctx.font = '11px monospace';
+                this.ctx.textAlign = 'left';
+                this.ctx.fillText(`FPS: ${this.fps}`, 10, this.height - 10);
+            }
+            
+            renderIdleScene(ctx) {
+                const cx = this.width / 2;
+                const cy = this.height / 2;
+                const time = Date.now() / 1000;
+                
+                // 灵气圈
+                const auraSize = 90 + Math.sin(time * 0.8) * 15;
+                const auraGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, auraSize);
+                auraGrad.addColorStop(0, 'rgba(62, 205, 196, 0.15)');
+                auraGrad.addColorStop(0.6, 'rgba(62, 205, 196, 0.05)');
+                auraGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = auraGrad;
+                ctx.beginPath();
+                ctx.arc(cx, cy, auraSize, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 角色
+                this.renderCharacter(ctx, cx, cy, time);
+                
+                // 文字
+                ctx.fillStyle = '#e8e4d9';
+                ctx.font = '500 15px "Noto Sans SC"';
+                ctx.textAlign = 'center';
+                ctx.fillText('静修中...', cx, cy + 100);
+                
+                // 经验条
+                this.renderExpBar(ctx, cx - 80, cy + 115, 160, 8);
+            }
+            
+            renderBattleScene(ctx) {
+                if (this.battleSystem) {
+                    this.battleSystem.render(ctx, Date.now() / 1000);
+                }
+                
+                // 战斗氛围
+                const time = Date.now() / 1000;
+                const pulse = Math.sin(time * 2) * 0.015 + 0.025;
+                ctx.fillStyle = `rgba(214, 69, 69, ${pulse})`;
+                ctx.fillRect(0, 0, this.width, this.height);
+                
+                // 角色在左侧
+                this.renderCharacter(ctx, this.width / 2 - 150, this.height / 2 + 20, time, true);
+            }
+            
+            renderCultivateScene(ctx) {
+                const cx = this.width / 2;
+                const cy = this.height / 2;
+                const time = Date.now() / 1000;
+                
+                // 多层灵气圈
+                for (let i = 0; i < 3; i++) {
+                    const size = 70 + i * 35 + Math.sin(time + i) * 12;
+                    const alpha = 0.12 - i * 0.03;
+                    
+                    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, size);
+                    grad.addColorStop(0, `rgba(62, 205, 196, ${alpha})`);
+                    grad.addColorStop(0.5, `rgba(212, 165, 74, ${alpha * 0.5})`);
+                    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = grad;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                this.renderCharacter(ctx, cx, cy, time, true);
+                
+                ctx.fillStyle = '#3ecdc4';
+                ctx.font = '600 18px "Ma Shan Zheng"';
+                ctx.textAlign = 'center';
+                ctx.fillText('深度修炼', cx, cy + 100);
+                
+                this.renderExpBar(ctx, cx - 80, cy + 115, 160, 8);
+            }
+            
+            renderCharacter(ctx, x, y, time, small) {
+                const scale = small ? 0.7 : 1;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.scale(scale, scale);
+                
+                // 光晕
+                const glowGrad = ctx.createRadialGradient(0, -20, 0, 0, -20, 45);
+                glowGrad.addColorStop(0, 'rgba(212, 165, 74, 0.25)');
+                glowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = glowGrad;
+                ctx.beginPath();
+                ctx.arc(0, -20, 45, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 头
+                ctx.fillStyle = '#e8d5b7';
+                ctx.beginPath();
+                ctx.arc(0, -45, 22, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 身体
+                const bodyGrad = ctx.createLinearGradient(-25, -25, 25, 45);
+                bodyGrad.addColorStop(0, '#2a4a6a');
+                bodyGrad.addColorStop(0.5, '#1a3a5a');
+                bodyGrad.addColorStop(1, '#0a2a4a');
+                ctx.fillStyle = bodyGrad;
+                ctx.beginPath();
+                ctx.moveTo(-25, -25);
+                ctx.lineTo(25, -25);
+                ctx.lineTo(20, 45);
+                ctx.lineTo(-20, 45);
+                ctx.closePath();
+                ctx.fill();
+                
+                // 呼吸
+                const breath = 1 + Math.sin(time * 1.5) * 0.025;
+                ctx.scale(1, breath);
+                
+                // 道袍线
+                ctx.strokeStyle = '#d4a54a';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath();
+                ctx.moveTo(0, -20);
+                ctx.lineTo(0, 35);
+                ctx.stroke();
+                
+                ctx.restore();
+            }
+            
+            renderExpBar(ctx, x, y, w, h) {
+                // 背景
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+                ctx.beginPath();
+                ctx.moveTo(x + h/2, y);
+                ctx.lineTo(x + w - h/2, y);
+                ctx.quadraticCurveTo(x + w, y, x + w, y + h/2);
+                ctx.quadraticCurveTo(x + w, y + h, x + w - h/2, y + h);
+                ctx.lineTo(x + h/2, y + h);
+                ctx.quadraticCurveTo(x, y + h, x, y + h/2);
+                ctx.quadraticCurveTo(x, y, x + h/2, y);
+                ctx.fill();
+                
+                // 进度
+                const pct = Utils.clamp(this.player.exp / this.player.maxExp, 0, 1);
+                const fillW = w * pct;
+                
+                if (fillW > 0) {
+                    const expGrad = ctx.createLinearGradient(x, y, x + w, y);
+                    expGrad.addColorStop(0, '#3ecdc4');
+                    expGrad.addColorStop(1, '#d4a54a');
+                    ctx.fillStyle = expGrad;
+                    ctx.beginPath();
+                    ctx.moveTo(x + h/2, y);
+                    ctx.lineTo(x + Math.min(fillW, w - h/2), y);
+                    if (fillW > w - h/2) {
+                        ctx.quadraticCurveTo(x + fillW, y, x + fillW, y + h/2);
+                        ctx.quadraticCurveTo(x + fillW, y + h, x + w - h/2, y + h);
+                    }
+                    ctx.lineTo(x + h/2, y + h);
+                    ctx.quadraticCurveTo(x, y + h, x, y + h/2);
+                    ctx.quadraticCurveTo(x, y, x + h/2, y);
+                    ctx.fill();
+                }
+                
+                // 文字
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '500 10px "Noto Sans SC"';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${Utils.formatNumber(this.player.exp)} / ${Utils.formatNumber(this.player.maxExp)}`, x + w/2, y + h + 12);
+            }
+            
+            showPanel(type) {
+                const panel = document.getElementById('sidePanel');
+                const title = document.getElementById('panelTitle');
+                const content = document.getElementById('panelContent');
+                
+                this.currentPanel = type;
+                panel.classList.add('visible');
+                
+                if (type === 'bag') {
+                    title.textContent = '背包';
+                    content.innerHTML = `
+                        <div class="stat-row">
+                            <span class="stat-label">灵石</span>
+                            <span class="stat-value highlight">${Utils.formatNumber(this.player.spiritStones)}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">灵玉</span>
+                            <span class="stat-value" style="color: var(--accent-cyan)">${this.player.spiritualGems}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">击杀数</span>
+                            <span class="stat-value">${this.player.kills}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">游戏时长</span>
+                            <span class="stat-value">${Utils.formatTime(this.player.playTime)}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">修炼速度</span>
+                            <span class="stat-value">${(this.player.cultivateSpeed * 100).toFixed(0)}%</span>
+                        </div>
+                    `;
+                } else if (type === 'skills') {
+                    title.textContent = '功法';
+                    content.innerHTML = this.player.skills.map(skillId => {
+                        const skill = GameConfig.SKILLS.find(s => s.id === skillId);
+                        if (!skill) return '';
+                        return `
+                            <div style="margin-bottom: 12px; padding: 10px; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid var(--border-gold);">
+                                <div style="color: var(--accent-gold); font-size: 14px; font-weight: 600; margin-bottom: 4px;">${skill.name}</div>
+                                <div style="color: var(--fg-secondary); font-size: 12px;">${skill.desc}</div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+            }
+            
+            updateTopBar() {
+                document.getElementById('playerName').textContent = this.player.name;
+                document.getElementById('playerRealm').textContent = this.player.getDisplayRealm();
+                document.getElementById('spiritStones').textContent = Utils.formatNumber(this.player.spiritStones);
+                document.getElementById('spiritualGems').textContent = this.player.spiritualGems;
+            }
+        }
+        
+        // ============================================
+        // 启动
+        // ============================================
+        let gameInstance = null;
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            gameInstance = new Game();
+        });
+        
+    })();
+    </script>
+</body>
+</html>

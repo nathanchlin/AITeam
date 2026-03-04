@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寻道大千挂机游戏</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  // 设置画布大小
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  // 游戏循环
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // 清除画布
+
+    // 绘制背景
+    drawBackground();
+
+    // 绘制角色
+    drawCharacter();
+
+    // 渲染UI
+    drawUI();
+
+    // 游戏循环请求
+    requestAnimationFrame(gameLoop);
+  }
+
+  // 绘制背景
+  function drawBackground() {
+    // 这里可以加载并渲染背景图像
+    ctx.fillStyle = '#000'; // 使用背景颜色
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // 绘制角色
+  let characterPosition = { x: 50, y: 50 };
+  function drawCharacter() {
+    // 这里可以加载并渲染角色图像
+    ctx.fillStyle = '#0F0'; // 角色颜色
+    ctx.fillRect(characterPosition.x, characterPosition.y, 20, 20);
+  }
+
+  // 绘制UI
+  function drawUI() {
+    // 这里可以渲染UI元素，如生命值、经验值等
+    ctx.fillStyle = '#FF0'; // UI颜色
+    ctx.fillText('Health: 100', 10, 30);
+    ctx.fillText('Score: 0', 10, 50);
+  }
+
+  // 窗口大小改变时调整画布大小
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
+
+  // 确保页面加载完成后再初始化游戏
+  window.onload = init;
+</script>
+</body>
+</html>

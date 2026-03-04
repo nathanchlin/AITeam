@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寻道大千 - 自动战斗系统</title>
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #080810;
+            --bg-secondary: #101020;
+            --fg-primary: #e8e4d9;
+            --fg-secondary: #7a7a8a;
+            --accent-gold: #d4a54a;
+            --accent-cyan: #3ecdc4;
+            --accent-red: #d64545;
+            --accent-green: #45b76c;
+            --accent-purple: #9c64b5;
+            --card-bg: rgba(16, 16, 32, 0.9);
+            --border-gold: rgba(212, 165, 74, 0.3);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--fg-primary);
+            font-family: 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+            min-height: 100vh;
+            user-select: none;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #gameCanvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        #uiLayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        #uiLayer > * { pointer-events: auto; }
+        
+        /* 顶部信息栏 */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 12px 20px;
+            background: linear-gradient(180deg, rgba(8,8,16,0.98) 0%, rgba(8,8,16,0.7) 80%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 20;
+        }
+        
+        .stage-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .stage-title {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 22px;
+            color: var(--accent-gold);
+            text-shadow: 0 0 10px rgba(212, 165, 74, 0.5);
+        }
+        
+        .stage-progress {
+            font-size: 12px;
+            color: var(--fg-secondary);
+        }
+        
+        .resource-bar {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .resource-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            background: rgba(20, 20, 35, 0.8);
+            border: 1px solid var(--border-gold);
+            border-radius: 20px;
+        }
+        
+        .resource-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        
+        .resource-icon.wood { background: linear-gradient(135deg, #5d4037 0%, #3e2723 100%); border: 2px solid #8d6e63; }
+        .resource-icon.spirit { background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%); border: 2px solid #42a5f5; }
+        
+        .resource-value {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        /* 战斗区域 */
+        .battle-arena {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 800px;
+            height: 320px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .combatant {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .combatant-avatar {
+            width: 100px;
+            height: 100px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 48px;
+            position: relative;
+            transition: transform 0.1s ease;
+        }
+        
+        .combatant-avatar.player {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0a0a1a 100%);
+            border: 3px solid var(--accent-gold);
+            box-shadow: 0 0 25px rgba(212, 165, 74, 0.4);
+        }
+        
+        .combatant-avatar.enemy {
+            background: linear-gradient(135deg, #2a1a1a 0%, #1a0a0a 100%);
+            border: 3px solid var(--accent-red);
+            box-shadow: 0 0 25px rgba(214, 69, 69, 0.4);
+        }
+        
+        .combatant-avatar.boss {
+            width: 120px;
+            height: 120px;
+            font-size: 56px;
+            border-color: var(--accent-purple);
+            box-shadow: 0 0 35px rgba(156, 100, 181, 0.5);
+        }
+        
+        .combatant-avatar.shake {
+            animation: shake 0.15s ease-in-out;
+        }
+        
+        .combatant-avatar.attack {
+            animation: attack 0.2s ease-in-out;
+        }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+        }
+        
+        @keyframes attack {
+            0%, 100% { transform: translateX(0) scale(1); }
+            50% { transform: translateX(30px) scale(1.1); }
+        }
+        
+        .enemy-avatar.attack {
+            animation: attack-left 0.2s ease-in-out;
+        }
+        
+        @keyframes attack-left {
+            0%, 100% { transform: translateX(0) scale(1); }
+            50% { transform: translateX(-30px) scale(1.1); }
+        }
+        
+        .combatant-name {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 18px;
+        }
+        
+        .combatant-name.player { color: var(--accent-gold); }
+        .combatant-name.enemy { color: var(--accent-red); }
+        .combatant-name.boss { color: var(--accent-purple); }
+        
+        /* 血条 */
+        .hp-bar-container {
+            width: 140px;
+            height: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 10px;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+        
+        .hp-bar {
+            height: 100%;
+            transition: width 0.3s ease;
+            position: relative;
+        }
+        
+        .hp-bar.player {
+            background: linear-gradient(90deg, #2e7d32, #4caf50, #8bc34a);
+        }
+        
+        .hp-bar.enemy {
+            background: linear-gradient(90deg, #c62828, #e53935, #ef5350);
+        }
+        
+        .hp-bar.boss {
+            background: linear-gradient(90deg, #6a1b9a, #9c27b0, #ce93d8);
+        }
+        
+        .hp-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 11px;
+            font-weight: 600;
+            text-shadow: 0 0 4px rgba(0,0,0,0.8);
+            white-space: nowrap;
+        }
+        
+        /* 战斗特效区域 */
+        .battle-effects {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 800px;
+            height: 320px;
+            pointer-events: none;
+        }
+        
+        .damage-number {
+            position: absolute;
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 28px;
+            font-weight: bold;
+            pointer-events: none;
+            animation: damage-float 1s ease-out forwards;
+            text-shadow: 0 0 10px currentColor;
+        }
+        
+        .damage-number.crit {
+            font-size: 36px;
+            animation: damage-crit 1s ease-out forwards;
+        }
+        
+        .damage-number.dodge {
+            color: var(--fg-secondary);
+            font-size: 20px;
+        }
+        
+        .damage-number.heal {
+            color: var(--accent-green);
+        }
+        
+        @keyframes damage-float {
+            0% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-60px) scale(0.8); }
+        }
+        
+        @keyframes damage-crit {
+            0% { opacity: 1; transform: translateY(0) scale(1.5); }
+            30% { transform: translateY(-10px) scale(1.2); }
+            100% { opacity: 0; transform: translateY(-80px) scale(0.9); }
+        }
+        
+        /* VS标志 */
+        .vs-indicator {
+            position: absolute;
+            top: 200px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 48px;
+            color: var(--fg-secondary);
+            opacity: 0.4;
+            text-shadow: 0 0 20px rgba(255,255,255,0.2);
+        }
+        
+        /* 属性面板 */
+        .stats-panel {
+            position: absolute;
+            bottom: 200px;
+            left: 20px;
+            padding: 15px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-gold);
+            border-radius: 12px;
+            min-width: 180px;
+        }
+        
+        .panel-title {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 16px;
+            color: var(--accent-gold);
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--border-gold);
+            padding-bottom: 6px;
+        }
+        
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            padding: 3px 0;
+        }
+        
+        .stat-label { color: var(--fg-secondary); }
+        .stat-value { color: var(--fg-primary); font-weight: 600; }
+        .stat-value.highlight { color: var(--accent-cyan); }
+        
+        /* 战斗日志 */
+        .battle-log {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 700px;
+            height: 160px;
+            background: var(--card-bg);
+            border: 1px solid var(--border-gold);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .log-header {
+            padding: 8px 15px;
+            background: rgba(212, 165, 74, 0.1);
+            border-bottom: 1px solid var(--border-gold);
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 14px;
+            color: var(--accent-gold);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .log-content {
+            height: 120px;
+            overflow-y: auto;
+            padding: 8px 12px;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .log-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .log-content::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.3);
+        }
+        
+        .log-content::-webkit-scrollbar-thumb {
+            background: var(--accent-gold);
+            border-radius: 3px;
+        }
+        
+        .log-entry {
+            padding: 2px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            animation: log-fade 0.3s ease;
+        }
+        
+        @keyframes log-fade {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        
+        .log-entry .time {
+            color: var(--fg-secondary);
+            margin-right: 8px;
+        }
+        
+        .log-entry .damage { color: var(--accent-red); font-weight: 600; }
+        .log-entry .crit { color: #ff9800; font-weight: 700; }
+        .log-entry .dodge { color: var(--accent-cyan); }
+        .log-entry .heal { color: var(--accent-green); }
+        .log-entry .victory { color: var(--accent-gold); }
+        .log-entry .defeat { color: var(--accent-red); }
+        
+        /* 控制按钮 */
+        .control-panel {
+            position: absolute;
+            bottom: 200px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .ctrl-btn {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, rgba(212, 165, 74, 0.2) 0%, rgba(212, 165, 74, 0.1) 100%);
+            border: 1px solid rgba(212, 165, 74, 0.5);
+            border-radius: 20px;
+            color: var(--accent-gold);
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .ctrl-btn:hover {
+            background: linear-gradient(135deg, rgba(212, 165, 74, 0.4) 0%, rgba(212, 165, 74, 0.2) 100%);
+            box-shadow: 0 0 15px rgba(212, 165, 74, 0.3);
+        }
+        
+        .ctrl-btn.active {
+            background: linear-gradient(135deg, rgba(62, 205, 196, 0.3) 0%, rgba(62, 205, 196, 0.1) 100%);
+            border-color: var(--accent-cyan);
+            color: var(--accent-cyan);
+        }
+        
+        .ctrl-btn.pause {
+            background: linear-gradient(135deg, rgba(214, 69, 69, 0.2) 0%, rgba(214, 69, 69, 0.1) 100%);
+            border-color: rgba(214, 69, 69, 0.5);
+            color: var(--accent-red);
+        }
+        
+        /* 关卡完成弹窗 */
+        .stage-clear-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: var(--card-bg);
+            border: 2px solid var(--accent-gold);
+            border-radius: 20px;
+            padding: 30px 50px;
+            text-align: center;
+            z-index: 100;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        .stage-clear-popup.show {
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+        
+        .clear-title {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 36px;
+            color: var(--accent-gold);
+            text-shadow: 0 0 20px rgba(212, 165, 74, 0.5);
+            margin-bottom: 15px;
+        }
+        
+        .clear-rewards {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .reward-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .reward-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        .reward-value {
+            font-size: 14px;
+            color: var(--accent-cyan);
+            font-weight: 600;
+        }
+        
+        .continue-btn {
+            padding: 12px 40px;
+            background: linear-gradient(135deg, var(--accent-gold) 0%, #b8860b 100%);
+            border: none;
+            border-radius: 25px;
+            color: #1a1a1a;
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .continue-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(212, 165, 74, 0.5);
+        }
+        
+        /* 响应式 */
+        @media (max-width: 768px) {
+            .battle-arena { transform: translateX(-50%) scale(0.8); }
+            .stats-panel { display: none; }
+            .battle-log { height: 120px; }
+            .log-content { height: 85px; }
+            .control-panel { bottom: 150px; right: 10px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="uiLayer">
+            <!-- 顶部信息栏 -->
+            <div class="top-bar">
+                <div class="resource-bar">
+                    <div class="resource-item">
+                        <div class="resource-icon wood">木</div>
+                        <span class="resource-value" id="woodCount">0</span>
+                    </div>
+                    <div class="resource-item">
+                        <div class="resource-icon spirit">灵</div>
+                        <span class="resource-value" id="spiritCount">0</span>
+                    </div>
+                </div>
+                
+                <div class="stage-info">
+                    <div class="stage-title" id="stageTitle">第一关 · 山林外围</div>
+                    <div class="stage-progress" id="stageProgress">敌人: 1/5</div>
+                </div>
+                
+                <div class="resource-bar">
+                    <div class="resource-item">
+                        <span class="resource-value">战力: <span id="combatPower">1,234</span></span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 战斗区域 -->
+            <div class="battle-arena">
+                <!-- 玩家 -->
+                <div class="combatant">
+                    <div class="combatant-avatar player" id="playerAvatar">妖</div>
+                    <div class="combatant-name player" id="playerName">小妖精</div>
+                    <div class="hp-bar-container">
+                        <div class="hp-bar player" id="playerHpBar" style="width: 100%"></div>
+                        <span class="hp-text" id="playerHpText">1000/1000</span>
+                    </div>
+                </div>
+                
+                <!-- 敌人 -->
+                <div class="combatant">
+                    <div class="combatant-avatar enemy" id="enemyAvatar">狼</div>
+                    <div class="combatant-name enemy" id="enemyName">野狼</div>
+                    <div class="hp-bar-container">
+                        <div class="hp-bar enemy" id="enemyHpBar" style="width: 100%"></div>
+                        <span class="hp-text" id="enemyHpText">500/500</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- VS标志 -->
+            <div class="vs-indicator">VS</div>
+            
+            <!-- 战斗特效层 -->
+            <div class="battle-effects" id="battleEffects"></div>
+            
+            <!-- 属性面板 -->
+            <div class="stats-panel">
+                <div class="panel-title">角色属性</div>
+                <div class="stat-row"><span class="stat-label">攻击力</span><span class="stat-value" id="statAtk">120</span></div>
+                <div class="stat-row"><span class="stat-label">防御力</span><span class="stat-value" id="statDef">50</span></div>
+                <div class="stat-row"><span class="stat-label">生命值</span><span class="stat-value" id="statHp">1000</span></div>
+                <div class="stat-row"><span class="stat-label">暴击率</span><span class="stat-value highlight" id="statCrit">15%</span></div>
+                <div class="stat-row"><span class="stat-label">暴击伤害</span><span class="stat-value highlight" id="statCritDmg">150%</span></div>
+                <div class="stat-row"><span class="stat-label">闪避率</span><span class="stat-value highlight" id="statDodge">8%</span></div>
+            </div>
+            
+            <!-- 控制面板 -->
+            <div class="control-panel">
+                <button class="ctrl-btn active" id="autoBtn">自动战斗</button>
+                <button class="ctrl-btn" id="speedBtn">速度 x1</button>
+                <button class="ctrl-btn" id="pauseBtn">暂停</button>
+            </div>
+            
+            <!-- 战斗日志 -->
+            <div class="battle-log">
+                <div class="log-header">
+                    <span>战斗记录</span>
+                    <span id="battleTime">00:00</span>
+                </div>
+                <div class="log-content" id="logContent"></div>
+            </div>
+            
+            <!-- 关卡完成弹窗 -->
+            <div class="stage-clear-popup" id="stageClearPopup">
+                <div class="clear-title" id="clearTitle">关卡通过</div>
+                <div class="clear-rewards">
+                    <div class="reward-item">
+                        <div class="resource-icon wood">木</div>
+                        <span class="reward-value" id="rewardWood">+100</span>
+                    </div>
+                    <div class="reward-item">
+                        <div class="resource-icon spirit">灵</div>
+                        <span class="reward-value" id="rewardSpirit">+50</span>
+                    </div>
+                </div>
+                <button class="continue-btn" id="continueBtn">继续挑战</button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // ============================================
+        // 游戏核心系统
+        // ============================================
+        
+        const GameConfig = {
+            FPS: 60,
+            BASE_ATTACK_INTERVAL: 1000,
+            ENEMY_ATTACK_INTERVAL: 1200,
+            CRIT_MULTIPLIER: 1.5,
+            DEF_REDUCTION_FACTOR: 100,
+            DODGE_CAP: 0.4,
+            SPEED_MULTIPLIERS: [1, 2, 4]
+        };
+        
+        // 游戏状态
+        const GameState = {
+            isRunning: true,
+            isPaused: false,
+            isAuto: true,
+            speedIndex: 0,
+            battleTime: 0,
+            resources: { wood: 0, spirit: 0 }
+        };
+        
+        // ============================================
+        // 角色属性系统
+        // ============================================
+        
+        class Character {
+            constructor(config) {
+                this.name = config.name || '未知';
+                this.avatar = config.avatar || '?';
+                this.isBoss = config.isBoss || false;
+                
+                this.maxHp = config.hp || 100;
+                this.hp = this.maxHp;
+                this.atk = config.atk || 10;
+                this.def = config.def || 5;
+                this.critRate = config.critRate || 0.1;
+                this.critDmg = config.critDmg || 1.5;
+                this.dodgeRate = config.dodge || 0.05;
+                
+                this.lastAttackTime = 0;
+                this.attackInterval = config.attackInterval || GameConfig.ENEMY_ATTACK_INTERVAL;
+            }
+            
+            get isDead() {
+                return this.hp <= 0;
+            }
+            
+            takeDamage(damage) {
+                this.hp = Math.max(0, this.hp - damage);
+                return damage;
+            }
+            
+            heal(amount) {
+                const actualHeal = Math.min(amount, this.maxHp - this.hp);
+                this.hp += actualHeal;
+                return actualHeal;
+            }
+            
+            reset() {
+                this.hp = this.maxHp;
+            }
+        }
+        
+        // ============================================
+        // 伤害计算系统
+        // ============================================
+        
+        class DamageCalculator {
+            static calculate(attacker, defender) {
+                const result = {
+                    damage: 0,
+                    isCrit: false,
+                    isDodge: false
+                };
+                
+                // 闪避判定
+                const effectiveDodge = Math.min(defender.dodgeRate, GameConfig.DODGE_CAP);
+                if (Math.random() < effectiveDodge) {
+                    result.isDodge = true;
+                    return result;
+                }
+                
+                // 基础伤害计算: 攻击力 × (1 - 防御/(防御+100))
+                const defReduction = defender.def / (defender.def + GameConfig.DEF_REDUCTION_FACTOR);
+                let baseDamage = attacker.atk * (1 - defReduction);
+                
+                // 暴击判定
+                if (Math.random() < attacker.critRate) {
+                    result.isCrit = true;
+                    baseDamage *= attacker.critDmg;
+                }
+                
+                result.damage = Math.floor(Math.max(1, baseDamage));
+                return result;
+            }
+        }
+        
+        // ============================================
+        // 关卡系统
+        // ============================================
+        
+        const StageData = {
+            stages: [
+                { name: '山林外围', enemies: ['野狼', '山猪', '毒蛇', '野狼王'], background: '#0a1510' },
+                { name: '迷雾森林', enemies: ['树妖', '藤蔓怪', '迷雾幽灵', '古树精'], background: '#0a0f15' },
+                { name: '落日峡谷', enemies: ['石像鬼', '地行龙', '岩浆巨人', '峡谷霸主'], background: '#15100a' },
+                { name: '冰封雪原', enemies: ['冰狼', '雪人', '冰霜巨龙', '寒冰女王'], background: '#0a1015' },
+                { name: '火焰山脉', enemies: ['火焰精灵', '熔岩兽', '炎魔', '火神祝融'], background: '#151008' },
+                { name: '幽冥地界', enemies: ['亡灵战士', '骷髅王', '幽魂', '冥王'], background: '#100815' }
+            ],
+            
+            enemyAvatars: {
+                '野狼': '狼', '山猪': '猪', '毒蛇': '蛇', '野狼王': '王',
+                '树妖': '树', '藤蔓怪': '藤', '迷雾幽灵': '灵', '古树精': '精',
+                '石像鬼': '石', '地行龙': '龙', '岩浆巨人': '巨', '峡谷霸主': '霸',
+                '冰狼': '冰', '雪人': '雪', '冰霜巨龙': '霜', '寒冰女王': '女',
+                '火焰精灵': '火', '熔岩兽': '熔', '炎魔': '魔', '火神祝融': '神',
+                '亡灵战士': '亡', '骷髅王': '骷', '幽魂': '魂', '冥王': '冥'
+            },
+            
+            generateEnemy(stageIndex, enemyIndex) {
+                const stage = this.stages[stageIndex % this.stages.length];
+                const isBoss = enemyIndex === stage.enemies.length - 1;
+                const enemyName = stage.enemies[enemyIndex];
+                
+                // 基础属性随关卡递增
+                const stageMultiplier = 1 + stageIndex * 0.5;
+                const bossMultiplier = isBoss ? 3 : 1;
+                
+                const baseHp = 200 * stageMultiplier * bossMultiplier;
+                const baseAtk = 30 * stageMultiplier * bossMultiplier;
+                const baseDef = 10 * stageMultiplier * bossMultiplier;
+                
+                return new Character({
+                    name: enemyName,
+                    avatar: this.enemyAvatars[enemyName] || enemyName[0],
+                    isBoss: isBoss,
+                    hp: Math.floor(baseHp + Math.random() * baseHp * 0.2),
+                    atk: Math.floor(baseAtk + Math.random() * baseAtk * 0.2),
+                    def: Math.floor(baseDef + Math.random() * baseDef * 0.2),
+                    critRate: 0.1 + stageIndex * 0.02,
+                    critDmg: 1.5 + stageIndex * 0.1,
+                    dodge: 0.05 + stageIndex * 0.01,
+                    attackInterval: isBoss ? 1500 : 1200
+                });
+            },
+            
+            getStageName(stageIndex) {
+                const stage = this.stages[stageIndex % this.stages.length];
+                const chapter = Math.floor(stageIndex / this.stages.length) + 1;
+                return `第${this.numberToChinese(stageIndex + 1)}关 · ${stage.name}`;
+            },
+            
+            numberToChinese(num) {
+                const chars = ['零', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+                if (num <= 10) return chars[num];
+                if (num < 20) return '十' + chars[num - 10];
+                if (num < 100) {
+                    const tens = Math.floor(num / 10);
+                    const ones = num % 10;
+                    return chars[tens] + '十' + (ones > 0 ? chars[ones] : '');
+                }
+                return num.toString();
+            }
+        };
+        
+        // ============================================
+        // 战斗系统
+        // ============================================
+        
+        class BattleSystem {
+            constructor() {
+                this.player = null;
+                this.enemy = null;
+                this.stageIndex = 0;
+                this.enemyIndex = 0;
+                this.lastPlayerAttack = 0;
+                this.lastEnemyAttack = 0;
+                this.listeners = [];
+            }
+            
+            init(player) {
+                this.player = player;
+                this.spawnNextEnemy();
+            }
+            
+            spawnNextEnemy() {
+                this.enemy = StageData.generateEnemy(this.stageIndex, this.enemyIndex);
+                this.emit('enemySpawn', this.enemy);
+            }
+            
+            update(deltaTime) {
+                if (GameState.isPaused || !GameState.isAuto) return;
+                
+                const speedMultiplier = GameConfig.SPEED_MULTIPLIERS[GameState.speedIndex];
+                const adjustedDelta = deltaTime * speedMultiplier;
+                
+                const now = performance.now() * speedMultiplier;
+                
+                // 玩家攻击
+                if (now - this.lastPlayerAttack >= GameConfig.BASE_ATTACK_INTERVAL) {
+                    this.playerAttack();
+                    this.lastPlayerAttack = now;
+                }
+                
+                // 敌人攻击
+                if (now - this.lastEnemyAttack >= this.enemy.attackInterval) {
+                    this.enemyAttack();
+                    this.lastEnemyAttack = now;
+                }
+            }
+            
+            playerAttack() {
+                if (this.player.isDead || this.enemy.isDead) return;
+                
+                const result = DamageCalculator.calculate(this.player, this.enemy);
+                
+                this.emit('playerAttack', {
+                    result: result,
+                    target: this.enemy
+                });
+                
+                if (!result.isDodge) {
+                    this.enemy.takeDamage(result.damage);
+                    this.emit('damage', {
+                        target: this.enemy,
+                        damage: result.damage,
+                        isCrit: result.isCrit
+                    });
+                    
+                    if (this.enemy.isDead) {
+                        this.onEnemyDefeated();
+                    }
+                } else {
+                    this.emit('dodge', { target: this.enemy });
+                }
+            }
+            
+            enemyAttack() {
+                if (this.player.isDead || this.enemy.isDead) return;
+                
+                const result = DamageCalculator.calculate(this.enemy, this.player);
+                
+                this.emit('enemyAttack', {
+                    result: result,
+                    target: this.player
+                });
+                
+                if (!result.isDodge) {
+                    this.player.takeDamage(result.damage);
+                    this.emit('damage', {
+                        target: this.player,
+                        damage: result.damage,
+                        isCrit: result.isCrit
+                    });
+                    
+                    if (this.player.isDead) {
+                        this.onPlayerDefeated();
+                    }
+                } else {
+                    this.emit('dodge', { target: this.player });
+                }
+            }
+            
+            onEnemyDefeated() {
+                const stage = StageData.stages[this.stageIndex % StageData.stages.length];
+                
+                if (this.enemy.isBoss) {
+                    // 关卡通过
+                    this.emit('stageClear', {
+                        stageIndex: this.stageIndex,
+                        rewards: this.calculateRewards()
+                    });
+                } else {
+                    // 下一个敌人
+                    this.enemyIndex++;
+                    setTimeout(() => {
+                        this.spawnNextEnemy();
+                    }, 800);
+                    this.emit('enemyDefeated', this.enemy);
+                }
+            }
+            
+            onPlayerDefeated() {
+                this.emit('playerDefeated');
+                // 复活并重新开始当前关卡
+                setTimeout(() => {
+                    this.player.reset();
+                    this.enemyIndex = 0;
+                    this.spawnNextEnemy();
+                    this.emit('playerRevive');
+                }, 2000);
+            }
+            
+            calculateRewards() {
+                const baseWood = 50 + this.stageIndex * 30;
+                const baseSpirit = 20 + this.stageIndex * 15;
+                return {
+                    wood: Math.floor(baseWood * (0.8 + Math.random() * 0.4)),
+                    spirit: Math.floor(baseSpirit * (0.8 + Math.random() * 0.4))
+                };
+            }
+            
+            nextStage() {
+                this.stageIndex++;
+                this.enemyIndex = 0;
+                this.player.reset();
+                this.spawnNextEnemy();
+                this.emit('stageStart', {
+                    stageIndex: this.stageIndex
+                });
+            }
+            
+            on(event, callback) {
+                this.listeners.push({ event, callback });
+            }
+            
+            emit(event, data) {
+                this.listeners.forEach(l => {
+                    if (l.event === event) l.callback(data);
+                });
+            }
+        }
+        
+        // ============================================
+        // UI管理器
+        // ============================================
+        
+        class UIManager {
+            constructor() {
+                this.elements = {
+                    stageTitle: document.getElementById('stageTitle'),
+                    stageProgress: document.getElementById('stageProgress'),
+                    playerAvatar: document.getElementById('playerAvatar'),
+                    playerName: document.getElementById('playerName'),
+                    playerHpBar: document.getElementById('playerHpBar'),
+                    playerHpText: document.getElementById('playerHpText'),
+                    enemyAvatar: document.getElementById('enemyAvatar'),
+                    enemyName: document.getElementById('enemyName'),
+                    enemyHpBar: document.getElementById('enemyHpBar'),
+                    enemyHpText: document.getElementById('enemyHpText'),
+                    logContent: document.getElementById('logContent'),
+                    battleTime: document.getElementById('battleTime'),
+                    battleEffects: document.getElementById('battleEffects'),
+                    woodCount: document.getElementById('woodCount'),
+                    spiritCount: document.getElementById('spiritCount'),
+                    combatPower: document.getElementById('combatPower'),
+                    statAtk: document.getElementById('statAtk'),
+                    statDef: document.getElementById('statDef'),
+                    statHp: document.getElementById('statHp'),
+                    statCrit: document.getElementById('statCrit'),
+                    statCritDmg: document.getElementById('statCritDmg'),
+                    statDodge: document.getElementById('statDodge'),
+                    autoBtn: document.getElementById('autoBtn'),
+                    speedBtn: document.getElementById('speedBtn'),
+                    pauseBtn: document.getElementById('pauseBtn'),
+                    stageClearPopup: document.getElementById('stageClearPopup'),
+                    clearTitle: document.getElementById('clearTitle'),
+                    rewardWood: document.getElementById('rewardWood'),
+                    rewardSpirit: document.getElementById('rewardSpirit'),
+                    continueBtn: document.getElementById('continueBtn')
+                };
+                
+                this.logCount = 0;
+                this.maxLogs = 50;
+            }
+            
+            updatePlayerUI(player) {
+                const hpPercent = (player.hp / player.maxHp) * 100;
+                this.elements.playerHpBar.style.width = `${hpPercent}%`;
+                this.elements.playerHpText.textContent = `${Math.floor(player.hp)}/${player.maxHp}`;
+                
+                this.elements.statAtk.textContent = player.atk;
+                this.elements.statDef.textContent = player.def;
+                this.elements.statHp.textContent = player.maxHp;
+                this.elements.statCrit.textContent = `${Math.floor(player.critRate * 100)}%`;
+                this.elements.statCritDmg.textContent = `${Math.floor(player.critDmg * 100)}%`;
+                this.elements.statDodge.textContent = `${Math.floor(player.dodgeRate * 100)}%`;
+                
+                const power = Math.floor(player.atk * 10 + player.def * 5 + player.maxHp * 0.5);
+                this.elements.combatPower.textContent = power.toLocaleString();
+            }
+            
+            updateEnemyUI(enemy, stageIndex, enemyIndex) {
+                this.elements.enemyName.textContent = enemy.name;
+                this.elements.enemyName.className = `combatant-name ${enemy.isBoss ? 'boss' : 'enemy'}`;
+                
+                this.elements.enemyAvatar.textContent = enemy.avatar;
+                this.elements.enemyAvatar.className = `combatant-avatar ${enemy.isBoss ? 'boss' : 'enemy'}`;
+                
+                const hpPercent = (enemy.hp / enemy.maxHp) * 100;
+                this.elements.enemyHpBar.style.width = `${hpPercent}%`;
+                this.elements.enemyHpBar.className = `hp-bar ${enemy.isBoss ? 'boss' : 'enemy'}`;
+                this.elements.enemyHpText.textContent = `${Math.floor(enemy.hp)}/${enemy.maxHp}`;
+                
+                const stage = StageData.stages[stageIndex % StageData.stages.length];
+                this.elements.stageProgress.textContent = `敌人: ${enemyIndex + 1}/${stage.enemies.length}`;
+            }
+            
+            updateStageInfo(stageIndex) {
+                this.elements.stageTitle.textContent = StageData.getStageName(stageIndex);
+            }
+            
+            updateResources(wood, spirit) {
+                this.elements.woodCount.textContent = wood.toLocaleString();
+                this.elements.spiritCount.textContent = spirit.toLocaleString();
+            }
+            
+            updateBattleTime(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                this.elements.battleTime.textContent = 
+                    `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+            
+            showDamageNumber(target, damage, isCrit, isDodge) {
+                const effect = document.createElement('div');
+                effect.className = 'damage-number';
+                
+                if (isDodge) {
+                    effect.classList.add('dodge');
+                    effect.textContent = '闪避';
+                    effect.style.color = '#3ecdc4';
+                } else {
+                    if (isCrit) {
+                        effect.classList.add('crit');
+                        effect.style.color = '#ff9800';
+                    } else {
+                        effect.style.color = '#d64545';
+                    }
+                    effect.textContent = isCrit ? `${damage}!` : damage;
+                }
+                
+                // 随机位置偏移
+                const offsetX = (Math.random() - 0.5) * 60;
+                const offsetY = (Math.random() - 0.5) * 30;
+                
+                if (target === 'enemy') {
+                    effect.style.right = `${100 + offsetX}px`;
+                } else {
+                    effect.style.left = `${100 + offsetX}px`;
+                }
+                effect.style.top = `${80 + offsetY}px`;
+                
+                this.elements.battleEffects.appendChild(effect);
+                
+                setTimeout(() => effect.remove(), 1000);
+            }
+            
+            triggerAttackAnimation(isPlayer) {
+                const avatar = isPlayer ? this.elements.playerAvatar : this.elements.enemyAvatar;
+                avatar.classList.add('attack');
+                setTimeout(() => avatar.classList.remove('attack'), 200);
+            }
+            
+            triggerHitAnimation(isPlayer) {
+                const avatar = isPlayer ? this.elements.playerAvatar : this.elements.enemyAvatar;
+                avatar.classList.add('shake');
+                setTimeout(() => avatar.classList.remove('shake'), 150);
+            }
+            
+            addLog(message, type = '') {
+                const entry = document.createElement('div');
+                entry.className = 'log-entry';
+                
+                const time = new Date().toLocaleTimeString('zh-CN', { 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit' 
+                });
+                
+                entry.innerHTML = `<span class="time">[${time}]</span><span class="${type}">${message}</span>`;
+                
+                this.elements.logContent.insertBefore(entry, this.elements.logContent.firstChild);
+                
+                this.logCount++;
+                if (this.logCount > this.maxLogs) {
+                    this.elements.logContent.removeChild(this.elements.logContent.lastChild);
+                }
+            }
+            
+            showStageClear(rewards) {
+                this.elements.clearTitle.textContent = '关卡通过';
+                this.elements.rewardWood.textContent = `+${rewards.wood}`;
+                this.elements.rewardSpirit.textContent = `+${rewards.spirit}`;
+                this.elements.stageClearPopup.classList.add('show');
+            }
+            
+            hideStageClear() {
+                this.elements.stageClearPopup.classList.remove('show');
+            }
+        }
+        
+        // ============================================
+        // 背景渲染系统
+        // ============================================
+        
+        class BackgroundRenderer {
+            constructor(canvas, ctx) {
+                this.canvas = canvas;
+                this.ctx = ctx;
+                this.particles = [];
+                this.mistLayers = [];
+                this.init();
+            }
+            
+            init() {
+                // 创建雾气层
+                for (let i = 0; i < 3; i++) {
+                    this.mistLayers.push({
+                        x: Math.random() * this.canvas.width,
+                        y: this.canvas.height * (0.3 + Math.random() * 0.4),
+                        width: 200 + Math.random() * 300,
+                        height: 50 + Math.random() * 100,
+                        speed: 0.2 + Math.random() * 0.3,
+                        opacity: 0.05 + Math.random() * 0.1
+                    });
+                }
+                
+                // 创建灵气粒子
+                for (let i = 0; i < 30; i++) {
+                    this.particles.push({
+                        x: Math.random() * this.canvas.width,
+                        y: Math.random() * this.canvas.height,
+                        size: 1 + Math.random() * 3,
+                        speedY: -0.2 - Math.random() * 0.5,
+                        opacity: 0.3 + Math.random() * 0.5,
+                        hue: Math.random() > 0.5 ? 40 : 180 // 金色或青色
+                    });
+                }
+            }
+            
+            updateBackground(stageIndex) {
+                const stage = StageData.stages[stageIndex % StageData.stages.length];
+                this.currentBg = stage.background;
+            }
+            
+            render() {
+                const ctx = this.ctx;
+                const w = this.canvas.width;
+                const h = this.canvas.height;
+                
+                // 背景渐变
+                const gradient = ctx.createRadialGradient(w/2, h*0.3, 0, w/2, h*0.3, h);
+                gradient.addColorStop(0, this.currentBg || '#0a0f15');
+                gradient.addColorStop(1, '#050508');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, w, h);
+                
+                // 雾气层
+                this.mistLayers.forEach(mist => {
+                    mist.x += mist.speed;
+                    if (mist.x > w + mist.width) mist.x = -mist.width;
+                    
+                    const gradient = ctx.createLinearGradient(
+                        mist.x, mist.y,
+                        mist.x + mist.width, mist.y
+                    );
+                    gradient.addColorStop(0, 'rgba(255,255,255,0)');
+                    gradient.addColorStop(0.5, `rgba(200,200,220,${mist.opacity})`);
+                    gradient.addColorStop(1, 'rgba(255,255,255,0)');
+                    
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(mist.x - mist.width/2, mist.y, mist.width, mist.height);
+                });
+                
+                // 灵气粒子
+                this.particles.forEach(p => {
+                    p.y += p.speedY;
+                    p.x += Math.sin(p.y * 0.01) * 0.3;
+                    
+                    if (p.y < -10) {
+                        p.y = h + 10;
+                        p.x = Math.random() * w;
+                    }
+                    
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `hsla(${p.hue}, 70%, 60%, ${p.opacity})`;
+                    ctx.fill();
+                    
+                    // 发光效果
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size * 2, 0, Math.PI * 2);
+                    ctx.fillStyle = `hsla(${p.hue}, 70%, 60%, ${p.opacity * 0.3})`;
+                    ctx.fill();
+                });
+            }
+        }
+        
+        // ============================================
+        // 游戏主循环
+        // ============================================
+        
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.lastTime = 0;
+                this.battleSystem = new BattleSystem();
+                this.ui = new UIManager();
+                this.bgRenderer = null;
+                
+                this.init();
+            }
+            
+            init() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
+                // 创建玩家角色
+                const player = new Character({
+                    name: '小妖精',
+                    avatar: '妖',
+                    hp: 1000,
+                    atk: 120,
+                    def: 50,
+                    critRate: 0.15,
+                    critDmg: 1.5,
+                    dodge: 0.08,
+                    attackInterval: GameConfig.BASE_ATTACK_INTERVAL
+                });
+                
+                // 初始化战斗系统
+                this.battleSystem.init(player);
+                this.bgRenderer = new BackgroundRenderer(this.canvas, this.ctx);
+                
+                // 绑定事件
+                this.bindEvents();
+                this.setupBattleListeners();
+                
+                // 更新初始UI
+                this.ui.updatePlayerUI(player);
+                this.ui.updateStageInfo(0);
+                
+                // 开始游戏循环
+                requestAnimationFrame((time) => this.gameLoop(time));
+            }
+            
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+            
+            bindEvents() {
+                // 自动战斗按钮
+                this.ui.elements.autoBtn.addEventListener('click', () => {
+                    GameState.isAuto = !GameState.isAuto;
+                    this.ui.elements.autoBtn.classList.toggle('active', GameState.isAuto);
+                    this.ui.elements.autoBtn.textContent = GameState.isAuto ? '自动战斗' : '手动战斗';
+                    this.ui.addLog(GameState.isAuto ? '自动战斗已开启' : '自动战斗已关闭');
+                });
+                
+                // 速度按钮
+                this.ui.elements.speedBtn.addEventListener('click', () => {
+                    GameState.speedIndex = (GameState.speedIndex + 1) % GameConfig.SPEED_MULTIPLIERS.length;
+                    const speed = GameConfig.SPEED_MULTIPLIERS[GameState.speedIndex];
+                    this.ui.elements.speedBtn.textContent = `速度 x${speed}`;
+                    this.ui.addLog(`战斗速度调整为 x${speed}`);
+                });
+                
+                // 暂停按钮
+                this.ui.elements.pauseBtn.addEventListener('click', () => {
+                    GameState.isPaused = !GameState.isPaused;
+                    this.ui.elements.pauseBtn.classList.toggle('pause', GameState.isPaused);
+                    this.ui.elements.pauseBtn.textContent = GameState.isPaused ? '继续' : '暂停';
+                    this.ui.addLog(GameState.isPaused ? '游戏已暂停' : '游戏继续');
+                });
+                
+                // 继续按钮
+                this.ui.elements.continueBtn.addEventListener('click', () => {
+                    this.ui.hideStageClear();
+                    this.battleSystem.nextStage();
+                });
+            }
+            
+            setupBattleListeners() {
+                // 敌人生成
+                this.battleSystem.on('enemySpawn', (enemy) => {
+                    this.ui.updateEnemyUI(enemy, this.battleSystem.stageIndex, this.battleSystem.enemyIndex);
+                    this.ui.updateStageInfo(this.battleSystem.stageIndex);
+                    this.bgRenderer.updateBackground(this.battleSystem.stageIndex);
+                    this.ui.addLog(`${enemy.isBoss ? '【BOSS】' : ''}${enemy.name} 出现了！`);
+                });
+                
+                // 玩家攻击
+                this.battleSystem.on('playerAttack', (data) => {
+                    this.ui.triggerAttackAnimation(true);
+                    if (!data.result.isDodge) {
+                        setTimeout(() => this.ui.triggerHitAnimation(false), 100);
+                    }
+                    this.ui.showDamageNumber('enemy', data.result.damage, data.result.isCrit, data.result.isDodge);
+                });
+                
+                // 敌人攻击
+                this.battleSystem.on('enemyAttack', (data) => {
+                    this.ui.triggerAttackAnimation(false);
+                    if (!data.result.isDodge) {
+                        setTimeout(() => this.ui.triggerHitAnimation(true), 100);
+                    }
+                    this.ui.showDamageNumber('player', data.result.damage, data.result.isCrit, data.result.isDodge);
+                });
+                
+                // 伤害事件
+                this.battleSystem.on('damage', (data) => {
+                    const isPlayer = data.target === this.battleSystem.player;
+                    if (isPlayer) {
+                        this.ui.updatePlayerUI(data.target);
+                    } else {
+                        this.ui.updateEnemyUI(data.target, this.battleSystem.stageIndex, this.battleSystem.enemyIndex);
+                    }
+                    
+                    const critText = data.isCrit ? '<span class="crit">[暴击]</span>' : '';
+                    this.ui.addLog(
+                        `${isPlayer ? '敌人' : '你'} 受到 ${critText}<span class="damage">${data.damage}</span> 点伤害`,
+                        'damage'
+                    );
+                });
+                
+                // 闪避事件
+                this.battleSystem.on('dodge', (data) => {
+                    const isPlayer = data.target === this.battleSystem.player;
+                    this.ui.addLog(`${isPlayer ? '你' : '敌人'} <span class="dodge">闪避</span>了攻击！`);
+                });
+                
+                // 敌人被击败
+                this.battleSystem.on('enemyDefeated', (enemy) => {
+                    this.ui.addLog(`击败了 ${enemy.name}！`, 'victory');
+                });
+                
+                // 关卡通过
+                this.battleSystem.on('stageClear', (data) => {
+                    GameState.resources.wood += data.rewards.wood;
+                    GameState.resources.spirit += data.rewards.spirit;
+                    this.ui.updateResources(GameState.resources.wood, GameState.resources.spirit);
+                    this.ui.showStageClear(data.rewards);
+                    this.ui.addLog(`【关卡通过】获得灵木 +${data.rewards.wood}，灵气 +${data.rewards.spirit}`, 'victory');
+                });
+                
+                // 玩家被击败
+                this.battleSystem.on('playerDefeated', () => {
+                    this.ui.addLog('你被击败了...正在复活', 'defeat');
+                });
+                
+                // 玩家复活
+                this.battleSystem.on('playerRevive', () => {
+                    this.ui.updatePlayerUI(this.battleSystem.player);
+                    this.ui.addLog('你已复活，重新开始当前关卡');
+                });
+                
+                // 关卡开始
+                this.battleSystem.on('stageStart', (data) => {
+                    this.ui.updateStageInfo(data.stageIndex);
+                    this.ui.addLog(`进入 ${StageData.getStageName(data.stageIndex)}`);
+                });
+            }
+            
+            gameLoop(currentTime) {
+                const deltaTime = currentTime - this.lastTime;
+                this.lastTime = currentTime;
+                
+                if (GameState.isRunning) {
+                    // 更新战斗时间
+                    if (!GameState.isPaused) {
+                        GameState.battleTime += deltaTime / 1000 / GameConfig.SPEED_MULTIPLIERS[GameState.speedIndex];
+                        this.ui.updateBattleTime(GameState.battleTime);
+                    }
+                    
+                    // 更新战斗系统
+                    this.battleSystem.update(deltaTime);
+                    
+                    // 渲染背景
+                    this.bgRenderer.render();
+                }
+                
+                requestAnimationFrame((time) => this.gameLoop(time));
+            }
+        }
+        
+        // ============================================
+        // 启动游戏
+        // ============================================
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            new Game();
+        });
+    </script>
+</body>
+</html>

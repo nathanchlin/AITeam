@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寻道大千挂机游戏</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #ui {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    background-color: rgba(255, 255, 255, 0.8);
+    padding: 5px;
+    border-radius: 5px;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="ui">Score: 0</div>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const role = {
+  x: canvas.width / 2,
+  y: canvas.height - 30,
+  width: 20,
+  height: 30,
+  color: 'green'
+};
+const background = {
+  color: 'skyblue'
+};
+const score = 0;
+let keys = {};
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+function drawBackground() {
+  ctx.fillStyle = background.color;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawRole() {
+  ctx.fillStyle = role.color;
+  ctx.fillRect(role.x, role.y, role.width, role.height);
+}
+
+function drawUI() {
+  ctx.fillStyle = 'black';
+  ctx.fillText(`Score: ${score}`, 10, 20);
+}
+
+function moveRole() {
+  if (keys.ArrowUp) {
+    role.y -= 5;
+  }
+  if (keys.ArrowDown) {
+    role.y += 5;
+  }
+  if (keys.ArrowLeft) {
+    role.x -= 5;
+  }
+  if (keys.ArrowRight) {
+    role.x += 5;
+  }
+}
+
+function loop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawBackground();
+  drawRole();
+  drawUI();
+  moveRole();
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  loop();
+});
+
+window.addEventListener('keydown', (e) => {
+  keys[e.key] = true;
+});
+
+window.addEventListener('keyup', (e) => {
+  keys[e.key] = false;
+});
+</script>
+</body>
+</html>

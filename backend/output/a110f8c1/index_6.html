@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UI Interface System for Game</title>
+<style>
+  body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #uiPanel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    pointer-events: none;
+    display: none;
+  }
+  .panel {
+    position: absolute;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid #000;
+  }
+  .tab {
+    cursor: pointer;
+    padding: 5px 10px;
+    border-bottom: 1px solid #000;
+  }
+  .tab.active {
+    color: red;
+    border-bottom: none;
+  }
+  .content {
+    display: none;
+    padding: 10px;
+  }
+  .content.active {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="uiPanel">
+  <div class="tab active" onclick="switchPanel('character')">角色</div>
+  <div class="tab" onclick="switchPanel('resources')">资源</div>
+  <div class="tab" onclick="switchPanel('levels')">关卡</div>
+  <div class="tab" onclick="switchPanel('equipment')">装备</div>
+  <div class="tab" onclick="switchPanel('pets')">灵兽</div>
+  <div class="tab" onclick="switchPanel('settings')">设置</div>
+  <div id="character" class="content active">
+    <h1>角色</h1>
+    <p>境界：练气</p>
+    <p>力量：10</p>
+    <p>敏捷：10</p>
+    <p>智力：10</p>
+  </div>
+  <div id="resources" class="content">
+    <h1>资源</h1>
+    <p>木材：100</p>
+    <p>石头：100</p>
+  </div>
+  <div id="levels" class="content">
+    <h1>关卡</h1>
+    <p>当前关卡：1</p>
+  </div>
+  <div id="equipment" class="content">
+    <h1>装备</h1>
+    <p>装备：无</p>
+  </div>
+  <div id="pets" class="content">
+    <h1>灵兽</h1>
+    <p>灵兽：无</p>
+  </div>
+  <div id="settings" class="content">
+    <h1>设置</h1>
+    <p>音效：开</p>
+    <p>画质：高</p>
+  </div>
+</div>
+<script>
+const config = {
+  canvas: document.getElementById('gameCanvas'),
+  ctx: config.canvas.getContext('2d'),
+  scale: 1,
+  width: window.innerWidth,
+  height: window.innerHeight
+};
+
+let currentPanel = 'character';
+
+function switchPanel(panelId) {
+  document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+  document.querySelectorAll('.content').forEach(content => content.classList.remove('active'));
+  document.getElementById(panelId).classList.add('active');
+  document.getElementById(currentPanel).classList.remove('active');
+  currentPanel = panelId;
+}
+
+function initUI() {
+  const uiPanel = document.getElementById('uiPanel');
+  uiPanel.style.display = 'block';
+}
+
+document.addEventListener('DOMContentLoaded', initUI);
+window.addEventListener('resize', () => {
+  config.width = window.innerWidth;
+  config.height = window.innerHeight;
+  config.canvas.width = config.width;
+  config.canvas.height = config.height;
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "version": "v10.2.0",
+  "last_updated": "2023-10-27",
+  "factions": [
+    {
+      "id": "NORTHERN_REALMS",
+      "name": "北方领域",
+      "ability": "每次有金色卡牌打出时，主战力+1",
+      "cards": [ /* 卡牌对象列表 */ ]
+    },
+    {
+      "id": "MONSTERS",
+      "name": "怪物",
+      "ability": "回合结束时保留场上最强的单位",
+      "cards": [ /* 卡牌对象列表 */ ]
+    },
+    {
+      "id": "NILFGAARD",
+      "name": "尼弗迦德",
+      "ability": "可以查看对手的一张手牌",
+      "cards": [ /* 卡牌对象列表 */ ]
+    }
+    // ... 其他阵营
+  ]
+}

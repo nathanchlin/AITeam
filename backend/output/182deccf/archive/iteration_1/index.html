@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>昆特牌 - 暗黑幻想战场</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0f;
+            overflow: hidden;
+            font-family: 'Cinzel', 'Times New Roman', serif;
+            color: #d4c4a8;
+        }
+        
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        #gameCanvas {
+            display: block;
+            cursor: pointer;
+        }
+        
+        #uiOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .weather-controls {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            pointer-events: all;
+        }
+        
+        .weather-btn {
+            padding: 10px 20px;
+            background: linear-gradient(180deg, #2a2520 0%, #1a1815 100%);
+            border: 1px solid #5a4a35;
+            color: #c9a227;
+            font-family: 'Cinzel', serif;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .weather-btn:hover {
+            background: linear-gradient(180deg, #3a3530 0%, #2a2825 100%);
+            border-color: #c9a227;
+            box-shadow: 0 0 15px rgba(201, 162, 39, 0.3);
+        }
+        
+        .weather-btn.active {
+            background: linear-gradient(180deg, #4a3a25 0%, #3a2a15 100%);
+            border-color: #c9a227;
+            color: #f0d060;
+        }
+        
+        .game-controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 10px;
+            pointer-events: all;
+            flex-wrap: wrap;
+            max-width: 450px;
+        }
+        
+        .control-btn {
+            padding: 10px 20px;
+            background: linear-gradient(180deg, #1a2520 0%, #0a1815 100%);
+            border: 1px solid #356a55;
+            color: #4ade80;
+            font-family: 'Cinzel', serif;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .control-btn:hover {
+            background: linear-gradient(180deg, #2a3530 0%, #1a2825 100%);
+            border-color: #4ade80;
+            box-shadow: 0 0 15px rgba(74, 222, 128, 0.3);
+        }
+        
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .control-btn.danger {
+            background: linear-gradient(180deg, #2a1520 0%, #1a1015 100%);
+            border-color: #6a3535;
+            color: #de4a4a;
+        }
+        
+        .control-btn.danger:hover {
+            background: linear-gradient(180deg, #3a2530 0%, #2a1825 100%);
+            border-color: #de4a4a;
+            box-shadow: 0 0 15px rgba(222, 74, 74, 0.3);
+        }
+        
+        .control-btn.leader {
+            background: linear-gradient(180deg, #2a2515 0%, #1a180a 100%);
+            border-color: #c9a227;
+            color: #f0d060;
+        }
+        
+        .control-btn.leader:hover {
+            box-shadow: 0 0 20px rgba(201, 162, 39, 0.5);
+        }
+        
+        .control-btn.leader.used {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        /* 卡牌详情提示框 */
+        #cardTooltip {
+            position: absolute;
+            display: none;
+            min-width: 220px;
+            max-width: 300px;
+            background: linear-gradient(180deg, #1a1815 0%, #0a0a0f 100%);
+            border: 2px solid #5a4a35;
+            border-radius: 8px;
+            padding: 15px;
+            pointer-events: none;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 30px rgba(201, 162, 39, 0.2);
+        }
+        
+        #cardTooltip .tooltip-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #3a3530;
+        }
+        
+        #cardTooltip .tooltip-name {
+            font-size: 16px;
+            font-weight: bold;
+            color: #f0d060;
+        }
+        
+        #cardTooltip .tooltip-power {
+            font-size: 18px;
+            font-weight: bold;
+            min-width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: #2a2520;
+            border: 2px solid #c9a227;
+        }
+        
+        #cardTooltip .tooltip-faction {
+            font-size: 11px;
+            color: #8a7a5a;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+        
+        #cardTooltip .tooltip-type {
+            font-size: 11px;
+            color: #6a8a5a;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+        
+        #cardTooltip .tooltip-abilities {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        
+        #cardTooltip .tooltip-ability {
+            font-size: 10px;
+            padding: 3px 8px;
+            background: #2a2520;
+            border: 1px solid #5a4a35;
+            border-radius: 3px;
+            color: #c9a227;
+            text-transform: uppercase;
+        }
+        
+        #cardTooltip .tooltip-desc {
+            font-size: 13px;
+            color: #d4c4a8;
+            line-height: 1.5;
+            font-style: italic;
+            padding-top: 8px;
+            border-top: 1px solid #3a3530;
+        }
+        
+        #cardTooltip.gold .tooltip-name {
+            color: #ffd700;
+        }
+        
+        #cardTooltip.gold .tooltip-power {
+            border-color: #ffd700;
+            color: #ffd700;
+        }
+        
+        #cardTooltip.special .tooltip-name {
+            color: #aa88ff;
+        }
+        
+        #cardTooltip.weather .tooltip-name {
+            color: #88ccff;
+        }
+        
+        .score-display {
+            position: absolute;
+            padding: 10px 25px;
+            background: linear-gradient(180deg, #1a1815 0%, #0a0a0f 100%);
+            border: 2px solid #5a4a35;
+            border-radius: 5px;
+            font-size: 24px;
+            font-weight: bold;
+            color: #f0d060;
+            pointer-events: none;
+        }
+        
+        #playerScore {
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        #enemyScore {
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .round-indicator {
+            position: absolute;
+            top: 50%;
+            left: 20px;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+        
+        .round-gem {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3a3530;
+            border: 2px solid #5a4a35;
+        }
+        
+        .round-gem.active {
+            background: radial-gradient(circle, #f0d060 0%, #c9a227 100%);
+            box-shadow: 0 0 10px rgba(201, 162, 39, 0.5);
+        }
+        
+        .round-gem.won {
+            background: radial-gradient(circle, #4ade80 0%, #22c55e 100%);
+            box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
+        }
+        
+        .round-gem.lost {
+            background: radial-gradient(circle, #de4a4a 0%, #dc2626 100%);
+            box-shadow: 0 0 10px rgba(222, 74, 74, 0.5);
+        }
+        
+        #gameMessage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px 40px;
+            background: linear-gradient(180deg, #2a2520 0%, #1a1815 100%);
+            border: 2px solid #c9a227;
+            border-radius: 10px;
+            font-size: 28px;
+            color: #f0d060;
+            text-align: center;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 100;
+        }
+        
+        #gameMessage.show {
+            opacity: 1;
+        }
+        
+        .hand-info {
+            position: absolute;
+            left: 20px;
+            font-size: 14px;
+            color: #8a7a5a;
+            pointer-events: none;
+        }
+        
+        #playerHandInfo {
+            bottom: 20px;
+        }
+        
+        #enemyHandInfo {
+            top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="uiOverlay">
+            <div class="game-controls">
+                <button class="control-btn" id="btnPass">跳过回合</button>
+                <button class="control-btn leader" id="btnLeader">领袖能力</button>
+                <button class="control-btn danger" id="btnForfeit">认输</button>
+            </div>
+            <div class="weather-controls">
+                <button class="weather-btn" data-weather="frost">霜冻</button>
+                <button class="weather-btn" data-weather="fog">迷雾</button>
+                <button class="weather-btn" data-weather="rain">雨天</button>
+                <button class="weather-btn" data-weather="clear">晴空</button>
+            </div>
+            <div class="score-display" id="playerScore">0</div>
+            <div class="score-display" id="enemyScore">0</div>
+            <div class="round-indicator" id="roundIndicator">
+                <div class="round-gem active"></div>
+                <div class="round-gem"></div>
+            </div>
+            <div class="hand-info" id="playerHandInfo">手牌: 10</div>
+            <div class="hand-info" id="enemyHandInfo">手牌: 10</div>
+            <div id="gameMessage"></div>
+        </div>
+        <div id="cardTooltip">
+            <div class="tooltip-header">
+                <span class="tooltip-name">卡牌名称</span>
+                <span class="tooltip-power">0</span>
+            </div>
+            <div class="tooltip-faction">阵营</div>
+            <div class="tooltip-type">类型</div>
+            <div class="tooltip-abilities"></div>
+            <div class="tooltip-desc">描述</div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 卡牌数据库 ====================
+        const CardDatabase = {
+            cards: [
+                // 怪物阵营
+                { id: 'm001', name: '食尸鬼', power: 4, faction: 'MONSTERS', color: 'BRONZE', type: 'UNIT', row: 'MELEE', abilities: [], desc: '从战场吞噬一个单位' },
+                { id: 'm002', name: '石像鬼', power: 6, faction: 'MONSTERS', color: 'BRONZE', type: 'UNIT', row: 'MELEE', abilities: [], desc: '坚硬的守护者' },
+                { id: 'm003', name: '墓穴巫婆', power: 5, faction: 'MONSTERS', color: 'BRONZE', type: 'UNIT', row: 'RANGED', abilities: [], desc: '从墓场复活一个单位' },
+                { id: 'm004', name: '大狮鹫', power: 8, faction: 'MONSTERS', color: 'GOLD', type: 'UNIT', row: 'MELEE', abilities: [], desc: '天空的霸主' },
+                { id: 'm005', name: '雾妖', power: 3, faction: 'MONSTERS', color: 'BRONZE', type: 'UNIT', row: 'RANGED', abilities: ['MORALE_BOOST'], desc: '迷雾中的猎手' },
+                { id: 'm006', name: '巨魔', power: 7, faction: 'MONSTERS', color: 'BRONZE', type: 'UNIT', row: 'SIEGE', abilities: [], desc: '力量惊人的巨兽' },
+                { id: 'm007', name: '狂猎战士', power: 5, faction: 'MONSTERS', color: 'BRONZE', type: 'UNIT', row: 'MELEE', abilities: [], desc: '霜冻的使者' },
+                { id: 'm008', name: '狂猎导航员', power: 4, faction: 'MONSTERS', color: 'BRONZE', type: 'UNIT', row: 'RANGED', abilities: [], desc: '指引狂猎的航向' },
+                { id: 'm009', name: '老巫妪', power: 6, faction: 'MONSTERS', color: 'GOLD', type: 'UNIT', row: 'RANGED', abilities: [], desc: '古老的邪恶力量' },
+                { id: 'm010', name: '吸血鬼', power: 5, faction: 'MONSTERS', color: 'BRONZE', type: 'UNIT', row: 'MELEE', abilities: [], desc: '暗夜的统治者' },
+                { id: 'm011', name: '冰巨人', power: 9, faction: 'MONSTERS', color: 'GOLD', type: 'UNIT', row: 'SIEGE', abilities: [], desc: '冰霜中的巨型生物' },
+                
+                // 尼弗迦德阵营
+                { id: 'ng001', name: '尼弗迦德士兵', power: 5, faction: 'NILFGAARD', color: 'BRONZE', type: 'UNIT', row: 'MELEE', abilities: [], desc: '帝国正规军' },
+                { id: 'ng002', name: '黑衣步兵', power: 6, faction: 'NILFGAARD', color: 'BRONZE', type: 'UNIT', row: 'MELEE', abilities: [], desc: '精锐步兵部队' },
+                { id: 'ng003', name: '攻城技师', power: 4, faction: 'NILFGAARD', color: 'BRONZE', type: 'UNIT', row: 'SIEGE', abilities: ['MORALE_BOOST'], desc: '攻城专家' },
+                { id: 'ng004', name: '恩希尔·恩瑞斯', power: 8, faction: 'NILFGAARD', color: 'GOLD', type: 'UNIT', row: 'MELEE', abilities: [], desc: '尼弗迦德皇帝' },
+                { id: 'ng005', name: '女术士', power: 3, faction: 'NILFGAARD', color: 'BRONZE', type: 'UNIT', row: 'RANGED', abilities: ['MEDIC'], desc: '帝国法师' },
+                { id: 'ng006', name: '间谍', power: 5, faction: 'NILFGAARD', color: 'BRONZE', type: 'UNIT', row: 'RANGED', abilities: ['SPY'], desc: '情报收集者' },
+                { id: 'ng007', name: '投石车', power: 7, faction: 'NILFGAARD', color: 'BRONZE', type: 'UNIT', row: 'SIEGE', abilities: [], desc: '帝国攻城武器' },
+                { id: 'ng008', name: '莫丽安', power: 6, faction: 'NILFGAARD', color: 'GOLD', type: 'UNIT', row: 'RANGED', abilities: [], desc: '强大的女术士' },
+                { id: 'ng009', name: '重骑兵', power: 7, faction: 'NILFGAARD', color: 'BRONZE', type: 'UNIT', row: 'MELEE', abilities: [], desc: '帝国铁骑' },
+                { id: 'ng010', name: '弩炮', power: 8, faction: 'NILFGAARD', color: 'BRONZE', type: 'UNIT', row: 'SIEGE', abilities: [], desc: '精准攻城武器' },
+                
+                // 北方阵营
+                { id: 'n001', name: '泰莫利亚士兵', power: 5, faction: 'NORTHERN', color: 'BRONZE', type: 'UNIT', row: 'MELEE', abilities: ['BOND'], desc: '精锐步兵' },
+                { id: 'n002', name: '蓝衣铁卫', power: 6, faction: 'NORTHERN', color: 'BRONZE', type: 'UNIT', row: 'MELEE', abilities: [], desc: '特种作战部队' },
+                { id: 'n003', name: '攻城技师', power: 4, faction: 'NORTHERN', color: 'BRONZE', type: 'UNIT', row: 'SIEGE', abilities: ['MORALE_BOOST'], desc: '为攻城单位提供支援' },
+                { id: 'n004', name: '弗农·罗奇', power: 8, faction: 'NORTHERN', color: 'GOLD', type: 'UNIT', row: 'MELEE', abilities: [], desc: '蓝衣铁卫的指挥官' },
+                { id: 'n005', name: '草药医', power: 3, faction: 'NORTHERN', color: 'BRONZE', type: 'UNIT', row: 'RANGED', abilities: ['MEDIC'], desc: '能够复活单位' },
+                { id: 'n006', name: '斥候', power: 5, faction: 'NORTHERN', color: 'BRONZE', type: 'UNIT', row: 'RANGED', abilities: ['SPY'], desc: '深入敌后收集情报' },
+                { id: 'n007', name: '投石机', power: 7, faction: 'NORTHERN', color: 'BRONZE', type: 'UNIT', row: 'SIEGE', abilities: [], desc: '威力强大的攻城武器' },
+                { id: 'n008', name: '凯拉·梅兹', power: 6, faction: 'NORTHERN', color: 'GOLD', type: 'UNIT', row: 'RANGED', abilities: [], desc: '强大的女术士' },
+                { id: 'n009', name: '泰莫利亚骑士', power: 7, faction: 'NORTHERN', color: 'BRONZE', type: 'UNIT', row: 'MELEE', abilities: [], desc: '重装骑兵' },
+                { id: 'n010', name: '弩炮', power: 8, faction: 'NORTHERN', color: 'BRONZE', type: 'UNIT', row: 'SIEGE', abilities: [], desc: '精准的远程攻城武器' },
+                { id: 'n011', name: '北方斥候', power: 4, faction: 'NORTHERN', color: 'BRONZE', type: 'UNIT', row: 'RANGED', abilities: [], desc: '快速侦查单位' },
+                { id: 'n012', name: '指挥号角', power: 0, faction: 'NEUTRAL', color: 'SPECIAL', type: 'SPECIAL', abilityType: 'COMMANDERS_HORN', desc: '使一排所有单位战力翻倍' },
+                { id: 'n013', name: '灼烧', power: 0, faction: 'NEUTRAL', color: 'SPECIAL', type: 'SPECIAL', abilityType: 'SCORCH', desc: '摧毁场上所有最强单位' },
+                { id: 'n014', name: '霜冻天气', power: 0, faction: 'NEUTRAL', color: 'WEATHER', type: 'WEATHER', abilityType: 'BITING_FROST', desc: '将所有近战排单位战力设为1' },
+                { id: 'n015', name: '晴空', power: 0, faction: 'NEUTRAL', color: 'SPECIAL', type: 'SPECIAL', abilityType: 'CLEAR_WEATHER', desc: '清除所有天气效果' }
+            ],
+            
+            leaders: [
+                { id: 'l001', name: '艾瑞汀', faction: 'MONSTERS', ability: '回合结束时保留场上最强单位', charges: 1 },
+                { id: 'l002', name: '恩希尔·恩瑞斯', faction: 'NILFGAARD', ability: '查看对手一张手牌', charges: 1 },
+                { id: 'l003', name: '弗尔泰斯特', faction: 'NORTHERN', ability: '摧毁一张攻城单位的护甲', charges: 1 }
+            ]
+        };
+        
+        // ==================== 游戏配置 ====================
+        const CONFIG = {
+            CARD_WIDTH: 80,
+            CARD_HEIGHT: 110,
+            CARD_SPACING: 15,
+            HAND_Y_OFFSET: 80,
+            FIELD_ROWS: {
+                PLAYER_SIEGE: 0.65,
+                PLAYER_RANGED: 0.55,
+                PLAYER_MELEE: 0.45,
+                ENEMY_MELEE: 0.35,
+                ENEMY_RANGED: 0.25,
+                ENEMY_SIEGE: 0.15
+            }
+        };
+
+        // ==================== 游戏状态 ====================
+        let gameState = {
+            phase: 'PLAY',
+            currentRound: 1,
+            playerWins: 0,
+            enemyWins: 0,
+            playerPassed: false,
+            enemyPassed: false,
+            playerLeaderUsed: false,
+            enemyLeaderUsed: false,
+            playerHand: [],
+            enemyHand: [],
+            playerField: { MELEE: [], RANGED: [], SIEGE: [] },
+            enemyField: { MELEE: [], RANGED: [], SIEGE: [] },
+            weather: [],
+            selectedCard: null,
+            hoveredCard: null,
+            isPlayerTurn: true
+        };
+
+        // ==================== Canvas 设置 ====================
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // ==================== 卡牌渲染 ====================
+        function getCardColor(card) {
+            if (card.color === 'GOLD') return { bg: '#3a3520', border: '#ffd700', text: '#ffd700' };
+            if (card.color === 'SPECIAL') return { bg: '#2a2035', border: '#aa88ff', text: '#aa88ff' };
+            if (card.color === 'WEATHER') return { bg: '#203040', border: '#88ccff', text: '#88ccff' };
+            return { bg: '#2a2520', border: '#c9a227', text: '#d4c4a8' };
+        }
+
+        function getFactionName(faction) {
+            const names = {
+                'MONSTERS': '怪物',
+                'NILFGAARD': '尼弗迦德',
+                'NORTHERN': '北方领域',
+                'NEUTRAL': '中立'
+            };
+            return names[faction] || faction;
+        }
+
+        function getAbilityName(ability) {
+            const names = {
+                'BOND': '羁绊',
+                'MORALE_BOOST': '士气提振',
+                'MEDIC': '医生',
+                'SPY': '间谍',
+                'MUSTER': '集结',
+                'COMMANDERS_HORN': '指挥号角',
+                'SCORCH': '灼烧'
+            };
+            return names[ability] || ability;
+        }
+
+        function getRowName(row) {
+            const names = {
+                'MELEE': '近战',
+                'RANGED': '远程',
+                'SIEGE': '攻城'
+            };
+            return names[row] || row;
+        }
+
+        function drawCard(card, x, y, width = CONFIG.CARD_WIDTH, height = CONFIG.CARD_HEIGHT, isHovered = false) {
+            const colors = getCardColor(card);
+            
+            // 卡牌阴影
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+            ctx.shadowBlur = isHovered ? 20 : 10;
+            ctx.shadowOffsetX = 0;
+            ctx.shadowOffsetY = isHovered ? 5 : 3;
+            
+            // 卡牌背景
+            ctx.fillStyle = colors.bg;
+            ctx.beginPath();
+            ctx.roundRect(x, y, width, height, 5);
+            ctx.fill();
+            
+            // 卡牌边框
+            ctx.strokeStyle = colors.border;
+            ctx.lineWidth = isHovered ? 3 : 2;
+            ctx.stroke();
+            
+            ctx.shadowColor = 'transparent';
+            
+            // 顶部装饰条
+            ctx.fillStyle = colors.border;
+            ctx.fillRect(x, y, width, 4);
+            
+            // 战力圆圈
+            const powerRadius = 14;
+            const powerX = x + 12;
+            const powerY = y + 18;
+            
+            ctx.beginPath();
+            ctx.arc(powerX, powerY, powerRadius, 0, Math.PI * 2);
+            ctx.fillStyle = card.type === 'UNIT' ? '#1a1815' : '#2a2520';
+            ctx.fill();
+            ctx.strokeStyle = colors.border;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // 战力数值
+            if (card.type === 'UNIT') {
+                ctx.fillStyle = card.power > 0 ? '#ffffff' : '#888888';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(card.currentPower || card.power, powerX, powerY);
+            } else {
+                // 特殊卡显示图标
+                ctx.fillStyle = colors.text;
+                ctx.font = '10px Arial';
+                ctx.fillText(card.type === 'SPECIAL' ? '★' : '☁', powerX, powerY);
+            }
+            
+            // 卡牌名称
+            ctx.fillStyle = colors.text;
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            
+            const name = card.name.length > 8 ? card.name.substring(0, 7) + '...' : card.name;
+            ctx.fillText(name, x + width / 2, y + 38);
+            
+            // 卡牌类型/行
+            if (card.row) {
+                ctx.fillStyle = '#8a7a5a';
+                ctx.font = '9px Arial';
+                ctx.fillText(getRowName(card.row), x + width / 2, y + 52);
+            }
+            
+            // 能力图标
+            if (card.abilities && card.abilities.length > 0) {
+                ctx.fillStyle = '#4ade80';
+                ctx.font = '8px Arial';
+                const abilityText = card.abilities.map(a => getAbilityName(a)).join(' ');
+                ctx.fillText(abilityText, x + width / 2, y + height - 25);
+            }
+            
+            // 描述文字（在卡牌上显示简短描述）
+            if (card.desc) {
+                ctx.fillStyle = '#9a8a6a';
+                ctx.font = '7px Arial';
+                ctx.textAlign = 'center';
+                
+                // 截断描述以适应卡牌宽度
+                let descText = card.desc;
+                if (descText.length > 12) {
+                    descText = descText.substring(0, 10) + '..';
+                }
+                ctx.fillText(descText, x + width / 2, y + height - 10);
+            }
+            
+            // 悬停高亮效果
+            if (isHovered) {
+                ctx.strokeStyle = colors.border;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // 发光效果
+                ctx.shadowColor = colors.border;
+                ctx.shadowBlur = 15;
+                ctx.stroke();
+                ctx.shadowColor = 'transparent';
+            }
+        }
+
+        // ==================== 卡牌详情提示框 ====================
+        function showCardTooltip(card, mouseX, mouseY) {
+            const tooltip = document.getElementById('cardTooltip');
+            const colors = getCardColor(card);
+            
+            // 设置提示框类别
+            tooltip.className = '';
+            if (card.color === 'GOLD') tooltip.classList.add('gold');
+            if (card.color === 'SPECIAL') tooltip.classList.add('special');
+            if (card.color === 'WEATHER') tooltip.classList.add('weather');
+            
+            // 更新内容
+            tooltip.querySelector('.tooltip-name').textContent = card.name;
+            tooltip.querySelector('.tooltip-power').textContent = card.type === 'UNIT' ? (card.currentPower || card.power) : '★';
+            tooltip.querySelector('.tooltip-faction').textContent = getFactionName(card.faction);
+            tooltip.querySelector('.tooltip-type').textContent = card.type === 'UNIT' ? `${card.type} · ${getRowName(card.row)}` : card.type;
+            
+            // 能力标签
+            const abilitiesContainer = tooltip.querySelector('.tooltip-abilities');
+            abilitiesContainer.innerHTML = '';
+            if (card.abilities && card.abilities.length > 0) {
+                card.abilities.forEach(ability => {
+                    const span = document.createElement('span');
+                    span.className = 'tooltip-ability';
+                    span.textContent = getAbilityName(ability);
+                    abilitiesContainer.appendChild(span);
+                });
+            }
+            
+            // 描述
+            tooltip.querySelector('.tooltip-desc').textContent = card.desc || '无描述';
+            
+            // 位置计算
+            let tooltipX = mouseX + 15;
+            let tooltipY = mouseY + 15;
+            
+            // 防止超出屏幕
+            const tooltipRect = tooltip.getBoundingClientRect();
+            if (tooltipX + 300 > window.innerWidth) {
+                tooltipX = mouseX - 230;
+            }
+            if (tooltipY + 200 > window.innerHeight) {
+                tooltipY = mouseY - 200;
+            }
+            
+            tooltip.style.left = tooltipX + 'px';
+            tooltip.style.top = tooltipY + 'px';
+            tooltip.style.display = 'block';
+        }
+
+        function hideCardTooltip() {
+            document.getElementById('cardTooltip').style.display = 'none';
+        }
+
+        // ==================== 游戏渲染 ====================
+        function render() {
+            // 清空画布
+            ctx.fillStyle = '#0a0a0f';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制背景纹理
+            drawBackground();
+            
+            // 绘制战场分割线
+            drawBattlefield();
+            
+            // 绘制天气区域
+            drawWeatherArea();
+            
+            // 绘制双方场地
+            drawField();
+            
+            // 绘制玩家手牌
+            drawHand();
+            
+            // 更新分数显示
+            updateScores();
+        }
+
+        function drawBackground() {
+            // 添加纹理效果
+            ctx.fillStyle = 'rgba(30, 25, 20, 0.3)';
+            for (let i = 0; i < 50; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                ctx.fillRect(x, y, 2, 2);
+            }
+        }
+
+        function drawBattlefield() {
+            const centerY = canvas.height / 2;
+            
+            // 中线
+            ctx.strokeStyle = '#3a3530';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(canvas.width, centerY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // 行分隔线
+            ctx.strokeStyle = '#2a2520';
+            ctx.lineWidth = 1;
+            
+            Object.values(CONFIG.FIELD_ROWS).forEach(ratio => {
+                const y = canvas.height * ratio;
+                ctx.beginPath();
+                ctx.moveTo(150, y);
+                ctx.lineTo(canvas.width - 150, y);
+                ctx.stroke();
+            });
+            
+            // 行标签
+            ctx.fillStyle = '#5a4a35';
+            ctx.font = '11px Arial';
+            ctx.textAlign = 'left';
+            
+            const labels = [
+                { text: '我方攻城', y: CONFIG.FIELD_ROWS.PLAYER_SIEGE },
+                { text: '我方远程', y: CONFIG.FIELD_ROWS.PLAYER_RANGED },
+                { text: '我方近战', y: CONFIG.FIELD_ROWS.PLAYER_MELEE },
+                { text: '敌方近战', y: CONFIG.FIELD_ROWS.ENEMY_MELEE },
+                { text: '敌方远程', y: CONFIG.FIELD_ROWS.ENEMY_RANGED },
+                { text: '敌方攻城', y: CONFIG.FIELD_ROWS.ENEMY_SIEGE }
+            ];
+            
+            labels.forEach(label => {
+                ctx.fillText(label.text, 10, canvas.height * label.y + 5);
+            });
+        }
+
+        function drawWeatherArea() {
+            const weatherY = canvas.height * 0.5 - 30;
+            const weatherX = canvas.width - 120;
+            
+            ctx.fillStyle = '#2a2520';
+            ctx.strokeStyle = '#5a4a35';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.roundRect(weatherX - 10, weatherY - 25, 110, 50, 5);
+            ctx.fill();
+            ctx.stroke();
+            
+            ctx.fillStyle = '#8a7a5a';
+            ctx.font = '10px Arial';
+            ctx.textAlign = 'left';
+            ctx.fillText('天气区', weatherX, weatherY - 10);
+            
+            // 绘制天气卡
+            if (gameState.weather.length > 0) {
+                gameState.weather.forEach((card, i) => {
+                    drawCard(card, weatherX + i * 30, weatherY, 25, 35);
+                });
+            } else {
+                ctx.fillStyle = '#5a4a35';
+                ctx.font = '10px Arial';
+                ctx.fillText('无天气', weatherX, weatherY + 10);
+            }
+        }
+
+        function drawField() {
+            // 绘制玩家场地
+            ['SIEGE', 'RANGED', 'MELEE'].forEach(row => {
+                const cards = gameState.playerField[row];
+                const y = canvas.height * CONFIG.FIELD_ROWS['PLAYER_' + row] - CONFIG.CARD_HEIGHT / 2;
+                const startX = (canvas.width - (cards.length * (CONFIG.CARD_WIDTH + CONFIG.CARD_SPACING) - CONFIG.CARD_SPACING)) / 2;
+                
+                cards.forEach((card, i) => {
+                    const x = startX + i * (CONFIG.CARD_WIDTH + CONFIG.CARD_SPACING);
+                    const isHovered = gameState.hoveredCard === card;
+                    drawCard(card, x, y, CONFIG.CARD_WIDTH, CONFIG.CARD_HEIGHT, isHovered);
+                    card._bounds = { x, y, width: CONFIG.CARD_WIDTH, height: CONFIG.CARD_HEIGHT };
+                });
+            });
+            
+            // 绘制敌方场地
+            ['MELEE', 'RANGED', 'SIEGE'].forEach(row => {
+                const cards = gameState.enemyField[row];
+                const y = canvas.height * CONFIG.FIELD_ROWS['ENEMY_' + row] - CONFIG.CARD_HEIGHT / 2;
+                const startX = (canvas.width - (cards.length * (CONFIG.CARD_WIDTH + CONFIG.CARD_SPACING) - CONFIG.CARD_SPACING)) / 2;
+                
+                cards.forEach((card, i) => {
+                    const x = startX + i * (CONFIG.CARD_WIDTH + CONFIG.CARD_SPACING);
+                    drawCard(card, x, y, CONFIG.CARD_WIDTH, CONFIG.CARD_HEIGHT, false);
+                    card._bounds = { x, y, width: CONFIG.CARD_WIDTH, height: CONFIG.CARD_HEIGHT };
+                });
+            });
+        }
+
+        function drawHand() {
+            const handY = canvas.height - CONFIG.HAND_Y_OFFSET - CONFIG.CARD_HEIGHT / 2;
+            const cardCount = gameState.playerHand.length;
+            const startX = (canvas.width - (cardCount * (CONFIG.CARD_WIDTH + CONFIG.CARD_SPACING) - CONFIG.CARD_SPACING)) / 2;
+            
+            gameState.playerHand.forEach((card, i) => {
+                const x = startX + i * (CONFIG.CARD_WIDTH + CONFIG.CARD_SPACING);
+                const isHovered = gameState.hoveredCard === card;
+                const yOffset = isHovered ? -20 : 0;
+                drawCard(card, x, handY + yOffset, CONFIG.CARD_WIDTH, CONFIG.CARD_HEIGHT, isHovered);
+                card._bounds = { x, y: handY + yOffset, width: CONFIG.CARD_WIDTH, height: CONFIG.CARD_HEIGHT };
+            });
+            
+            // 更新手牌数量显示
+            document.getElementById('playerHandInfo').textContent = `手牌: ${gameState.playerHand.length}`;
+            document.getElementById('enemyHandInfo').textContent = `手牌: ${gameState.enemyHand.length}`;
+        }
+
+        function updateScores() {
+            let playerScore = 0;
+            let enemyScore = 0;
+            
+            Object.values(gameState.playerField).forEach(row => {
+                row.forEach(card => {
+                    playerScore += card.currentPower || card.power;
+                });
+            });
+            
+            Object.values(gameState.enemyField).forEach(row => {
+                row.forEach(card => {
+                    enemyScore += card.currentPower || card.power;
+                });
+            });
+            
+            document.getElementById('playerScore').textContent = playerScore;
+            document.getElementById('enemyScore').textContent = enemyScore;
+        }
+
+        // ==================== 鼠标交互 ====================
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            let foundCard = null;
+            
+            // 检查手牌
+            gameState.playerHand.forEach(card => {
+                if (card._bounds && isPointInRect(mouseX, mouseY, card._bounds)) {
+                    foundCard = card;
+                }
+            });
+            
+            // 检查玩家场地
+            Object.values(gameState.playerField).forEach(row => {
+                row.forEach(card => {
+                    if (card._bounds && isPointInRect(mouseX, mouseY, card._bounds)) {
+                        foundCard = card;
+                    }
+                });
+            });
+            
+            if (foundCard !== gameState.hoveredCard) {
+                gameState.hoveredCard = foundCard;
+                render();
+            }
+            
+            // 显示或隐藏提示框
+            if (foundCard) {
+                showCardTooltip(foundCard, e.clientX, e.clientY);
+            } else {
+                hideCardTooltip();
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            gameState.hoveredCard = null;
+            hideCardTooltip();
+            render();
+        });
+
+        canvas.addEventListener('click', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+            
+            // 检查手牌点击
+            if (gameState.isPlayerTurn && !gameState.playerPassed) {
+                gameState.playerHand.forEach(card => {
+                    if (card._bounds && isPointInRect(mouseX, mouseY, card._bounds)) {
+                        playCard(card, true);
+                    }
+                });
+            }
+        });
+
+        function isPointInRect(x, y, rect) {
+            return x >= rect.x && x <= rect.x + rect.width &&
+                   y >= rect.y && y <= rect.y + rect.height;
+        }
+
+        // ==================== 游戏逻辑 ====================
+        function playCard(card, isPlayer) {
+            if (card.type !== 'UNIT') return;
+            
+            const hand = isPlayer ? gameState.playerHand : gameState.enemyHand;
+            const field = isPlayer ? gameState.playerField : gameState.enemyField;
+            
+            const index = hand.indexOf(card);
+            if (index > -1) {
+                hand.splice(index, 1);
+                
+                // 初始化当前战力
+                card.currentPower = card.power;
+                
+                // 应用天气效果
+                if (gameState.weather.length > 0) {
+                    if (card.row === 'MELEE' && gameState.weather.some(w => w.abilityType === 'BITING_FROST')) {
+                        card.currentPower = 1;
+                    }
+                }
+                
+                field[card.row].push(card);
+                render();
+                
+                // 切换回合
+                if (isPlayer) {
+                    gameState.isPlayerTurn = false;
+                    setTimeout(enemyTurn, 1000);
+                } else {
+                    gameState.isPlayerTurn = true;
+                }
+            }
+        }
+
+        function enemyTurn() {
+            if (gameState.enemyPassed) {
+                gameState.isPlayerTurn = true;
+                return;
+            }
+            
+            // 简单AI：随机打出一张牌
+            const playableCards = gameState.enemyHand.filter(c => c.type === 'UNIT');
+            if (playableCards.length > 0) {
+                const card = playableCards[Math.floor(Math.random() * playableCards.length)];
+                playCard(card, false);
+            } else {
+                gameState.enemyPassed = true;
+                showMessage('敌方跳过回合');
+            }
+        }
+
+        function showMessage(text) {
+            const msg = document.getElementById('gameMessage');
+            msg.textContent = text;
+            msg.classList.add('show');
+            setTimeout(() => msg.classList.remove('show'), 2000);
+        }
+
+        // ==================== 按钮事件 ====================
+        document.getElementById('btnPass').addEventListener('click', () => {
+            if (gameState.isPlayerTurn && !gameState.playerPassed) {
+                gameState.playerPassed = true;
+                showMessage('你跳过了回合');
+                
+                if (!gameState.enemyPassed) {
+                    gameState.isPlayerTurn = false;
+                    setTimeout(enemyTurn, 1000);
+                }
+            }
+        });
+
+        document.querySelectorAll('.weather-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const weather = btn.dataset.weather;
+                
+                document.querySelectorAll('.weather-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                if (weather === 'clear') {
+                    gameState.weather = [];
+                    // 重置受影响单位战力
+                    recalculatePower();
+                } else if (weather === 'frost') {
+                    const frostCard = CardDatabase.cards.find(c => c.abilityType === 'BITING_FROST');
+                    if (frostCard) {
+                        gameState.weather = [{ ...frostCard }];
+                        applyWeather();
+                    }
+                }
+                render();
+            });
+        });
+
+        function applyWeather() {
+            // 应用霜冻效果到近战单位
+            ['playerField', 'enemyField'].forEach(field => {
+                gameState[field].MELEE.forEach(card => {
+                    card.currentPower = 1;
+                });
+            });
+        }
+
+        function recalculatePower() {
+            ['playerField', 'enemyField'].forEach(field => {
+                Object.values(gameState[field]).forEach(row => {
+                    row.forEach(card => {
+                        card.currentPower = card.power;
+                    });
+                });
+            });
+        }
+
+        // ==================== 游戏初始化 ====================
+        function initGame() {
+            // 给玩家发牌
+            const northernCards = CardDatabase.cards.filter(c => c.faction === 'NORTHERN' || c.faction === 'NEUTRAL');
+            const monsterCards = CardDatabase.cards.filter(c => c.faction === 'MONSTERS');
+            
+            // 随机抽取10张牌
+            for (let i = 0; i < 10; i++) {
+                if (northernCards.length > 0) {
+                    const index = Math.floor(Math.random() * northernCards.length);
+                    gameState.playerHand.push({ ...northernCards[index] });
+                }
+                if (monsterCards.length > 0) {
+                    const index = Math.floor(Math.random() * monsterCards.length);
+                    gameState.enemyHand.push({ ...monsterCards[index] });
+                }
+            }
+            
+            render();
+        }
+
+        // 启动游戏
+        initGame();
+        
+        // 持续渲染
+        function gameLoop() {
+            requestAnimationFrame(gameLoop);
+        }
+        gameLoop();
+    </script>
+</body>
+</html>

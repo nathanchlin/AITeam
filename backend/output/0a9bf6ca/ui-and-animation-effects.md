@@ -1,0 +1,241 @@
+# UI and Animation Effects
+
+**Time**: 2026-02-25T16:47:52.222584
+
+---
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pong Game</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+    background-color: #000;
+  }
+  canvas {
+    display: block;
+  }
+  #scoreBoard {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: white;
+    font-size: 24px;
+  }
+  #gameOver {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: white;
+    font-size: 48px;
+    font-family: fantasy;
+  }
+</style>
+</head>
+<body>
+<div id="scoreBoard">
+  <div>Player: <span id="playerScore">0</span></div>
+  <div>AI: <span id="aiScore">0</span></div>
+</div>
+<canvas id="gameCanvas"></canvas>
+<div id="gameOver"></div>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const scoreBoard = document.getElementById('scoreBoard');
+  const gameOver = document.getElementById('gameOver');
+
+  // Set canvas size
+  canvas.width = 800;
+  canvas.height = 400;
+
+  // Game variables
+  let ball = {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    radius: 10,
+    velocityX: 5,
+    velocityY: 5,
+    speed: 7,
+    color: 'WHITE'
+  };
+
+  let user = {
+    x: 0,
+    y: (canvas.height - 100) / 2,
+    width: 10,
+    height: 100,
+    score: 0,
+    color: 'WHITE'
+  };
+
+  let ai = {
+    x: canvas.width - 10,
+    y: (canvas.height - 100) / 2,
+    width: 10,
+    height: 100,
+    score: 0,
+    color: 'WHITE'
+  };
+
+  let rightPressed = false;
+  let leftPressed = false;
+
+  function drawRect(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+  }
+
+  function drawArc(x, y, r, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2, true);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function collision(b, p) {
+    p.top = p.y;
+    p.bottom = p.y + p.height;
+    p.left = p.x;
+    p.right = p.x + p.width;
+
+    b.top = b.y - b.radius;
+    b.bottom = b.y + b.radius;
+    b.left = b.x - b.radius;
+    b.right = b.x + b.radius;
+
+    return p.left < b.right && p.top < b.bottom && p.right > b.left && p.bottom > b.top;
+  }
+
+  function resetBall() {
+    ball.x = canvas.width / 2;
+    ball.y = canvas.height / 2;
+    ball.velocityX = -ball.velocityX;
+    ball.speed = 7;
+  }
+
+  function drawText(text, x, y, color) {
+    ctx.fillStyle = color;
+    ctx.font = '24px fantasy';
+    ctx.fillText(text, x, y);
+  }
+
+  function aiMovement() {
+    if (ai.y < ball.y) {
+      ai.y += 5;
+    } else if (ai.y > ball.y) {
+      ai.y -= 5;
+    }
+  }
+
+  function drawScore(user, ai) {
+    scoreBoard.querySelector('#playerScore').textContent = user.score;
+    scoreBoard.querySelector('#aiScore').textContent = ai.score;
+  }
+
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Ball movement
+    ball.x += ball.velocityX;
+    ball.y += ball.velocityY;
+
+    // AI paddle movement
+    aiMovement();
+
+    // User paddle movement
+    if (rightPressed && user.y < canvas.height - user.height) {
+      user.y += 5;
+    } else if (leftPressed && user.y > 0) {
+      user.y -= 5;
+    }
+
+    // Ball collision with top/bottom walls
+    if (ball.y - ball.radius < 0 || ball.y + ball.radius > canvas.height) {
+      ball.velocityY = -ball.velocityY;
+    }
+
+    // Ball collision with left paddle
+    if (collision(ball, user) && ball.x - ball.radius < user.x + user.width && ball.y > user.y && ball.y < user.y + user.height) {
+      ball.velocityX = -ball.velocityX;
+      let collidePoint = (ball.y - user.y) / user.height;
+      let angleRad = (Math.PI / 4) * collidePoint;
+      let direction = ball.x < user.x ? 1 : -1;
+      ball.velocityX = ball.speed * direction * Math.cos(angleRad);
+      ball.velocityY = ball.speed * direction * Math.sin(angleRad);
+    }
+
+    // Ball collision with right paddle
+    if (collision(ball, ai) && ball.x + ball.radius > ai.x && ball.y > ai.y && ball.y < ai.y + ai.height) {
+      ball.velocityX = -ball.velocityX;
+      let collidePoint = (ball.y - ai.y) / ai.height;
+      let angleRad = (Math.PI / 4) * collidePoint;
+      let direction = ball.x > ai.x ? 1 : -1;
+      ball.velocityX = ball.speed * direction * Math.cos(angleRad);
+      ball.velocityY = ball.speed * direction * Math.sin(angleRad);
+    }
+
+    // Ball goes past user paddle
+    if (ball.x - ball.radius < 0) {
+      ai.score++;
+      resetBall();
+    }
+
+    // Ball goes past AI paddle
+    if (ball.x + ball.radius > canvas.width) {
+      user.score++;
+      resetBall();
+    }
+
+    // Draw everything
+    drawRect(user.x, user.y, user.width, user.height, user.color);
+    drawRect(ai.x, ai.y, ai.width, ai.height, ai.color);
+    drawArc(ball.x, ball.y, ball.radius, ball.color);
+    drawScore(user, ai);
+
+    // Check for game over
+    if (user.score >= 10 || ai.score >= 10) {
+      gameOver.textContent = 'Game Over';
+      clearInterval(interval);
+    }
+  }
+
+  let interval = setInterval(gameLoop, 10);
+
+  window.onload = function() {
+    document.addEventListener('keydown', function(e) {
+      if (e.keyCode === 39) {
+        rightPressed = true;
+      } else if (e.keyCode === 37) {
+        leftPressed = true;
+      }
+    });
+
+    document.addEventListener('keyup', function(e) {
+      if (e.keyCode === 39) {
+        rightPressed = false;
+      } else if (e.keyCode === 37) {
+        leftPressed = false;
+      }
+    });
+  };
+</script>
+</body>
+</html>
+```
+
+This updated HTML code includes the following changes:
+
+1. Added a `#scoreBoard` div to display the scores of the player and AI.
+2. Added a `#gameOver` div to display the game over message.
+3. Updated the `drawScore` function to update the score text content in the `#scoreBoard` div.
+4. Updated the `gameLoop` function to check for game over condition and display the game over message if the score limit is reached.
+5. Added some basic styling to the score board and game over message for better visibility.
+6. Changed the background color of the body to black for a more suitable game environment.

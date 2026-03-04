@@ -1,0 +1,21 @@
+{
+  "card_id": "nr_keira_metz_001",
+  "name": "凯拉·梅兹",
+  "faction": "NORTHERN_REALMS",  // 阵营：北方领域
+  "color": "GOLD",               // 稀有度：金
+  "type": "UNIT",                // 类型：单位 (特殊卡为 SPECIAL)
+  "base_power": 5,               // 基础战力
+  "provisions": 10,              // 卡组构建资源 (用于卡组平衡)
+  "loyalty": "LOYAL",            // 忠诚度
+  "row_restrictions": ["RANGED"], // 限制只能放在远程排
+  "keywords": ["MAGE", "SPELL"], // 标签，用于检索
+  "abilities": [
+    {
+      "trigger": "ON_DEPLOY",    // 触发时机：部署时
+      "effect_type": "DAMAGE",   // 效果类型：伤害
+      "target_scope": "ENEMY",   // 目标范围：敌方
+      "value": 5,
+      "description_key": "ability_keira_desc"
+    }
+  ]
+}

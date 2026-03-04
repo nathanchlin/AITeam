@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auto Battle and Level Progression System</title>
+<style>
+  body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+const config = {
+  canvas: document.getElementById('gameCanvas'),
+  ctx: config.canvas.getContext('2d'),
+  scale: 1,
+  width: window.innerWidth,
+  height: window.innerHeight
+};
+
+class ResourceManager {
+  constructor() {
+    this.resources = {};
+  }
+
+  load(url, callback) {
+    const image = new Image();
+    image.onload = () => {
+      this.resources[url] = image;
+      if (callback) callback(image);
+    };
+    image.src = url;
+  }
+
+  get(url) {
+    return this.resources[url];
+  }
+}
+
+class Enemy {
+  constructor(name, health, attack, critRate, dodgeRate) {
+    this.name = name;
+    this.health = health;
+    this.attack = attack;
+    this.critRate = critRate;
+    this.dodgeRate = dodgeRate;
+  }
+
+  attack(target) {
+    if (Math.random() < this.dodgeRate) {
+      return 0; // Miss
+    }
+    const isCrit = Math.random() < this.critRate;
+    let damage = this.attack;
+    if (isCrit) {
+      damage *= 2; // Double damage for critical hits
+    }
+    target.health -= damage;
+    return damage;
+  }
+}
+
+class BattleLog {
+  constructor() {
+    this.entries = [];
+    this.maxEntries = 10;
+  }
+
+  addEntry(entry) {
+    this.entries.push(entry);
+    if (this.entries.length > this.maxEntries) {
+      this.entries.shift(); // Remove oldest entry if max is reached
+    }
+  }
+
+  render() {
+    config.ctx.fillStyle = 'black';
+    config.ctx.font = '16px Arial';
+    config.ctx.textAlign = 'left';
+    config.ctx.fillText('Battle Log:', 10, 20);
+    for (let i = 0; i < this.entries.length; i++) {
+      config.ctx.fillText(this.entries[i], 10, 40 + i * 20);
+    }
+  }
+}
+
+class Game {
+  constructor() {
+    this.resourceManager = new ResourceManager();
+    this.enemyManager = new EnemyManager();
+    this.battleLog = new BattleLog();
+    this.currentWave = 1;
+    this.init();
+  }
+
+  init() {
+    this.resourceManager.load('path/to/your/enemy.png', (enemyImage) => {
+      this.enemyImage = enemyImage;
+      this.startBattle();
+    });
+    window.addEventListener('resize', () => {
+      config.width = window.innerWidth;
+      config.height = window.innerHeight;
+      config.canvas.width = config.width;
+      config.canvas.height = config.height;
+      config.scale = Math.min(config.width / 800, config.height / 600);
+      config.canvas.style.width = `${config.width}px`;
+      config.canvas.style.height = `${config.height}px`;
+    });
+  }
+
+  startBattle() {
+    this.currentWave++;
+    const enemy = this.enemyManager.createEnemy(this.currentWave);
+    this.enemy = enemy;
+    this.enemy.x = 100;
+    this.enemy.y = 100;
+    requestAnimationFrame(this.battleLoop);
+  }
+
+  battleLoop() {
+    if (this.enemy.health > 0) {
+      const damage = this.enemy.attack(this.player);
+      this.battleLog.addEntry(`${this.enemy.name} attacked for ${damage} damage!`);
+      if (this.player.health <= 0) {
+        this.battleLog.addEntry('Player defeated!');
+        this.startBattle(); // Start next battle
+      }
+    } else {
+      this.battleLog.addEntry(`${this.enemy.name} has been defeated!`);
+      this.startBattle(); // Start next battle
+    }
+    this.render();
+    requestAnimationFrame(this.battleLoop);
+  }
+
+  render() {
+    config.ctx.clearRect(0, 0, config.width, config.height);
+    // Draw background
+    config.ctx.fillStyle = 'skyblue';
+    config.ctx.fillRect(0, 0, config.width, config.height);
+    // Draw the enemy
+    config.ctx.drawImage(this.enemyImage, this.enemy.x, this.enemy.y);
+    // Draw the player
+    config.ctx.fillStyle = 'green';
+    config.ctx.fillRect(50, 50, 100, 20); // Player health bar
+    config.ctx.fillStyle = 'red';
+    config.ctx.fillRect(50, 50, this.player.health / this.player.maxHealth * 100, 20); // Player health bar
+    // Draw the battle log
+    this.battleLog.render();
+  }
+}
+
+class EnemyManager {
+  constructor() {
+    this.enemies = [
+      new Enemy('Orc', 100, 10, 0.1, 0.05),
+      new Enemy('Troll', 150, 15, 0.15, 0.1),
+      new Enemy('Dragon', 300, 20, 0.2, 0.2)
+    ];
+  }
+
+  createEnemy(wave) {
+    return this.enemies[wave - 1];
+  }
+}
+
+class Player {
+  constructor(maxHealth) {
+    this.maxHealth = maxHealth;
+    this.health = maxHealth;
+  }
+}
+
+window.onload = () => {
+  const game = new Game();
+  const player = new Player(100); // Player with 100 health
+  window.player = player; // Expose player for debugging purposes
+};
+</script>
+</body>
+</html>

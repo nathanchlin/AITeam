@@ -1,0 +1,1804 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>寻道大千 - 养成系统</title>
+    <link href="https://fonts.googleapis.com/css2?family=Ma+Shan+Zheng&family=Noto+Sans+SC:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #080810;
+            --bg-secondary: #101020;
+            --bg-card: rgba(16, 16, 32, 0.95);
+            --fg-primary: #e8e4d9;
+            --fg-secondary: #7a7a8a;
+            --accent-gold: #d4a54a;
+            --accent-cyan: #3ecdc4;
+            --accent-red: #d64545;
+            --accent-green: #45b76c;
+            --accent-purple: #9c64b5;
+            --accent-orange: #e67e22;
+            --border-gold: rgba(212, 165, 74, 0.3);
+            --quality-common: #9e9e9e;
+            --quality-good: #4caf50;
+            --quality-rare: #2196f3;
+            --quality-epic: #9c27b0;
+            --quality-legend: #ff9800;
+            --quality-mythic: #f44336;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            background: var(--bg-primary);
+            color: var(--fg-primary);
+            font-family: 'Noto Sans SC', sans-serif;
+            overflow: hidden;
+            min-height: 100vh;
+            user-select: none;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #gameCanvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        #uiLayer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        #uiLayer > * { pointer-events: auto; }
+        
+        /* 顶部状态栏 */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 10px 16px;
+            background: linear-gradient(180deg, rgba(8,8,16,0.98) 0%, rgba(8,8,16,0.7) 80%, transparent 100%);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 20;
+        }
+        
+        .player-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .player-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            border: 2px solid var(--accent-gold);
+            background: linear-gradient(135deg, #1a1a2e 0%, #0a0a1a 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 20px;
+            color: var(--accent-gold);
+        }
+        
+        .player-detail { display: flex; flex-direction: column; gap: 2px; }
+        .player-name { font-size: 14px; font-weight: 600; }
+        .player-realm {
+            font-size: 12px;
+            color: var(--accent-cyan);
+        }
+        
+        .resource-bar {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .resource-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 12px;
+            background: rgba(20, 20, 35, 0.8);
+            border: 1px solid var(--border-gold);
+            border-radius: 20px;
+            font-size: 13px;
+        }
+        
+        .resource-icon {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+        
+        .res-gold { background: linear-gradient(135deg, #d4a54a, #a67c00); }
+        .res-spirit { background: linear-gradient(135deg, #3ecdc4, #2a8a84); }
+        .res-jade { background: linear-gradient(135deg, #9c64b5, #6a4080); }
+        
+        /* 底部导航 */
+        .bottom-nav {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 8px 16px 12px;
+            background: linear-gradient(0deg, rgba(8,8,16,0.98) 0%, rgba(8,8,16,0.8) 80%, transparent 100%);
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            z-index: 20;
+        }
+        
+        .nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 8px 16px;
+            background: rgba(20, 20, 35, 0.8);
+            border: 1px solid var(--border-gold);
+            border-radius: 12px;
+            color: var(--fg-secondary);
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 60px;
+        }
+        
+        .nav-btn:hover {
+            background: rgba(212, 165, 74, 0.15);
+            border-color: var(--accent-gold);
+            color: var(--accent-gold);
+        }
+        
+        .nav-btn.active {
+            background: linear-gradient(135deg, rgba(212, 165, 74, 0.25) 0%, rgba(212, 165, 74, 0.1) 100%);
+            border-color: var(--accent-gold);
+            color: var(--accent-gold);
+            box-shadow: 0 0 15px rgba(212, 165, 74, 0.2);
+        }
+        
+        .nav-icon {
+            font-size: 20px;
+            font-family: 'Ma Shan Zheng', cursive;
+        }
+        
+        /* 面板通用样式 */
+        .panel {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 420px;
+            max-height: calc(100vh - 140px);
+            background: var(--bg-card);
+            border: 1px solid var(--border-gold);
+            border-radius: 16px;
+            overflow: hidden;
+            display: none;
+            flex-direction: column;
+            z-index: 15;
+            backdrop-filter: blur(10px);
+        }
+        
+        .panel.visible { display: flex; }
+        
+        .panel-header {
+            padding: 14px 16px;
+            background: linear-gradient(90deg, rgba(212, 165, 74, 0.15) 0%, transparent 100%);
+            border-bottom: 1px solid var(--border-gold);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .panel-title {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 20px;
+            color: var(--accent-gold);
+        }
+        
+        .panel-close {
+            width: 28px;
+            height: 28px;
+            background: rgba(214, 69, 69, 0.2);
+            border: 1px solid rgba(214, 69, 69, 0.5);
+            border-radius: 50%;
+            color: var(--accent-red);
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+        
+        .panel-content::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .panel-content::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .panel-content::-webkit-scrollbar-thumb {
+            background: var(--accent-gold);
+            border-radius: 2px;
+        }
+        
+        /* 属性面板 */
+        .attr-section {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        
+        .attr-section-title {
+            font-size: 13px;
+            color: var(--accent-gold);
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid var(--border-gold);
+        }
+        
+        .attr-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            font-size: 13px;
+        }
+        
+        .attr-name {
+            color: var(--fg-secondary);
+        }
+        
+        .attr-value {
+            color: var(--fg-primary);
+            font-weight: 600;
+        }
+        
+        .attr-value.highlight {
+            color: var(--accent-cyan);
+        }
+        
+        /* 境界面板 */
+        .realm-display {
+            text-align: center;
+            padding: 16px;
+            background: linear-gradient(180deg, rgba(62, 205, 196, 0.1) 0%, transparent 100%);
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .realm-name {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 28px;
+            color: var(--accent-cyan);
+            text-shadow: 0 0 20px rgba(62, 205, 196, 0.5);
+        }
+        
+        .realm-level {
+            font-size: 14px;
+            color: var(--fg-secondary);
+            margin-top: 4px;
+        }
+        
+        .realm-progress {
+            margin-top: 12px;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--accent-cyan), var(--accent-gold));
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        
+        .progress-text {
+            font-size: 11px;
+            color: var(--fg-secondary);
+            margin-top: 4px;
+        }
+        
+        .breakthrough-btn {
+            width: 100%;
+            padding: 14px;
+            margin-top: 12px;
+            background: linear-gradient(135deg, rgba(62, 205, 196, 0.3) 0%, rgba(62, 205, 196, 0.1) 100%);
+            border: 1px solid var(--accent-cyan);
+            border-radius: 12px;
+            color: var(--accent-cyan);
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .breakthrough-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, rgba(62, 205, 196, 0.5) 0%, rgba(62, 205, 196, 0.2) 100%);
+            box-shadow: 0 0 25px rgba(62, 205, 196, 0.4);
+            transform: translateY(-2px);
+        }
+        
+        .breakthrough-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .cost-display {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        
+        .cost-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .cost-item.affordable { color: var(--accent-green); }
+        .cost-item.expensive { color: var(--accent-red); }
+        
+        .realm-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .realm-item {
+            padding: 8px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            text-align: center;
+            font-size: 11px;
+            transition: all 0.3s ease;
+        }
+        
+        .realm-item.current {
+            border-color: var(--accent-cyan);
+            background: rgba(62, 205, 196, 0.15);
+            color: var(--accent-cyan);
+        }
+        
+        .realm-item.passed {
+            opacity: 0.5;
+        }
+        
+        .realm-item.locked {
+            opacity: 0.3;
+        }
+        
+        /* 装备面板 */
+        .equipment-slots {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+        
+        .equip-slot {
+            aspect-ratio: 1;
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px dashed rgba(255,255,255,0.15);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .equip-slot:hover {
+            border-color: var(--accent-gold);
+            background: rgba(212, 165, 74, 0.1);
+        }
+        
+        .equip-slot.equipped {
+            border-style: solid;
+        }
+        
+        .equip-slot .slot-icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+        
+        .equip-slot .slot-name {
+            font-size: 10px;
+            color: var(--fg-secondary);
+        }
+        
+        .equip-slot .equip-preview {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+        }
+        
+        .equip-slot .equip-name {
+            font-size: 10px;
+            text-align: center;
+            margin-top: 4px;
+        }
+        
+        .equip-slot .enhance-level {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            font-size: 10px;
+            color: var(--accent-gold);
+            background: rgba(0,0,0,0.6);
+            padding: 1px 4px;
+            border-radius: 4px;
+        }
+        
+        .quality-common { color: var(--quality-common); border-color: var(--quality-common) !important; }
+        .quality-good { color: var(--quality-good); border-color: var(--quality-good) !important; }
+        .quality-rare { color: var(--quality-rare); border-color: var(--quality-rare) !important; }
+        .quality-epic { color: var(--quality-epic); border-color: var(--quality-epic) !important; }
+        .quality-legend { color: var(--quality-legend); border-color: var(--quality-legend) !important; }
+        .quality-mythic { color: var(--quality-mythic); border-color: var(--quality-mythic) !important; }
+        
+        .equip-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        
+        .action-btn {
+            flex: 1;
+            padding: 10px;
+            background: rgba(212, 165, 74, 0.15);
+            border: 1px solid var(--accent-gold);
+            border-radius: 10px;
+            color: var(--accent-gold);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .action-btn:hover {
+            background: rgba(212, 165, 74, 0.3);
+            box-shadow: 0 0 15px rgba(212, 165, 74, 0.2);
+        }
+        
+        .equip-detail {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 12px;
+            display: none;
+        }
+        
+        .equip-detail.visible { display: block; }
+        
+        .equip-detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .equip-detail-name {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 18px;
+        }
+        
+        .equip-detail-type {
+            font-size: 11px;
+            color: var(--fg-secondary);
+        }
+        
+        .equip-stats {
+            font-size: 12px;
+        }
+        
+        .equip-stat {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            color: var(--accent-green);
+        }
+        
+        .enhance-btn {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            background: linear-gradient(135deg, rgba(212, 165, 74, 0.25) 0%, rgba(212, 165, 74, 0.1) 100%);
+            border: 1px solid var(--accent-gold);
+            border-radius: 8px;
+            color: var(--accent-gold);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .enhance-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, rgba(212, 165, 74, 0.4) 0%, rgba(212, 165, 74, 0.2) 100%);
+        }
+        
+        /* 灵兽面板 */
+        .spirit-summary {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .spirit-card {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+        }
+        
+        .spirit-card-value {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 24px;
+            color: var(--accent-purple);
+        }
+        
+        .spirit-card-label {
+            font-size: 11px;
+            color: var(--fg-secondary);
+        }
+        
+        .summon-section {
+            background: linear-gradient(180deg, rgba(156, 100, 181, 0.15) 0%, transparent 100%);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        
+        .summon-title {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 18px;
+            color: var(--accent-purple);
+            margin-bottom: 12px;
+        }
+        
+        .summon-btns {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+        
+        .summon-btn {
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .summon-btn.normal {
+            background: rgba(156, 100, 181, 0.2);
+            border: 1px solid var(--accent-purple);
+            color: var(--accent-purple);
+        }
+        
+        .summon-btn.premium {
+            background: linear-gradient(135deg, rgba(255, 152, 0, 0.3) 0%, rgba(255, 152, 0, 0.1) 100%);
+            border: 1px solid var(--accent-orange);
+            color: var(--accent-orange);
+        }
+        
+        .summon-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+        
+        .summon-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .spirit-list {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .spirit-item {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            padding: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+        
+        .spirit-item:hover {
+            border-color: var(--accent-purple);
+            background: rgba(156, 100, 181, 0.1);
+        }
+        
+        .spirit-item.selected {
+            border-color: var(--accent-gold);
+            background: rgba(212, 165, 74, 0.15);
+        }
+        
+        .spirit-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            background: rgba(156, 100, 181, 0.2);
+        }
+        
+        .spirit-info {
+            flex: 1;
+        }
+        
+        .spirit-name {
+            font-size: 13px;
+            font-weight: 600;
+        }
+        
+        .spirit-level {
+            font-size: 10px;
+            color: var(--fg-secondary);
+        }
+        
+        .spirit-bonus {
+            font-size: 11px;
+            color: var(--accent-green);
+        }
+        
+        /* 抽取动画遮罩 */
+        .summon-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            flex-direction: column;
+        }
+        
+        .summon-overlay.active { display: flex; }
+        
+        .summon-animation {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: radial-gradient(circle, var(--accent-purple), transparent);
+            animation: summonPulse 1s ease-in-out infinite;
+        }
+        
+        @keyframes summonPulse {
+            0%, 100% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1.2); opacity: 1; }
+        }
+        
+        .summon-result {
+            margin-top: 30px;
+            text-align: center;
+            display: none;
+        }
+        
+        .summon-result.visible { display: block; }
+        
+        .summon-result-name {
+            font-family: 'Ma Shan Zheng', cursive;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .summon-result-rarity {
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        
+        .summon-close-btn {
+            padding: 10px 30px;
+            background: rgba(212, 165, 74, 0.2);
+            border: 1px solid var(--accent-gold);
+            border-radius: 20px;
+            color: var(--accent-gold);
+            cursor: pointer;
+        }
+        
+        /* Toast提示 */
+        .toast {
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            padding: 10px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--accent-gold);
+            border-radius: 8px;
+            color: var(--fg-primary);
+            font-size: 13px;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 200;
+            pointer-events: none;
+        }
+        
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        .toast.success { border-color: var(--accent-green); color: var(--accent-green); }
+        .toast.error { border-color: var(--accent-red); color: var(--accent-red); }
+        
+        /* 响应式 */
+        @media (max-width: 480px) {
+            .panel {
+                width: 95%;
+                max-height: calc(100vh - 120px);
+            }
+            
+            .resource-item {
+                padding: 4px 8px;
+                font-size: 11px;
+            }
+            
+            .nav-btn {
+                padding: 6px 10px;
+                min-width: 50px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="uiLayer">
+            <!-- 顶部状态栏 -->
+            <div class="top-bar">
+                <div class="player-info">
+                    <div class="player-avatar">道</div>
+                    <div class="player-detail">
+                        <div class="player-name">青云子</div>
+                        <div class="player-realm" id="playerRealm">练气期 三层</div>
+                    </div>
+                </div>
+                <div class="resource-bar">
+                    <div class="resource-item">
+                        <div class="resource-icon res-gold">灵</div>
+                        <span id="goldAmount">12,580</span>
+                    </div>
+                    <div class="resource-item">
+                        <div class="resource-icon res-spirit">气</div>
+                        <span id="spiritAmount">3,240</span>
+                    </div>
+                    <div class="resource-item">
+                        <div class="resource-icon res-jade">玉</div>
+                        <span id="jadeAmount">150</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 底部导航 -->
+            <div class="bottom-nav">
+                <div class="nav-btn active" data-panel="attributes">
+                    <span class="nav-icon">属</span>
+                    <span>属性</span>
+                </div>
+                <div class="nav-btn" data-panel="realm">
+                    <span class="nav-icon">境</span>
+                    <span>境界</span>
+                </div>
+                <div class="nav-btn" data-panel="equipment">
+                    <span class="nav-icon">器</span>
+                    <span>装备</span>
+                </div>
+                <div class="nav-btn" data-panel="spirit">
+                    <span class="nav-icon">兽</span>
+                    <span>灵兽</span>
+                </div>
+            </div>
+            
+            <!-- 属性面板 -->
+            <div class="panel visible" id="panelAttributes">
+                <div class="panel-header">
+                    <span class="panel-title">属性面板</span>
+                </div>
+                <div class="panel-content">
+                    <div class="attr-section">
+                        <div class="attr-section-title">基础属性</div>
+                        <div class="attr-row">
+                            <span class="attr-name">攻击力</span>
+                            <span class="attr-value highlight" id="attrAttack">1,250</span>
+                        </div>
+                        <div class="attr-row">
+                            <span class="attr-name">防御力</span>
+                            <span class="attr-value highlight" id="attrDefense">680</span>
+                        </div>
+                        <div class="attr-row">
+                            <span class="attr-name">生命值</span>
+                            <span class="attr-value" id="attrHp">8,500</span>
+                        </div>
+                        <div class="attr-row">
+                            <span class="attr-name">暴击率</span>
+                            <span class="attr-value" id="attrCrit">12.5%</span>
+                        </div>
+                        <div class="attr-row">
+                            <span class="attr-name">暴击伤害</span>
+                            <span class="attr-value" id="attrCritDmg">150%</span>
+                        </div>
+                    </div>
+                    <div class="attr-section">
+                        <div class="attr-section-title">境界加成</div>
+                        <div class="attr-row">
+                            <span class="attr-name">境界攻击</span>
+                            <span class="attr-value" id="realmAtkBonus">+180</span>
+                        </div>
+                        <div class="attr-row">
+                            <span class="attr-name">境界防御</span>
+                            <span class="attr-value" id="realmDefBonus">+90</span>
+                        </div>
+                    </div>
+                    <div class="attr-section">
+                        <div class="attr-section-title">装备加成</div>
+                        <div class="attr-row">
+                            <span class="attr-name">装备攻击</span>
+                            <span class="attr-value" id="equipAtkBonus">+350</span>
+                        </div>
+                        <div class="attr-row">
+                            <span class="attr-name">装备防御</span>
+                            <span class="attr-value" id="equipDefBonus">+200</span>
+                        </div>
+                    </div>
+                    <div class="attr-section">
+                        <div class="attr-section-title">灵兽加成</div>
+                        <div class="attr-row">
+                            <span class="attr-name">灵兽攻击</span>
+                            <span class="attr-value" id="spiritAtkBonus">+120</span>
+                        </div>
+                        <div class="attr-row">
+                            <span class="attr-name">灵兽暴击</span>
+                            <span class="attr-value" id="spiritCritBonus">+5%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 境界面板 -->
+            <div class="panel" id="panelRealm">
+                <div class="panel-header">
+                    <span class="panel-title">境界突破</span>
+                </div>
+                <div class="panel-content">
+                    <div class="realm-display">
+                        <div class="realm-name" id="currentRealmName">练气期</div>
+                        <div class="realm-level" id="currentRealmLevel">三层</div>
+                        <div class="realm-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="realmProgressFill" style="width: 45%"></div>
+                            </div>
+                            <div class="progress-text" id="realmProgressText">修炼进度: 450 / 1000</div>
+                        </div>
+                    </div>
+                    
+                    <button class="breakthrough-btn" id="breakthroughBtn">尝试突破</button>
+                    
+                    <div class="cost-display">
+                        <div class="cost-item affordable" id="breakCostSpirit">
+                            <span>灵气: 500</span>
+                        </div>
+                        <div class="cost-item affordable" id="breakCostGold">
+                            <span>灵石: 1000</span>
+                        </div>
+                    </div>
+                    
+                    <div class="attr-section" style="margin-top: 16px;">
+                        <div class="attr-section-title">境界列表</div>
+                        <div class="realm-list" id="realmList"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 装备面板 -->
+            <div class="panel" id="panelEquipment">
+                <div class="panel-header">
+                    <span class="panel-title">装备系统</span>
+                </div>
+                <div class="panel-content">
+                    <div class="equipment-slots" id="equipmentSlots">
+                        <div class="equip-slot" data-slot="weapon">
+                            <span class="slot-icon">剑</span>
+                            <span class="slot-name">武器</span>
+                        </div>
+                        <div class="equip-slot" data-slot="armor">
+                            <span class="slot-icon">甲</span>
+                            <span class="slot-name">防具</span>
+                        </div>
+                        <div class="equip-slot" data-slot="accessory">
+                            <span class="slot-icon">佩</span>
+                            <span class="slot-name">饰品</span>
+                        </div>
+                    </div>
+                    
+                    <div class="equip-actions">
+                        <button class="action-btn" id="forgeBtn">锻造装备</button>
+                        <button class="action-btn" id="enhanceBtn">强化装备</button>
+                    </div>
+                    
+                    <div class="equip-detail" id="equipDetail">
+                        <div class="equip-detail-header">
+                            <div>
+                                <div class="equip-detail-name" id="detailEquipName">青云剑</div>
+                                <div class="equip-detail-type" id="detailEquipType">武器 · 稀有</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 16px; color: var(--accent-gold);" id="detailEnhanceLevel">+5</div>
+                                <div style="font-size: 10px; color: var(--fg-secondary);">强化等级</div>
+                            </div>
+                        </div>
+                        <div class="equip-stats" id="detailEquipStats"></div>
+                        <button class="enhance-btn" id="doEnhanceBtn">强化 (+200 灵石)</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 灵兽面板 -->
+            <div class="panel" id="panelSpirit">
+                <div class="panel-header">
+                    <span class="panel-title">灵兽系统</span>
+                </div>
+                <div class="panel-content">
+                    <div class="spirit-summary">
+                        <div class="spirit-card">
+                            <div class="spirit-card-value" id="spiritCount">3</div>
+                            <div class="spirit-card-label">灵兽数量</div>
+                        </div>
+                        <div class="spirit-card">
+                            <div class="spirit-card-value" id="activeSlot">1</div>
+                            <div class="spirit-card-label">出战槽位</div>
+                        </div>
+                    </div>
+                    
+                    <div class="summon-section">
+                        <div class="summon-title">灵兽召唤</div>
+                        <div class="summon-btns">
+                            <button class="summon-btn normal" id="summonNormal">普通召唤 (100灵石)</button>
+                            <button class="summon-btn premium" id="summonPremium">高级召唤 (50灵玉)</button>
+                        </div>
+                    </div>
+                    
+                    <div class="attr-section">
+                        <div class="attr-section-title">我的灵兽</div>
+                        <div class="spirit-list" id="spiritList"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 召唤动画 -->
+        <div class="summon-overlay" id="summonOverlay">
+            <div class="summon-animation"></div>
+            <div class="summon-result" id="summonResult">
+                <div class="summon-result-name" id="resultSpiritName">灵狐</div>
+                <div class="summon-result-rarity" id="resultSpiritRarity">稀有</div>
+                <button class="summon-close-btn" id="summonCloseBtn">收下</button>
+            </div>
+        </div>
+        
+        <!-- Toast -->
+        <div class="toast" id="toast"></div>
+    </div>
+
+    <script>
+        // ============ 游戏数据系统 ============
+        const GameData = {
+            player: {
+                name: '青云子',
+                gold: 12580,
+                spirit: 3240,
+                jade: 150,
+                baseAtk: 1000,
+                baseDef: 500,
+                baseHp: 8000,
+                baseCrit: 5,
+                baseCritDmg: 150
+            },
+            
+            realm: {
+                currentRealmIndex: 0,
+                currentLevel: 3,
+                progress: 450,
+                progressMax: 1000
+            },
+            
+            equipment: {
+                weapon: null,
+                armor: null,
+                accessory: null
+            },
+            
+            spirits: [],
+            activeSpiritIndex: 0
+        };
+        
+        // 境界配置
+        const Realms = [
+            { name: '练气期', levels: 9, atkPerLevel: 60, defPerLevel: 30, spiritCost: 500, goldCost: 1000 },
+            { name: '筑基期', levels: 9, atkPerLevel: 100, defPerLevel: 50, spiritCost: 1200, goldCost: 3000 },
+            { name: '金丹期', levels: 9, atkPerLevel: 180, defPerLevel: 90, spiritCost: 3000, goldCost: 8000 },
+            { name: '元婴期', levels: 9, atkPerLevel: 320, defPerLevel: 160, spiritCost: 8000, goldCost: 20000 },
+            { name: '化神期', levels: 9, atkPerLevel: 560, defPerLevel: 280, spiritCost: 20000, goldCost: 50000 },
+            { name: '炼虚期', levels: 9, atkPerLevel: 980, defPerLevel: 490, spiritCost: 50000, goldCost: 120000 },
+            { name: '合体期', levels: 9, atkPerLevel: 1700, defPerLevel: 850, spiritCost: 120000, goldCost: 300000 },
+            { name: '大乘期', levels: 9, atkPerLevel: 3000, defPerLevel: 1500, spiritCost: 300000, goldCost: 800000 },
+            { name: '渡劫期', levels: 3, atkPerLevel: 5000, defPerLevel: 2500, spiritCost: 800000, goldCost: 2000000 }
+        ];
+        
+        // 装备品质配置
+        const EquipQualities = [
+            { name: '普通', color: 'common', multiplier: 1, weight: 40 },
+            { name: '精良', color: 'good', multiplier: 1.3, weight: 30 },
+            { name: '稀有', color: 'rare', multiplier: 1.6, weight: 18 },
+            { name: '史诗', color: 'epic', multiplier: 2, weight: 8 },
+            { name: '传说', color: 'legend', multiplier: 2.5, weight: 3 },
+            { name: '神话', color: 'mythic', multiplier: 3.5, weight: 1 }
+        ];
+        
+        // 装备类型配置
+        const EquipTypes = {
+            weapon: { name: '武器', icon: '剑', baseAtk: 80, baseDef: 0, names: ['青云剑', '烈焰刀', '寒冰刃', '雷霆枪', '玄铁戟'] },
+            armor: { name: '防具', icon: '甲', baseAtk: 0, baseDef: 50, names: ['玄铁甲', '青龙袍', '白虎铠', '玄武壳', '朱雀羽'] },
+            accessory: { name: '饰品', icon: '佩', baseAtk: 30, baseDef: 20, names: ['龙纹佩', '凤血珠', '麒麟玉', '玄武印', '白虎符'] }
+        };
+        
+        // 灵兽配置
+        const SpiritPool = {
+            normal: [
+                { name: '灵狐', icon: '狐', rarity: 'good', atkBonus: 20, critBonus: 2 },
+                { name: '青蛇', icon: '蛇', rarity: 'good', atkBonus: 25, critBonus: 0 },
+                { name: '白兔', icon: '兔', rarity: 'common', atkBonus: 15, defBonus: 10 },
+                { name: '山猴', icon: '猴', rarity: 'common', atkBonus: 18, critBonus: 1 },
+                { name: '野狼', icon: '狼', rarity: 'good', atkBonus: 30, defBonus: 5 }
+            ],
+            premium: [
+                { name: '青龙', icon: '龙', rarity: 'legend', atkBonus: 100, critBonus: 8, defBonus: 50 },
+                { name: '白虎', icon: '虎', rarity: 'legend', atkBonus: 120, critBonus: 5 },
+                { name: '朱雀', icon: '雀', rarity: 'epic', atkBonus: 80, critBonus: 10 },
+                { name: '玄武', icon: '龟', rarity: 'epic', atkBonus: 50, defBonus: 100 },
+                { name: '麒麟', icon: '麟', rarity: 'mythic', atkBonus: 150, critBonus: 15, defBonus: 80 },
+                { name: '金凤', icon: '凤', rarity: 'legend', atkBonus: 90, critBonus: 12, defBonus: 40 }
+            ]
+        };
+        
+        // ============ 游戏引擎 ============
+        const Game = {
+            canvas: null,
+            ctx: null,
+            width: 0,
+            height: 0,
+            lastTime: 0,
+            deltaTime: 0,
+            particles: [],
+            backgroundLayers: [],
+            
+            init() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resize();
+                window.addEventListener('resize', () => this.resize());
+                
+                // 初始化背景层
+                this.initBackground();
+                
+                // 初始化灵兽数据
+                this.initSpirits();
+                
+                // 初始化UI
+                this.initUI();
+                
+                // 启动游戏循环
+                this.lastTime = performance.now();
+                requestAnimationFrame((t) => this.gameLoop(t));
+                
+                // 资源自动增长
+                setInterval(() => this.autoGenerateResources(), 1000);
+            },
+            
+            resize() {
+                this.width = window.innerWidth;
+                this.height = window.innerHeight;
+                this.canvas.width = this.width;
+                this.canvas.height = this.height;
+            },
+            
+            initBackground() {
+                // 创建分层背景
+                this.backgroundLayers = [
+                    { offset: 0, speed: 0.1, color: 'rgba(10, 10, 18, 0.3)' },
+                    { offset: 0, speed: 0.2, color: 'rgba(20, 20, 35, 0.3)' },
+                    { offset: 0, speed: 0.05, color: 'rgba(15, 15, 25, 0.3)' }
+                ];
+            },
+            
+            initSpirits() {
+                // 初始灵兽
+                if (GameData.spirits.length === 0) {
+                    GameData.spirits.push({
+                        ...SpiritPool.normal[0],
+                        level: 1,
+                        exp: 0
+                    });
+                    GameData.spirits.push({
+                        ...SpiritPool.normal[2],
+                        level: 1,
+                        exp: 0
+                    });
+                    GameData.spirits.push({
+                        ...SpiritPool.normal[4],
+                        level: 2,
+                        exp: 50
+                    });
+                }
+            },
+            
+            initUI() {
+                // 导航按钮
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.addEventListener('click', () => this.switchPanel(btn.dataset.panel));
+                });
+                
+                // 境界突破
+                document.getElementById('breakthroughBtn').addEventListener('click', () => this.attemptBreakthrough());
+                
+                // 装备系统
+                document.getElementById('forgeBtn').addEventListener('click', () => this.forgeEquipment());
+                document.getElementById('enhanceBtn').addEventListener('click', () => this.showEnhanceMode());
+                document.getElementById('doEnhanceBtn').addEventListener('click', () => this.enhanceEquipment());
+                
+                // 装备槽点击
+                document.querySelectorAll('.equip-slot').forEach(slot => {
+                    slot.addEventListener('click', () => this.selectEquipSlot(slot.dataset.slot));
+                });
+                
+                // 灵兽召唤
+                document.getElementById('summonNormal').addEventListener('click', () => this.summonSpirit('normal'));
+                document.getElementById('summonPremium').addEventListener('click', () => this.summonSpirit('premium'));
+                document.getElementById('summonCloseBtn').addEventListener('click', () => this.closeSummonOverlay());
+                
+                // 初始化UI显示
+                this.updateAllDisplays();
+                this.renderRealmList();
+                this.renderSpiritList();
+            },
+            
+            switchPanel(panelId) {
+                // 切换导航按钮状态
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    btn.classList.toggle('active', btn.dataset.panel === panelId);
+                });
+                
+                // 切换面板显示
+                document.querySelectorAll('.panel').forEach(panel => {
+                    panel.classList.toggle('visible', panel.id === 'panel' + panelId.charAt(0).toUpperCase() + panelId.slice(1));
+                });
+            },
+            
+            // 资源自动增长
+            autoGenerateResources() {
+                GameData.player.gold += 10 + Math.floor(Math.random() * 5);
+                GameData.player.spirit += 5 + Math.floor(Math.random() * 3);
+                GameData.realm.progress += 2;
+                
+                if (GameData.realm.progress >= GameData.realm.progressMax) {
+                    GameData.realm.progress = GameData.realm.progressMax;
+                }
+                
+                this.updateResourceDisplay();
+                this.updateRealmProgress();
+            },
+            
+            // ============ 境界系统 ============
+            attemptBreakthrough() {
+                const realmData = Realms[GameData.realm.currentRealmIndex];
+                const canAfford = GameData.player.spirit >= realmData.spiritCost && GameData.player.gold >= realmData.goldCost;
+                
+                if (!canAfford) {
+                    this.showToast('资源不足，无法突破', 'error');
+                    return;
+                }
+                
+                if (GameData.realm.progress < GameData.realm.progressMax) {
+                    this.showToast('修炼进度不足', 'error');
+                    return;
+                }
+                
+                // 消耗资源
+                GameData.player.spirit -= realmData.spiritCost;
+                GameData.player.gold -= realmData.goldCost;
+                
+                // 尝试突破
+                const successRate = 0.7 + (GameData.realm.currentRealmIndex * -0.05);
+                const success = Math.random() < successRate;
+                
+                if (success) {
+                    GameData.realm.currentLevel++;
+                    GameData.realm.progress = 0;
+                    
+                    // 检查是否需要升级到大境界
+                    if (GameData.realm.currentLevel > realmData.levels) {
+                        if (GameData.realm.currentRealmIndex < Realms.length - 1) {
+                            GameData.realm.currentRealmIndex++;
+                            GameData.realm.currentLevel = 1;
+                            this.showToast('突破成功！晋升 ' + Realms[GameData.realm.currentRealmIndex].name, 'success');
+                        } else {
+                            GameData.realm.currentLevel = realmData.levels;
+                            this.showToast('已达最高境界！', 'success');
+                        }
+                    } else {
+                        this.showToast('突破成功！', 'success');
+                    }
+                    
+                    // 创建粒子效果
+                    this.createBreakthroughParticles();
+                } else {
+                    GameData.realm.progress = Math.floor(GameData.realm.progress * 0.5);
+                    this.showToast('突破失败，修炼进度倒退', 'error');
+                }
+                
+                this.updateAllDisplays();
+            },
+            
+            // ============ 装备系统 ============
+            forgeEquipment() {
+                const cost = 500;
+                if (GameData.player.gold < cost) {
+                    this.showToast('灵石不足', 'error');
+                    return;
+                }
+                
+                GameData.player.gold -= cost;
+                
+                // 随机装备类型
+                const types = Object.keys(EquipTypes);
+                const type = types[Math.floor(Math.random() * types.length)];
+                const typeData = EquipTypes[type];
+                
+                // 随机品质
+                const quality = this.getRandomQuality();
+                
+                // 创建装备
+                const equip = {
+                    type: type,
+                    name: typeData.names[Math.floor(Math.random() * typeData.names.length)],
+                    quality: quality,
+                    enhanceLevel: 0,
+                    atk: Math.floor(typeData.baseAtk * quality.multiplier * (0.9 + Math.random() * 0.2)),
+                    def: Math.floor(typeData.baseDef * quality.multiplier * (0.9 + Math.random() * 0.2))
+                };
+                
+                // 装备到对应槽位
+                GameData.equipment[type] = equip;
+                
+                this.showToast('锻造成功！获得 ' + equip.name, 'success');
+                this.updateAllDisplays();
+                this.updateEquipmentSlots();
+            },
+            
+            getRandomQuality() {
+                const totalWeight = EquipQualities.reduce((sum, q) => sum + q.weight, 0);
+                let random = Math.random() * totalWeight;
+                
+                for (const quality of EquipQualities) {
+                    random -= quality.weight;
+                    if (random <= 0) return quality;
+                }
+                return EquipQualities[0];
+            },
+            
+            selectEquipSlot(slotType) {
+                const equip = GameData.equipment[slotType];
+                const detailPanel = document.getElementById('equipDetail');
+                
+                if (!equip) {
+                    detailPanel.classList.remove('visible');
+                    return;
+                }
+                
+                detailPanel.classList.add('visible');
+                document.getElementById('detailEquipName').textContent = equip.name;
+                document.getElementById('detailEquipName').className = 'equip-detail-name quality-' + equip.quality.color;
+                document.getElementById('detailEquipType').textContent = EquipTypes[slotType].name + ' · ' + equip.quality.name;
+                document.getElementById('detailEnhanceLevel').textContent = '+' + equip.enhanceLevel;
+                
+                const statsHtml = [];
+                if (equip.atk > 0) statsHtml.push(`<div class="equip-stat"><span>攻击力</span><span>+${equip.atk}</span></div>`);
+                if (equip.def > 0) statsHtml.push(`<div class="equip-stat"><span>防御力</span><span>+${equip.def}</span></div>`);
+                document.getElementById('detailEquipStats').innerHTML = statsHtml.join('');
+                
+                this.selectedSlot = slotType;
+            },
+            
+            showEnhanceMode() {
+                if (!this.selectedSlot || !GameData.equipment[this.selectedSlot]) {
+                    this.showToast('请先选择一件装备', 'error');
+                    return;
+                }
+            },
+            
+            enhanceEquipment() {
+                if (!this.selectedSlot) return;
+                
+                const equip = GameData.equipment[this.selectedSlot];
+                if (!equip) return;
+                
+                if (equip.enhanceLevel >= 15) {
+                    this.showToast('已达最大强化等级', 'error');
+                    return;
+                }
+                
+                const cost = 200 * (equip.enhanceLevel + 1);
+                if (GameData.player.gold < cost) {
+                    this.showToast('灵石不足', 'error');
+                    return;
+                }
+                
+                GameData.player.gold -= cost;
+                
+                // 强化成功率
+                const successRate = Math.max(0.3, 1 - equip.enhanceLevel * 0.05);
+                const success = Math.random() < successRate;
+                
+                if (success) {
+                    equip.enhanceLevel++;
+                    equip.atk = Math.floor(equip.atk * 1.1);
+                    equip.def = Math.floor(equip.def * 1.1);
+                    this.showToast('强化成功！', 'success');
+                } else {
+                    this.showToast('强化失败', 'error');
+                }
+                
+                this.updateAllDisplays();
+                this.selectEquipSlot(this.selectedSlot);
+            },
+            
+            // ============ 灵兽系统 ============
+            summonSpirit(type) {
+                const costs = { normal: 100, premium: 50 };
+                const resources = { normal: 'gold', premium: 'jade' };
+                
+                const cost = costs[type];
+                const resource = resources[type];
+                
+                if (GameData.player[resource] < cost) {
+                    this.showToast(resource === 'gold' ? '灵石不足' : '灵玉不足', 'error');
+                    return;
+                }
+                
+                GameData.player[resource] -= cost;
+                
+                // 随机选择灵兽
+                const pool = type === 'normal' ? SpiritPool.normal : SpiritPool.premium;
+                const spirit = pool[Math.floor(Math.random() * pool.length)];
+                
+                // 创建新灵兽实例
+                const newSpirit = {
+                    ...spirit,
+                    level: 1,
+                    exp: 0
+                };
+                
+                GameData.spirits.push(newSpirit);
+                
+                // 显示召唤动画
+                this.showSummonAnimation(newSpirit);
+                
+                this.updateAllDisplays();
+                this.renderSpiritList();
+            },
+            
+            showSummonAnimation(spirit) {
+                const overlay = document.getElementById('summonOverlay');
+                const result = document.getElementById('summonResult');
+                
+                overlay.classList.add('active');
+                result.classList.remove('visible');
+                
+                setTimeout(() => {
+                    result.classList.add('visible');
+                    document.getElementById('resultSpiritName').textContent = spirit.name;
+                    document.getElementById('resultSpiritName').className = 'summon-result-name quality-' + spirit.rarity;
+                    document.getElementById('resultSpiritRarity').textContent = this.getRarityName(spirit.rarity);
+                    document.getElementById('resultSpiritRarity').style.color = this.getRarityColor(spirit.rarity);
+                }, 1500);
+            },
+            
+            closeSummonOverlay() {
+                document.getElementById('summonOverlay').classList.remove('active');
+            },
+            
+            getRarityName(rarity) {
+                const names = {
+                    common: '普通',
+                    good: '精良',
+                    rare: '稀有',
+                    epic: '史诗',
+                    legend: '传说',
+                    mythic: '神话'
+                };
+                return names[rarity] || '普通';
+            },
+            
+            getRarityColor(rarity) {
+                const colors = {
+                    common: '#9e9e9e',
+                    good: '#4caf50',
+                    rare: '#2196f3',
+                    epic: '#9c27b0',
+                    legend: '#ff9800',
+                    mythic: '#f44336'
+                };
+                return colors[rarity] || '#9e9e9e';
+            },
+            
+            // ============ UI更新 ============
+            updateAllDisplays() {
+                this.updateResourceDisplay();
+                this.updateRealmProgress();
+                this.updateAttributeDisplay();
+                this.updateEquipmentSlots();
+                this.renderSpiritList();
+            },
+            
+            updateResourceDisplay() {
+                document.getElementById('goldAmount').textContent = this.formatNumber(GameData.player.gold);
+                document.getElementById('spiritAmount').textContent = this.formatNumber(GameData.player.spirit);
+                document.getElementById('jadeAmount').textContent = this.formatNumber(GameData.player.jade);
+            },
+            
+            updateRealmProgress() {
+                const realmData = Realms[GameData.realm.currentRealmIndex];
+                const percent = (GameData.realm.progress / GameData.realm.progressMax) * 100;
+                
+                document.getElementById('playerRealm').textContent = realmData.name + ' ' + this.getNumberLevel(GameData.realm.currentLevel);
+                document.getElementById('currentRealmName').textContent = realmData.name;
+                document.getElementById('currentRealmLevel').textContent = this.getNumberLevel(GameData.realm.currentLevel) + ' (' + GameData.realm.currentLevel + '/' + realmData.levels + ')';
+                document.getElementById('realmProgressFill').style.width = percent + '%';
+                document.getElementById('realmProgressText').textContent = '修炼进度: ' + GameData.realm.progress + ' / ' + GameData.realm.progressMax;
+                
+                // 更新突破按钮状态
+                const canBreakthrough = GameData.player.spirit >= realmData.spiritCost && 
+                                        GameData.player.gold >= realmData.goldCost &&
+                                        GameData.realm.progress >= GameData.realm.progressMax;
+                document.getElementById('breakthroughBtn').disabled = !canBreakthrough;
+                
+                // 更新消耗显示
+                const spiritCostEl = document.getElementById('breakCostSpirit');
+                const goldCostEl = document.getElementById('breakCostGold');
+                spiritCostEl.textContent = '灵气: ' + realmData.spiritCost;
+                goldCostEl.textContent = '灵石: ' + realmData.goldCost;
+                spiritCostEl.className = 'cost-item ' + (GameData.player.spirit >= realmData.spiritCost ? 'affordable' : 'expensive');
+                goldCostEl.className = 'cost-item ' + (GameData.player.gold >= realmData.goldCost ? 'affordable' : 'expensive');
+            },
+            
+            updateAttributeDisplay() {
+                // 计算总属性
+                const realmData = Realms[GameData.realm.currentRealmIndex];
+                const realmAtk = realmData.atkPerLevel * GameData.realm.currentLevel;
+                const realmDef = realmData.defPerLevel * GameData.realm.currentLevel;
+                
+                let equipAtk = 0, equipDef = 0;
+                Object.values(GameData.equipment).forEach(equip => {
+                    if (equip) {
+                        equipAtk += equip.atk;
+                        equipDef += equip.def;
+                    }
+                });
+                
+                let spiritAtk = 0, spiritDef = 0, spiritCrit = 0;
+                GameData.spirits.forEach(spirit => {
+                    spiritAtk += (spirit.atkBonus || 0) * spirit.level;
+                    spiritDef += (spirit.defBonus || 0) * spirit.level;
+                    spiritCrit += (spirit.critBonus || 0) * spirit.level;
+                });
+                
+                const totalAtk = GameData.player.baseAtk + realmAtk + equipAtk + spiritAtk;
+                const totalDef = GameData.player.baseDef + realmDef + equipDef + spiritDef;
+                const totalCrit = GameData.player.baseCrit + spiritCrit;
+                
+                document.getElementById('attrAttack').textContent = this.formatNumber(totalAtk);
+                document.getElementById('attrDefense').textContent = this.formatNumber(totalDef);
+                document.getElementById('attrHp').textContent = this.formatNumber(GameData.player.baseHp);
+                document.getElementById('attrCrit').textContent = totalCrit.toFixed(1) + '%';
+                document.getElementById('attrCritDmg').textContent = GameData.player.baseCritDmg + '%';
+                
+                document.getElementById('realmAtkBonus').textContent = '+' + this.formatNumber(realmAtk);
+                document.getElementById('realmDefBonus').textContent = '+' + this.formatNumber(realmDef);
+                document.getElementById('equipAtkBonus').textContent = '+' + this.formatNumber(equipAtk);
+                document.getElementById('equipDefBonus').textContent = '+' + this.formatNumber(equipDef);
+                document.getElementById('spiritAtkBonus').textContent = '+' + this.formatNumber(spiritAtk);
+                document.getElementById('spiritCritBonus').textContent = '+' + spiritCrit.toFixed(1) + '%';
+            },
+            
+            updateEquipmentSlots() {
+                Object.keys(GameData.equipment).forEach(slot => {
+                    const equip = GameData.equipment[slot];
+                    const slotEl = document.querySelector(`.equip-slot[data-slot="${slot}"]`);
+                    
+                    if (equip) {
+                        slotEl.classList.add('equipped');
+                        slotEl.classList.remove('quality-common', 'quality-good', 'quality-rare', 'quality-epic', 'quality-legend', 'quality-mythic');
+                        slotEl.classList.add('quality-' + equip.quality.color);
+                        slotEl.innerHTML = `
+                            <div class="equip-preview">
+                                <span class="slot-icon">${EquipTypes[slot].icon}</span>
+                                <span class="equip-name">${equip.name}</span>
+                            </div>
+                            <span class="enhance-level">+${equip.enhanceLevel}</span>
+                        `;
+                    } else {
+                        slotEl.classList.remove('equipped');
+                        slotEl.innerHTML = `
+                            <span class="slot-icon">${EquipTypes[slot].icon}</span>
+                            <span class="slot-name">${EquipTypes[slot].name}</span>
+                        `;
+                    }
+                });
+            },
+            
+            renderRealmList() {
+                const list = document.getElementById('realmList');
+                list.innerHTML = Realms.map((realm, index) => {
+                    let className = 'realm-item';
+                    if (index < GameData.realm.currentRealmIndex) className += ' passed';
+                    else if (index === GameData.realm.currentRealmIndex) className += ' current';
+                    else className += ' locked';
+                    
+                    return `<div class="${className}">${realm.name}</div>`;
+                }).join('');
+            },
+            
+            renderSpiritList() {
+                const list = document.getElementById('spiritList');
+                list.innerHTML = GameData.spirits.map((spirit, index) => `
+                    <div class="spirit-item ${index === GameData.activeSpiritIndex ? 'selected' : ''}" onclick="Game.selectSpirit(${index})">
+                        <div class="spirit-avatar" style="color: ${this.getRarityColor(spirit.rarity)}">${spirit.icon}</div>
+                        <div class="spirit-info">
+                            <div class="spirit-name quality-${spirit.rarity}">${spirit.name}</div>
+                            <div class="spirit-level">Lv.${spirit.level}</div>
+                            <div class="spirit-bonus">攻击+${(spirit.atkBonus || 0) * spirit.level}</div>
+                        </div>
+                    </div>
+                `).join('');
+                
+                document.getElementById('spiritCount').textContent = GameData.spirits.length;
+            },
+            
+            selectSpirit(index) {
+                GameData.activeSpiritIndex = index;
+                this.renderSpiritList();
+            },
+            
+            formatNumber(num) {
+                if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+                if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+                return num.toString();
+            },
+            
+            getNumberLevel(num) {
+                const levels = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+                return levels[num - 1] || num;
+            },
+            
+            showToast(message, type = 'info') {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.className = 'toast ' + type + ' show';
+                
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 2500);
+            },
+            
+            // ============ 粒子效果 ============
+            createBreakthroughParticles() {
+                for (let i = 0; i < 30; i++) {
+                    this.particles.push({
+                        x: this.width / 2,
+                        y: this.height / 2,
+                        vx: (Math.random() - 0.5) * 10,
+                        vy: (Math.random() - 0.5) * 10,
+                        life: 1,
+                        color: Math.random() > 0.5 ? '#d4a54a' : '#3ecdc4',
+                        size: 3 + Math.random() * 4
+                    });
+                }
+            },
+            
+            updateParticles(dt) {
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    const p = this.particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life -= dt * 0.5;
+                    
+                    if (p.life <= 0) {
+                        this.particles.splice(i, 1);
+                    }
+                }
+            },
+            
+            drawParticles() {
+                this.particles.forEach(p => {
+                    this.ctx.beginPath();
+                    this.ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+                    this.ctx.fillStyle = p.color;
+                    this.ctx.globalAlpha = p.life;
+                    this.ctx.fill();
+                    this.ctx.globalAlpha = 1;
+                });
+            },
+            
+            // ============ 渲染系统 ============
+            gameLoop(currentTime) {
+                this.deltaTime = (currentTime - this.lastTime) / 1000;
+                this.lastTime = currentTime;
+                
+                this.update(this.deltaTime);
+                this.render();
+                
+                requestAnimationFrame((t) => this.gameLoop(t));
+            },
+            
+            update(dt) {
+                // 更新背景滚动
+                this.backgroundLayers.forEach(layer => {
+                    layer.offset += layer.speed;
+                    if (layer.offset > 100) layer.offset = 0;
+                });
+                
+                // 更新粒子
+                this.updateParticles(dt);
+            },
+            
+            render() {
+                // 清空画布
+                this.ctx.fillStyle = '#080810';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+                
+                // 绘制背景
+                this.drawBackground();
+                
+                // 绘制粒子
+                this.drawParticles();
+            },
+            
+            drawBackground() {
+                const ctx = this.ctx;
+                
+                // 渐变背景
+                const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
+                gradient.addColorStop(0, '#0a0a15');
+                gradient.addColorStop(0.5, '#0d0d1a');
+                gradient.addColorStop(1, '#080810');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, this.width, this.height);
+                
+                // 绘制山脉剪影
+                ctx.beginPath();
+                ctx.moveTo(0, this.height * 0.7);
+                
+                for (let x = 0; x <= this.width; x += 50) {
+                    const y = this.height * 0.6 + Math.sin(x * 0.008 + this.backgroundLayers[0].offset * 0.1) * 50 
+                            + Math.sin(x * 0.015) * 30;
+                    ctx.lineTo(x, y);
+                }
+                
+                ctx.lineTo(this.width, this.height);
+                ctx.lineTo(0, this.height);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(15, 15, 25, 0.8)';
+                ctx.fill();
+                
+                // 绘制远景山
+                ctx.beginPath();
+                ctx.moveTo(0, this.height * 0.5);
+                
+                for (let x = 0; x <= this.width; x += 30) {
+                    const y = this.height * 0.45 + Math.sin(x * 0.005 + this.backgroundLayers[1].offset * 0.05) * 40 
+                            + Math.cos(x * 0.01) * 20;
+                    ctx.lineTo(x, y);
+                }
+                
+                ctx.lineTo(this.width, this.height);
+                ctx.lineTo(0, this.height);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(20, 20, 35, 0.6)';
+                ctx.fill();
+                
+                // 绘制云雾
+                for (let i = 0; i < 5; i++) {
+                    const x = ((this.backgroundLayers[2].offset * 20 + i * 200) % (this.width + 200)) - 100;
+                    const y = this.height * 0.3 + Math.sin(i * 2) * 50;
+                    
+                    const cloudGradient = ctx.createRadialGradient(x, y, 0, x, y, 80);
+                    cloudGradient.addColorStop(0, 'rgba(62, 205, 196, 0.08)');
+                    cloudGradient.addColorStop(1, 'rgba(62, 205, 196, 0)');
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, 80, 0, Math.PI * 2);
+                    ctx.fillStyle = cloudGradient;
+                    ctx.fill();
+                }
+                
+                // 绘制星光
+                for (let i = 0; i < 50; i++) {
+                    const x = (i * 73 + this.backgroundLayers[0].offset * 0.5) % this.width;
+                    const y = (i * 47) % (this.height * 0.5);
+                    const brightness = 0.3 + Math.sin(performance.now() * 0.001 + i) * 0.2;
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, 1, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${brightness})`;
+                    ctx.fill();
+                }
+            }
+        };
+        
+        // 初始化游戏
+        window.onload = function() {
+            Game.init();
+        };
+    </script>
+</body>
+</html>

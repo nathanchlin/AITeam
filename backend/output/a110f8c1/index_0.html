@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas Game Engine</title>
+<style>
+  body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+// 游戏配置
+const config = {
+  canvas: document.getElementById('gameCanvas'),
+  ctx: config.canvas.getContext('2d'),
+  scale: 1,
+  width: window.innerWidth,
+  height: window.innerHeight
+};
+
+// 资源加载管理器
+class ResourceManager {
+  constructor() {
+    this.resources = {};
+  }
+
+  load(url, callback) {
+    const image = new Image();
+    image.onload = () => {
+      this.resources[url] = image;
+      if (callback) callback(image);
+    };
+    image.src = url;
+  }
+
+  get(url) {
+    return this.resources[url];
+  }
+}
+
+// 游戏状态机
+class GameStateMachine {
+  constructor() {
+    this.states = {
+      menu: {
+        enter: () => console.log('Entering Menu State'),
+        exit: () => console.log('Exiting Menu State'),
+        update: () => console.log('Updating Menu State'),
+        render: () => console.log('Rendering Menu State')
+      },
+      battle: {
+        enter: () => console.log('Entering Battle State'),
+        exit: () => console.log('Exiting Battle State'),
+        update: () => console.log('Updating Battle State'),
+        render: () => console.log('Rendering Battle State')
+      },
+      idle: {
+        enter: () => console.log('Entering Idle State'),
+        exit: () => console.log('Exiting Idle State'),
+        update: () => console.log('Updating Idle State'),
+        render: () => console.log('Rendering Idle State')
+      }
+    };
+    this.currentState = null;
+  }
+
+  changeState(state) {
+    if (this.currentState) {
+      this.currentState.exit();
+    }
+    this.currentState = this.states[state];
+    if (this.currentState) {
+      this.currentState.enter();
+    }
+  }
+}
+
+// 游戏对象
+class Game {
+  constructor() {
+    this.resourceManager = new ResourceManager();
+    this.gameStateMachine = new GameStateMachine();
+    this.gameStateMachine.changeState('menu');
+    this.init();
+  }
+
+  init() {
+    this.resourceManager.load('path/to/your/sprite.png', (sprite) => {
+      this.sprite = sprite;
+      this.gameStateMachine.changeState('battle');
+    });
+    window.addEventListener('resize', () => {
+      config.width = window.innerWidth;
+      config.height = window.innerHeight;
+      config.canvas.width = config.width;
+      config.canvas.height = config.height;
+      config.scale = Math.min(config.width / 800, config.height / 600);
+      config.canvas.style.width = `${config.width}px`;
+      config.canvas.style.height = `${config.height}px`;
+    });
+  }
+
+  update() {
+    if (this.gameStateMachine.currentState) {
+      this.gameStateMachine.currentState.update();
+    }
+  }
+
+  render() {
+    config.ctx.clearRect(0, 0, config.width, config.height);
+    if (this.gameStateMachine.currentState) {
+      this.gameStateMachine.currentState.render();
+    }
+  }
+
+  run() {
+    this.update();
+    this.render();
+    requestAnimationFrame(this.run.bind(this));
+  }
+}
+
+// 初始化游戏
+window.onload = () => {
+  const game = new Game();
+  game.run();
+};
+</script>
+</body>
+</html>

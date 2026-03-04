@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Local Multiplayer Click Counter Game</title>
+<style>
+  body {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+  }
+  canvas {
+    border: 1px solid #000;
+  }
+  #player1, #player2 {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    background-color: red;
+    border-radius: 50%;
+    cursor: pointer;
+  }
+  #player2 {
+    background-color: blue;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="400" height="400"></canvas>
+<div id="player1" style="left: 50px; top: 50px;"></div>
+<div id="player2" style="left: 350px; top: 350px;"></div>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  let player1Count = 0;
+  let player2Count = 0;
+  let isGameActive = false;
+  let animationFrameId = null;
+
+  function init() {
+    canvas.width = 400;
+    canvas.height = 400;
+    ctx.font = '24px Arial';
+    ctx.fillStyle = 'black';
+    ctx.fillText('Player 1: 0', 50, 50);
+    ctx.fillText('Player 2: 0', 250, 50);
+    document.getElementById('player1').addEventListener('click', handlePlayer1Click);
+    document.getElementById('player2').addEventListener('click', handlePlayer2Click);
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+  }
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth * 0.8;
+    canvas.height = window.innerHeight * 0.8;
+    ctx.font = (canvas.height * 0.05) + 'px Arial';
+  }
+
+  function handlePlayer1Click() {
+    player1Count++;
+    updateCounts();
+  }
+
+  function handlePlayer2Click() {
+    player2Count++;
+    updateCounts();
+  }
+
+  function updateCounts() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillText('Player 1: ' + player1Count, 50, 50);
+    ctx.fillText('Player 2: ' + player2Count, 250, 50);
+  }
+
+  window.onload = init;
+</script>
+</body>
+</html>

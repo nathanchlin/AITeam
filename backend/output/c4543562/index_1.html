@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寻道大千挂机游戏</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  // 设置画布大小
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  // 角色移动速度
+  const speed = 5;
+
+  // 游戏循环
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height); // 清除画布
+
+    // 绘制背景
+    drawBackground();
+
+    // 更新并绘制角色
+    updateCharacterPosition();
+    drawCharacter();
+
+    // 绘制UI
+    drawUI();
+
+    // 游戏循环请求
+    requestAnimationFrame(gameLoop);
+  }
+
+  // 初始化函数
+  function init() {
+    // 绑定键盘事件
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+
+    // 开始游戏循环
+    gameLoop();
+  }
+
+  // 绘制背景
+  function drawBackground() {
+    ctx.fillStyle = '#000'; // 背景颜色
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  // 绘制角色
+  let characterPosition = { x: 50, y: 50 };
+  function drawCharacter() {
+    ctx.fillStyle = '#0F0'; // 角色颜色
+    ctx.fillRect(characterPosition.x, characterPosition.y, 20, 20);
+  }
+
+  // 绘制UI
+  function drawUI() {
+    // 绘制生命值
+    ctx.fillStyle = '#FF0'; // UI颜色
+    ctx.fillText('Health: 100', 10, 30);
+  }
+
+  // 处理键盘按下
+  let isUp = false;
+  let isDown = false;
+  let isLeft = false;
+  let isRight = false;
+  function handleKeyDown(event) {
+    switch (event.code) {
+      case 'ArrowUp':
+        isUp = true;
+        break;
+      case 'ArrowDown':
+        isDown = true;
+        break;
+      case 'ArrowLeft':
+        isLeft = true;
+        break;
+      case 'ArrowRight':
+        isRight = true;
+        break;
+    }
+  }
+
+  // 处理键盘抬起
+  function handleKeyUp(event) {
+    switch (event.code) {
+      case 'ArrowUp':
+        isUp = false;
+        break;
+      case 'ArrowDown':
+        isDown = false;
+        break;
+      case 'ArrowLeft':
+        isLeft = false;
+        break;
+      case 'ArrowRight':
+        isRight = false;
+        break;
+    }
+  }
+
+  // 更新角色位置
+  function updateCharacterPosition() {
+    if (isUp) {
+      characterPosition.y -= speed;
+    }
+    if (isDown) {
+      characterPosition.y += speed;
+    }
+    if (isLeft) {
+      characterPosition.x -= speed;
+    }
+    if (isRight) {
+      characterPosition.x += speed;
+    }
+    // 确保角色不会移出画布
+    characterPosition.x = Math.max(0, Math.min(characterPosition.x, canvas.width - 20));
+    characterPosition.y = Math.max(0, Math.min(characterPosition.y, canvas.height - 20));
+  }
+
+  // 窗口大小改变时调整画布大小
+  window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  });
+
+  // 确保页面加载完成后再初始化游戏
+  window.onload = init;
+</script>
+</body>
+</html>

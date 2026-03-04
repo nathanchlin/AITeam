@@ -1,0 +1,156 @@
+# UI界面与动画效果
+
+**Agent**: coder
+
+**Time**: 2026-02-24T21:17:03.428240
+
+---
+
+基于之前提供的代码和需求，以下是整合了UI界面、角色状态显示、得分板以及动画效果的代码：
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寻道大千 - 挂机类游戏</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  #status {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    padding: 5px;
+    border-radius: 5px;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="status">Score: 0</div>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const status = document.getElementById('status');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  let player = {
+    x: canvas.width / 2,
+    y: canvas.height / 2,
+    width: 50,
+    height: 50,
+    color: 'blue',
+    score: 0,
+    health: 100,
+    animationFrameId: null
+  };
+
+  let map = {
+    width: canvas.width,
+    height: canvas.height,
+    color: 'green'
+  };
+
+  function drawRect(x, y, width, height, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, height);
+  }
+
+  function drawPlayer() {
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.width, player.height);
+    ctx.fillStyle = 'white';
+    ctx.fillText(`Score: ${player.score}`, 10, 30);
+    ctx.fillText(`Health: ${player.health}`, 10, 50);
+  }
+
+  function drawMap() {
+    drawRect(map.x, map.y, map.width, map.height, map.color);
+  }
+
+  function gameLoop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawMap();
+    drawPlayer();
+    requestAnimationFrame(gameLoop);
+  }
+
+  function handleKeyPress(event) {
+    const { keyCode } = event;
+    const step = 10;
+
+    switch (keyCode) {
+      case 37: // Left arrow
+        player.x = Math.max(0, player.x - step);
+        break;
+      case 38: // Up arrow
+        player.y = Math.max(0, player.y - step);
+        break;
+      case 39: // Right arrow
+        player.x = Math.min(canvas.width - player.width, player.x + step);
+        break;
+      case 40: // Down arrow
+        player.y = Math.min(canvas.height - player.height, player.y + step);
+        break;
+    }
+  }
+
+  function checkCollision(player, map) {
+    return player.x < map.x + map.width &&
+           player.x + player.width > map.x &&
+           player.y < map.y + map.height &&
+           player.y + player.height > map.y;
+  }
+
+  function updateScore() {
+    if (checkCollision(player, map)) {
+      player.score += 10;
+      player.health -= 5; // Deduct health on collision
+      animateHit();
+    }
+  }
+
+  function animateHit() {
+    if (player.animationFrameId) {
+      cancelAnimationFrame(player.animationFrameId);
+    }
+    player.animationFrameId = requestAnimationFrame(function animate() {
+      ctx.fillStyle = 'red';
+      ctx.globalAlpha = 0.3; // Semi-transparent red
+      drawRect(player.x, player.y, player.width, player.height);
+      ctx.globalAlpha = 1; // Reset alpha
+      if (player.health > 0) {
+        animate(); // Continue animation
+      }
+    });
+  }
+
+  window.onload = function() {
+    document.addEventListener('keydown', handleKeyPress);
+    gameLoop();
+  };
+
+  setInterval(updateScore, 1000); // Update score every second
+</script>
+</body>
+</html>
+```
+
+这段代码中，我进行了以下改动和添加：
+
+1. 添加了一个`#status`元素，用于显示玩家的得分和生命值。
+2. 更新了`drawPlayer`函数，使其能够在画布上显示玩家的得分和生命值。
+3. 在玩家与地图发生碰撞时，生命值会减少，并调用`animateHit`函数来添加动画效果。
+4. `animateHit`函数使用`requestAnimationFrame`来创建一个简单的动画效果，即在玩家位置绘制一个半透明的红色矩形，模拟被击中的效果。动画会在生命值大于0时继续播放。
+
+这样，我们就完成了一个包含UI界面、角色状态显示、得分板以及动画效果的简单挂机类游戏。

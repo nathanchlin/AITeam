@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>黑白棋游戏</title>
+<style>
+  body {
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+  }
+  canvas {
+    border: 2px solid #000;
+  }
+  #scoreboard {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas" width="400" height="400"></canvas>
+<div id="scoreboard">
+  <p>Score - Black: <span id="scoreBlack">0</span></p>
+  <p>Score - White: <span id="scoreWhite">0</span></p>
+</div>
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const boardSize = 8;
+  const cellSize = canvas.width / boardSize;
+  let board = [];
+  let currentPlayer = 'black';
+  let scoreBlack = 0;
+  let scoreWhite = 0;
+
+  function initializeBoard() {
+    for (let i = 0; i < boardSize; i++) {
+      board[i] = [];
+      for (let j = 0; j < boardSize; j++) {
+        board[i][j] = null;
+      }
+    }
+  }
+
+  function drawBoard() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < boardSize; i++) {
+      for (let j = 0; j < boardSize; j++) {
+        ctx.beginPath();
+        ctx.moveTo(j * cellSize, i * cellSize);
+        ctx.lineTo((j + 1) * cellSize, i * cellSize);
+        ctx.lineTo((j + 1) * cellSize, (i + 1) * cellSize);
+        ctx.lineTo(j * cellSize, (i + 1) * cellSize);
+        ctx.lineTo(j * cellSize, i * cellSize);
+        ctx.stroke();
+        if (board[i][j]) {
+          drawPiece(i, j, board[i][j]);
+        }
+      }
+    }
+    drawScore();
+  }
+
+  function drawPiece(x, y, color) {
+    const offset = 10;
+    const pieceSize = cellSize - 2 * offset;
+    const startX = x * cellSize + offset;
+    const startY = y * cellSize + offset;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(startX + pieceSize / 2, startY + pieceSize / 2, pieceSize / 2 - 2, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+
+  function drawScore() {
+    document.getElementById('scoreBlack').textContent = scoreBlack;
+    document.getElementById('scoreWhite').textContent = scoreWhite;
+  }
+
+  function onCanvasClick(event) {
+    const x = Math.floor((event.offsetX - 10) / cellSize);
+    const y = Math.floor((event.offsetY - 10) / cellSize);
+    if (board[x][y] === null) {
+      board[x][y] = currentPlayer;
+      currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
+      updateScore(x, y);
+      saveGameState();
+      drawBoard();
+    }
+  }
+
+  function updateScore(x, y) {
+    // 碰撞检测和得分逻辑
+    // ...
+  }
+
+  function saveGameState() {
+    const state = {
+      board: board,
+      currentPlayer: currentPlayer,
+      scoreBlack: scoreBlack,
+      scoreWhite: scoreWhite
+    };
+    localStorage.setItem('gameState', JSON.stringify(state));
+  }
+
+  function loadGameState() {
+    const state = localStorage.getItem('gameState');
+    if (state) {
+      const loadedState = JSON.parse(state);
+      board = loadedState.board;
+      currentPlayer = loadedState.currentPlayer;
+      scoreBlack = loadedState.scoreBlack;
+      scoreWhite = loadedState.scoreWhite;
+      drawBoard();
+    }
+  }
+
+  function startGameLoop() {
+    requestAnimationFrame(startGameLoop);
+    drawBoard();
+  }
+
+  window.onload = function() {
+    canvas.addEventListener('click', onCanvasClick);
+    initializeBoard();
+    loadGameState(); // Load game state from localStorage
+    drawBoard();
+    startGameLoop();
+  };
+</script>
+<script>
+// From script_5.js
+let lastBoardState = null;
+
+function drawBoard() {
+  if (lastBoardState === null || lastBoardState !== board) {
+    lastBoardState = board;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    // 绘制棋盘和棋子
+    // ...
+  }
+}
+// From script_6.js
+function drawPiece(x, y, color) {
+  const offset = 10;
+  const pieceSize = cellSize - 2 * offset;
+  const startX = x * cellSize + offset;
+  const startY = y * cellSize + offset;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(startX + pieceSize / 2, startY + pieceSize / 2, pieceSize / 2 - 2, 0, 2 * Math.PI);
+  ctx.fill();
+}
+
+function drawBoard() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = 'black';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // 只重绘棋子
+  for (let i = 0; i < boardSize; i++) {
+    for (let j = 0; j < boardSize; j++) {
+      if (board[i][j]) {
+        drawPiece(i, j, board[i][j]);
+      }
+    }
+  }
+}
+// From script_7.js
+function updateScore(x, y) {
+  let surroundedCount = 0;
+  // 直接在棋盘数组上操作
+  for (let i = -1; i <= 1; i++) {
+    for (let j = -1; j <= 1; j++) {
+      if (x + i >= 0 && x + i < boardSize && y + j >= 0 && y + j < boardSize) {
+        if (board[x + i][y + j] !== currentPlayer) {
+          surroundedCount++;
+        }
+      }
+    }
+  }
+  // 更新得分
+  // ...
+}
+// From script_8.js
+function onCanvasClick(event) {
+  const x = Math.floor((event.offsetX - 10) / cellSize);
+  const y = Math.floor((event.offsetY - 10) / cellSize);
+  if (board[x][y] === null) {
+    board[x][y] = currentPlayer;
+    currentPlayer = currentPlayer === 'black' ? 'white' : 'black';
+    updateScore(x, y);
+    saveGameState();
+    drawBoard();
+  }
+}
+</script>
+</body>
+</html>

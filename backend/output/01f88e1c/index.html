@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snake Game</title>
+<style>
+  body {
+    margin: 0;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #f0f0f0;
+  }
+  canvas {
+    border: 1px solid black;
+  }
+  #gameOver {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2em;
+    color: red;
+    text-align: center;
+  }
+  #player1Controls {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+  }
+  #player2Controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div id="gameOver">Game Over</div>
+<div id="player1Controls">Player 1: arrow keys</div>
+<div id="player2Controls">Player 2: WASD</div>
+
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+  const gameOver = document.getElementById('gameOver');
+  const ctx = canvas.getContext('2d');
+  const player1Controls = document.getElementById('player1Controls');
+  const player2Controls = document.getElementById('player2Controls');
+
+  canvas.width = 800;
+  canvas.height = 400;
+
+  let snake1 = [{ x: 9 * 20, y: 10 * 20 }];
+  let snake2 = [{ x: 9 * 20, y: 30 * 20 }];
+  let food = {
+    x: Math.floor(Math.random() * 20) * 20,
+    y: Math.floor(Math.random() * 20) * 20
+  };
+  let score1 = 0;
+  let score2 = 0;
+  let d1, d2;
+  let gameInterval;
+  let speed = 100;
+  let gameRunning = true;
+
+  window.onload = () => {
+    document.addEventListener('keydown', direction);
+    gameInterval = setInterval(gameLoop, speed);
+  };
+
+  function direction(event) {
+    const key = event.keyCode;
+    const left = 37, up = 38, right = 39, down = 40, w = 87, a = 65, s = 83, d = 68;
+
+    if ((key === left || key === right || key === a || key === d) && (d1 === undefined || (d1 !== left && d1 !== right && d1 !== a && d1 !== d))) {
+      d1 = key === left || key === a ? 'LEFT' : 'RIGHT';
+    } else if ((key === up || key === down || key === w || key === s) && (d1 === undefined || (d1 !== up && d1 !== down && d1 !== w && d1 !== s))) {
+      d1 = key === up || key === w ? 'UP' : 'DOWN';
+    }
+
+    if ((key === left || key === right || key === a || key === d) && (d2 === undefined || (d2 !== left && d2 !== right && d2 !== a && d2 !== d))) {
+      d2 = key === left || key === a ? 'LEFT' : 'RIGHT';
+    } else if ((key === up || key === down || key === w || key === s) && (d2 === undefined || (d2 !== up && d2 !== down && d2 !== w && d2 !== s))) {
+      d2 = key === up || key === w ? 'UP' : 'DOWN';
+    }
+  }
+
+  function gameLoop() {
+    if (!gameRunning) {
+      return;
+    }
+
+    if (checkCollision(snake1) || checkCollision(snake2)) {
+      gameOver.style.display = 'block';
+      clearInterval(gameInterval);
+      return;
+    }
+
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.fillStyle = 'red';
+    ctx.fillRect(food.x, food.y, 20, 20);
+
+    let nx1 = snake1[0].x;
+    let ny1 = snake1[0].y;
+    let nx2 = snake2[0].x;
+    let ny2 = snake2[0].y;
+
+    if (d1 === 'LEFT') nx1 -= 20;
+    if (d1 === 'UP') ny1 -= 20;
+    if (d1 === 'RIGHT') nx1 += 20;
+    if (d1 === 'DOWN') ny1 += 20;
+
+    if (d2 === 'LEFT') nx2 -= 20;
+    if (d2 === 'UP') ny2 -= 20;
+    if (d2 === 'RIGHT') nx2 += 20;
+    if (d2 === 'DOWN') ny2 += 20;
+
+    let tail1 = [...snake1];
+    let tail2 = [...snake2];
+    tail1.pop(); // remove the tail
+    tail2.pop(); // remove the tail
+    tail1.unshift({ x: nx1, y: ny1 }); // add the new head
+    tail2.unshift({ x: nx2, y: ny2 }); // add the new head
+    snake1 = tail1;
+    snake2 = tail2;
+
+    if (nx1 === food.x && ny1 === food.y) {
+      score1++;
+      food = {
+        x: Math.floor(Math.random() * 20) * 20,
+        y: Math.floor(Math.random() * 20) * 20
+      };
+      speed = Math.min(10, speed - 5); // Increase speed, up to a maximum of 10
+    }
+
+    if (nx2 === food.x && ny2 === food.y) {
+      score2++;
+      food = {
+        x: Math.floor(Math.random() * 20) * 20,
+        y: Math.floor(Math.random() * 20) * 20
+      };
+      speed = Math.min(10, speed - 5); // Increase speed, up to a maximum of 10
+    }
+
+    ctx.fillStyle = 'green';
+    for (let i = 0; i < snake1.length; i++) {
+      ctx.fillRect(snake1[i].x, snake1[i].y, 20, 20);
+    }
+
+    ctx.fillStyle = 'blue';
+    for (let i = 0; i < snake2.length; i++) {
+      ctx.fillRect(snake2[i].x, snake2[i].y, 20, 20);
+    }
+
+    ctx.fillStyle = 'black';
+    ctx.fillText('Player 1 Score: ' + score1, 10, 20);
+    ctx.fillText('Player 2 Score: ' + score2, 10, 40);
+  }
+
+  function checkCollision(snake) {
+    for (let i = 1; i < snake.length; i++) {
+      if (snake[0].x === snake[i].x && snake[0].y === snake[i].y) {
+        return true;
+      }
+    }
+    return false;
+  }
+</script>
+</body>
+</html>

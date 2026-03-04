@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>数值养成系统</title>
+<style>
+  body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+  }
+  .ui {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.8);
+    border-radius: 5px;
+  }
+</style>
+</head>
+<body>
+<canvas id="gameCanvas"></canvas>
+<div class="ui">
+  <h1>属性面板</h1>
+  <p>境界：练气</p>
+  <p>力量：10</p>
+  <p>敏捷：10</p>
+  <p>智力：10</p>
+  <p>装备：无</p>
+  <p>灵兽：无</p>
+</div>
+<script>
+const config = {
+  canvas: document.getElementById('gameCanvas'),
+  ctx: config.canvas.getContext('2d'),
+  scale: 1,
+  width: window.innerWidth,
+  height: window.innerHeight
+};
+
+class ResourceManager {
+  constructor() {
+    this.resources = {};
+  }
+
+  load(url, callback) {
+    const image = new Image();
+    image.onload = () => {
+      this.resources[url] = image;
+      if (callback) callback(image);
+    };
+    image.src = url;
+  }
+
+  get(url) {
+    return this.resources[url];
+  }
+}
+
+class Character {
+  constructor(name, level, strength, agility, intelligence) {
+    this.name = name;
+    this.level = level;
+    this.strength = strength;
+    this.agility = agility;
+    this.intelligence = intelligence;
+  }
+
+  levelUp() {
+    this.level++;
+    this.strength += 2;
+    this.agility += 1;
+    this.intelligence += 1;
+  }
+}
+
+class Equipment {
+  constructor(name, type, quality, strength, agility, intelligence) {
+    this.name = name;
+    this.type = type;
+    this.quality = quality;
+    this.strength = strength;
+    this.agility = agility;
+    this.intelligence = intelligence;
+  }
+
+  upgrade() {
+    if (this.quality < 5) {
+      this.quality++;
+      this.strength += 1;
+      this.agility += 1;
+      this.intelligence += 1;
+    }
+  }
+}
+
+class Pet {
+  constructor(name, type, strengthBonus, agilityBonus, intelligenceBonus) {
+    this.name = name;
+    this.type = type;
+    this.strengthBonus = strengthBonus;
+    this.agilityBonus = agilityBonus;
+    this.intelligenceBonus = intelligenceBonus;
+  }
+}
+
+class Game {
+  constructor() {
+    this.resourceManager = new ResourceManager();
+    this.character = new Character('玩家', 1, 10, 10, 10);
+    this.equipment = null;
+    this.pet = null;
+    this.init();
+  }
+
+  init() {
+    this.resourceManager.load('path/to/equipment.png', (equipmentImage) => {
+      this.equipmentImage = equipmentImage;
+      this.render();
+    });
+    this.renderUI();
+    window.addEventListener('resize', () => {
+      config.width = window.innerWidth;
+      config.height = window.innerHeight;
+      config.canvas.width = config.width;
+      config.canvas.height = config.height;
+      this.render();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'l') {
+        this.character.levelUp();
+        this.renderUI();
+      }
+    });
+  }
+
+  renderUI() {
+    const ui = document.querySelector('.ui');
+    ui.innerHTML = `
+      <h1>属性面板</h1>
+      <p>境界：练气</p>
+      <p>力量：${this.character.strength}</p>
+      <p>敏捷：${this.character.agility}</p>
+      <p>智力：${this.character.intelligence}</p>
+      <p>装备：${this.equipment ? this.equipment.name : '无'}</p>
+      <p>灵兽：${this.pet ? this.pet.name : '无'}</p>
+    `;
+  }
+
+  render() {
+    config.ctx.clearRect(0, 0, config.width, config.height);
+    // Draw character, equipment, and pet here
+  }
+}
+
+const game = new Game();
+</script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "match_id": "match_88293",
+  "current_phase": "ROUND_PLAY",
+  "current_player_turn": "PLAYER_1",
+  "players": [
+    {
+      "player_id": "user_001",
+      "faction": "NORTHERN_REALMS",
+      "stats": {
+        "round_wins": 1,
+        "total_power": 45,
+        "hand_count": 4,
+        "deck_count": 10,
+        "has_passed": false
+      },
+      "board_state": {
+        "melee": { "total_power": 20, "cards": ["nr_bloody_baron", "nr_blue_stripe"] },
+        "ranged": { "total_power": 25, "cards": ["nr_keira_metz", "nr_trebuchet"] },
+        "siege": { "total_power": 0, "cards": [] }
+      },
+      "graveyard": ["nr_dandelion"]
+    },
+    {
+      "player_id": "bot_ai",
+      "faction": "MONSTERS",
+      // ... 对手结构相同
+    }
+  ]
+}
