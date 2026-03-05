@@ -47,6 +47,7 @@ yarn-error.log*
 # Build outputs
 frontend/dist/
 backend/*.db
+backend/output/
 
 # OS
 .DS_Store
