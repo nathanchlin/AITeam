@@ -1,7 +1,7 @@
 """Pipeline Queue Service for managing concurrent pipeline execution.
 
 This module implements a queue mechanism for pipelines:
-- Maximum 5 concurrent pipelines can run simultaneously
+- Maximum 1 concurrent pipeline can run at a time
 - Additional pipelines are queued and started when a slot becomes available
 - Thread-safe using asyncio.Lock
 """
@@ -33,7 +33,7 @@ class PipelineQueueService:
     automatically starts queued pipelines when slots become available.
     """
 
-    MAX_CONCURRENT = 5
+    MAX_CONCURRENT = 1
 
     def __init__(self):
         self.queue: deque[QueuedPipeline] = deque()
