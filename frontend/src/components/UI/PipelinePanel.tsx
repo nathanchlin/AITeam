@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
+import type { QueueStatus } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
 import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square } from 'lucide-react';
 import { ArchivePanel } from './ArchivePanel';
@@ -48,6 +49,7 @@ export function PipelinePanel() {
   const [godotDownloading, setGodotDownloading] = useState(false);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -202,6 +204,19 @@ export function PipelinePanel() {
       console.error('Fetch Godot project info error:', e);
     }
   };
+
+  // Fetch queue status
+  const fetchQueueStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/pipeline/queue/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setQueueStatus(data);
+      }
+    } catch (e) {
+      console.error('Fetch queue status error:', e);
+    }
+  }, []);
 
   // Download Godot project as zip
   const handleDownloadGodot = async () => {
@@ -359,6 +374,13 @@ export function PipelinePanel() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [planDiscussions.length, currentStream]);
+
+  // Fetch queue status periodically
+  useEffect(() => {
+    fetchQueueStatus();
+    const interval = setInterval(fetchQueueStatus, 5000); // Every 5 seconds
+    return () => clearInterval(interval);
+  }, [fetchQueueStatus]);
 
   const handleStartPipeline = async () => {
     if (!request.trim() || starting) return;
@@ -833,6 +855,13 @@ export function PipelinePanel() {
                   </>
                 )}
               </button>
+              {/* Queue Status Indicator */}
+              {queueStatus && queueStatus.queue_length > 0 && (
+                <div className="mt-2 text-xs text-amber-400 flex items-center gap-1">
+                  <Loader2 size={12} className="animate-spin" />
+                  队列中有 {queueStatus.queue_length} 个任务等待中 (最多同时运行 {queueStatus.max_concurrent} 个)
+                </div>
+              )}
             </div>
           </div>
         </div>

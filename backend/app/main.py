@@ -4,6 +4,8 @@ from app.config import settings
 from app.api import agents, tasks, pipeline, projects
 from app.api.ws import websocket_endpoint, ws_manager as websocket_manager
 from app.services.agent_manager import agent_manager
+from app.services.coordinator import coordinator
+from app.services.pipeline_queue import pipeline_queue
 from app.models.schemas import AgentType
 from app.middleware.error_handler import setup_exception_handlers
 
@@ -54,6 +56,11 @@ async def websocket_route(websocket: WebSocket):
 
 @app.on_event("startup")
 async def startup_event():
+    # Initialize pipeline queue with coordinator and websocket manager
+    pipeline_queue.set_coordinator(coordinator)
+    pipeline_queue.set_websocket_manager(websocket_manager)
+    print("[Startup] Pipeline queue initialized")
+
     # Only create default agents if no agents exist (first run)
     if len(agent_manager.get_all_agents()) > 0:
         print("[Startup] Agents loaded from storage, skipping default agent creation")

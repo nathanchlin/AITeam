@@ -7,6 +7,7 @@ import time
 import os
 import httpx
 from app.config import settings
+import random
 
 
 class GLMClient:
@@ -90,6 +91,7 @@ class GLMClient:
         agent_type: str = "assistant",
         custom_prompt: Optional[str] = None,
         history: Optional[List[Dict[str, str]]] = None,
+        max_retries: int = 3,
     ) -> str:
         if not self.client:
             return "错误：未配置 GLM API Key，请在 .env 文件中配置 GLM_API_KEY"
@@ -102,15 +104,31 @@ class GLMClient:
 
         messages.append({"role": "user", "content": message})
 
-        try:
-            response = await asyncio.to_thread(
-                self.client.chat.completions.create,
-                model=self.model,
-                messages=messages,
-            )
-            return response.choices[0].message.content
-        except Exception as e:
-            return f"调用 GLM API 时出错：{str(e)}"
+        # 重试逻辑（含429速率限制处理）
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                response = await asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    model=self.model,
+                    messages=messages,
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                last_error = str(e)
+                error_msg = str(e).lower()
+                # 检查是否是速率限制错误（429）
+                if "429" in error_msg or "rate" in error_msg or "limit" in error_msg or "速率" in error_msg or "频率" in error_msg or "1302" in error_msg:
+                    if attempt < max_retries - 1:
+                        # 指数退避 + 随机抖动
+                        base_wait = 2
+                        wait_time = (2 ** attempt) * base_wait + random.uniform(0, 1)
+                        print(f"[GLMClient] Rate limit (429) hit in chat(), waiting {wait_time:.1f}s before retry {attempt + 2}/{max_retries}")
+                        await asyncio.sleep(wait_time)
+                        continue
+                return f"调用 GLM API 时出错：{str(e)}"
+
+        return f"调用 GLM API 时出错：重试 {max_retries} 次后仍失败: {last_error}"
 
     async def chat_stream(
         self,
@@ -132,7 +150,7 @@ class GLMClient:
 
         messages.append({"role": "user", "content": message})
 
-        # 重试逻辑
+        # 重试逻辑（含429速率限制处理）
         last_error = None
         for attempt in range(max_retries):
             try:
@@ -147,13 +165,16 @@ class GLMClient:
             except Exception as e:
                 last_error = str(e)
                 error_msg = str(e).lower()
-                # 检查是否是速率限制或临时错误
-                if "429" in error_msg or "rate" in error_msg or "limit" in error_msg or "余额" in error_msg:
+                # 检查是否是速率限制错误（429）
+                if "429" in error_msg or "rate" in error_msg or "limit" in error_msg or "速率" in error_msg or "频率" in error_msg or "1302" in error_msg:
                     if attempt < max_retries - 1:
-                        wait_time = (attempt + 1) * 3  # 3, 6, 9 秒
-                        print(f"[GLMClient] Rate limit hit, waiting {wait_time}s before retry {attempt + 2}/{max_retries}")
+                        # 指数退避 + 随机抖动：2^attempt * base + random(0, 1)
+                        base_wait = 2  # 基础等待时间
+                        wait_time = (2 ** attempt) * base_wait + random.uniform(0, 1)
+                        print(f"[GLMClient] Rate limit (429) hit, waiting {wait_time:.1f}s before retry {attempt + 2}/{max_retries}")
                         await asyncio.sleep(wait_time)
                         continue
+                # 其他错误直接返回
                 yield f"[错误] {str(e)}"
                 return
         else:

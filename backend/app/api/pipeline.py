@@ -14,16 +14,23 @@ from app.models.schemas import (
 from app.services.coordinator import coordinator
 from app.services.output_manager import output_manager
 from app.services.agent_manager import agent_manager
+from app.services.pipeline_queue import pipeline_queue
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 
 @router.post("/start")
 async def start_pipeline(request: PipelineRequest, background_tasks: BackgroundTasks):
-    """Start a new pipeline: Discussion → Planning → Execution"""
+    """Start a new pipeline: Discussion → Planning → Execution
+
+    Uses queue mechanism to limit concurrent pipelines to 5.
+    If at capacity, the pipeline will be queued and started when a slot is available.
+    """
     from app.main import websocket_manager
 
     coordinator.set_websocket_manager(websocket_manager)
+    pipeline_queue.set_websocket_manager(websocket_manager)
+    pipeline_queue.set_coordinator(coordinator)
 
     # Create plan first
     plan = await coordinator.create_plan(
@@ -32,26 +39,21 @@ async def start_pipeline(request: PipelineRequest, background_tasks: BackgroundT
         selected_agent_ids=request.selected_agent_ids,
     )
 
-    # Run pipeline in background (replaces Celery task execution)
-    async def run_pipeline_background():
-        try:
-            await coordinator.analyze_request(plan.id)
-            await coordinator.organize_discussion(plan.id)
-            await coordinator.generate_plan(plan.id)
-            await coordinator.execute_plan(plan.id)
-        except Exception as e:
-            print(f"[Pipeline] Error executing pipeline {plan.id}: {e}")
-            import traceback
-            traceback.print_exc()
-
-    background_tasks.add_task(run_pipeline_background)
+    # Add to queue (will start immediately if under limit, otherwise queued)
+    queue_result = await pipeline_queue.enqueue(
+        plan_id=plan.id,
+        request=request.request,
+        target_output=request.target_output,
+        selected_agent_ids=request.selected_agent_ids,
+    )
 
     return {
-        "message": "Pipeline started",
+        "message": "Pipeline queued" if queue_result["status"] == "queued" else "Pipeline started",
         "plan_id": plan.id,
         "request": request.request,
         "target_output": request.target_output,
         "selected_agent_ids": request.selected_agent_ids,
+        "queue_status": queue_result,
     }
 
 
@@ -63,6 +65,65 @@ async def create_plan(plan_data: PlanCreate):
         target_output=plan_data.target_output or "web-app",
     )
     return plan.model_dump()
+
+
+@router.get("/queue/status")
+async def get_queue_status():
+    """Get Pipeline queue status
+
+    Returns:
+        - running_count: Number of currently running pipelines
+        - max_concurrent: Maximum allowed concurrent pipelines (5)
+        - queue_length: Number of pipelines waiting in queue
+        - running_pipelines: List of running pipeline details
+        - queued_pipelines: List of queued pipeline details
+    """
+    return pipeline_queue.get_queue_status()
+
+
+@router.get("/queue/position/{plan_id}")
+async def get_plan_queue_position(plan_id: str):
+    """Get queue position for a specific plan
+
+    Returns:
+        - status: "running", "queued", or null if not found
+        - position: 0 for running, 1+ for queue position
+    """
+    position = pipeline_queue.get_plan_queue_position(plan_id)
+    if position is None:
+        raise HTTPException(status_code=404, detail="Plan not found in queue or running")
+    return {
+        "plan_id": plan_id,
+        **position
+    }
+
+
+@router.delete("/queue/cancel/{plan_id}")
+async def cancel_queued_pipeline(plan_id: str):
+    """Cancel a pipeline from the queue
+
+    Note: Cannot cancel a pipeline that is already running
+    """
+    cancelled = await pipeline_queue.cancel_pipeline(plan_id)
+    if not cancelled:
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot cancel: pipeline is running or not found in queue"
+        )
+    return {
+        "message": "Pipeline cancelled from queue",
+        "plan_id": plan_id
+    }
+
+
+@router.delete("/queue/clear")
+async def clear_queue():
+    """Clear all pipelines from the queue (not running ones)"""
+    count = await pipeline_queue.clear_queue()
+    return {
+        "message": f"Cleared {count} pipelines from queue",
+        "cleared_count": count
+    }
 
 
 @router.get("/plans", response_model=List[dict])

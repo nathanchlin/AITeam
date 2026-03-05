@@ -1,6 +1,26 @@
 import { create } from 'zustand';
 import type { Agent, Task, Plan, DiscussionMessage, WebSocketMessage } from '../types';
 
+// Queue status interface
+export interface QueueStatus {
+  running_count: number;
+  max_concurrent: number;
+  queue_length: number;
+  running_pipelines: Array<{
+    plan_id: string;
+    request: string;
+    target_output: string;
+    started_at: string | null;
+  }>;
+  queued_pipelines: Array<{
+    plan_id: string;
+    request: string;
+    target_output: string;
+    position: number;
+    queued_at: string;
+  }>;
+}
+
 interface AgentState {
   // Agents
   agents: Agent[];
@@ -43,6 +63,10 @@ interface AgentState {
 
   // Stream content
   streamContent: Record<string, string>;
+
+  // Queue Status
+  queueStatus: QueueStatus | null;
+  setQueueStatus: (status: QueueStatus) => void;
 
   // UI State
   sidebarOpen: boolean;
@@ -157,6 +181,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   // Stream content
   streamContent: {},
+
+  // Queue Status
+  queueStatus: null as QueueStatus | null,
+  setQueueStatus: (status: QueueStatus) => set({ queueStatus: status }),
 
   // UI State
   sidebarOpen: true,
@@ -361,6 +389,13 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             });
             get().updatePlan(data.plan_id as string, { iterations: updatedIterations });
           }
+        }
+        break;
+
+      case 'queue_update':
+        // Queue status update from backend
+        if (data.queue_status) {
+          get().setQueueStatus(data.queue_status as QueueStatus);
         }
         break;
 
