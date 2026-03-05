@@ -7,6 +7,7 @@ import { TaskPanel } from './components/UI/TaskPanel';
 import { ChatPanel } from './components/UI/ChatPanel';
 import { PipelinePanel } from './components/UI/PipelinePanel';
 import { ProjectsPanel } from './components/UI/ProjectsPanel';
+import { AchievementNotification } from './components/UI/AchievementNotification';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { useAgentStore } from './stores/agentStore';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -164,6 +165,9 @@ function AppContent() {
       {/* UI Overlay */}
       <Sidebar onCreateAgent={createAgent} />
       <TaskPanel tasks={tasks} onCreateTask={createTask} onStartTask={startTask} />
+
+      {/* Achievement Notifications */}
+      <AchievementNotification />
 
       {/* Pipeline Button */}
       <button

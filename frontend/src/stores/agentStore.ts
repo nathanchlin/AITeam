@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Agent, Task, Plan, DiscussionMessage, WebSocketMessage } from '../types';
+import type { Agent, Task, Plan, DiscussionMessage, WebSocketMessage, AgentStats, AchievementNotification } from '../types';
 
 // Queue status interface
 export interface QueueStatus {
@@ -33,6 +33,16 @@ interface AgentState {
   removeAgent: (id: string) => void;
   selectAgent: (id: string | null) => void;
   setIsDraggingAgent: (isDragging: boolean) => void;
+
+  // Agent Stats & Achievements
+  agentStats: Record<string, AgentStats>;
+  achievementNotifications: AchievementNotification[];
+  setAgentStats: (stats: Record<string, AgentStats>) => void;
+  updateAgentStats: (agentId: string, stats: Partial<AgentStats>) => void;
+  addAchievementNotification: (notification: AchievementNotification) => void;
+  removeAchievementNotification: (index: number) => void;
+  clearAchievementNotifications: () => void;
+  fetchAgentStats: (agentId?: string) => Promise<void>;
 
   // Tasks
   tasks: Task[];
@@ -104,6 +114,41 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       agents: state.agents.map((a) => (a.id === id ? { ...a, ...updates } : a)),
     })),
   setIsDraggingAgent: (isDragging) => set({ isDraggingAgent: isDragging }),
+
+  // Agent Stats & Achievements
+  agentStats: {},
+  achievementNotifications: [],
+  setAgentStats: (stats) => set({ agentStats: stats }),
+  updateAgentStats: (agentId, stats) =>
+    set((state) => ({
+      agentStats: {
+        ...state.agentStats,
+        [agentId]: { ...state.agentStats[agentId], ...stats },
+      },
+    })),
+  addAchievementNotification: (notification) =>
+    set((state) => ({
+      achievementNotifications: [...state.achievementNotifications, notification],
+    })),
+  removeAchievementNotification: (index) =>
+    set((state) => ({
+      achievementNotifications: state.achievementNotifications.filter((_, i) => i !== index),
+    })),
+  clearAchievementNotifications: () => set({ achievementNotifications: [] }),
+  fetchAgentStats: async (agentId?: string) => {
+    try {
+      const targetId = agentId || get().selectedAgentId;
+      if (!targetId) return;
+
+      const response = await fetch(`/api/agents/${targetId}/stats`);
+      if (response.ok) {
+        const stats = await response.json();
+        get().updateAgentStats(targetId, stats);
+      }
+    } catch (error) {
+      console.error('Failed to fetch agent stats:', error);
+    }
+  },
   updateAgentPosition: async (id: string, position: { x: number; y: number; z: number }) => {
     // Optimistic update
     set((state) => ({
@@ -400,6 +445,18 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         break;
 
       case 'chat':
+        break;
+
+      case 'achievement_unlocked':
+        // Handle achievement notification from backend
+        if (data.notification) {
+          const notification = data.notification as AchievementNotification;
+          get().addAchievementNotification(notification);
+          // Also update agent stats
+          if (notification.agent_id) {
+            get().fetchAgentStats(notification.agent_id);
+          }
+        }
         break;
 
       default:

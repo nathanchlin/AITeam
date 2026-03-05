@@ -1,0 +1,66 @@
+{
+  "first_task": {
+    "id": "first_task",
+    "name": "初试身手",
+    "description": "完成第1个任务",
+    "icon": "🎯",
+    "xp_reward": 50,
+    "condition": {"tasks_completed": 1}
+  },
+  "first_success": {
+    "id": "first_success",
+    "name": "首战告捷",
+    "description": "无重试成功1次",
+    "icon": "⚡",
+    "xp_reward": 100,
+    "condition": {"tasks_successful": 1}
+  },
+  "quality_a": {
+    "id": "quality_a",
+    "name": "质量之星",
+    "description": "获得A级评分",
+    "icon": "🌟",
+    "xp_reward": 200,
+    "condition": {"quality_grade_a": true}
+  },
+  "streak_5": {
+    "id": "streak_5",
+    "name": "五连胜",
+    "description": "连续5次A级",
+    "icon": "🔥",
+    "xp_reward": 500,
+    "condition": {"quality_streak": 5}
+  },
+  "level_5": {
+    "id": "level_5",
+    "name": "资深Agent",
+    "description": "达到等级5",
+    "icon": "🎖️",
+    "xp_reward": 300,
+    "condition": {"level": 5}
+  },
+  "level_10": {
+    "id": "level_10",
+    "name": "专家Agent",
+    "description": "达到等级10",
+    "icon": "🏆",
+    "xp_reward": 500,
+    "condition": {"level": 10}
+  },
+  "veteran": {
+    "id": "veteran",
+    "name": "老兵",
+    "description": "完成100个任务",
+    "icon": "🏅",
+    "xp_reward": 1000,
+    "condition": {"tasks_completed": 100}
+  },
+  "team_player": {
+    "id": "team_player",
+    "name": "团队之星",
+    "description": "参与10次Pipeline",
+    "icon": "🤝",
+    "xp_reward": 150,
+    "condition": {"pipeline_count": 10}
+  }
+}

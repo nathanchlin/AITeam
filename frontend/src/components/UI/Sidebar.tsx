@@ -1,17 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType, type AgentType } from '../../types';
-import { Plus, Users, X } from 'lucide-react';
+import { Plus, Users, X, Star } from 'lucide-react';
 
 interface SidebarProps {
   onCreateAgent: (name: string, type: AgentType) => void;
 }
 
 export function Sidebar({ onCreateAgent }: SidebarProps) {
-  const { agents, selectedAgentId, selectAgent, sidebarOpen, toggleSidebar } = useAgentStore();
+  const { agents, selectedAgentId, selectAgent, sidebarOpen, toggleSidebar, agentStats, fetchAgentStats } = useAgentStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newAgentName, setNewAgentName] = useState('');
   const [newAgentType, setNewAgentType] = useState<AgentType>('assistant');
+
+  // Fetch stats when agents change or sidebar opens
+  useEffect(() => {
+    if (sidebarOpen && agents.length > 0) {
+      agents.forEach(agent => fetchAgentStats(agent.id));
+    }
+  }, [agents, sidebarOpen, fetchAgentStats]);
 
   const handleCreate = () => {
     if (newAgentName.trim()) {
@@ -63,23 +70,69 @@ export function Sidebar({ onCreateAgent }: SidebarProps) {
                     : 'bg-gray-700/50 hover:bg-gray-700'
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: AGENT_COLORS[agent.type].primary }}
-                  >
-                    <span className="text-white text-xs font-bold">
-                      {agent.name.charAt(0).toUpperCase()}
-                    </span>
+                <div className="flex items-start gap-3">
+                  <div className="relative">
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center"
+                      style={{ backgroundColor: AGENT_COLORS[agent.type].primary }}
+                    >
+                      <span className="text-white text-xs font-bold">
+                        {agent.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    {/* Level Badge */}
+                    {agentStats[agent.id] && (
+                      <div className="absolute -top-1 -right-1 bg-yellow-500 rounded-full w-4 h-4 flex items-center justify-center border-2 border-gray-800">
+                        <span className="text-[10px] font-bold text-gray-900">
+                          {agentStats[agent.id].level}
+                        </span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-white text-sm font-medium truncate">
-                      {agent.name}
+                    <div className="flex items-center gap-2">
+                      <div className="text-white text-sm font-medium truncate">
+                        {agent.name}
+                      </div>
+                      {/* Emotion State */}
+                      {(() => {
+                        const stats = agentStats[agent.id];
+                        return stats?.emotion_state ? (
+                          <span className="text-sm" title={stats.emotion_state.label}>
+                            {stats.emotion_state.emoji}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
                     <div className="text-gray-400 text-xs flex items-center gap-2">
                       <span>{getAgentDisplayType(agent)}</span>
                       <StatusDot status={agent.status} />
                     </div>
+                    {/* XP Progress Bar */}
+                    {agentStats[agent.id] && (
+                      <div className="mt-2">
+                        <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                          <Star size={10} className="text-yellow-500" />
+                          <span className="text-yellow-400 font-medium">
+                            Lv.{agentStats[agent.id].level}
+                          </span>
+                          <span className="text-gray-500">
+                            {agentStats[agent.id].xp} / {agentStats[agent.id].xp_to_next_level} XP
+                          </span>
+                        </div>
+                        <div className="mt-1 h-1.5 bg-gray-600 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-yellow-500 to-amber-400 rounded-full transition-all duration-300"
+                            style={{
+                              width: `${Math.min(
+                                (agentStats[agent.id].xp / agentStats[agent.id].xp_to_next_level) * 100,
+                                100
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

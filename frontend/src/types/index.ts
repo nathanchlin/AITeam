@@ -203,3 +203,37 @@ export interface ArchiveValidationResult {
   errors: string[];
   warnings: string[];
 }
+
+// Agent Statistics and Achievement System
+export interface AgentStats {
+  agent_id: string;
+  level: number;
+  xp: number;
+  xp_to_next_level: number;
+  tasks_completed: number;
+  tasks_successful: number;
+  quality_streak: number;
+  pipeline_count: number;
+  motivation: number;
+  satisfaction: number;
+  achievements: string[];
+  emotion_state?: {
+    key: string;
+    emoji: string;
+    label: string;
+  };
+}
+
+export interface Achievement {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  xp_reward: number;
+}
+
+export interface AchievementNotification {
+  agent_id: string;
+  agent_name: string;
+  achievement: Achievement;
+}

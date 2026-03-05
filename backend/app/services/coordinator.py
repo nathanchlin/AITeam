@@ -11,6 +11,8 @@ from app.services.output_manager import output_manager
 from app.services.code_merger import code_merger
 from app.services.quality_scorer import quality_scorer
 from app.services.feedback_store import feedback_store
+from app.services.agent_growth_service import growth_service
+from app.services.motivation_service import motivation_service
 from app.models.schemas import (
     AgentType, AgentStatus, TaskStatus, PlanStatus,
     Plan, PlanTask, PlanCreate, DiscussionMessage, IterationTask, IterationRound
