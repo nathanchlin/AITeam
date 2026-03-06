@@ -45,11 +45,11 @@ export function Sidebar({ onCreateAgent }: SidebarProps) {
         }`}
         style={{ width: '280px' }}
       >
-        <div className="p-4 pt-14">
+        <div className="h-full flex flex-col p-4 pt-14 overflow-hidden">
           <h2 className="text-lg font-bold text-white mb-4">AITeam</h2>
 
           {/* Agent list */}
-          <div className="space-y-2">
+          <div className="flex-1 overflow-y-auto space-y-2">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-gray-400">Agents ({agents.length})</span>
               <button
