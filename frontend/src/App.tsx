@@ -42,7 +42,7 @@ function AppContent() {
         setAgents(agentsData);
         setTasks(tasksData);
         setPlans(plansData);
-        setGroupChats(groupChatsData);
+        setGroupChats(Array.isArray(groupChatsData) ? groupChatsData : []);
 
         // Set the most recent plan as current if exists
         if (plansData.length > 0) {

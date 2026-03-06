@@ -10,7 +10,7 @@ interface GroupChatPanelProps {
   currentGroupChatId: string | null;
 }
 
-export function GroupChatPanel({ groupChats, currentGroupChatId }: GroupChatPanelProps) {
+export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId }: GroupChatPanelProps) {
   const {
     setCurrentGroupChat,
     toggleGroupChatPanel,
@@ -25,6 +25,8 @@ export function GroupChatPanel({ groupChats, currentGroupChatId }: GroupChatPane
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Ensure groupChats is always an array
+  const groupChats = Array.isArray(groupChatsProp) ? groupChatsProp : [];
   const currentChat = groupChats.find((c) => c.id === currentGroupChatId);
 
   // Auto-scroll when new messages arrive
