@@ -166,8 +166,8 @@ function AppContent() {
       <Sidebar onCreateAgent={createAgent} />
       <TaskPanel tasks={tasks} onCreateTask={createTask} onStartTask={startTask} />
 
-      {/* Achievement Notifications */}
-      <AchievementNotification />
+      {/* Achievement Notifications - Temporarily hidden due to UI issues */}
+      {/* <AchievementNotification /> */}
 
       {/* Pipeline Button */}
       <button
