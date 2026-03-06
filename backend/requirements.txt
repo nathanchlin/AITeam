@@ -21,6 +21,7 @@ sqlalchemy>=2.0.25
 
 # File Upload
 python-multipart>=0.0.6
+aiofiles>=24.1.0
 
 # HTTP Client (for external API calls)
 httpx>=0.26.0
