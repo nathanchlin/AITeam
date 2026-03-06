@@ -131,6 +131,18 @@ export function Sidebar({ onCreateAgent }: SidebarProps) {
                             }}
                           />
                         </div>
+                        {/* Score Display */}
+                        <div className="flex items-center gap-2 mt-1.5 text-[10px]">
+                          <span className="text-amber-400 font-bold flex items-center gap-0.5">
+                            <span>Score:</span>
+                            <span>{agentStats[agent.id].score ?? 0}</span>
+                          </span>
+                          <span className="text-gray-600">|</span>
+                          <span className="text-blue-400 flex items-center gap-0.5">
+                            <span>Msg:</span>
+                            <span>{agentStats[agent.id].discussion_count ?? 0}</span>
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>

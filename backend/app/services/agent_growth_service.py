@@ -5,6 +5,7 @@ Handles progression, XP calculation, level-ups, and achievement tracking.
 
 import json
 import logging
+import math
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -21,6 +22,10 @@ class AgentGrowthService:
     """
     Service for managing agent growth, XP, levels, and achievements.
     """
+
+    # Score constants
+    SCORE_PER_DISCUSSION = 10
+    SCORE_PER_TASK = 10
 
     # Quality coefficients for XP calculation
     QUALITY_COEFFICIENTS = {
@@ -124,6 +129,113 @@ class AgentGrowthService:
             self._stats_cache[agent_id] = AgentStats(agent_id=agent_id)
             self._save_stats()
         return self._stats_cache[agent_id]
+
+    def calculate_token_bonus(self, total_tokens: int) -> int:
+        """
+        Calculate token bonus score using sqrt formula to prevent gaming.
+        Formula: floor(sqrt(total_tokens / 100))
+
+        Examples:
+        - 100 tokens = 1 point
+        - 1,000 tokens = 3 points
+        - 10,000 tokens = 10 points
+        - 100,000 tokens = 31 points
+
+        Args:
+            total_tokens: Total tokens consumed
+
+        Returns:
+            Bonus score from token usage
+        """
+        if total_tokens < 100:
+            return 0
+        return int(math.sqrt(total_tokens / 100))
+
+    def _recalculate_scores(self, stats: AgentStats):
+        """
+        Recalculate all score components and total.
+
+        Args:
+            stats: AgentStats object to update
+        """
+        stats.discussion_score = stats.discussion_count * self.SCORE_PER_DISCUSSION
+        stats.task_score = stats.tasks_completed * self.SCORE_PER_TASK
+        stats.token_bonus_score = self.calculate_token_bonus(stats.total_tokens_used)
+        stats.score = stats.discussion_score + stats.task_score + stats.token_bonus_score
+
+    def add_discussion_score(self, agent_id: str, tokens_used: int = 0) -> Dict:
+        """
+        Add score for a discussion message.
+
+        Args:
+            agent_id: The unique identifier of the agent
+            tokens_used: Tokens consumed in this discussion (optional)
+
+        Returns:
+            Dictionary with score_gained and total_score
+        """
+        stats = self.get_agent_stats(agent_id)
+        stats.discussion_count += 1
+        if tokens_used > 0:
+            stats.total_tokens_used += tokens_used
+        self._recalculate_scores(stats)
+        stats.updated_at = datetime.now()
+        self._save_stats()
+        return {
+            "score_gained": self.SCORE_PER_DISCUSSION,
+            "total_score": stats.score,
+            "discussion_count": stats.discussion_count
+        }
+
+    def add_task_score(self, agent_id: str, tokens_used: int = 0) -> Dict:
+        """
+        Add score for task completion. Called within on_task_completed.
+
+        Args:
+            agent_id: The unique identifier of the agent
+            tokens_used: Tokens consumed in this task (optional)
+
+        Returns:
+            Dictionary with score_gained and total_score
+        """
+        stats = self.get_agent_stats(agent_id)
+        if tokens_used > 0:
+            stats.total_tokens_used += tokens_used
+        self._recalculate_scores(stats)
+        # Note: tasks_completed is already incremented in on_task_completed
+        stats.updated_at = datetime.now()
+        self._save_stats()
+        return {
+            "score_gained": self.SCORE_PER_TASK,
+            "total_score": stats.score,
+            "task_score": stats.task_score
+        }
+
+    def add_token_usage(self, agent_id: str, prompt_tokens: int = 0, completion_tokens: int = 0) -> Dict:
+        """
+        Record token usage for an agent.
+
+        Args:
+            agent_id: The unique identifier of the agent
+            prompt_tokens: Prompt tokens used
+            completion_tokens: Completion tokens used
+
+        Returns:
+            Dictionary with updated token stats
+        """
+        stats = self.get_agent_stats(agent_id)
+        stats.prompt_tokens_used += prompt_tokens
+        stats.completion_tokens_used += completion_tokens
+        total = prompt_tokens + completion_tokens
+        stats.total_tokens_used += total
+        self._recalculate_scores(stats)
+        stats.updated_at = datetime.now()
+        self._save_stats()
+        return {
+            "total_tokens": stats.total_tokens_used,
+            "token_bonus": stats.token_bonus_score,
+            "score": stats.score
+        }
 
     def calculate_xp(
         self,
@@ -253,6 +365,9 @@ class AgentGrowthService:
         else:
             stats.quality_streak = 0
 
+        # Recalculate scores (including task score)
+        self._recalculate_scores(stats)
+
         # Calculate and add XP
         no_retries = retries == 0
         xp_gained = self.calculate_xp(complexity, quality_grade, no_retries)
@@ -277,6 +392,8 @@ class AgentGrowthService:
             "xp_gained": xp_gained,
             "level_up": leveled_up,
             "new_level": stats.level + 1 if leveled_up else stats.level,
+            "score_gained": self.SCORE_PER_TASK,
+            "total_score": stats.score,
         }
 
     def on_task_failed(self, agent_id: str, retries: int = 0):

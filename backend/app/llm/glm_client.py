@@ -1,5 +1,6 @@
 from zhipuai import ZhipuAI
 from typing import Optional, AsyncGenerator, List, Dict, Any
+from dataclasses import dataclass
 import json
 import asyncio
 import threading
@@ -8,6 +9,14 @@ import os
 import httpx
 from app.config import settings
 import random
+
+
+@dataclass
+class TokenUsage:
+    """Token usage information from LLM API response."""
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
 
 
 class GLMClient:
@@ -21,6 +30,9 @@ class GLMClient:
         else:
             self.model = model or settings.glm_model
             self.base_url = base_url or settings.glm_base_url or None
+
+        # Track last token usage
+        self._last_token_usage: TokenUsage = TokenUsage()
 
         # 配置代理 - 优先使用 HTTP 代理，避免 SOCKS 依赖问题
         http_proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
@@ -50,6 +62,10 @@ class GLMClient:
             print(f"[GLMClient] Error creating http client: {e}")
             # 回退到默认客户端
             self.client = ZhipuAI(api_key=self.api_key, base_url=self.base_url) if self.api_key else None
+
+    def get_last_token_usage(self) -> TokenUsage:
+        """Get the token usage from the last API call."""
+        return self._last_token_usage
 
     def _get_system_prompt(self, agent_type: str, custom_prompt: Optional[str] = None) -> str:
         base_prompts = {
@@ -113,6 +129,13 @@ class GLMClient:
                     model=self.model,
                     messages=messages,
                 )
+                # Extract token usage
+                if hasattr(response, 'usage') and response.usage:
+                    self._last_token_usage = TokenUsage(
+                        prompt_tokens=getattr(response.usage, 'prompt_tokens', 0) or 0,
+                        completion_tokens=getattr(response.usage, 'completion_tokens', 0) or 0,
+                        total_tokens=getattr(response.usage, 'total_tokens', 0) or 0,
+                    )
                 return response.choices[0].message.content
             except Exception as e:
                 last_error = str(e)
@@ -182,26 +205,43 @@ class GLMClient:
             return
 
         # 在后台线程中消费流，通过 queue 传给异步端，这样 asyncio.wait_for 才能生效
-        queue: asyncio.Queue[Optional[str]] = asyncio.Queue()
+        queue: asyncio.Queue[Optional[Dict[str, Any]]] = asyncio.Queue()
         loop = asyncio.get_event_loop()
 
         def consume_stream():
+            token_usage = TokenUsage()
             try:
                 for chunk in response:
                     if chunk.choices and chunk.choices[0].delta.content:
-                        loop.call_soon_threadsafe(queue.put_nowait, chunk.choices[0].delta.content)
+                        loop.call_soon_threadsafe(queue.put_nowait, {"type": "content", "content": chunk.choices[0].delta.content})
+                    # Extract usage from the last chunk
+                    if hasattr(chunk, 'usage') and chunk.usage:
+                        token_usage = TokenUsage(
+                            prompt_tokens=getattr(chunk.usage, 'prompt_tokens', 0) or 0,
+                            completion_tokens=getattr(chunk.usage, 'completion_tokens', 0) or 0,
+                            total_tokens=getattr(chunk.usage, 'total_tokens', 0) or 0,
+                        )
             except Exception as e:
-                loop.call_soon_threadsafe(queue.put_nowait, f"[错误] {str(e)}")
+                loop.call_soon_threadsafe(queue.put_nowait, {"type": "error", "content": str(e)})
             finally:
+                # Send token usage info before terminating
+                loop.call_soon_threadsafe(queue.put_nowait, {"type": "usage", "usage": token_usage})
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 
         threading.Thread(target=consume_stream, daemon=True).start()
 
         while True:
-            chunk = await queue.get()
-            if chunk is None:
+            item = await queue.get()
+            if item is None:
                 break
-            yield chunk
+            if item["type"] == "content":
+                yield item["content"]
+            elif item["type"] == "usage":
+                # Store usage for retrieval after stream ends
+                self._last_token_usage = item["usage"]
+            elif item["type"] == "error":
+                yield f"[错误] {item['content']}"
+                return
 
     async def think_and_act(
         self,

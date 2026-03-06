@@ -264,6 +264,7 @@ class CoordinatorService:
         content: str,
         message_type: str = "comment",
         reply_to: Optional[str] = None,
+        tokens_used: int = 0,
     ) -> DiscussionMessage:
         """Add a message to the plan discussion"""
         plan = self.plans.get(plan_id)
@@ -291,6 +292,19 @@ class CoordinatorService:
                 "message": msg.model_dump(),
             }
         })
+
+        # Add discussion score (skip for system messages)
+        if agent_id != "system":
+            score_result = growth_service.add_discussion_score(agent_id, tokens_used)
+            await self.broadcast({
+                "type": "score_update",
+                "data": {
+                    "agent_id": agent_id,
+                    "score_gained": score_result["score_gained"],
+                    "total_score": score_result["total_score"],
+                    "reason": "discussion"
+                }
+            })
 
         return msg
 
@@ -1123,6 +1137,19 @@ class CoordinatorService:
                         "task_id": task.id,
                         "status": "completed",
                         "result": full_response,
+                    }
+                })
+
+                # Add task completion score
+                score_result = growth_service.add_task_score(agent.id)
+                await self.broadcast({
+                    "type": "score_update",
+                    "data": {
+                        "agent_id": agent.id,
+                        "score_gained": score_result["score_gained"],
+                        "total_score": score_result["total_score"],
+                        "reason": "task_completion",
+                        "task_title": task.title
                     }
                 })
 

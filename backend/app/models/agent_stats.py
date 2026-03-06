@@ -35,6 +35,16 @@ class AgentStats(BaseModel):
         default=0, ge=0, description="Number of pipelines participated in"
     )
 
+    # Score tracking
+    score: int = Field(default=0, ge=0, description="Total accumulated score")
+    discussion_count: int = Field(default=0, ge=0, description="Number of discussion messages")
+    total_tokens_used: int = Field(default=0, ge=0, description="Total tokens consumed")
+    prompt_tokens_used: int = Field(default=0, ge=0, description="Prompt tokens consumed")
+    completion_tokens_used: int = Field(default=0, ge=0, description="Completion tokens consumed")
+    discussion_score: int = Field(default=0, ge=0, description="Score from discussions")
+    task_score: int = Field(default=0, ge=0, description="Score from tasks")
+    token_bonus_score: int = Field(default=0, ge=0, description="Token bonus score")
+
     # Motivation and Satisfaction (0.0 - 1.0)
     motivation: float = Field(
         default=0.5, ge=0.0, le=1.0, description="Current motivation level"

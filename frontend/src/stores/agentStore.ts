@@ -459,6 +459,19 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }
         break;
 
+      case 'score_update':
+        // Handle score update from backend
+        if (data.agent_id && data.total_score !== undefined) {
+          get().updateAgentStats(data.agent_id as string, {
+            score: data.total_score as number,
+            discussion_count: data.discussion_count as number | undefined,
+            discussion_score: data.discussion_score as number | undefined,
+            task_score: data.task_score as number | undefined,
+            token_bonus_score: data.token_bonus_score as number | undefined,
+          });
+        }
+        break;
+
       default:
         break;
     }

@@ -222,6 +222,15 @@ export interface AgentStats {
     emoji: string;
     label: string;
   };
+  // Score tracking
+  score: number;
+  discussion_count: number;
+  total_tokens_used: number;
+  prompt_tokens_used: number;
+  completion_tokens_used: number;
+  discussion_score: number;
+  task_score: number;
+  token_bonus_score: number;
 }
 
 export interface Achievement {
