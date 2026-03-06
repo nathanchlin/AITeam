@@ -31,7 +31,7 @@ function AppContent() {
           fetch(`${API_BASE}/api/agents`),
           fetch(`${API_BASE}/api/tasks`),
           fetch(`${API_BASE}/api/pipeline/plans`),
-          fetch(`${API_BASE}/api/group-chat`),
+          fetch(`${API_BASE}/api/group-chats`),
         ]);
 
         const agentsData = await agentsRes.json();

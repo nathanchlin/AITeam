@@ -33,21 +33,38 @@ export function GroupChatPanel({ groupChats, currentGroupChatId }: GroupChatPane
   }, [currentChat?.messages.length]);
 
   const handleSendMessage = async () => {
-    if (!message.trim() || !currentChat || sending) return;
+    if ((!message.trim() && !selectedFile) || !currentChat || sending) return;
 
     setSending(true);
     try {
-      const formData = new FormData();
-      formData.append('chat_id', currentChat.id);
-      formData.append('content', message.trim());
-      if (selectedFile) {
-        formData.append('file', selectedFile);
-      }
+      let res;
 
-      const res = await fetch(`${API_BASE}/api/group-chat/messages`, {
-        method: 'POST',
-        body: formData,
-      });
+      if (selectedFile) {
+        // Use upload endpoint for file attachments
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('content', message.trim());
+        formData.append('sender_id', 'user');
+        formData.append('sender_name', '用户');
+        formData.append('sender_type', 'user');
+
+        res = await fetch(`${API_BASE}/api/group-chats/${currentChat.id}/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        // Use messages endpoint for text-only messages
+        res = await fetch(`${API_BASE}/api/group-chats/${currentChat.id}/messages`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: message.trim(),
+            sender_id: 'user',
+            sender_name: '用户',
+            sender_type: 'user',
+          }),
+        });
+      }
 
       if (res.ok) {
         const newMessage = await res.json();
@@ -73,7 +90,7 @@ export function GroupChatPanel({ groupChats, currentGroupChatId }: GroupChatPane
     if (!newChatName.trim()) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/group-chat`, {
+      const res = await fetch(`${API_BASE}/api/group-chats`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
