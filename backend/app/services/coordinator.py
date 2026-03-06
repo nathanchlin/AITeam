@@ -1153,6 +1153,26 @@ class CoordinatorService:
                     }
                 })
 
+                # Add XP for task completion (handles leveling and achievements)
+                xp_result = growth_service.on_task_completed(
+                    agent_id=agent.id,
+                    quality_grade="B",  # Default grade
+                    quality_score=0.7,
+                    retries=task_retry_count,
+                    complexity=1
+                )
+                if xp_result.get("level_up"):
+                    await self.broadcast({
+                        "type": "level_up",
+                        "data": {
+                            "agent_id": agent.id,
+                            "agent_name": agent.name,
+                            "new_level": xp_result["new_level"],
+                            "xp_gained": xp_result["xp_gained"]
+                        }
+                    })
+                    print(f"[Pipeline] Agent {agent.name} leveled up to {xp_result['new_level']}!")
+
             # Save combined output for testing
             try:
                 output_manager.save_plan_output(
