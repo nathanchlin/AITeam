@@ -8,16 +8,17 @@ import { ChatPanel } from './components/UI/ChatPanel';
 import { PipelinePanel } from './components/UI/PipelinePanel';
 import { ProjectsPanel } from './components/UI/ProjectsPanel';
 import { AchievementNotification } from './components/UI/AchievementNotification';
+import { GroupChatPanel } from './components/UI/GroupChatPanel';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { useAgentStore } from './stores/agentStore';
 import { useWebSocket } from './hooks/useWebSocket';
-import { GitBranch, Folder } from 'lucide-react';
+import { GitBranch, Folder, MessageCircle } from 'lucide-react';
 import type { Agent } from './types';
 
 const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
 
 function AppContent() {
-  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan } = useAgentStore();
+  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan, groupChats, setGroupChats, groupChatPanelOpen, toggleGroupChatPanel } = useAgentStore();
   const { selectedAgentId, chatPanelOpen, streamContent, isDraggingAgent } = useAgentStore();
   const [loading, setLoading] = useState(true);
   useWebSocket();
@@ -26,19 +27,22 @@ function AppContent() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [agentsRes, tasksRes, plansRes] = await Promise.all([
+        const [agentsRes, tasksRes, plansRes, groupChatsRes] = await Promise.all([
           fetch(`${API_BASE}/api/agents`),
           fetch(`${API_BASE}/api/tasks`),
           fetch(`${API_BASE}/api/pipeline/plans`),
+          fetch(`${API_BASE}/api/group-chat`),
         ]);
 
         const agentsData = await agentsRes.json();
         const tasksData = await tasksRes.json();
         const plansData = await plansRes.json();
+        const groupChatsData = await groupChatsRes.json();
 
         setAgents(agentsData);
         setTasks(tasksData);
         setPlans(plansData);
+        setGroupChats(groupChatsData);
 
         // Set the most recent plan as current if exists
         if (plansData.length > 0) {
@@ -52,7 +56,7 @@ function AppContent() {
     };
 
     fetchData();
-  }, [setAgents, setTasks, setPlans, setCurrentPlan]);
+  }, [setAgents, setTasks, setPlans, setCurrentPlan, setGroupChats]);
 
   const createAgent = async (name: string, type: Agent['type']) => {
     try {
@@ -195,11 +199,32 @@ function AppContent() {
         <span className="text-sm font-medium">项目</span>
       </button>
 
+      {/* Group Chat Button */}
+      <button
+        onClick={toggleGroupChatPanel}
+        className={`absolute top-2 left-[140px] z-20 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+          groupChatPanelOpen
+            ? 'bg-green-600 text-white'
+            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+        }`}
+      >
+        <MessageCircle size={18} />
+        <span className="text-sm font-medium">群聊</span>
+      </button>
+
       {/* Pipeline Panel */}
       <PipelinePanel />
 
       {/* Projects Panel */}
       <ProjectsPanel />
+
+      {/* Group Chat Panel */}
+      {groupChatPanelOpen && (
+        <GroupChatPanel
+          groupChats={groupChats}
+          currentGroupChatId={useAgentStore.getState().currentGroupChatId}
+        />
+      )}
 
       {selectedAgent && chatPanelOpen && (
         <ChatPanel

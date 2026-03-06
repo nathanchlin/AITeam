@@ -246,3 +246,48 @@ export interface AchievementNotification {
   agent_name: string;
   achievement: Achievement;
 }
+
+// Group Chat System
+export interface FileAttachment {
+  id: string;
+  filename: string;
+  original_name: string;
+  file_path: string;
+  file_size: number;
+  mime_type: string;
+  upload_by: string;
+  upload_at: string;
+}
+
+export interface GroupChatMember {
+  id: string;
+  name: string;
+  type: 'agent' | 'user';
+  avatar_color?: string;
+  joined_at: string;
+}
+
+export interface GroupChatMessage {
+  id: string;
+  chat_id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_type: 'agent' | 'user';
+  content: string;
+  message_type: 'text' | 'file' | 'system';
+  attachments: FileAttachment[];
+  reply_to?: string;
+  timestamp: string;
+}
+
+export interface GroupChat {
+  id: string;
+  name: string;
+  description?: string;
+  created_by: string;
+  members: GroupChatMember[];
+  messages: GroupChatMessage[];
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+}

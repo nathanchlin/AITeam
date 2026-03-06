@@ -1,7 +1,7 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api import agents, tasks, pipeline, projects, stats
+from app.api import agents, tasks, pipeline, projects, stats, group_chats
 from app.api.ws import websocket_endpoint, ws_manager as websocket_manager
 from app.services.agent_manager import agent_manager
 from app.services.coordinator import coordinator
@@ -34,6 +34,7 @@ app.include_router(tasks.router, prefix="/api")
 app.include_router(pipeline.router, prefix="/api")
 app.include_router(projects.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
+app.include_router(group_chats.router, prefix="/api")
 
 
 @app.get("/")

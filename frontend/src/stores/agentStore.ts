@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Agent, Task, Plan, DiscussionMessage, WebSocketMessage, AgentStats, AchievementNotification } from '../types';
+import type { Agent, Task, Plan, DiscussionMessage, WebSocketMessage, AgentStats, AchievementNotification, GroupChat, GroupChatMessage } from '../types';
 
 // Queue status interface
 export interface QueueStatus {
@@ -71,6 +71,16 @@ interface AgentState {
   addDiscussionMessage: (msg: DiscussionMessage) => void;
   clearDiscussion: () => void;
 
+  // Group Chat
+  groupChats: GroupChat[];
+  currentGroupChatId: string | null;
+  setGroupChats: (chats: GroupChat[]) => void;
+  addGroupChat: (chat: GroupChat) => void;
+  updateGroupChat: (id: string, updates: Partial<GroupChat>) => void;
+  setCurrentGroupChat: (id: string | null) => void;
+  addGroupChatMessage: (message: GroupChatMessage) => void;
+  toggleGroupChatPanel: () => void;
+
   // Stream content
   streamContent: Record<string, string>;
 
@@ -84,6 +94,7 @@ interface AgentState {
   chatPanelOpen: boolean;
   pipelinePanelOpen: boolean;
   projectsPanelOpen: boolean;
+  groupChatPanelOpen: boolean;
   thinkingLog: Array<{ agentId: string; agentName: string; thought: string; timestamp: number }>;
 
   toggleSidebar: () => void;
@@ -91,6 +102,7 @@ interface AgentState {
   toggleChatPanel: () => void;
   togglePipelinePanel: () => void;
   toggleProjectsPanel: () => void;
+  toggleGroupChatPanel: () => void;
   addThinkingLog: (agentId: string, agentName: string, thought: string) => void;
   clearThinkingLog: () => void;
   appendStreamContent: (taskId: string, content: string) => void;
@@ -224,6 +236,29 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     })),
   clearDiscussion: () => set({ discussionMessages: [] }),
 
+  // Group Chat
+  groupChats: [],
+  currentGroupChatId: null,
+  setGroupChats: (chats) => set({ groupChats: chats }),
+  addGroupChat: (chat) =>
+    set((state) => ({
+      groupChats: [chat, ...state.groupChats],
+    })),
+  updateGroupChat: (id, updates) =>
+    set((state) => ({
+      groupChats: state.groupChats.map((c) => (c.id === id ? { ...c, ...updates } : c)),
+    })),
+  setCurrentGroupChat: (id) => set({ currentGroupChatId: id }),
+  addGroupChatMessage: (message) =>
+    set((state) => ({
+      groupChats: state.groupChats.map((chat) =>
+        chat.id === message.chat_id
+          ? { ...chat, messages: [...chat.messages, message], updated_at: message.timestamp }
+          : chat
+      ),
+    })),
+  toggleGroupChatPanel: () => set((state) => ({ groupChatPanelOpen: !state.groupChatPanelOpen })),
+
   // Stream content
   streamContent: {},
 
@@ -237,6 +272,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   chatPanelOpen: false,
   pipelinePanelOpen: false,
   projectsPanelOpen: false,
+  groupChatPanelOpen: false,
   thinkingLog: [],
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -469,6 +505,48 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             task_score: data.task_score as number | undefined,
             token_bonus_score: data.token_bonus_score as number | undefined,
           });
+        }
+        break;
+
+      case 'group_chat_message':
+        // Handle new group chat message
+        if (data.message) {
+          const message = data.message as GroupChatMessage;
+          get().addGroupChatMessage(message);
+        }
+        break;
+
+      case 'group_chat_created':
+        // Handle new group chat created
+        if (data.chat) {
+          const chat = data.chat as GroupChat;
+          const existing = get().groupChats.find((c) => c.id === chat.id);
+          if (!existing) {
+            get().addGroupChat(chat);
+          } else {
+            get().updateGroupChat(chat.id, chat);
+          }
+        }
+        break;
+
+      case 'group_chat_member_joined':
+        // Handle member joined group chat
+        if (data.chat_id && data.member) {
+          get().updateGroupChat(data.chat_id as string, {
+            members: [...(get().groupChats.find((c) => c.id === data.chat_id)?.members || []), data.member],
+          });
+        }
+        break;
+
+      case 'group_chat_member_left':
+        // Handle member left group chat
+        if (data.chat_id && data.member_id) {
+          const chat = get().groupChats.find((c) => c.id === data.chat_id);
+          if (chat) {
+            get().updateGroupChat(data.chat_id as string, {
+              members: chat.members.filter((m) => m.id !== data.member_id),
+            });
+          }
         }
         break;
 

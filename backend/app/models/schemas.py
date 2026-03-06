@@ -275,3 +275,58 @@ class ArchiveValidationResult(BaseModel):
     file_exists: bool
     errors: List[str] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
+
+
+# Group Chat System (QQ-like)
+class FileAttachment(BaseModel):
+    """文件附件"""
+    id: str
+    filename: str
+    original_name: str
+    file_path: str
+    file_size: int
+    mime_type: str
+    upload_by: str
+    upload_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class GroupChatMember(BaseModel):
+    """群聊成员"""
+    id: str  # agent_id 或 "user"
+    name: str
+    type: str  # "agent" 或 "user"
+    avatar_color: Optional[str] = None
+    joined_at: datetime = Field(default_factory=datetime.utcnow)
+
+
+class GroupChatMessage(BaseModel):
+    """群聊消息"""
+    id: str
+    chat_id: str
+    sender_id: str
+    sender_name: str
+    sender_type: str  # "agent" 或 "user"
+    content: str
+    message_type: str = "text"  # "text", "file", "system"
+    attachments: List[FileAttachment] = Field(default_factory=list)
+    reply_to: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class GroupChat(BaseModel):
+    """群聊"""
+    id: str
+    name: str
+    description: Optional[str] = None
+    created_by: str
+    members: List[GroupChatMember] = Field(default_factory=list)
+    messages: List[GroupChatMessage] = Field(default_factory=list)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    is_active: bool = True
+
+
+class GroupChatCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=100)
+    agent_ids: List[str] = Field(default_factory=list)
+    description: Optional[str] = None
