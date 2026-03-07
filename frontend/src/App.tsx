@@ -212,19 +212,6 @@ function AppContent() {
         <span className="text-sm font-medium">项目</span>
       </button>
 
-      {/* IM Button */}
-      <button
-        onClick={toggleIMPanel}
-        className={`absolute top-2 left-[140px] z-20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
-          imPanelOpen
-            ? 'bg-green-600 text-white'
-            : 'bg-gray-800/80 text-gray-300 hover:text-white hover:bg-gray-700/80'
-        }`}
-      >
-        <MessageCircle size={16} />
-        <span className="text-sm">IM</span>
-      </button>
-
       {/* Pipeline Panel */}
       <PipelinePanel />
 
