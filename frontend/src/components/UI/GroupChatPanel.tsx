@@ -117,6 +117,8 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
         setNewChatDescription('');
         setSelectedAgentIds([]);
         setShowCreateModal(false);
+        // Refresh group chats list
+        await refreshGroupChats();
         setCurrentGroupChat(newChat.id);
       }
     } catch (error) {
