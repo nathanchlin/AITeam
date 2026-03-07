@@ -31,6 +31,7 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
   const [addMemberAgentIds, setAddMemberAgentIds] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
+  const isInitialMountRef = useRef(true);
 
   // For private chat
   const agentTasks = agent ? tasks.filter((t) => t.agent_id === agent.id) : [];
@@ -42,9 +43,19 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
   const groupChatMessages = groupChat?.messages || [];
   const groupChatMembers = groupChat?.members || [];
 
-  // Auto-scroll when new content arrives
+  // Initial scroll to bottom (instant, no animation)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isInitialMountRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      isInitialMountRef.current = false;
+    }
+  }, []);
+
+  // Auto-scroll when new content arrives (smooth animation)
+  useEffect(() => {
+    if (!isInitialMountRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [currentStreamContent, completedTasks.length, groupChatMessages.length]);
 
   // Poll for task updates when there's a running task
