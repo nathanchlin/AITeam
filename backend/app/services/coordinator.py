@@ -30,6 +30,8 @@ class CoordinatorService:
         self.broadcast_manager = None
         # 停止迭代标志：{plan_id: set(round_numbers)}
         self._stop_flags: Dict[str, set] = {}
+        # 任务分配计数器：{plan_id: {agent_type: counter}}，用于轮询分配任务
+        self._task_assignment_counters: Dict[str, Dict[str, int]] = {}
         # Load persisted plans on initialization
         self._load_plans()
 
@@ -48,6 +50,67 @@ class CoordinatorService:
         """清除停止标志"""
         if plan_id in self._stop_flags and round_number in self._stop_flags[plan_id]:
             self._stop_flags[plan_id].discard(round_number)
+
+    def _build_agents_by_type(self, selected_agents: List, selected_agent_ids: List[str] = None) -> Dict[str, List]:
+        """构建按类型分组的 Agent 列表，支持每类型多个 Agent
+
+        Args:
+            selected_agents: 已选择的 Agent 列表
+            selected_agent_ids: 用户选择的 Agent ID 顺序（用于保持选择顺序）
+
+        Returns:
+            Dict[str, List]: 按类型分组的 Agent 列表，例如 {'coder': [agent1, agent2], 'tester': [agent3]}
+        """
+        agents_by_type = {}
+        sorted_agents = selected_agents
+
+        if selected_agent_ids:
+            # 按用户选择的顺序排序
+            agent_order = {aid: i for i, aid in enumerate(selected_agent_ids)}
+            sorted_agents = sorted(
+                [a for a in selected_agents if a.id in agent_order],
+                key=lambda a: agent_order.get(a.id, float('inf'))
+            )
+
+        for agent in sorted_agents:
+            agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
+            if agent_type not in agents_by_type:
+                agents_by_type[agent_type] = []
+            agents_by_type[agent_type].append(agent)
+
+        return agents_by_type
+
+    def _get_agent_for_task(self, plan_id: str, agent_type: str, agents_by_type: Dict[str, List]) -> Optional[Any]:
+        """轮询方式获取下一个可用的 Agent
+
+        当有多个同类型 Agent 时，使用轮询方式分配任务，确保负载均衡。
+
+        Args:
+            plan_id: 计划 ID
+            agent_type: Agent 类型（如 'coder', 'tester'）
+            agents_by_type: 按类型分组的 Agent 列表
+
+        Returns:
+            Agent 对象或 None
+        """
+        agents = agents_by_type.get(agent_type, [])
+        if not agents:
+            return None
+        if len(agents) == 1:
+            return agents[0]
+
+        # 轮询分配
+        if plan_id not in self._task_assignment_counters:
+            self._task_assignment_counters[plan_id] = {}
+
+        if agent_type not in self._task_assignment_counters[plan_id]:
+            self._task_assignment_counters[plan_id][agent_type] = 0
+
+        counter = self._task_assignment_counters[plan_id][agent_type]
+        selected_agent = agents[counter % len(agents)]
+        self._task_assignment_counters[plan_id][agent_type] = counter + 1
+
+        return selected_agent
 
     def _load_plans(self):
         """Load plans from persistent storage"""
@@ -314,18 +377,23 @@ class CoordinatorService:
         if not plan:
             return "Plan not found"
 
-        # Find the Assistant agent
+        # Find the Assistant agent (filtered by selected_agent_ids)
         all_agents = agent_manager.get_all_agents()
-        print(f"[Coordinator] Found {len(all_agents)} agents: {[a.name for a in all_agents]}")
+        # 根据 selected_agent_ids 过滤
+        if plan.selected_agent_ids:
+            selected_agents = [a for a in all_agents if a.id in plan.selected_agent_ids]
+        else:
+            selected_agents = all_agents
+        print(f"[Coordinator] Found {len(selected_agents)} selected agents: {[a.name for a in selected_agents]}")
 
         assistant = None
-        for agent in all_agents:
+        for agent in selected_agents:
             if agent.type == AgentType.ASSISTANT:
                 assistant = agent
                 break
 
         if not assistant:
-            print("[Coordinator] No Assistant agent found!")
+            print("[Coordinator] No Assistant agent found in selected agents!")
             return "No Assistant agent found"
 
         print(f"[Coordinator] Using Assistant: {assistant.name}")
@@ -531,22 +599,8 @@ class CoordinatorService:
             raise ValueError("No agent available to generate plan")
 
         # Build a map of agent types to agents for task assignment
-        # 按 selected_agent_ids 的顺序构建，确保尊重用户的选择顺序
-        agents_by_type = {}
-        if plan.selected_agent_ids:
-            # 按用户选择的顺序分配，第一个选择的 agent 优先
-            for agent_id in plan.selected_agent_ids:
-                agent = next((a for a in selected_agents if a.id == agent_id), None)
-                if agent:
-                    agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
-                    if agent_type not in agents_by_type:
-                        agents_by_type[agent_type] = agent
-        else:
-            # 兜底：按默认顺序
-            for agent in selected_agents:
-                agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
-                if agent_type not in agents_by_type:
-                    agents_by_type[agent_type] = agent
+        # 使用辅助方法构建，支持每类型多个 Agent（轮询分配）
+        agents_by_type = self._build_agents_by_type(selected_agents, plan.selected_agent_ids)
 
         assistant.update_status(AgentStatus.WORKING)
 
@@ -667,8 +721,9 @@ class CoordinatorService:
 
                 for i, task_data in enumerate(plan_data.get("tasks", [])):
                     agent_type_str = task_data.get("assigned_agent_type", "coder")
-                    assigned_agent_id = agents_by_type.get(agent_type_str)
-                    assigned_agent_id = assigned_agent_id.id if assigned_agent_id else None
+                    # 使用轮询方式分配 Agent，支持多个同类型 Agent
+                    assigned_agent = self._get_agent_for_task(plan_id, agent_type_str, agents_by_type)
+                    assigned_agent_id = assigned_agent.id if assigned_agent else None
 
                     plan.tasks.append(PlanTask(
                         id=str(uuid.uuid4()),
@@ -683,7 +738,10 @@ class CoordinatorService:
         except Exception as e:
             print(f"[Coordinator] generate_plan parse error: {e}, using fallback plan")
             plan.description = plan.description or full_response or "(计划生成超时或解析失败，已使用兜底任务)"
-            fallback_agent = agents_by_type.get("coder") or agents_by_type.get("assistant") or (selected_agents[0] if selected_agents else None)
+            # agents_by_type 现在是 {type: [agents]}，取第一个可用 agent
+            coder_agents = agents_by_type.get("coder", [])
+            assistant_agents = agents_by_type.get("assistant", [])
+            fallback_agent = coder_agents[0] if coder_agents else (assistant_agents[0] if assistant_agents else (selected_agents[0] if selected_agents else None))
             plan.tasks = [
                 PlanTask(
                     id=str(uuid.uuid4()),
@@ -1326,19 +1384,24 @@ class CoordinatorService:
 
             for task in testing_tasks:
                 # Auto-assign tester agent if not assigned or agent not found
+                # 根据 plan.selected_agent_ids 过滤
+                all_agents = agent_manager.get_all_agents()
+                if plan.selected_agent_ids:
+                    available_testers = [a for a in all_agents if a.type.value == 'tester' and a.id in plan.selected_agent_ids]
+                else:
+                    available_testers = [a for a in all_agents if a.type.value == 'tester']
+
                 if not task.assigned_agent_id:
                     # Find an available tester agent
-                    tester_agents = [a for a in agent_manager.get_all_agents() if a.type.value == 'tester']
-                    if tester_agents:
-                        task.assigned_agent_id = tester_agents[0].id
+                    if available_testers:
+                        task.assigned_agent_id = available_testers[0].id
                         self._save_plans()
 
                 agent = agent_manager.get_agent(task.assigned_agent_id)
                 if not agent:
                     # Try to find any tester agent as fallback
-                    tester_agents = [a for a in agent_manager.get_all_agents() if a.type.value == 'tester']
-                    if tester_agents:
-                        agent = tester_agents[0]
+                    if available_testers:
+                        agent = available_testers[0]
                         task.assigned_agent_id = agent.id
                         self._save_plans()
                     else:
@@ -1803,11 +1866,15 @@ class CoordinatorService:
         if not plan:
             return
 
-        # 找到 Assistant Agent
+        # 找到 Assistant Agent（根据 selected_agent_ids 过滤）
         all_agents = agent_manager.get_all_agents()
-        assistant = next((a for a in all_agents if a.type == AgentType.ASSISTANT), None)
+        if plan.selected_agent_ids:
+            selected_agents = [a for a in all_agents if a.id in plan.selected_agent_ids]
+        else:
+            selected_agents = all_agents
+        assistant = next((a for a in selected_agents if a.type == AgentType.ASSISTANT), None)
         if not assistant:
-            assistant = all_agents[0] if all_agents else None
+            assistant = selected_agents[0] if selected_agents else None
 
         if not assistant:
             return
@@ -2032,20 +2099,8 @@ class CoordinatorService:
         if not assistant:
             return
 
-        # 构建 agent 类型映射，尊重用户选择顺序
-        agents_by_type = {}
-        if plan.selected_agent_ids:
-            for agent_id in plan.selected_agent_ids:
-                agent = next((a for a in selected_agents if a.id == agent_id), None)
-                if agent:
-                    agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
-                    if agent_type not in agents_by_type:
-                        agents_by_type[agent_type] = agent
-        else:
-            for agent in selected_agents:
-                agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
-                if agent_type not in agents_by_type:
-                    agents_by_type[agent_type] = agent
+        # 构建 agent 类型映射，使用辅助方法支持每类型多个 Agent
+        agents_by_type = self._build_agents_by_type(selected_agents, plan.selected_agent_ids)
 
         assistant.update_status(AgentStatus.WORKING)
 
@@ -2055,6 +2110,7 @@ class CoordinatorService:
             for msg in iteration_round.discussion[-5:]
         ])
 
+        # 获取可用的 agent 类型
         available_agent_types = list(agents_by_type.keys())
         agent_types_str = "/".join(available_agent_types)
 
@@ -2143,7 +2199,8 @@ class CoordinatorService:
                         continue
 
                     agent_type_str = task_data.get("assigned_agent_type", "coder")
-                    assigned_agent = agents_by_type.get(agent_type_str)
+                    # 使用轮询方式分配 Agent，支持多个同类型 Agent
+                    assigned_agent = self._get_agent_for_task(plan_id, agent_type_str, agents_by_type)
                     assigned_agent_id = assigned_agent.id if assigned_agent else None
 
                     task_order += 1
@@ -2164,14 +2221,24 @@ class CoordinatorService:
         except Exception as e:
             print(f"[Coordinator] _generate_iteration_plan parse error: {e}, using fallback")
             # 使用兜底任务 - 确保总是有任务
-            fallback_agent = agents_by_type.get("coder") or agents_by_type.get("assistant") or (selected_agents[0] if selected_agents else None)
+            # agents_by_type 现在是 {type: [agents]}，取第一个可用 agent
+            coder_agents = agents_by_type.get("coder", [])
+            assistant_agents = agents_by_type.get("assistant", [])
+            fallback_agent = coder_agents[0] if coder_agents else (assistant_agents[0] if assistant_agents else (selected_agents[0] if selected_agents else None))
 
-            # 如果还是没有 agent，从所有 agent 中找一个
+            # 如果还是没有 agent，从选中的 agent 中找一个
             if not fallback_agent:
-                all_agents_list = agent_manager.get_all_agents()
-                fallback_agent = next((a for a in all_agents_list if a.type == AgentType.CODER), None)
-                if not fallback_agent:
-                    fallback_agent = all_agents_list[0] if all_agents_list else None
+                if plan.selected_agent_ids:
+                    all_agents_list = agent_manager.get_all_agents()
+                    selected_fallback = [a for a in all_agents_list if a.id in plan.selected_agent_ids]
+                    fallback_agent = next((a for a in selected_fallback if a.type == AgentType.CODER), None)
+                    if not fallback_agent:
+                        fallback_agent = selected_fallback[0] if selected_fallback else None
+                else:
+                    all_agents_list = agent_manager.get_all_agents()
+                    fallback_agent = next((a for a in all_agents_list if a.type == AgentType.CODER), None)
+                    if not fallback_agent:
+                        fallback_agent = all_agents_list[0] if all_agents_list else None
 
             iteration_round.tasks = [
                 IterationTask(
