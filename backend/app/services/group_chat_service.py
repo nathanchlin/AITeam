@@ -390,10 +390,8 @@ class GroupChatService:
 
     async def _trigger_agent_responses(self, chat: GroupChat, user_message: GroupChatMessage):
         """触发Agent智能响应"""
-        try:
-            print(f"[GroupChatService] Triggering agent responses for chat {chat.id[:8]}...")
-        except:
-            pass
+        print(f"[GroupChatService] _trigger_agent_responses STARTED")
+        print(f"[GroupChatService] Chat has {len(chat.members)} members")
 
         # Extract @mentions from message
         import re
@@ -408,12 +406,18 @@ class GroupChatService:
 
         # Check each agent member
         for member in chat.members:
+            print(f"[GroupChatService] Checking member: {member.name}, type: {member.type}")
             if member.type != "agent":
+                print(f"[GroupChatService] Skipping non-agent member: {member.name}")
                 continue
 
             agent = agent_manager.get_agent(member.id)
+            print(f"[GroupChatService] Agent lookup for {member.id[:8]}: {agent}")
             if not agent:
+                print(f"[GroupChatService] Agent not found for member {member.id}")
                 continue
+
+            print(f"[GroupChatService] Found agent: {agent.name}")
 
             # Check if agent is mentioned OR respond based on relevance
             should_respond = False
@@ -431,8 +435,12 @@ class GroupChatService:
                 should_respond = True
                 response_reason = "user_message"
 
+            print(f"[GroupChatService] Agent {agent.name} should_respond: {should_respond}, reason: {response_reason}")
+
             if should_respond:
+                print(f"[GroupChatService] Calling _generate_agent_response for {agent.name}")
                 await self._generate_agent_response(chat, agent, user_message, context, response_reason)
+                print(f"[GroupChatService] _generate_agent_response completed for {agent.name}")
 
     async def _generate_agent_response(
         self,
