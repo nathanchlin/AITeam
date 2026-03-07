@@ -186,6 +186,19 @@ function AppContent() {
         <span className="text-sm font-medium">协作流水线</span>
       </button>
 
+      {/* IM Button */}
+      <button
+        onClick={toggleIMPanel}
+        className={`absolute top-2 left-[calc(50%+80px)] z-20 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+          imPanelOpen
+            ? 'bg-green-600 text-white'
+            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+        }`}
+      >
+        <MessageCircle size={18} />
+        <span className="text-sm font-medium">IM</span>
+      </button>
+
       {/* Projects Button */}
       <button
         onClick={toggleProjectsPanel}
