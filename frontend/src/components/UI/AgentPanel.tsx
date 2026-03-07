@@ -3,7 +3,7 @@ import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, getAgentDisplayType } from '../../types';
 import { X, Trash2, Edit2, Check, Loader2 } from 'lucide-react';
 
-const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
+const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
 export function AgentPanel() {
   const { agents, selectedAgentId, selectAgent, removeAgent, updateAgent } = useAgentStore();

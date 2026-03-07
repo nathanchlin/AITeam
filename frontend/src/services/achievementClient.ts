@@ -1,6 +1,6 @@
 import type { AgentStats, Achievement } from '../types';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
 export async function getAgentStats(agentId: string): Promise<AgentStats> {
   const response = await fetch(`${API_BASE}/api/agents/${agentId}/stats`);

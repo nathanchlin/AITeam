@@ -4,7 +4,7 @@ import type { Agent, GroupChat } from '../../types';
 import { AGENT_COLORS, getAgentDisplayType } from '../../types';
 import { X, Send, Loader2, Users, FileText, UserPlus, Paperclip, MessageCircle } from 'lucide-react';
 
-const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
+const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
 interface ChatDetailProps {
   chatId: string;

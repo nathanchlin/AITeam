@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import type { ArchiveInfo, ArchiveDiffResult, ArchiveValidationResult } from '../../types';
 
-const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
+const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
 interface ArchivePanelProps {
   planId: string;

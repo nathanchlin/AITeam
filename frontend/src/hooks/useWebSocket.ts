@@ -1,11 +1,12 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAgentStore } from '../stores/agentStore';
 
-const WS_URL = import.meta.env.PROD
-  ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
-  : `ws://${window.location.hostname}:8000/ws`;
+// Production: use VITE_API_BASE_URL env var (set in Vercel)
+// Development: use localhost:8000
+const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
-const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
+// WebSocket URL derived from API_BASE
+const WS_URL = API_BASE.replace(/^https?/, 'wss').replace(/^http/, 'ws') + '/ws';
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
