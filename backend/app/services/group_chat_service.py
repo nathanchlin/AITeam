@@ -390,6 +390,11 @@ class GroupChatService:
 
     async def _trigger_agent_responses(self, chat: GroupChat, user_message: GroupChatMessage):
         """触发Agent智能响应"""
+        try:
+            print(f"[GroupChatService] Triggering agent responses for chat {chat.id[:8]}...")
+        except:
+            pass
+
         # Extract @mentions from message
         import re
         mentions = re.findall(r"@(\w+)", user_message.content)
@@ -422,28 +427,9 @@ class GroupChatService:
                 should_respond = True
                 response_reason = "mention"
             else:
-                # Check relevance using LLM
-                relevance_prompt = f"""你是一个名为 {member.name} 的 AI 助手。
-
-群聊历史：
-{context}
-
-最新消息（用户）：
-{user_message.content}
-
-请判断这个消息是否与你相关，或者你是否应该回应。只返回 "yes" 或 "no"。"""
-
-                try:
-                    response = await glm_client.chat(
-                        relevance_prompt,
-                        agent_type=agent.type.value if hasattr(agent.type, "value") else str(agent.type),
-                        custom_prompt=agent.custom_prompt,
-                    )
-                    if "yes" in response.lower():
-                        should_respond = True
-                        response_reason = "llm_relevance"
-                except Exception as e:
-                    print(f"[GroupChatService] Error checking relevance: {e}")
+                # For now, agents always respond to user messages in group chat
+                should_respond = True
+                response_reason = "user_message"
 
             if should_respond:
                 await self._generate_agent_response(chat, agent, user_message, context, response_reason)
@@ -457,7 +443,9 @@ class GroupChatService:
         trigger_reason: str,
     ):
         """生成Agent响应"""
-        prompt = f"""你是一个名为 {agent.name} 的 AI 助手。你的角色是 {agent.type.value if hasattr(agent.type, "value") else str(agent.type)}。
+        agent_type_str = agent.type.value if hasattr(agent.type, "value") else str(agent.type)
+
+        prompt = f"""你是一个名为 {agent.name} 的 AI 助手。你的角色是 {agent_type_str}。
 
 群聊历史：
 {context}
@@ -472,7 +460,7 @@ class GroupChatService:
             response_text = ""
             async for chunk in glm_client.chat_stream(
                 prompt,
-                agent_type=agent.type.value if hasattr(agent.type, "value") else str(agent.type),
+                agent_type=agent_type_str,
                 custom_prompt=agent.custom_prompt,
             ):
                 response_text += chunk
@@ -489,7 +477,9 @@ class GroupChatService:
                 )
 
         except Exception as e:
-            print(f"[GroupChatService] Error generating agent response: {e}")
+            # Avoid encoding issues with emoji on Windows console
+            error_msg = str(e).encode('ascii', errors='replace').decode('ascii')
+            print(f"[GroupChatService] Error generating agent response: {error_msg}")
             self.send_message(
                 chat_id=chat.id,
                 sender_id=agent.id,
