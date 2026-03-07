@@ -485,7 +485,7 @@ class GroupChatService:
                 sender_id=agent.id,
                 sender_name=agent.name,
                 sender_type="agent",
-                content=f"抱歉，我遇到了一些问题：{str(e)}",
+                content=f"抱歉，我遇到了一些问题：{error_msg}",
             )
 
     async def save_upload_file(self, chat_id: str, file: UploadFile, upload_by: str) -> FileAttachment:
