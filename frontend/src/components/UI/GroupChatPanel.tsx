@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
-import type { GroupChat, GroupChatMessage, FileAttachment } from '../../types';
-import { X, Send, Plus, Paperclip, MessageCircle, Users, Clock, FileText, Download } from 'lucide-react';
+import type { GroupChat } from '../../types';
+import { X, Send, Plus, Paperclip, MessageCircle, Users, Clock, FileText, UserPlus } from 'lucide-react';
 
 const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8001`;
 
@@ -12,9 +12,11 @@ interface GroupChatPanelProps {
 
 export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId }: GroupChatPanelProps) {
   const {
+    agents,
     setCurrentGroupChat,
     toggleGroupChatPanel,
     addGroupChatMessage,
+    setGroupChats,
   } = useAgentStore();
 
   const [message, setMessage] = useState('');
@@ -24,6 +26,13 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
   const [newChatDescription, setNewChatDescription] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Agent multi-select for creating group chat
+  const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+
+  // Add member modal state
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [addMemberAgentIds, setAddMemberAgentIds] = useState<string[]>([]);
 
   // Ensure groupChats is always an array
   const groupChats = Array.isArray(groupChatsProp) ? groupChatsProp : [];
@@ -98,6 +107,7 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
         body: JSON.stringify({
           name: newChatName.trim(),
           description: newChatDescription.trim() || undefined,
+          agent_ids: selectedAgentIds,
         }),
       });
 
@@ -105,6 +115,7 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
         const newChat = await res.json();
         setNewChatName('');
         setNewChatDescription('');
+        setSelectedAgentIds([]);
         setShowCreateModal(false);
         setCurrentGroupChat(newChat.id);
       }
@@ -117,6 +128,29 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!currentChat || addMemberAgentIds.length === 0) return;
+
+    try {
+      for (const agentId of addMemberAgentIds) {
+        // Skip if already a member
+        if (currentChat.members.some(m => m.id === agentId)) continue;
+
+        await fetch(`${API_BASE}/api/group-chats/${currentChat.id}/members`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ agent_id: agentId }),
+        });
+      }
+
+      setAddMemberAgentIds([]);
+      setShowAddMemberModal(false);
+      await refreshGroupChats();
+    } catch (error) {
+      console.error('Failed to add member:', error);
     }
   };
 
@@ -141,6 +175,28 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
     const colors = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899'];
     const index = name.charCodeAt(0) % colors.length;
     return colors[index];
+  };
+
+  const getAgentColor = (type: string): string => {
+    const typeColors: Record<string, string> = {
+      Coder: '#3B82F6',
+      Analyst: '#10B981',
+      Assistant: '#8B5CF6',
+      Tester: '#F59E0B',
+    };
+    return typeColors[type] || '#6B7280';
+  };
+
+  const refreshGroupChats = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/group-chats`);
+      if (res.ok) {
+        const chats = await res.json();
+        setGroupChats(Array.isArray(chats) ? chats : []);
+      }
+    } catch (error) {
+      console.error('Failed to refresh group chats:', error);
+    }
   };
 
   if (!currentChat) {
@@ -227,7 +283,7 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
         {/* Create Chat Modal */}
         {showCreateModal && (
           <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-30">
-            <div className="bg-gray-800 rounded-lg p-6 w-[400px] shadow-2xl">
+            <div className="bg-gray-800 rounded-lg p-6 w-[400px] shadow-2xl max-h-[80vh] overflow-y-auto">
               <h3 className="text-white text-lg font-bold mb-4">创建群聊</h3>
               <div className="space-y-4">
                 <div>
@@ -247,12 +303,54 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
                     onChange={(e) => setNewChatDescription(e.target.value)}
                     className="w-full px-3 py-2 bg-gray-700 rounded text-white text-sm border border-gray-600 focus:border-blue-500 focus:outline-none resize-none"
                     placeholder="输入群聊描述..."
-                    rows={3}
+                    rows={2}
                   />
+                </div>
+                <div>
+                  <label className="text-gray-400 text-xs block mb-2">选择成员</label>
+                  <div className="max-h-40 overflow-y-auto space-y-1 bg-gray-700/50 rounded p-2">
+                    {agents.length === 0 ? (
+                      <p className="text-gray-400 text-sm text-center py-2">暂无可选 Agent</p>
+                    ) : (
+                      agents.map((agent) => (
+                        <label
+                          key={agent.id}
+                          className="flex items-center gap-2 cursor-pointer hover:bg-gray-600/50 p-2 rounded transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedAgentIds.includes(agent.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedAgentIds([...selectedAgentIds, agent.id]);
+                              } else {
+                                setSelectedAgentIds(selectedAgentIds.filter(id => id !== agent.id));
+                              }
+                            }}
+                            className="rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
+                          />
+                          <div
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0"
+                            style={{ backgroundColor: getAgentColor(agent.type) }}
+                          >
+                            {agent.name.charAt(0)}
+                          </div>
+                          <span className="text-white text-sm truncate">{agent.name}</span>
+                          <span className="text-gray-400 text-xs">({agent.type})</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                  {selectedAgentIds.length > 0 && (
+                    <p className="text-blue-400 text-xs mt-1">已选择 {selectedAgentIds.length} 个 Agent</p>
+                  )}
                 </div>
                 <div className="flex gap-2 justify-end">
                   <button
-                    onClick={() => setShowCreateModal(false)}
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setSelectedAgentIds([]);
+                    }}
                     className="px-4 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors text-sm"
                   >
                     取消
@@ -299,7 +397,13 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
               </p>
             </div>
           </div>
-          <div className="w-8" />
+          <button
+            onClick={() => setShowAddMemberModal(true)}
+            className="p-2 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-white"
+            title="邀请成员"
+          >
+            <UserPlus size={16} />
+          </button>
         </div>
       </div>
 
@@ -414,6 +518,76 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
           </button>
         </div>
       </div>
+
+      {/* Add Member Modal */}
+      {showAddMemberModal && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-30">
+          <div className="bg-gray-800 rounded-lg p-6 w-[400px] shadow-2xl max-h-[80vh] overflow-y-auto">
+            <h3 className="text-white text-lg font-bold mb-4">邀请成员</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="text-gray-400 text-xs block mb-2">选择要邀请的 Agent</label>
+                <div className="max-h-60 overflow-y-auto space-y-1 bg-gray-700/50 rounded p-2">
+                  {agents.filter(a => !currentChat?.members.some(m => m.id === a.id)).length === 0 ? (
+                    <p className="text-gray-400 text-sm text-center py-4">所有 Agent 都已在群聊中</p>
+                  ) : (
+                    agents
+                      .filter(a => !currentChat?.members.some(m => m.id === a.id))
+                      .map((agent) => (
+                        <label
+                          key={agent.id}
+                          className="flex items-center gap-2 cursor-pointer hover:bg-gray-600/50 p-2 rounded transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={addMemberAgentIds.includes(agent.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAddMemberAgentIds([...addMemberAgentIds, agent.id]);
+                              } else {
+                                setAddMemberAgentIds(addMemberAgentIds.filter(id => id !== agent.id));
+                              }
+                            }}
+                            className="rounded bg-gray-600 border-gray-500 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-800"
+                          />
+                          <div
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0"
+                            style={{ backgroundColor: getAgentColor(agent.type) }}
+                          >
+                            {agent.name.charAt(0)}
+                          </div>
+                          <span className="text-white text-sm truncate">{agent.name}</span>
+                          <span className="text-gray-400 text-xs">({agent.type})</span>
+                        </label>
+                      ))
+                  )}
+                </div>
+                {addMemberAgentIds.length > 0 && (
+                  <p className="text-blue-400 text-xs mt-1">已选择 {addMemberAgentIds.length} 个 Agent</p>
+                )}
+              </div>
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => {
+                    setShowAddMemberModal(false);
+                    setAddMemberAgentIds([]);
+                  }}
+                  className="px-4 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors text-sm"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleAddMember}
+                  disabled={addMemberAgentIds.length === 0}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
+                >
+                  邀请
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
