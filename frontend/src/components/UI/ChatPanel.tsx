@@ -4,7 +4,7 @@ import type { Agent, Task } from '../../types';
 import { AGENT_COLORS, getAgentDisplayType } from '../../types';
 import { X, Send, Loader2, Settings, Trash2, Check, Eraser } from 'lucide-react';
 
-const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
+const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8001`;
 
 interface ChatPanelProps {
   agent: Agent;

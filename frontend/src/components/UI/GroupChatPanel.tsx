@@ -3,7 +3,7 @@ import { useAgentStore } from '../../stores/agentStore';
 import type { GroupChat, GroupChatMessage, FileAttachment } from '../../types';
 import { X, Send, Plus, Paperclip, MessageCircle, Users, Clock, FileText, Download } from 'lucide-react';
 
-const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000}`;
+const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8001`;
 
 interface GroupChatPanelProps {
   groupChats: GroupChat[];

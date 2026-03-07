@@ -1,0 +1,68 @@
+{
+  "chats": [
+    {
+      "id": "9cc8a67a-f40b-49f5-adc8-fa2ed21a6469",
+      "name": "Dev Team",
+      "description": "Development discussion",
+      "created_by": "user",
+      "members": [
+        {
+          "id": "user",
+          "name": "用户",
+          "type": "user",
+          "avatar_color": "#6366f1",
+          "joined_at": "2026-03-07T00:05:24.772864"
+        },
+        {
+          "id": "9afd078f-72aa-47b2-82f6-098524951da1",
+          "name": "CodeMaster",
+          "type": "agent",
+          "avatar_color": "#3b82f6",
+          "joined_at": "2026-03-07T00:05:47.925745"
+        }
+      ],
+      "messages": [
+        {
+          "id": "b87ffe1d-cdf0-44b6-a820-8e2b436fb3c4",
+          "chat_id": "9cc8a67a-f40b-49f5-adc8-fa2ed21a6469",
+          "sender_id": "system",
+          "sender_name": "系统",
+          "sender_type": "system",
+          "content": "群聊 \"Dev Team\" 创建成功。欢迎加入！",
+          "message_type": "system",
+          "reply_to": null,
+          "timestamp": "2026-03-07T00:05:24.772924",
+          "attachments": []
+        },
+        {
+          "id": "ca59b7d9-6a36-4dc7-9d59-e91da2d35693",
+          "chat_id": "9cc8a67a-f40b-49f5-adc8-fa2ed21a6469",
+          "sender_id": "user",
+          "sender_name": "用户",
+          "sender_type": "user",
+          "content": "Hello everyone!",
+          "message_type": "text",
+          "reply_to": null,
+          "timestamp": "2026-03-07T00:05:36.924724",
+          "attachments": []
+        },
+        {
+          "id": "6ed933bc-69cc-4523-9e2e-5fe68790ee56",
+          "chat_id": "9cc8a67a-f40b-49f5-adc8-fa2ed21a6469",
+          "sender_id": "system",
+          "sender_name": "系统",
+          "sender_type": "system",
+          "content": "CodeMaster 加入了群聊",
+          "message_type": "system",
+          "reply_to": null,
+          "timestamp": "2026-03-07T00:05:47.925785",
+          "attachments": []
+        }
+      ],
+      "created_at": "2026-03-07T00:05:24.772889",
+      "updated_at": "2026-03-07T00:05:47.925753",
+      "is_active": true
+    }
+  ],
+  "saved_at": "2026-03-07T00:05:47.925959"
+}

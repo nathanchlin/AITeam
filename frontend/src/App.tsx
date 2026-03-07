@@ -15,7 +15,7 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { GitBranch, Folder, MessageCircle } from 'lucide-react';
 import type { Agent } from './types';
 
-const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
+const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8001`;
 
 function AppContent() {
   const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan, groupChats, setGroupChats, groupChatPanelOpen, toggleGroupChatPanel } = useAgentStore();
