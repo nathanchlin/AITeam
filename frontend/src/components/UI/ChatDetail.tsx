@@ -228,7 +228,7 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
   // Render private chat
   if (chatType === 'private' && agent) {
     return (
-      <div className="w-[400px] h-[calc(100vh-120px)] bg-gray-800/95 backdrop-blur rounded-lg flex flex-col overflow-hidden shadow-2xl border border-gray-700">
+      <div className="w-[500px] h-[calc(100vh-120px)] bg-gray-800/95 backdrop-blur rounded-lg flex flex-col overflow-hidden shadow-2xl border border-gray-700">
         {/* Header */}
         <div className="p-3 border-b border-gray-700 flex items-center justify-between bg-gray-800">
           <div className="flex items-center gap-3">
@@ -330,7 +330,7 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
   // Render group chat
   if (chatType === 'group' && groupChat) {
     return (
-      <div className="w-[400px] h-[calc(100vh-120px)] bg-gray-800/95 backdrop-blur rounded-lg flex flex-col overflow-hidden shadow-2xl border border-gray-700">
+      <div className="w-[500px] h-[calc(100vh-120px)] bg-gray-800/95 backdrop-blur rounded-lg flex flex-col overflow-hidden shadow-2xl border border-gray-700">
         {/* Header */}
         <div className="p-3 border-b border-gray-700 bg-gray-800">
           <div className="flex items-center justify-between">

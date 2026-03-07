@@ -99,7 +99,7 @@ export function IMPanel({ onClose }: IMPanelProps) {
       </div>
 
       {/* Content Area */}
-      <div className="w-[360px] bg-gray-800/95 backdrop-blur rounded-r-lg border border-gray-700 flex flex-col overflow-hidden">
+      <div className="w-[400px] bg-gray-800/95 backdrop-blur rounded-r-lg border border-gray-700 flex flex-col overflow-hidden">
         {activeView === 'messages' && (
           <>
             {/* Conversation List */}
