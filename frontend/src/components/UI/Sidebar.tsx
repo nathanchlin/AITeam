@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
-import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType, type AgentType } from '../../types';
-import { Plus, Users, X, Star } from 'lucide-react';
+import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType, type AgentType, type Agent } from '../../types';
+import { Plus, Users, X, Star, ChevronDown } from 'lucide-react';
 
 interface SidebarProps {
   onCreateAgent: (name: string, type: AgentType) => void;
@@ -12,6 +12,43 @@ export function Sidebar({ onCreateAgent }: SidebarProps) {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newAgentName, setNewAgentName] = useState('');
   const [newAgentType, setNewAgentType] = useState<AgentType>('assistant');
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+
+  // Group agents by display_type
+  const groupedAgents = useMemo(() => {
+    const groups: Record<string, Agent[]> = {};
+    agents.forEach(agent => {
+      const displayType = getAgentDisplayType(agent);
+      if (!groups[displayType]) {
+        groups[displayType] = [];
+      }
+      groups[displayType].push(agent);
+    });
+    return groups;
+  }, [agents]);
+
+  // Initialize all groups as expanded by default
+  useEffect(() => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      Object.keys(groupedAgents).forEach(groupName => {
+        newSet.add(groupName);
+      });
+      return newSet;
+    });
+  }, [groupedAgents]);
+
+  const toggleGroup = (groupName: string) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupName)) {
+        newSet.delete(groupName);
+      } else {
+        newSet.add(groupName);
+      }
+      return newSet;
+    });
+  };
 
   // Fetch stats when agents change or sidebar opens
   useEffect(() => {
@@ -43,13 +80,13 @@ export function Sidebar({ onCreateAgent }: SidebarProps) {
         className={`absolute left-0 top-0 h-full bg-gray-800/95 backdrop-blur transition-transform duration-300 z-10 ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
-        style={{ width: '280px' }}
+        style={{ width: '320px' }}
       >
         <div className="h-full flex flex-col p-4 pt-14 overflow-hidden">
           <h2 className="text-lg font-bold text-white mb-4">AITeam</h2>
 
           {/* Agent list */}
-          <div className="flex-1 overflow-y-auto space-y-2">
+          <div className="flex-1 overflow-y-auto">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-gray-400">Agents ({agents.length})</span>
               <button
@@ -60,95 +97,120 @@ export function Sidebar({ onCreateAgent }: SidebarProps) {
               </button>
             </div>
 
-            {agents.map((agent) => (
-              <div
-                key={agent.id}
-                onClick={() => selectAgent(selectedAgentId === agent.id ? null : agent.id)}
-                className={`p-3 rounded-lg cursor-pointer transition-all ${
-                  selectedAgentId === agent.id
-                    ? 'bg-gray-700 ring-2 ring-blue-500'
-                    : 'bg-gray-700/50 hover:bg-gray-700'
-                }`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="relative">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center"
-                      style={{ backgroundColor: AGENT_COLORS[agent.type].primary }}
-                    >
-                      <span className="text-white text-xs font-bold">
-                        {agent.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    {/* Level Badge */}
-                    {agentStats[agent.id] && (
-                      <div className="absolute -top-1 -right-1 bg-yellow-500 rounded-full w-4 h-4 flex items-center justify-center border-2 border-gray-800">
-                        <span className="text-[10px] font-bold text-gray-900">
-                          {agentStats[agent.id].level}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <div className="text-white text-sm font-medium truncate">
-                        {agent.name}
-                      </div>
-                      {/* Emotion State */}
-                      {(() => {
-                        const stats = agentStats[agent.id];
-                        return stats?.emotion_state ? (
-                          <span className="text-sm" title={stats.emotion_state.label}>
-                            {stats.emotion_state.emoji}
-                          </span>
-                        ) : null;
-                      })()}
-                    </div>
-                    <div className="text-gray-400 text-xs flex items-center gap-2">
-                      <span>{getAgentDisplayType(agent)}</span>
-                      <StatusDot status={agent.status} />
-                    </div>
-                    {/* XP Progress Bar */}
-                    {agentStats[agent.id] && (
-                      <div className="mt-2">
-                        <div className="flex items-center gap-1 text-[10px] text-gray-400">
-                          <Star size={10} className="text-yellow-500" />
-                          <span className="text-yellow-400 font-medium">
-                            Lv.{agentStats[agent.id].level}
-                          </span>
-                          <span className="text-gray-500">
-                            {agentStats[agent.id].xp} / {agentStats[agent.id].xp_to_next_level} XP
-                          </span>
+            {/* Grouped Agent List */}
+            <div className="space-y-2">
+              {Object.entries(groupedAgents).map(([groupName, groupAgents]) => (
+                <div key={groupName} className="mb-2">
+                  {/* Group Header */}
+                  <button
+                    onClick={() => toggleGroup(groupName)}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded transition-colors"
+                  >
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform duration-200 ${expandedGroups.has(groupName) ? '' : '-rotate-90'}`}
+                    />
+                    <span className="text-xs font-medium">{groupName}</span>
+                    <span className="text-xs text-gray-500">({groupAgents.length})</span>
+                  </button>
+
+                  {/* Group Content */}
+                  {expandedGroups.has(groupName) && (
+                    <div className="space-y-1 mt-1 pl-2">
+                      {groupAgents.map((agent) => (
+                        <div
+                          key={agent.id}
+                          onClick={() => selectAgent(selectedAgentId === agent.id ? null : agent.id)}
+                          className={`p-3 rounded-lg cursor-pointer transition-all ${
+                            selectedAgentId === agent.id
+                              ? 'bg-gray-700 ring-2 ring-blue-500'
+                              : 'bg-gray-700/50 hover:bg-gray-700'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="relative">
+                              <div
+                                className="w-8 h-8 rounded-full flex items-center justify-center"
+                                style={{ backgroundColor: AGENT_COLORS[agent.type].primary }}
+                              >
+                                <span className="text-white text-xs font-bold">
+                                  {agent.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              {/* Level Badge */}
+                              {agentStats[agent.id] && (
+                                <div className="absolute -top-1 -right-1 bg-yellow-500 rounded-full w-4 h-4 flex items-center justify-center border-2 border-gray-800">
+                                  <span className="text-[10px] font-bold text-gray-900">
+                                    {agentStats[agent.id].level}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <div className="text-white text-sm font-medium truncate">
+                                  {agent.name}
+                                </div>
+                                {/* Emotion State */}
+                                {(() => {
+                                  const stats = agentStats[agent.id];
+                                  return stats?.emotion_state ? (
+                                    <span className="text-sm" title={stats.emotion_state.label}>
+                                      {stats.emotion_state.emoji}
+                                    </span>
+                                  ) : null;
+                                })()}
+                              </div>
+                              <div className="text-gray-400 text-xs flex items-center gap-2">
+                                <span>{getAgentDisplayType(agent)}</span>
+                                <StatusDot status={agent.status} />
+                              </div>
+                              {/* XP Progress Bar */}
+                              {agentStats[agent.id] && (
+                                <div className="mt-2">
+                                  <div className="flex items-center gap-1 text-[10px] text-gray-400">
+                                    <Star size={10} className="text-yellow-500" />
+                                    <span className="text-yellow-400 font-medium">
+                                      Lv.{agentStats[agent.id].level}
+                                    </span>
+                                    <span className="text-gray-500">
+                                      {agentStats[agent.id].xp} / {agentStats[agent.id].xp_to_next_level} XP
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 h-1.5 bg-gray-600 rounded-full overflow-hidden">
+                                    <div
+                                      className="h-full bg-gradient-to-r from-yellow-500 to-amber-400 rounded-full transition-all duration-300"
+                                      style={{
+                                        width: `${Math.min(
+                                          (agentStats[agent.id].xp / agentStats[agent.id].xp_to_next_level) * 100,
+                                          100
+                                        )}%`,
+                                      }}
+                                    />
+                                  </div>
+                                  {/* Score Display */}
+                                  <div className="flex items-center gap-2 mt-1.5 text-[10px]">
+                                    <span className="text-amber-400 font-bold flex items-center gap-0.5">
+                                      <span>Score:</span>
+                                      <span>{agentStats[agent.id].score ?? 0}</span>
+                                    </span>
+                                    <span className="text-gray-600">|</span>
+                                    <span className="text-blue-400 flex items-center gap-0.5">
+                                      <span>Msg:</span>
+                                      <span>{agentStats[agent.id].discussion_count ?? 0}</span>
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="mt-1 h-1.5 bg-gray-600 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-yellow-500 to-amber-400 rounded-full transition-all duration-300"
-                            style={{
-                              width: `${Math.min(
-                                (agentStats[agent.id].xp / agentStats[agent.id].xp_to_next_level) * 100,
-                                100
-                              )}%`,
-                            }}
-                          />
-                        </div>
-                        {/* Score Display */}
-                        <div className="flex items-center gap-2 mt-1.5 text-[10px]">
-                          <span className="text-amber-400 font-bold flex items-center gap-0.5">
-                            <span>Score:</span>
-                            <span>{agentStats[agent.id].score ?? 0}</span>
-                          </span>
-                          <span className="text-gray-600">|</span>
-                          <span className="text-blue-400 flex items-center gap-0.5">
-                            <span>Msg:</span>
-                            <span>{agentStats[agent.id].discussion_count ?? 0}</span>
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </div>

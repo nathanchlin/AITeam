@@ -5,7 +5,7 @@ import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
 import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square } from 'lucide-react';
 import { ArchivePanel } from './ArchivePanel';
 
-const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8001`;
+const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
 
 // Default panel size
 const DEFAULT_WIDTH = 900;

@@ -3,9 +3,9 @@ import { useAgentStore } from '../stores/agentStore';
 
 const WS_URL = import.meta.env.PROD
   ? `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`
-  : `ws://${window.location.hostname}:8001/ws`;
+  : `ws://${window.location.hostname}:8000/ws`;
 
-const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8001`;
+const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
