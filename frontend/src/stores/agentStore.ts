@@ -249,14 +249,22 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       groupChats: state.groupChats.map((c) => (c.id === id ? { ...c, ...updates } : c)),
     })),
   setCurrentGroupChat: (id) => set({ currentGroupChatId: id }),
-  addGroupChatMessage: (message) =>
-    set((state) => ({
-      groupChats: state.groupChats.map((chat) =>
-        chat.id === message.chat_id
-          ? { ...chat, messages: [...chat.messages, message], updated_at: message.timestamp }
-          : chat
-      ),
-    })),
+  addGroupChatMessage: (message) => {
+    console.log('[Store] addGroupChatMessage called:', message.chat_id, message.sender_name, message.content?.substring(0, 50));
+    set((state) => {
+      const chatExists = state.groupChats.some((chat) => chat.id === message.chat_id);
+      if (!chatExists) {
+        console.warn('[Store] Chat not found for message:', message.chat_id, 'available chats:', state.groupChats.map(c => c.id));
+      }
+      return {
+        groupChats: state.groupChats.map((chat) =>
+          chat.id === message.chat_id
+            ? { ...chat, messages: [...chat.messages, message], updated_at: message.timestamp }
+            : chat
+        ),
+      };
+    });
+  },
   toggleGroupChatPanel: () => set((state) => ({ groupChatPanelOpen: !state.groupChatPanelOpen })),
 
   // Stream content
@@ -510,16 +518,21 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
       case 'group_chat_message':
         // Handle new group chat message
-        if (data.message) {
-          const message = data.message as GroupChatMessage;
+        // Backend sends data as the message object directly
+        console.log('[WS] Received group_chat_message:', data);
+        if (data) {
+          const message = data as GroupChatMessage;
+          console.log('[WS] chat_id:', message.chat_id, 'current chats:', get().groupChats.map(c => c.id));
           get().addGroupChatMessage(message);
         }
         break;
 
       case 'group_chat_created':
         // Handle new group chat created
-        if (data.chat) {
-          const chat = data.chat as GroupChat;
+        // Backend sends data as the chat object directly
+        if (data) {
+          const chat = data as GroupChat;
+          console.log('[WS] group_chat_created:', chat.id, chat.name);
           const existing = get().groupChats.find((c) => c.id === chat.id);
           if (!existing) {
             get().addGroupChat(chat);
@@ -529,8 +542,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }
         break;
 
-      case 'group_chat_member_joined':
-        // Handle member joined group chat
+      case 'group_chat_member_added':
+        // Handle member added to group chat
         if (data.chat_id && data.member) {
           get().updateGroupChat(data.chat_id as string, {
             members: [...(get().groupChats.find((c) => c.id === data.chat_id)?.members || []), data.member],
@@ -538,8 +551,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }
         break;
 
-      case 'group_chat_member_left':
-        // Handle member left group chat
+      case 'group_chat_member_removed':
+        // Handle member removed from group chat
         if (data.chat_id && data.member_id) {
           const chat = get().groupChats.find((c) => c.id === data.chat_id);
           if (chat) {

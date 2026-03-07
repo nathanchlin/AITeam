@@ -377,6 +377,7 @@ class GroupChatService:
         self._save_chats()
 
         # Broadcast message
+        print(f"[GroupChatService] Broadcasting message: type={message.message_type}, chat_id={chat_id}, sender={sender_name}")
         import asyncio
         asyncio.create_task(ws_manager.broadcast({
             "type": "group_chat_message",
