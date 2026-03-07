@@ -7,18 +7,18 @@ import { TaskPanel } from './components/UI/TaskPanel';
 import { ChatPanel } from './components/UI/ChatPanel';
 import { PipelinePanel } from './components/UI/PipelinePanel';
 import { ProjectsPanel } from './components/UI/ProjectsPanel';
-import { AchievementNotification } from './components/UI/AchievementNotification';
 import { GroupChatPanel } from './components/UI/GroupChatPanel';
+import { IMPanel } from './components/UI/IMPanel';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { useAgentStore } from './stores/agentStore';
 import { useWebSocket } from './hooks/useWebSocket';
 import { GitBranch, Folder, MessageCircle } from 'lucide-react';
 import type { Agent } from './types';
 
-const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8001`;
+const API_BASE = import.meta.env.PROD ? '' : `http://${window.location.hostname}:8000`;
 
 function AppContent() {
-  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan, groupChats, setGroupChats, groupChatPanelOpen, toggleGroupChatPanel } = useAgentStore();
+  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan, groupChats, setGroupChats, groupChatPanelOpen, imPanelOpen, toggleIMPanel } = useAgentStore();
   const { selectedAgentId, chatPanelOpen, streamContent, isDraggingAgent } = useAgentStore();
   const [loading, setLoading] = useState(true);
   useWebSocket();
@@ -199,17 +199,17 @@ function AppContent() {
         <span className="text-sm font-medium">项目</span>
       </button>
 
-      {/* Group Chat Button */}
+      {/* IM Button */}
       <button
-        onClick={toggleGroupChatPanel}
-        className={`absolute top-2 left-[140px] z-20 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-          groupChatPanelOpen
+        onClick={toggleIMPanel}
+        className={`absolute top-2 left-[140px] z-20 px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 ${
+          imPanelOpen
             ? 'bg-green-600 text-white'
-            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            : 'bg-gray-800/80 text-gray-300 hover:text-white hover:bg-gray-700/80'
         }`}
       >
-        <MessageCircle size={18} />
-        <span className="text-sm font-medium">群聊</span>
+        <MessageCircle size={16} />
+        <span className="text-sm">IM</span>
       </button>
 
       {/* Pipeline Panel */}
@@ -217,6 +217,11 @@ function AppContent() {
 
       {/* Projects Panel */}
       <ProjectsPanel />
+
+      {/* IM Panel */}
+      {imPanelOpen && (
+        <IMPanel isOpen={imPanelOpen} onClose={() => toggleIMPanel()} />
+      )}
 
       {/* Group Chat Panel */}
       {groupChatPanelOpen && (

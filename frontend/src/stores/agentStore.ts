@@ -94,6 +94,7 @@ interface AgentState {
   pipelinePanelOpen: boolean;
   projectsPanelOpen: boolean;
   groupChatPanelOpen: boolean;
+  imPanelOpen: boolean;
   thinkingLog: Array<{ agentId: string; agentName: string; thought: string; timestamp: number }>;
 
   toggleSidebar: () => void;
@@ -102,6 +103,7 @@ interface AgentState {
   togglePipelinePanel: () => void;
   toggleProjectsPanel: () => void;
   toggleGroupChatPanel: () => void;
+  toggleIMPanel: () => void;
   addThinkingLog: (agentId: string, agentName: string, thought: string) => void;
   clearThinkingLog: () => void;
   appendStreamContent: (taskId: string, content: string) => void;
@@ -280,6 +282,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   pipelinePanelOpen: false,
   projectsPanelOpen: false,
   groupChatPanelOpen: false,
+  imPanelOpen: false,
   thinkingLog: [],
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -287,6 +290,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   toggleChatPanel: () => set((state) => ({ chatPanelOpen: !state.chatPanelOpen })),
   togglePipelinePanel: () => set((state) => ({ pipelinePanelOpen: !state.pipelinePanelOpen })),
   toggleProjectsPanel: () => set((state) => ({ projectsPanelOpen: !state.projectsPanelOpen })),
+  toggleIMPanel: () => set((state) => ({ imPanelOpen: !state.imPanelOpen })),
   addThinkingLog: (agentId, agentName, thought) =>
     set((state) => ({
       thinkingLog: [
