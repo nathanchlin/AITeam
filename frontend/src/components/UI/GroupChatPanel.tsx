@@ -163,7 +163,9 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
   };
 
   const formatTime = (timestamp: string): string => {
-    const date = new Date(timestamp);
+    // Add 'Z' suffix if not present to indicate UTC time
+    const utcTimestamp = timestamp.endsWith('Z') ? timestamp : timestamp + 'Z';
+    const date = new Date(utcTimestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
 

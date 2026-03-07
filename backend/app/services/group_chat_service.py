@@ -353,6 +353,7 @@ class GroupChatService:
         message_type: str = "text",
         reply_to: Optional[str] = None,
         attachments: List[FileAttachment] = None,
+        trigger_agent_response: bool = True,
     ) -> Optional[GroupChatMessage]:
         """发送消息到群聊"""
         chat = self.chats.get(chat_id)
@@ -382,8 +383,8 @@ class GroupChatService:
             "data": message.dict()
         }))
 
-        # Trigger agent responses if sender is user
-        if sender_type == "user":
+        # Trigger agent responses if sender is user (only if enabled)
+        if trigger_agent_response and sender_type == "user":
             asyncio.create_task(self._trigger_agent_responses(chat, message))
 
         return message

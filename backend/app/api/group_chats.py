@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse
 from typing import List, Optional
 from pydantic import BaseModel, Field
 import os
+import asyncio
 
 from app.models.schemas import GroupChat, GroupChatCreate, GroupChatMessage, FileAttachment
 from app.services.group_chat_service import group_chat_service
@@ -88,9 +89,17 @@ async def send_message(chat_id: str, message_data: MessageCreate):
         content=message_data.content,
         message_type=message_data.message_type,
         reply_to=message_data.reply_to,
+        trigger_agent_response=False,  # Don't trigger in sync method
     )
     if not message:
         raise HTTPException(status_code=404, detail="Group chat not found")
+
+    # Trigger agent responses in async context
+    if message_data.sender_type == "user":
+        chat = group_chat_service.get_chat(chat_id)
+        if chat:
+            asyncio.create_task(group_chat_service._trigger_agent_responses(chat, message))
+
     return message.model_dump()
 
 
