@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { X, ExternalLink, Folder, RefreshCw, MessageCircle, ChevronRight } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { X, ExternalLink, Folder, RefreshCw, MessageCircle, ChevronRight, Heart } from 'lucide-react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS } from '../../types';
 
@@ -43,6 +43,49 @@ export function ProjectsPanel() {
   const [discussion, setDiscussion] = useState<DiscussionMessage[]>([]);
   const [discussionTitle, setDiscussionTitle] = useState('');
   const [loadingDiscussion, setLoadingDiscussion] = useState(false);
+
+  // 点赞状态，使用 localStorage 持久化
+  const [likedProjects, setLikedProjects] = useState<Set<string>>(() => {
+    const saved = localStorage.getItem('likedProjects');
+    if (saved) {
+      try {
+        return new Set(JSON.parse(saved));
+      } catch {
+        return new Set();
+      }
+    }
+    return new Set();
+  });
+
+  // 持久化点赞数据
+  useEffect(() => {
+    localStorage.setItem('likedProjects', JSON.stringify([...likedProjects]));
+  }, [likedProjects]);
+
+  // 切换点赞状态
+  const toggleLike = (projectId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLikedProjects(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(projectId)) {
+        newSet.delete(projectId);
+      } else {
+        newSet.add(projectId);
+      }
+      return newSet;
+    });
+  };
+
+  // 排序项目：点赞的优先，然后按修改时间
+  const sortedProjects = useMemo(() => {
+    return [...projects].sort((a, b) => {
+      const aLiked = likedProjects.has(a.id);
+      const bLiked = likedProjects.has(b.id);
+      if (aLiked && !bLiked) return -1;
+      if (!aLiked && bLiked) return 1;
+      return b.modified - a.modified;
+    });
+  }, [projects, likedProjects]);
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -94,7 +137,7 @@ export function ProjectsPanel() {
   // Discussion view
   if (selectedProject) {
     return (
-      <div className="absolute top-16 left-4 w-[450px] max-h-[700px] bg-gray-900/95 backdrop-blur rounded-lg flex flex-col z-20 overflow-hidden shadow-2xl border border-gray-700">
+      <div className="absolute top-16 right-4 w-[450px] max-h-[700px] bg-gray-900/95 backdrop-blur rounded-lg flex flex-col z-20 overflow-hidden shadow-2xl border border-gray-700">
         {/* Header */}
         <div className="p-4 border-b border-gray-700 flex items-center justify-between bg-gray-800">
           <div className="flex items-center gap-3">
@@ -201,7 +244,7 @@ export function ProjectsPanel() {
 
   // Projects list view
   return (
-    <div className="absolute top-16 left-4 w-[420px] max-h-[550px] bg-gray-900/95 backdrop-blur rounded-lg flex flex-col z-20 overflow-hidden shadow-2xl border border-gray-700">
+    <div className="absolute top-16 right-4 w-[420px] max-h-[550px] bg-gray-900/95 backdrop-blur rounded-lg flex flex-col z-20 overflow-hidden shadow-2xl border border-gray-700">
       {/* Header */}
       <div className="p-4 border-b border-gray-700 flex items-center justify-between bg-gray-800">
         <div className="flex items-center gap-3">
@@ -234,20 +277,39 @@ export function ProjectsPanel() {
             <RefreshCw size={24} className="animate-spin mb-2" />
             <p className="text-sm">加载中...</p>
           </div>
-        ) : projects.length > 0 ? (
-          projects.map((project) => (
+        ) : sortedProjects.length > 0 ? (
+          sortedProjects.map((project) => (
             <div
               key={project.id}
               className="p-4 bg-gray-800/50 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors"
             >
               <div className="flex items-start justify-between mb-2">
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-white text-sm font-medium truncate">
-                    {project.title}
-                  </h3>
-                  <p className="text-gray-500 text-xs mt-1">
-                    {project.file_count} 个文件 · {(project.total_size / 1024).toFixed(1)} KB
-                  </p>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  {/* 点赞按钮 */}
+                  <button
+                    onClick={(e) => toggleLike(project.id, e)}
+                    className={`flex-shrink-0 p-1.5 rounded-full transition-all duration-200 hover:bg-gray-700 ${
+                      likedProjects.has(project.id) ? 'scale-110' : ''
+                    }`}
+                    title={likedProjects.has(project.id) ? '取消点赞' : '点赞'}
+                  >
+                    <Heart
+                      size={16}
+                      className={`transition-colors duration-200 ${
+                        likedProjects.has(project.id)
+                          ? 'text-red-500 fill-red-500'
+                          : 'text-gray-400 hover:text-red-400'
+                      }`}
+                    />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-white text-sm font-medium truncate">
+                      {project.title}
+                    </h3>
+                    <p className="text-gray-500 text-xs mt-1">
+                      {project.file_count} 个文件 · {(project.total_size / 1024).toFixed(1)} KB
+                    </p>
+                  </div>
                 </div>
                 <div className="flex gap-2 ml-2">
                   {project.has_discussion && (
