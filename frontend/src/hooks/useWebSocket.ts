@@ -6,7 +6,7 @@ import { useAgentStore } from '../stores/agentStore';
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
 // WebSocket URL derived from API_BASE
-const WS_URL = API_BASE.replace(/^https?/, 'wss').replace(/^http/, 'ws') + '/ws';
+const WS_URL = API_BASE.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:') + '/ws';
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
