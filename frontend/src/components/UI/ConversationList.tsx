@@ -39,6 +39,14 @@ export function ConversationList({
   // Build conversation list from agents (private chats) and group chats
   const conversations = useMemo(() => {
     const convos: Conversation[] = [];
+
+    // Helper function defined before useMemo
+    const getUserAvatarColor = (name: string): string => {
+      const colors = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899'];
+      const index = name.charCodeAt(0) % colors.length;
+      return colors[index];
+    };
+
     const safeAgents = agents || [];
     const safeGroupChats = groupChats || [];
     const safeTasks = tasks || [];
@@ -123,12 +131,6 @@ export function ConversationList({
     } finally {
       setCreating(false);
     }
-  };
-
-  const getUserAvatarColor = (name: string): string => {
-    const colors = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899'];
-    const index = name.charCodeAt(0) % colors.length;
-    return colors[index];
   };
 
   // Show create group modal
