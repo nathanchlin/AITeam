@@ -276,7 +276,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   setQueueStatus: (status: QueueStatus) => set({ queueStatus: status }),
 
   // UI State
-  sidebarOpen: true,
+  sidebarOpen: false,
   taskPanelOpen: false,
   chatPanelOpen: false,
   pipelinePanelOpen: false,
