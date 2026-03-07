@@ -79,7 +79,6 @@ interface AgentState {
   updateGroupChat: (id: string, updates: Partial<GroupChat>) => void;
   setCurrentGroupChat: (id: string | null) => void;
   addGroupChatMessage: (message: GroupChatMessage) => void;
-  toggleGroupChatPanel: () => void;
 
   // Stream content
   streamContent: Record<string, string>;
@@ -521,7 +520,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         // Backend sends data as the message object directly
         console.log('[WS] Received group_chat_message:', data);
         if (data) {
-          const message = data as GroupChatMessage;
+          const message = data as unknown as GroupChatMessage;
           console.log('[WS] chat_id:', message.chat_id, 'current chats:', get().groupChats.map(c => c.id));
           get().addGroupChatMessage(message);
         }
@@ -531,7 +530,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         // Handle new group chat created
         // Backend sends data as the chat object directly
         if (data) {
-          const chat = data as GroupChat;
+          const chat = data as unknown as GroupChat;
           console.log('[WS] group_chat_created:', chat.id, chat.name);
           const existing = get().groupChats.find((c) => c.id === chat.id);
           if (!existing) {
@@ -546,7 +545,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         // Handle member added to group chat
         if (data.chat_id && data.member) {
           get().updateGroupChat(data.chat_id as string, {
-            members: [...(get().groupChats.find((c) => c.id === data.chat_id)?.members || []), data.member],
+            members: [...(get().groupChats.find((c) => c.id === data.chat_id)?.members || []), data.member as unknown as import('../types').GroupChatMember],
           });
         }
         break;

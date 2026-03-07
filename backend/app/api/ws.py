@@ -27,10 +27,12 @@ class ConnectionManager:
             pass
 
     async def broadcast(self, message: Dict[str, Any]):
+        print(f"[WSManager] Broadcasting to {len(self.active_connections)} connections: {message.get('type')}")
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
-            except Exception:
+            except Exception as e:
+                print(f"[WSManager] Failed to send to connection: {e}")
                 pass
 
     async def handle_message(self, websocket: WebSocket, data: str):

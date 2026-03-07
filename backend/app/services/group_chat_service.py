@@ -376,12 +376,36 @@ class GroupChatService:
         chat.updated_at = datetime.utcnow()
         self._save_chats()
 
-        # Broadcast message
+        # Broadcast message - convert datetime to ISO string for JSON serialization
         print(f"[GroupChatService] Broadcasting message: type={message.message_type}, chat_id={chat_id}, sender={sender_name}")
         import asyncio
+        message_dict = {
+            "id": message.id,
+            "chat_id": message.chat_id,
+            "sender_id": message.sender_id,
+            "sender_name": message.sender_name,
+            "sender_type": message.sender_type,
+            "content": message.content,
+            "message_type": message.message_type,
+            "reply_to": message.reply_to,
+            "timestamp": message.timestamp.isoformat() if message.timestamp else None,
+            "attachments": [
+                {
+                    "id": a.id,
+                    "filename": a.filename,
+                    "original_name": a.original_name,
+                    "file_path": a.file_path,
+                    "file_size": a.file_size,
+                    "mime_type": a.mime_type,
+                    "upload_by": a.upload_by,
+                    "upload_at": a.upload_at.isoformat() if a.upload_at else None,
+                }
+                for a in message.attachments
+            ],
+        }
         asyncio.create_task(ws_manager.broadcast({
             "type": "group_chat_message",
-            "data": message.dict()
+            "data": message_dict
         }))
 
         # Trigger agent responses if sender is user (only if enabled)
