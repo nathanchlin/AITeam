@@ -21,7 +21,8 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./aiteam.db"
 
     # CORS (允许所有来源 - 开发环境)
-    cors_origins: list[str] = ["*"]
+    # In production, set CORS_ORIGINS environment variable (comma-separated)
+    cors_origins: str = "*"
 
     # Redis Configuration
     redis_url: str = "redis://localhost:6379/0"

@@ -19,10 +19,11 @@ app = FastAPI(
 # Setup global exception handlers
 setup_exception_handlers(app, debug=settings.debug)
 
-# CORS middleware
+# CORS middleware - parse origins from comma-separated string
+cors_origins = [origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
