@@ -21,7 +21,6 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
     updateTask,
     addTask,
     agents,
-    addGroupChatMessage,
     setGroupChats,
   } = useAgentStore();
 
@@ -138,8 +137,7 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
       }
 
       if (res.ok) {
-        const newMessage = await res.json();
-        addGroupChatMessage(newMessage);
+        // Don't add message locally - it will be added via WebSocket broadcast
         setMessage('');
         setSelectedFile(null);
       }
