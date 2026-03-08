@@ -22,7 +22,7 @@ services:
       - "8000:8000"
     environment:
       - GLM_API_KEY=${GLM_API_KEY}
-      - GLM_MODEL=glm-4
+      - GLM_MODEL=glm-5
       - DATABASE_URL=sqlite+aiosqlite:///./data/aiteam.db
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0
@@ -41,7 +41,7 @@ services:
       dockerfile: Dockerfile.worker
     environment:
       - GLM_API_KEY=${GLM_API_KEY}
-      - GLM_MODEL=glm-4
+      - GLM_MODEL=glm-5
       - DATABASE_URL=sqlite+aiosqlite:///./data/aiteam.db
       - REDIS_URL=redis://redis:6379/0
       - CELERY_BROKER_URL=redis://redis:6379/0

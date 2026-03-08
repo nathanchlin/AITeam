@@ -106,7 +106,7 @@ Plans persist to `backend/data/plans.json`. On server restart, the coordinator r
 Backend `.env`:
 ```
 GLM_API_KEY=required
-GLM_MODEL=glm-4
+GLM_MODEL=glm-5
 DEBUG=true
 ```
 

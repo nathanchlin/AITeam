@@ -33,7 +33,8 @@
       "Bash(echo === Test 4 Retry: Send message ===:*)",
       "Bash(echo === Test 5: Try adding duplicate member ===:*)",
       "Bash(sleep 5:*)",
-      "mcp__zai-mcp-server__diagnose_error_screenshot"
+      "mcp__zai-mcp-server__diagnose_error_screenshot",
+      "Bash(cd D:/AIProject/AITeam/backend && source venv/Scripts/activate && python -c \"from app.main import app; print\\('Import OK'\\)\" 2>&1)"
     ]
   }
 }
