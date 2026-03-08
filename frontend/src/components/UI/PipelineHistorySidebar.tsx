@@ -14,8 +14,9 @@ export function PipelineHistorySidebar() {
     }
   };
 
-  // Calculate position based on Agent Sidebar state
-  const sidebarLeft = sidebarOpen ? 320 : 0;
+  // Calculate position: stack horizontally after Agent Sidebar
+  const agentSidebarWidth = sidebarOpen ? 320 : 0;
+  const sidebarLeft = agentSidebarWidth + 8;
   const sidebarWidth = 280;
 
   const getStatusIcon = (status: Plan['status']) => {
@@ -88,30 +89,40 @@ export function PipelineHistorySidebar() {
 
   return (
     <>
-      {/* Toggle button */}
-      <button
-        onClick={togglePipelineHistory}
-        className="absolute z-20 p-2 bg-gray-800 rounded-lg text-white hover:bg-gray-700 transition-colors"
-        style={{
-          left: `${sidebarLeft + (pipelineHistoryOpen ? sidebarWidth - 44 : 4)}px`,
-          top: '56px',
-          transition: 'left 300ms ease-in-out'
-        }}
-      >
-        {pipelineHistoryOpen ? <X size={18} /> : <GitBranch size={18} />}
-      </button>
+      {/* Open button - shown when panel is closed */}
+      {!pipelineHistoryOpen && (
+        <button
+          onClick={togglePipelineHistory}
+          className="absolute z-20 p-2 bg-gray-800 rounded-r-lg text-white hover:bg-gray-700 transition-colors"
+          style={{
+            left: `${sidebarLeft}px`,
+            top: '48px'
+          }}
+        >
+          <GitBranch size={18} />
+        </button>
+      )}
 
-      {/* Sidebar */}
+      {/* Sidebar - position based on Agent Sidebar */}
       <div
         className={`absolute top-0 h-full bg-gray-800/95 backdrop-blur transition-all duration-300 z-10 ${
-          pipelineHistoryOpen ? 'translate-x-0' : '-translate-x-full'
+          pipelineHistoryOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
         style={{
           left: `${sidebarLeft}px`,
           width: `${sidebarWidth}px`,
+          transform: pipelineHistoryOpen ? 'translateX(0)' : `translateX(-${sidebarWidth + 10}px)`
         }}
       >
-        <div className="h-full flex flex-col overflow-hidden pt-14">
+        {/* Close button - top right corner */}
+        <button
+          onClick={togglePipelineHistory}
+          className="absolute top-3 right-3 z-20 p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors"
+        >
+          <X size={18} />
+        </button>
+
+        <div className="h-full flex flex-col overflow-hidden pt-12">
           {/* Header */}
           <div className="px-4 py-3 border-b border-gray-700 flex-shrink-0">
             <h2 className="text-lg font-bold text-white flex items-center gap-2">
