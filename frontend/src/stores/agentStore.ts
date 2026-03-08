@@ -89,6 +89,7 @@ interface AgentState {
 
   // UI State
   sidebarOpen: boolean;
+  pipelineHistoryOpen: boolean;
   taskPanelOpen: boolean;
   chatPanelOpen: boolean;
   pipelinePanelOpen: boolean;
@@ -98,6 +99,7 @@ interface AgentState {
   thinkingLog: Array<{ agentId: string; agentName: string; thought: string; timestamp: number }>;
 
   toggleSidebar: () => void;
+  togglePipelineHistory: () => void;
   toggleTaskPanel: () => void;
   toggleChatPanel: () => void;
   togglePipelinePanel: () => void;
@@ -277,6 +279,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
 
   // UI State
   sidebarOpen: false,
+  pipelineHistoryOpen: true,
   taskPanelOpen: false,
   chatPanelOpen: false,
   pipelinePanelOpen: false,
@@ -286,6 +289,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   thinkingLog: [],
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+  togglePipelineHistory: () => set((state) => ({ pipelineHistoryOpen: !state.pipelineHistoryOpen })),
   toggleTaskPanel: () => set((state) => ({ taskPanelOpen: !state.taskPanelOpen })),
   toggleChatPanel: () => set((state) => ({ chatPanelOpen: !state.chatPanelOpen })),
   togglePipelinePanel: () => set((state) => ({ pipelinePanelOpen: !state.pipelinePanelOpen })),

@@ -6,6 +6,7 @@ import { Sidebar } from './components/UI/Sidebar';
 import { TaskPanel } from './components/UI/TaskPanel';
 import { ChatPanel } from './components/UI/ChatPanel';
 import { PipelinePanel } from './components/UI/PipelinePanel';
+import { PipelineHistorySidebar } from './components/UI/PipelineHistorySidebar';
 import { ProjectsPanel } from './components/UI/ProjectsPanel';
 import { GroupChatPanel } from './components/UI/GroupChatPanel';
 import { IMPanel } from './components/UI/IMPanel';
@@ -168,6 +169,7 @@ function AppContent() {
 
       {/* UI Overlay */}
       <Sidebar onCreateAgent={createAgent} />
+      <PipelineHistorySidebar />
       <TaskPanel tasks={tasks} onCreateTask={createTask} onStartTask={startTask} />
 
       {/* Achievement Notifications - Temporarily hidden due to UI issues */}

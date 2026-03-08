@@ -31,13 +31,15 @@ export function useWebSocket() {
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log('[WS] Already connected, skipping');
       return;
     }
 
+    console.log('[WS] Connecting to:', WS_URL);
     const ws = new WebSocket(WS_URL);
 
     ws.onopen = () => {
-      console.log('WebSocket connected');
+      console.log('[WS] Connected successfully');
       setWsConnected(true);
       // Sync current plan state on reconnect
       syncCurrentPlan();

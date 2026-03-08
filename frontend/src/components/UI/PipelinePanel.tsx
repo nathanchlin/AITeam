@@ -1398,32 +1398,6 @@ export function PipelinePanel() {
         )}
       </div>
 
-      {/* Plans List */}
-      {plans.length > 0 && (
-        <div className="p-3 border-t border-gray-700 bg-gray-800/50 flex-shrink-0">
-          <div className="flex gap-2 overflow-x-auto">
-            {plans.map((plan) => (
-              <button
-                key={plan.id}
-                onClick={() => setCurrentPlan(plan.id)}
-                className={`px-3 py-1.5 rounded text-xs whitespace-nowrap transition-colors flex items-center gap-2 ${
-                  currentPlanId === plan.id
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${
-                  plan.status === 'completed' ? 'bg-green-400' :
-                  plan.status === 'executing' ? 'bg-yellow-400 animate-pulse' :
-                  plan.status === 'discussing' ? 'bg-blue-400' : 'bg-gray-400'
-                }`} />
-                {plan.title.substring(0, 25)}...
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Resize Handle */}
       <div
         className={`absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-center justify-center select-none ${
