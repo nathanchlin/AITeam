@@ -30,6 +30,7 @@ env/
 .env
 .env.local
 .env.*.local
+frontend/.env.production
 
 # IDE
 .idea/
