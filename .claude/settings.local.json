@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(cd backend:*)",
+      "Bash(cd frontend:*)",
+      "Bash(cd:*)",
+      "Bash(pip install:*)",
+      "Bash(curl:*)",
+      "Bash(echo Backend dependencies OK:*)",
+      "Bash(git config:*)",
+      "Bash(cd /d/AIProject/AITeam && git fetch origin 2>&1)",
+      "Bash(tail:*)",
+      "Bash(git pull:*)",
+      "Bash(head:*)",
+      "Bash(cd \"D:/AIProject/AITeam/frontend\" && npx tsc --noEmit 2>&1)",
+      "Bash(cd D:\\\\AIProject\\\\AITeam\\\\backend:*)",
+      "Bash(echo OK:*)",
+      "WebSearch",
+      "mcp__web-search-prime__web_search_prime",
+      "Bash(sleep 4:*)",
+      "Bash(python:*)",
+      "Bash(echo Cache cleared:*)",
+      "Bash(tasklist:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(find:*)",
+      "Bash(pkill:*)",
+      "Bash(wmic process:*)",
+      "Bash(powershell:*)",
+      "Bash(cmd:*)",
+      "Bash(grep:*)",
+      "Bash(echo === Test 4 Retry: Send message ===:*)",
+      "Bash(echo === Test 5: Try adding duplicate member ===:*)",
+      "Bash(sleep 5:*)",
+      "mcp__zai-mcp-server__diagnose_error_screenshot"
+    ]
+  }
+}

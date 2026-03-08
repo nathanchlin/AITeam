@@ -1,6 +1,16 @@
 import { create } from 'zustand';
 import type { Agent, Task, Plan, DiscussionMessage, WebSocketMessage, AgentStats, AchievementNotification, GroupChat, GroupChatMessage } from '../types';
 
+// Stream buffer for batching updates (reduces UI re-renders)
+const streamBuffer: Record<string, string> = {};
+let streamFlushTimer: ReturnType<typeof setInterval> | null = null;
+
+const startStreamFlushTimer = (flush: () => void) => {
+  if (!streamFlushTimer) {
+    streamFlushTimer = setInterval(flush, 300); // Flush every 300ms
+  }
+};
+
 // Queue status interface
 export interface QueueStatus {
   running_count: number;
@@ -109,6 +119,7 @@ interface AgentState {
   addThinkingLog: (agentId: string, agentName: string, thought: string) => void;
   clearThinkingLog: () => void;
   appendStreamContent: (taskId: string, content: string) => void;
+  flushStreamBuffer: () => void;
   clearStreamContent: (taskId: string) => void;
 
   // WebSocket
@@ -303,25 +314,54 @@ export const useAgentStore = create<AgentState>((set, get) => ({
       ],
     })),
   clearThinkingLog: () => set({ thinkingLog: [] }),
-  appendStreamContent: (taskId, content) =>
-    set((state) => ({
-      streamContent: {
-        ...state.streamContent,
-        [taskId]: (state.streamContent[taskId] || '') + content,
-      },
-    })),
-  clearStreamContent: (taskId) =>
+  // Internal function to flush buffer to state
+  flushStreamBuffer: () => {
+    const keys = Object.keys(streamBuffer);
+    if (keys.length === 0) return;
+
+    const updates: Record<string, string> = {};
+    keys.forEach(key => {
+      if (streamBuffer[key]) {
+        updates[key] = streamBuffer[key];
+        delete streamBuffer[key];
+      }
+    });
+
+    if (Object.keys(updates).length > 0) {
+      set((state) => {
+        const newStreamContent = { ...state.streamContent };
+        Object.keys(updates).forEach(key => {
+          newStreamContent[key] = (newStreamContent[key] || '') + updates[key];
+        });
+        return { streamContent: newStreamContent };
+      });
+    }
+  },
+
+  appendStreamContent: (taskId, content) => {
+    // Buffer the content instead of immediate state update
+    streamBuffer[taskId] = (streamBuffer[taskId] || '') + content;
+    // Start flush timer if not running
+    startStreamFlushTimer(() => get().flushStreamBuffer());
+  },
+  clearStreamContent: (taskId) => {
+    // Also clear from buffer
+    delete streamBuffer[taskId];
     set((state) => {
       const { [taskId]: _, ...rest } = state.streamContent;
       return { streamContent: rest };
-    }),
+    });
+  },
 
   // WebSocket
   wsConnected: false,
   setWsConnected: (connected) => set({ wsConnected: connected }),
   handleWebSocketMessage: (message) => {
     const { type, data } = message;
-    console.log('[WS] Received:', type, data);
+    // 只打印非stream类型的消息，避免流式数据刷屏
+    if (type !== 'stream') {
+      console.log('[WS] Received:', type, data);
+    }
 
     switch (type) {
       case 'agent_update':

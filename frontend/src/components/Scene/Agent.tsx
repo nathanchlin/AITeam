@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html, Float, DragControls } from '@react-three/drei';
+import { Html, Float } from '@react-three/drei';
 import * as THREE from 'three';
 import { useAgentStore } from '../../stores/agentStore';
 import type { Agent, DiscussionMessage } from '../../types';
@@ -100,8 +100,7 @@ function getRandomDestination(currentId: string): string {
 export function AgentModel({ agent }: AgentModelProps) {
   const meshRef = useRef<THREE.Group>(null);
   const [hovered, setHovered] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const { selectAgent, selectedAgentId, updateAgentPosition, setIsDraggingAgent } = useAgentStore();
+  const { selectAgent, selectedAgentId, updateAgentPosition } = useAgentStore();
 
   // Navigation state
   const [currentNodeId, setCurrentNodeId] = useState<string>('');
@@ -123,8 +122,11 @@ export function AgentModel({ agent }: AgentModelProps) {
   // Home position
   const homeNode = useMemo(() => {
     const deskNodes = NAV_GRAPH.filter(n => n.type === 'desk');
+    if (deskNodes.length === 0) {
+      return NAV_GRAPH[0]; // Fallback to first node
+    }
     const index = parseInt(agent.id.slice(-1), 16) % deskNodes.length;
-    return deskNodes[index] || deskNodes[0];
+    return deskNodes[index];
   }, [agent.id]);
 
   const isSelected = selectedAgentId === agent.id;
@@ -237,7 +239,7 @@ export function AgentModel({ agent }: AgentModelProps) {
 
   // Random walking when idle
   useEffect(() => {
-    if (behaviorMode !== 'idle' || agent.status !== 'idle' || isDragging || isWalking) return;
+    if (behaviorMode !== 'idle' || agent.status !== 'idle' || isWalking) return;
 
     const walkTimer = setTimeout(() => {
       if (Math.random() > 0.4) {
@@ -252,11 +254,11 @@ export function AgentModel({ agent }: AgentModelProps) {
     }, 8000 + Math.random() * 15000);
 
     return () => clearTimeout(walkTimer);
-  }, [behaviorMode, agent.status, isDragging, isWalking, currentNodeId, homeNode.id]);
+  }, [behaviorMode, agent.status, isWalking, currentNodeId, homeNode.id]);
 
   // Animation loop
   useFrame((state, delta) => {
-    if (!meshRef.current || isDragging) return;
+    if (!meshRef.current) return;
 
     if (isWalking && path.length > 0 && pathIndex < path.length) {
       const targetNode = findNode(path[pathIndex]);
@@ -316,33 +318,14 @@ export function AgentModel({ agent }: AgentModelProps) {
   };
 
   return (
-    <DragControls
-      axisLock="y"
-      onDragStart={() => {
-        setIsDragging(true);
-        setIsDraggingAgent(true);
-        setIsWalking(false);
-        setPath([]);
-      }}
-      onDragEnd={() => {
-        setIsDragging(false);
-        setIsDraggingAgent(false);
-        if (meshRef.current) {
-          const newPosition = { x: meshRef.current.position.x, y: 0, z: meshRef.current.position.z };
-          updateAgentPosition(agent.id, newPosition);
-          const nearest = findNearestNode(newPosition.x, newPosition.z);
-          setCurrentNodeId(nearest.id);
-        }
-      }}
+    <group
+      ref={meshRef}
+      position={[agent.position.x, agent.position.y, agent.position.z]}
+      onClick={() => selectAgent(isSelected ? null : agent.id)}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
     >
-      <group
-        ref={meshRef}
-        position={[agent.position.x, agent.position.y, agent.position.z]}
-        onClick={() => selectAgent(isSelected ? null : agent.id)}
-        onPointerOver={() => setHovered(true)}
-        onPointerOut={() => setHovered(false)}
-      >
-        <Float speed={agent.status === 'idle' && !isDragging && !isWalking && behaviorMode === 'idle' ? 1.5 : 0} floatIntensity={0.08}>
+        <Float speed={agent.status === 'idle' && !isWalking && behaviorMode === 'idle' ? 1.5 : 0} floatIntensity={0.08}>
           <group position={[0, 0.35, 0]}>
             <LowPolyWorker color={colors.primary} secondaryColor={colors.light} status={agent.status} />
           </group>
@@ -410,6 +393,5 @@ export function AgentModel({ agent }: AgentModelProps) {
           </Html>
         )}
       </group>
-    </DragControls>
   );
 }

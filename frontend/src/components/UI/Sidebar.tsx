@@ -67,13 +67,15 @@ export function Sidebar({ onCreateAgent }: SidebarProps) {
 
   return (
     <>
-      {/* Toggle button */}
-      <button
-        onClick={toggleSidebar}
-        className="absolute left-2 top-2 z-20 p-2 bg-gray-800 rounded-lg text-white hover:bg-gray-700 transition-colors"
-      >
-        {sidebarOpen ? <X size={20} /> : <Users size={20} />}
-      </button>
+      {/* Toggle button - only shown when sidebar is closed */}
+      {!sidebarOpen && (
+        <button
+          onClick={toggleSidebar}
+          className="absolute left-2 top-2 z-20 p-2 bg-gray-800 rounded-lg text-white hover:bg-gray-700 transition-colors"
+        >
+          <Users size={20} />
+        </button>
+      )}
 
       {/* Sidebar */}
       <div
@@ -82,7 +84,15 @@ export function Sidebar({ onCreateAgent }: SidebarProps) {
         }`}
         style={{ width: '320px' }}
       >
-        <div className="h-full flex flex-col p-4 pt-14 overflow-hidden">
+        {/* Close button - top right corner */}
+        <button
+          onClick={toggleSidebar}
+          className="absolute top-3 right-3 z-20 p-2 hover:bg-gray-700 rounded-lg text-gray-400 hover:text-white transition-colors"
+        >
+          <X size={18} />
+        </button>
+
+        <div className="h-full flex flex-col p-4 pt-12 overflow-hidden">
           <h2 className="text-lg font-bold text-white mb-4">AITeam</h2>
 
           {/* Agent list */}

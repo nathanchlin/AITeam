@@ -1,8 +1,10 @@
 import { useRef, useMemo } from 'react';
 import * as THREE from 'three';
+import { useAgentStore } from '../../stores/agentStore';
 
 export function Ground() {
   const meshRef = useRef<THREE.Mesh>(null);
+  const selectAgent = useAgentStore((state) => state.selectAgent);
 
   // Create a wood floor texture procedurally
   const floorTexture = useMemo(() => {
@@ -114,6 +116,10 @@ export function Ground() {
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0, 0]}
         receiveShadow
+        onClick={(e) => {
+          e.stopPropagation();
+          selectAgent(null);
+        }}
       >
         <planeGeometry args={[50, 50]} />
         <meshStandardMaterial

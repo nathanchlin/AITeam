@@ -1040,16 +1040,19 @@ class CoordinatorService:
                                     incremental_mode=incremental_mode
                                 ):
                                     if update["type"] == "stream":
-                                        full_response += update["content"]
-                                        await self.broadcast({
-                                            "type": "stream",
-                                            "data": {
-                                                "plan_id": plan_id,
-                                                "task_id": task.id,
-                                                "agent_id": agent.id,
-                                                "content": update["content"],
-                                            }
-                                        })
+                                        # Skip empty or whitespace-only content
+                                        content = update["content"]
+                                        if content and content.strip():
+                                            full_response += content
+                                            await self.broadcast({
+                                                "type": "stream",
+                                                "data": {
+                                                    "plan_id": plan_id,
+                                                    "task_id": task.id,
+                                                    "agent_id": agent.id,
+                                                    "content": content,
+                                                }
+                                            })
 
                             await asyncio.wait_for(execute_with_timeout(), timeout=task_timeout)
 

@@ -235,7 +235,9 @@ class GLMClient:
             if item is None:
                 break
             if item["type"] == "content":
-                yield item["content"]
+                # Skip empty or whitespace-only content
+                if item["content"] and item["content"].strip():
+                    yield item["content"]
             elif item["type"] == "usage":
                 # Store usage for retrieval after stream ends
                 self._last_token_usage = item["usage"]
