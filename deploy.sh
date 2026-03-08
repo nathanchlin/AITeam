@@ -54,16 +54,16 @@ deploy() {
 
     # 构建并启动
     log_info "构建 Docker 镜像..."
-    docker-compose -f docker-compose.prod.yml build
+    docker compose -f docker-compose.prod.yml build
 
     log_info "启动服务..."
-    docker-compose -f docker-compose.prod.yml up -d
+    docker compose -f docker-compose.prod.yml up -d
 
     log_info "等待服务启动..."
     sleep 5
 
     # 检查状态
-    if docker-compose -f docker-compose.prod.yml ps | grep -q "Up"; then
+    if docker compose -f docker-compose.prod.yml ps | grep -q "Up"; then
         log_info "部署成功！"
         log_info "访问地址: http://$(curl -s ifconfig.me 2>/dev/null || echo 'your-server-ip')"
     else
@@ -80,8 +80,8 @@ update() {
     git pull
 
     log_info "重新构建并启动..."
-    docker-compose -f docker-compose.prod.yml build --no-cache
-    docker-compose -f docker-compose.prod.yml up -d
+    docker compose -f docker-compose.prod.yml build --no-cache
+    docker compose -f docker-compose.prod.yml up -d
 
     log_info "清理旧镜像..."
     docker image prune -f
@@ -91,20 +91,20 @@ update() {
 
 # 查看日志
 logs() {
-    docker-compose -f docker-compose.prod.yml logs -f --tail=100
+    docker compose -f docker-compose.prod.yml logs -f --tail=100
 }
 
 # 停止
 stop() {
     log_info "停止服务..."
-    docker-compose -f docker-compose.prod.yml down
+    docker compose -f docker-compose.prod.yml down
     log_info "服务已停止"
 }
 
 # 重启
 restart() {
     log_info "重启服务..."
-    docker-compose -f docker-compose.prod.yml restart
+    docker compose -f docker-compose.prod.yml restart
     log_info "服务已重启"
 }
 
