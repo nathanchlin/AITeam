@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     glm_coding_model: str = "glm-5"  # 代码生成专用模型
     glm_coding_base_url: str = "https://open.bigmodel.cn/api/coding/paas/v4"  # Coding Plan 端点
 
+    # Token limits
+    glm_max_tokens: int = 131072  # Maximum output tokens (128K for GLM-5)
+
     # Server Configuration
     host: str = "0.0.0.0"
     port: int = 8000

@@ -128,6 +128,7 @@ class GLMClient:
                     self.client.chat.completions.create,
                     model=self.model,
                     messages=messages,
+                    max_tokens=settings.glm_max_tokens,
                 )
                 # Extract token usage
                 if hasattr(response, 'usage') and response.usage:
@@ -183,6 +184,7 @@ class GLMClient:
                     model=self.model,
                     messages=messages,
                     stream=True,
+                    max_tokens=settings.glm_max_tokens,
                 )
                 break  # 成功则跳出重试循环
             except Exception as e:
