@@ -5,7 +5,7 @@ from typing import Optional
 class Settings(BaseSettings):
     # GLM API Configuration
     glm_api_key: str = ""
-    glm_model: str = "glm-4-flash"  # 用于分析、讨论、计划生成
+    glm_model: str = "glm-5"  # 统一使用 glm-5 进行所有任务
     glm_base_url: str = ""  # 可选的备用端点
 
     # GLM Coding Model (用于代码生成，更强的能力)
