@@ -5,7 +5,7 @@ import zipfile
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Tuple
 import re
 import difflib
 
@@ -36,23 +36,145 @@ class OutputManager:
         if not os.path.exists(path):
             os.makedirs(path)
 
-    def extract_code_blocks(self, content: str) -> List[Dict[str, str]]:
-        """Extract code blocks from markdown content"""
+    def validate_code_completeness(self, content: str) -> Dict[str, Any]:
+        """Check code completeness and return issues found.
+
+        Args:
+            content: The full LLM response content
+
+        Returns:
+            Dict with 'is_complete' bool and 'issues' list
+        """
+        issues = []
+
+        # 1. Check code block closure (``` count should be even)
+        code_block_count = content.count('```')
+        if code_block_count % 2 != 0:
+            issues.append("代码块未闭合 (``` 数量为奇数)")
+
+        # 2. Check HTML closing tags
+        if '<html' in content.lower() and '</html>' not in content.lower():
+            issues.append("HTML 缺少 </html> 结束标签")
+
+        # 3. Check brace matching (simple check)
+        open_braces = content.count('{')
+        close_braces = content.count('}')
+        if open_braces != close_braces:
+            issues.append(f"大括号不匹配: {{ {open_braces} 个, }} {close_braces} 个")
+
+        # 4. Check for obvious truncation markers
+        truncation_markers = [
+            # Incomplete method/function
+            r'function\s+\w+\s*\([^)]*\)\s*\{?\s*$',  # function at end
+            r'const\s+\w+\s*=\s*\([^)]*\)\s*=>\s*\{?\s*$',  # arrow func at end
+            r'async\s+function\s+\w+\s*\([^)]*\)\s*\{?\s*$',  # async func at end
+            # Incomplete statements
+            r'if\s*\([^)]*\)\s*\{?\s*$',  # if at end
+            r'for\s*\([^)]*\)\s*\{?\s*$',  # for at end
+            r'while\s*\([^)]*\)\s*\{?\s*$',  # while at end
+        ]
+
+        # Check if content ends abruptly (last 100 chars)
+        last_part = content[-200:] if len(content) > 200 else content
+        for pattern in truncation_markers:
+            if re.search(pattern, last_part, re.IGNORECASE | re.MULTILINE):
+                issues.append("代码在语句中间被截断")
+                break
+
+        # 5. Check for common truncation patterns at the end
+        if content.rstrip().endswith(('(', '{', '[', ',', '&&', '||', '+', '-', '*', '/')):
+            issues.append("代码在表达式中间被截断")
+
+        return {
+            "is_complete": len(issues) == 0,
+            "issues": issues
+        }
+
+    def extract_code_blocks(self, content: str, include_truncated: bool = True) -> List[Dict[str, str]]:
+        """Extract code blocks from markdown content.
+
+        Args:
+            content: The markdown content to extract code blocks from
+            include_truncated: If True, also extract incomplete/truncated code blocks
+
+        Returns:
+            List of dicts with 'language', 'filename', 'code', and optionally 'is_truncated'
+        """
         blocks = []
         # Match ```language\ncode\n``` or ```\ncode\n```
         # Language identifier may be followed by spaces/tabs, but newline is required
         pattern = r'```(\w+)?[ \t]*\n(.*?)```'
         matches = re.findall(pattern, content, re.DOTALL)
 
-        for lang, code in matches:
-            lang = lang or 'text'
-            # Try to detect filename from first comment or content
-            filename = self.detect_filename(code, lang)
-            blocks.append({
-                'language': lang,
-                'filename': filename,
-                'code': code.strip()
-            })
+        if matches:
+            for lang, code in matches:
+                lang = lang or 'text'
+                # Try to detect filename from first comment or content
+                filename = self.detect_filename(code, lang)
+                blocks.append({
+                    'language': lang,
+                    'filename': filename,
+                    'code': code.strip(),
+                    'is_truncated': False
+                })
+
+        # If no complete blocks found or if we want to also check for truncated blocks
+        if include_truncated and not matches:
+            # Check for unclosed code blocks (truncated response)
+            # Pattern: ``` followed by content that doesn't have closing ```
+            unclosed_pattern = r'```(\w+)?[ \t]*\n(.*?)(?:```|$)'
+            unclosed_matches = re.findall(unclosed_pattern, content, re.DOTALL)
+
+            for lang, code in unclosed_matches:
+                # Skip if this was already matched as a complete block
+                if any(b['code'] == code.strip() for b in blocks):
+                    continue
+
+                lang = lang or 'text'
+                # Check if this block is actually unclosed (doesn't end with ```)
+                # The regex might capture complete blocks too, so we need to verify
+                block_start = content.find(f'```{lang}' if lang else '```')
+                if block_start == -1:
+                    block_start = content.find('```')
+
+                if block_start != -1:
+                    # Find where this code appears in the content
+                    code_start = block_start + content[block_start:].find('\n') + 1
+
+                    # Check if there's a closing ``` after this code
+                    remaining = content[code_start + len(code):]
+                    has_closing = remaining.strip().startswith('```')
+
+                    if not has_closing:
+                        # This is a truncated block
+                        filename = self.detect_filename(code, lang)
+                        print(f"[OutputManager] Warning: Detected truncated code block for {filename}")
+                        blocks.append({
+                            'language': lang,
+                            'filename': filename,
+                            'code': code.strip(),
+                            'is_truncated': True
+                        })
+
+        # Also try to extract HTML directly if no code blocks found
+        if not blocks and include_truncated:
+            # Try to find HTML content (complete or incomplete)
+            html_match = re.search(
+                r'(<(!DOCTYPE\s+)?html.*?(?:</html>|$))',
+                content,
+                re.IGNORECASE | re.DOTALL
+            )
+            if html_match:
+                html_code = html_match.group(1)
+                is_complete = html_code.lower().endswith('</html>')
+                if not is_complete:
+                    print(f"[OutputManager] Warning: Extracted incomplete HTML (missing </html>)")
+                blocks.append({
+                    'language': 'html',
+                    'filename': 'index.html',
+                    'code': html_code.strip(),
+                    'is_truncated': not is_complete
+                })
 
         return blocks
 

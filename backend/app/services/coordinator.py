@@ -297,6 +297,77 @@ class CoordinatorService:
         elif self.websocket_manager:
             await self.websocket_manager.broadcast(message)
 
+    async def request_continuation(
+        self,
+        partial_code: str,
+        issues: List[str],
+        plan_id: str = None,
+        task_id: str = None,
+    ) -> str:
+        """Request LLM to continue generating truncated code.
+
+        Args:
+            partial_code: The incomplete code generated so far
+            issues: List of completeness issues detected
+            plan_id: Optional plan ID for context
+            task_id: Optional task ID for context
+
+        Returns:
+            The continuation code to complete the truncated response
+        """
+        issues_text = '\n'.join(f'- {issue}' for issue in issues)
+
+        prompt = f"""之前的代码生成被截断了，存在以下问题：
+{issues_text}
+
+请从截断处继续完成代码。
+
+⚠️ 重要提示：
+1. 只输出剩余部分的代码（不要重复已生成的代码）
+2. 如果截断处是函数或语句中间，先完成那个函数/语句
+3. 确保输出的代码能与之前的部分正确拼接
+4. 必须包含闭合标签（如 </script></body></html>）
+
+以下是之前生成的代码最后2000字符，请继续：
+```
+{partial_code[-2000:]}
+```
+
+请继续完成代码："""
+
+        continuation = ""
+        try:
+            # Notify that we're requesting continuation
+            if plan_id:
+                await self.broadcast({
+                    "type": "stream",
+                    "data": {
+                        "plan_id": plan_id,
+                        "task_id": task_id,
+                        "content": "\n\n⚠️ 检测到代码被截断，正在请求继续生成...\n\n",
+                    }
+                })
+
+            async for chunk in glm_client.chat_stream(prompt, "coder"):
+                continuation += chunk
+                await self.broadcast({
+                    "type": "stream",
+                    "data": {
+                        "plan_id": plan_id,
+                        "task_id": task_id,
+                        "content": chunk,
+                    }
+                })
+
+            print(f"[Coordinator] Continuation generated: {len(continuation)} chars")
+
+        except Exception as e:
+            print(f"[Coordinator] Error requesting continuation: {e}")
+            # Return a fallback closing
+            continuation = "\n\n// [代码生成中断，请重新生成]"
+
+        return continuation
+
     async def create_plan(
         self,
         request: str,
@@ -1057,8 +1128,41 @@ class CoordinatorService:
 
                             await asyncio.wait_for(execute_with_timeout(), timeout=task_timeout)
 
-                            # Task completed successfully
+                            # Task completed successfully - now check for truncation
                             task_success = True
+
+                            # Check code completeness for coder tasks
+                            if agent.type.value == "coder" and full_response:
+                                completeness = output_manager.validate_code_completeness(full_response)
+                                if not completeness["is_complete"]:
+                                    print(f"[Pipeline] Truncation detected in task: {task.title}")
+                                    print(f"[Pipeline] Issues: {completeness['issues']}")
+
+                                    # Request continuation from LLM
+                                    continuation = await self.request_continuation(
+                                        partial_code=full_response,
+                                        issues=completeness["issues"],
+                                        plan_id=plan_id,
+                                        task_id=task.id,
+                                    )
+
+                                    if continuation and continuation.strip():
+                                        full_response += continuation
+
+                                        # Re-check after continuation
+                                        new_completeness = output_manager.validate_code_completeness(full_response)
+                                        if new_completeness["is_complete"]:
+                                            print(f"[Pipeline] Code completed successfully after continuation")
+                                        else:
+                                            print(f"[Pipeline] Code still incomplete after continuation: {new_completeness['issues']}")
+                                            await self.add_discussion_message(
+                                                plan_id=plan_id,
+                                                agent_id=agent.id,
+                                                agent_name=agent.name,
+                                                agent_type=agent.type.value,
+                                                content=f"⚠️ 代码可能不完整：{', '.join(completeness['issues'])}",
+                                                message_type="comment",
+                                            )
 
                         except asyncio.TimeoutError:
                             # Task timed out
