@@ -215,29 +215,30 @@ class CoordinatorService:
         # Get current agents, respecting user's selection order
         all_agents = agent_manager.get_all_agents()
 
-        # Get current agents by type, respecting selected_agent_ids order
-        agents_by_type = {}
+        # Build agents_by_type using the shared helper (Dict[str, List[Agent]])
+        selected_agent_order = plan.selected_agent_ids
         if plan.selected_agent_ids:
-            for agent_id in plan.selected_agent_ids:
-                agent = next((a for a in all_agents if a.id == agent_id), None)
-                if agent:
-                    agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
-                    if agent_type not in agents_by_type:
-                        agents_by_type[agent_type] = agent
+            selected_agents = [a for a in all_agents if a.id in plan.selected_agent_ids]
+            # Fallback when stored selected IDs are stale after restart or agent recreation
+            if not selected_agents:
+                selected_agents = all_agents
+                selected_agent_order = None
         else:
-            for agent in all_agents:
-                agent_type = agent.type.value if hasattr(agent.type, 'value') else str(agent.type)
-                if agent_type not in agents_by_type:
-                    agents_by_type[agent_type] = agent
+            selected_agents = all_agents
+            selected_agent_order = None
 
-        # Re-assign agents to tasks
+        agents_by_type = self._build_agents_by_type(selected_agents, selected_agent_order)
+
+        # Re-assign agents to tasks (use first agent in each type list for consistency)
         reassigned = 0
         for task in plan.tasks:
             if task.assigned_agent_type and task.assigned_agent_type in agents_by_type:
-                agent = agents_by_type[task.assigned_agent_type]
-                if task.assigned_agent_id != agent.id:
-                    task.assigned_agent_id = agent.id
-                    reassigned += 1
+                agent_list = agents_by_type[task.assigned_agent_type]
+                if agent_list:
+                    agent = agent_list[0]
+                    if task.assigned_agent_id != agent.id:
+                        task.assigned_agent_id = agent.id
+                        reassigned += 1
 
         if reassigned > 0:
             print(f"[Coordinator] Re-assigned {reassigned} agents for plan {plan_id[:8]}")

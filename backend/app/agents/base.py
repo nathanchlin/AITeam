@@ -217,6 +217,16 @@ func _draw():
 ❌ 禁止依赖未引入的库：如果用 Phaser 必须 <script src="phaser.js">
 ❌ 禁止引用不存在的 DOM 元素：getElementById 必须对应真实元素
 
+【SVG 格式规范 - 必须遵守】
+⚠️ SVG viewBox 属性必须用空格分隔数值：viewBox="0 0 24 24"（正确）而非 viewBox="002424"（错误）
+⚠️ SVG path 的 d 属性中数值必须用空格/逗号分隔：d="M 1 15 L 6 9 H 2"（正确）
+⚠️ 示例：<svg viewBox="0 0 100 100"><path d="M 10 10 L 90 10 L 90 90 Z"/></svg>
+
+【JavaScript 语法规范 - 必须遵守】
+⚠️ 注释不能包含代码语法符号：// Ignore errors } 是错误的！花括号 } 在注释外面
+⚠️ 正确写法：} catch (e) { // Ignore errors } 而非 } catch (e) { // Ignore errors } }
+⚠️ 确保所有 { } 括号正确配对，不要在注释中误加括号
+
 【必须遵守 - 强制要求】
 ✅ 所有代码必须是单个完整的 HTML 文件
 ✅ 结构规范：<!DOCTYPE html><html><head><style>CSS</style></head><body>HTML元素<script>JS</script></body></html>

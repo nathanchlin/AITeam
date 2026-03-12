@@ -40,8 +40,8 @@ class OutputManager:
         """Extract code blocks from markdown content"""
         blocks = []
         # Match ```language\ncode\n``` or ```\ncode\n```
-        # Also handle cases where there's no newline after language (e.g., ```html<code>)
-        pattern = r'```(\w+)?\s*\n?(.*?)```'
+        # Language identifier may be followed by spaces/tabs, but newline is required
+        pattern = r'```(\w+)?[ \t]*\n(.*?)```'
         matches = re.findall(pattern, content, re.DOTALL)
 
         for lang, code in matches:
