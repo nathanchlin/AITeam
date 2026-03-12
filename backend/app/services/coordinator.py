@@ -515,6 +515,62 @@ class CoordinatorService:
         assistant.update_status(AgentStatus.IDLE)
         return full_response
 
+    def _build_discussion_summary(self, plan: Plan) -> str:
+        """Build a structured discussion summary for Coder context.
+
+        Extracts key technical points from discussion messages, organized by:
+        - Tech stack recommendations
+        - Architecture decisions
+        - Important warnings/risks
+        - Testing considerations
+        """
+        if not plan.discussion:
+            return ""
+
+        # Categorize messages by agent type
+        coder_points = []
+        analyst_points = []
+        tester_points = []
+        assistant_points = []
+
+        for msg in plan.discussion:
+            content = msg.content.strip()
+            if len(content) < 20:  # Skip very short messages
+                continue
+
+            if msg.agent_type == "coder":
+                coder_points.append(f"- {content[:500]}")  # Limit length
+            elif msg.agent_type == "analyst":
+                analyst_points.append(f"- {content[:500]}")
+            elif msg.agent_type == "tester":
+                tester_points.append(f"- {content[:500]}")
+            else:
+                assistant_points.append(f"- {content[:300]}")
+
+        # Build structured summary
+        summary_parts = []
+
+        if coder_points:
+            summary_parts.append("## 💻 Coder 建议")
+            summary_parts.extend(coder_points[-3:])  # Last 3 points
+
+        if analyst_points:
+            summary_parts.append("\n## 📊 Analyst 分析")
+            summary_parts.extend(analyst_points[-2:])  # Last 2 points
+
+        if tester_points:
+            summary_parts.append("\n## 🧪 Tester 测试建议")
+            summary_parts.extend(tester_points[-2:])  # Last 2 points
+
+        if assistant_points:
+            summary_parts.append("\n## 📋 Assistant 协调")
+            # Only include coordination messages, skip initial greeting
+            for point in assistant_points[-2:]:
+                if "请针对" not in point and "感谢各位" not in point:
+                    summary_parts.append(point)
+
+        return "\n".join(summary_parts)
+
     async def organize_discussion(self, plan_id: str) -> str:
         """Phase 2: Organize discussion between agents"""
         plan = self.plans.get(plan_id)
@@ -676,10 +732,14 @@ class CoordinatorService:
 
         assistant.update_status(AgentStatus.WORKING)
 
-        # Compile discussion summary
+        # Build structured discussion summary and store it for Coder context
+        plan.discussion_summary = self._build_discussion_summary(plan)
+
+        # Also create a simple summary for plan generation prompt
         discussion_summary = "\n".join([
-            f"[{msg.agent_name}]: {msg.content}"
-            for msg in plan.discussion[-5:]  # Last 5 messages
+            f"[{msg.agent_name}]: {msg.content[:300]}..."
+            if len(msg.content) > 300 else f"[{msg.agent_name}]: {msg.content}"
+            for msg in plan.discussion[-8:]  # Increased from 5 to 8 messages
         ])
 
         # Build available agent types string for prompt
@@ -1089,12 +1149,21 @@ class CoordinatorService:
 ✅ 使用代码绘制：draw_rect()、draw_circle()、draw_string()
 """
 
+                    # Add discussion summary context for Coders
+                    discussion_context = ""
+                    if agent.type.value == "coder" and plan.discussion_summary:
+                        discussion_context = f"""
+
+💡 团队讨论摘要（供参考）：
+{plan.discussion_summary}
+"""
+
                     task_description = f"""任务：{task.title}
 
 描述：{task.description or '无详细描述'}
 
 原始需求上下文：{plan.original_request}
-{previous_tasks_context}{fix_context}{web_app_instructions}{godot_instructions}
+{discussion_context}{previous_tasks_context}{fix_context}{web_app_instructions}{godot_instructions}
 
 请完成你的任务部分，提供详细的输出。"""
 
