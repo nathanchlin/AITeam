@@ -54,7 +54,10 @@ def test_validator_reports_missing_dom_id_and_js_syntax_error():
 
     assert result.passed is False
     assert any("DOM id" in error for error in result.errors)
-    assert any("JavaScript 语法检查失败" in error for error in result.errors)
+    syntax_errors = [error for error in result.errors if "JavaScript 语法检查失败" in error]
+    assert syntax_errors
+    assert any("SyntaxError" in error for error in syntax_errors)
+    assert any("const broken = ;" in error for error in syntax_errors)
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is required for smoke test")

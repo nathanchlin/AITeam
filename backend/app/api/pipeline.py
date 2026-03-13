@@ -359,23 +359,52 @@ async def get_output_file(plan_id: str, filename: str):
         raise HTTPException(status_code=500, detail=f"Output path error: {str(e)}")
     filepath = os.path.join(output_dir, filename)
 
-    # 若请求的是 index.html 但不存在，尝试按需合并生成（流水线可能未跑完或未生成 index.html）
-    if filename == "index.html" and not os.path.exists(filepath):
+    if filename == "index.html":
         plan = coordinator.get_plan(plan_id)
         plan_title = plan.title if plan else "Output"
-        try:
-            if output_manager.consolidate_web_app(plan_id, plan_title):
-                filepath = os.path.join(output_dir, filename)
-                if os.path.exists(filepath):
-                    return FileResponse(filepath)
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
+        needs_rebuild = (not os.path.exists(filepath)) or output_manager.is_misleading_placeholder_index(plan_id)
+
+        if needs_rebuild:
+            try:
+                if output_manager.consolidate_web_app(plan_id, plan_title):
+                    filepath = os.path.join(output_dir, filename)
+                    if os.path.exists(filepath) and not output_manager.is_misleading_placeholder_index(plan_id):
+                        return FileResponse(filepath)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to generate index.html: {str(e)}",
+                )
+
+        if output_manager.is_misleading_placeholder_index(plan_id):
+            validation = output_manager.read_web_validation(plan_id)
             raise HTTPException(
-                status_code=500,
-                detail=f"Failed to generate index.html: {str(e)}",
+                status_code=409,
+                detail={
+                    "message": "Latest generated HTML is invalid; placeholder preview suppressed",
+                    "plan_id": plan_id,
+                    "invalid_candidate": "index.invalid.candidate.html",
+                    "errors": (validation or {}).get("errors", [])[:5],
+                    "warnings": (validation or {}).get("warnings", [])[:5],
+                },
             )
-        raise HTTPException(status_code=404, detail="index.html not found and could not be generated from fragments")
+
+        if not os.path.exists(filepath):
+            validation = output_manager.read_web_validation(plan_id)
+            if validation and validation.get("passed") is False:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": "index.html was not generated because the latest candidate failed validation",
+                        "plan_id": plan_id,
+                        "invalid_candidate": "index.invalid.candidate.html",
+                        "errors": validation.get("errors", [])[:5],
+                        "warnings": validation.get("warnings", [])[:5],
+                    },
+                )
+            raise HTTPException(status_code=404, detail="index.html not found and could not be generated from fragments")
 
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")
@@ -388,12 +417,20 @@ async def get_output_preview(plan_id: str):
     """Get preview URL for the generated output"""
     output_dir = output_manager.get_output_path(plan_id)
 
-    # Check for index.html
     index_path = os.path.join(output_dir, "index.html")
-    if os.path.exists(index_path):
+    if os.path.exists(index_path) and not output_manager.is_misleading_placeholder_index(plan_id):
         return {
             "preview_url": f"/api/pipeline/output/{plan_id}/files/index.html",
             "has_preview": True
+        }
+
+    if output_manager.is_misleading_placeholder_index(plan_id):
+        validation = output_manager.read_web_validation(plan_id)
+        return {
+            "has_preview": False,
+            "message": "Latest generated HTML is invalid; placeholder preview suppressed",
+            "invalid_candidate": "index.invalid.candidate.html",
+            "errors": (validation or {}).get("errors", [])[:5],
         }
 
     return {"has_preview": False, "message": "No preview available"}

@@ -110,7 +110,44 @@ class WebOutputValidator:
         if result.returncode == 0:
             return True, None, True
 
-        message = (result.stderr or result.stdout or "未知语法错误").strip().splitlines()[-1]
+        raw_output = (result.stderr or result.stdout or "未知语法错误").strip()
+        lines = [line.rstrip() for line in raw_output.splitlines() if line.strip()]
+        filtered_lines = [line for line in lines if not line.strip().startswith("Node.js v")]
+
+        line_number = None
+        code_line = None
+        caret_line = None
+        message_line = None
+
+        for i, line in enumerate(filtered_lines):
+            line_match = re.search(r':(\d+)$', line)
+            if line_match and line_number is None:
+                line_number = line_match.group(1)
+                if i + 1 < len(filtered_lines):
+                    code_line = filtered_lines[i + 1]
+                if i + 2 < len(filtered_lines) and '^' in filtered_lines[i + 2]:
+                    caret_line = filtered_lines[i + 2]
+
+            if ("SyntaxError" in line or "Error:" in line) and message_line is None:
+                message_line = line
+
+        message_parts = []
+        if line_number:
+            message_parts.append(f"第 {line_number} 行")
+        if code_line:
+            message_parts.append(code_line)
+        if caret_line:
+            message_parts.append(caret_line)
+        if message_line:
+            message_parts.append(message_line)
+
+        if message_parts:
+            message = "\n".join(message_parts)
+        elif filtered_lines:
+            message = "\n".join(filtered_lines[:3])
+        else:
+            message = lines[-1] if lines else "未知语法错误"
+
         return False, message, True
 
     def _build_smoke_test_script(self, js_code: str, dom_ids: List[str]) -> str:

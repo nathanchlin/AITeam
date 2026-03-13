@@ -392,3 +392,49 @@ def test_update_index_html_rejects_invalid_candidate_and_keeps_last_good_version
     validation = manager.read_web_validation("plan-2", "save")
     assert validation is not None
     assert validation["passed"] is False
+
+
+def test_consolidate_web_app_does_not_replace_invalid_candidate_with_placeholder(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    invalid_content = """```html
+<!DOCTYPE html>
+<html>
+<head><title>Broken</title></head>
+<body>
+  <div id=\"status\"></div>
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('status').textContent = 'boom';
+    const broken = ;
+  });
+  </script>
+</body>
+</html>
+```"""
+
+    with pytest.raises(ValueError):
+        manager.update_index_html("plan-3", invalid_content, task_title="broken")
+
+    plan_dir = tmp_path / "plan-3"[:8]
+    assert not (plan_dir / "index.html").exists()
+    assert manager.consolidate_web_app("plan-3", "Broken Plan") is False
+    assert not (plan_dir / "index.html").exists()
+
+    validation = manager.read_web_validation("plan-3")
+    assert validation is not None
+    assert validation["passed"] is False
+    assert any("JavaScript 语法检查失败" in error for error in validation["errors"])
+
+
+def test_is_misleading_placeholder_index_detects_blank_fallback(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    plan_dir = tmp_path / "plan-4"[:8]
+    plan_dir.mkdir(parents=True)
+
+    (plan_dir / "index.html").write_text(manager._generate_basic_html("Placeholder"), encoding="utf-8")
+    (plan_dir / "index.invalid.candidate.html").write_text(
+        "<!DOCTYPE html><html><body><button id='runBtn'>Run</button></body></html>",
+        encoding="utf-8",
+    )
+
+    assert manager.is_misleading_placeholder_index("plan-4") is True

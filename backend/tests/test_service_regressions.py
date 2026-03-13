@@ -1,7 +1,11 @@
 """Regression tests for coordinator reassignment and markdown code extraction."""
+import asyncio
 import importlib
 from types import SimpleNamespace
 from unittest.mock import patch
+
+import pytest
+from fastapi import HTTPException
 
 from app.models.schemas import AgentType, Plan, PlanTask
 from app.services.coordinator import CoordinatorService
@@ -10,7 +14,7 @@ from app.services.quality_scorer import quality_scorer
 
 
 coordinator_module = importlib.import_module("app.services.coordinator")
-
+pipeline_module = importlib.import_module("app.api.pipeline")
 
 
 def make_agent(agent_id: str, name: str, agent_type: AgentType):
@@ -160,3 +164,52 @@ def test_extract_code_blocks_rejects_inline_fence_without_newline(tmp_path):
     blocks = manager.extract_code_blocks("Prefix ```html<div>bad</div>``` suffix")
 
     assert blocks == []
+
+
+def test_get_output_file_raises_conflict_for_misleading_placeholder(tmp_path):
+    plan_id = "plan-9"
+    output_dir = tmp_path / plan_id[:8]
+    output_dir.mkdir(parents=True)
+    (output_dir / "index.html").write_text(
+        "<!DOCTYPE html><html><body><div id='app'></div></body></html>",
+        encoding="utf-8",
+    )
+
+    with patch.object(pipeline_module.output_manager, "get_output_path", return_value=str(output_dir)), patch.object(
+        pipeline_module.output_manager, "is_misleading_placeholder_index", return_value=True
+    ), patch.object(
+        pipeline_module.output_manager, "consolidate_web_app", return_value=False
+    ), patch.object(
+        pipeline_module.output_manager,
+        "read_web_validation",
+        return_value={"passed": False, "errors": ["JavaScript 语法检查失败"], "warnings": []},
+    ), patch.object(
+        pipeline_module.coordinator, "get_plan", return_value=SimpleNamespace(title="Broken Plan")
+    ):
+        with pytest.raises(HTTPException) as exc:
+            asyncio.run(pipeline_module.get_output_file(plan_id, "index.html"))
+
+    assert exc.value.status_code == 409
+    assert exc.value.detail["invalid_candidate"] == "index.invalid.candidate.html"
+
+
+def test_get_output_preview_suppresses_misleading_placeholder(tmp_path):
+    plan_id = "plan-10"
+    output_dir = tmp_path / plan_id[:8]
+    output_dir.mkdir(parents=True)
+    (output_dir / "index.html").write_text(
+        "<!DOCTYPE html><html><body><div id='app'></div></body></html>",
+        encoding="utf-8",
+    )
+
+    with patch.object(pipeline_module.output_manager, "get_output_path", return_value=str(output_dir)), patch.object(
+        pipeline_module.output_manager, "is_misleading_placeholder_index", return_value=True
+    ), patch.object(
+        pipeline_module.output_manager,
+        "read_web_validation",
+        return_value={"passed": False, "errors": ["JavaScript 语法检查失败"]},
+    ):
+        result = asyncio.run(pipeline_module.get_output_preview(plan_id))
+
+    assert result["has_preview"] is False
+    assert result["invalid_candidate"] == "index.invalid.candidate.html"
