@@ -6,6 +6,7 @@ from unittest.mock import patch
 from app.models.schemas import AgentType, Plan, PlanTask
 from app.services.coordinator import CoordinatorService
 from app.services.output_manager import OutputManager
+from app.services.quality_scorer import quality_scorer
 
 
 coordinator_module = importlib.import_module("app.services.coordinator")

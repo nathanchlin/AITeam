@@ -3,11 +3,14 @@ import json
 import hashlib
 import zipfile
 import tempfile
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 import re
 import difflib
+
+from app.services.web_output_validator import web_output_validator
 
 
 def _default_output_dir() -> str:
@@ -26,6 +29,7 @@ class OutputManager:
 
     def __init__(self, base_dir: Optional[str] = None):
         self.base_dir = base_dir if base_dir is not None else _default_output_dir()
+        self.web_validator = web_output_validator
         try:
             self.ensure_dir(self.base_dir)
         except OSError:
@@ -35,6 +39,76 @@ class OutputManager:
         """Ensure directory exists"""
         if not os.path.exists(path):
             os.makedirs(path)
+
+    def _authoritative_index_path(self, plan_dir: str) -> str:
+        return os.path.join(plan_dir, "index.authoritative.html")
+
+    def _validation_report_path(self, plan_dir: str, stage: str) -> str:
+        safe_stage = re.sub(r'[^a-zA-Z0-9_-]+', '_', stage)
+        return os.path.join(plan_dir, f"web_validation_{safe_stage}.json")
+
+    def _write_web_validation_report(self, plan_dir: str, validation_result: Any) -> str:
+        report_path = self._validation_report_path(plan_dir, validation_result.stage)
+        payload = validation_result.to_dict()
+        payload["generated_at"] = datetime.now().isoformat()
+        with open(report_path, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        return report_path
+
+    def read_web_validation(self, plan_id: str, stage: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+        preferred_stages = [stage] if stage else ["pretest", "consolidated", "authoritative", "save"]
+
+        for candidate_stage in preferred_stages:
+            if not candidate_stage:
+                continue
+            report_path = self._validation_report_path(plan_dir, candidate_stage)
+            if os.path.exists(report_path):
+                try:
+                    with open(report_path, 'r', encoding='utf-8') as f:
+                        return json.load(f)
+                except Exception as e:
+                    print(f"[OutputManager] Read validation report error: {e}")
+                    return None
+        return None
+
+    def _smoke_report_path(self, plan_dir: str) -> str:
+        return os.path.join(plan_dir, "web_smoke.json")
+
+    def run_web_smoke_test(self, plan_id: str) -> Dict[str, Any]:
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+        authoritative_path = self._authoritative_index_path(plan_dir)
+        index_path = authoritative_path if os.path.exists(authoritative_path) else os.path.join(plan_dir, "index.html")
+
+        if not os.path.exists(index_path):
+            result = {
+                "passed": False,
+                "skipped": False,
+                "error": "index.html 不存在，无法执行 smoke 测试",
+            }
+        else:
+            with open(index_path, 'r', encoding='utf-8') as f:
+                html_content = f.read()
+            result = self.web_validator.run_minimal_dom_smoke_test(html_content)
+
+        report_path = self._smoke_report_path(plan_dir)
+        payload = dict(result)
+        payload["generated_at"] = datetime.now().isoformat()
+        with open(report_path, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        return result
+
+    def read_web_smoke(self, plan_id: str) -> Optional[Dict[str, Any]]:
+        plan_dir = os.path.join(self.base_dir, plan_id[:8])
+        report_path = self._smoke_report_path(plan_dir)
+        if not os.path.exists(report_path):
+            return None
+        try:
+            with open(report_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception as e:
+            print(f"[OutputManager] Read smoke report error: {e}")
+            return None
 
     def validate_code_completeness(self, content: str) -> Dict[str, Any]:
         """Check code completeness and return issues found.
@@ -267,37 +341,28 @@ class OutputManager:
         content: str,
         task_title: str = "",
     ) -> List[str]:
-        """Update index.html directly for incremental code modification.
+        """Update authoritative index.html for web-app projects.
 
-        This method is used for web-app projects to maintain a single index.html
-        file that gets updated incrementally rather than creating multiple
-        numbered files (index_0.html, index_1.html, etc.)
-
-        Args:
-            plan_id: The plan ID
-            content: The LLM output content (may contain markdown code blocks)
-            task_title: Task title for logging purposes
-
-        Returns:
-            List of saved file paths
+        The latest coder HTML is treated as authoritative only after it passes
+        structural and runtime-oriented validation. Invalid candidates are saved
+        separately for debugging but do not overwrite the last good preview.
         """
         plan_dir = os.path.join(self.base_dir, plan_id[:8])
         self.ensure_dir(plan_dir)
 
-        saved_files = []
+        saved_files: List[str] = []
         index_path = os.path.join(plan_dir, "index.html")
+        authoritative_path = self._authoritative_index_path(plan_dir)
 
         # Extract HTML code from content
         html_code = None
 
-        # First, try to extract from markdown code blocks
         code_blocks = self.extract_code_blocks(content)
         for block in code_blocks:
             if block['language'] == 'html' or block['filename'].endswith('.html'):
                 html_code = block['code']
                 break
 
-        # If no code block found, try to extract HTML directly from content
         if not html_code:
             html_match = re.search(
                 r'(<(!DOCTYPE\s+)?html.*?</html>)',
@@ -307,42 +372,57 @@ class OutputManager:
             if html_match:
                 html_code = html_match.group(1)
 
-        if html_code:
-            # Backup existing index.html if it exists
-            if os.path.exists(index_path):
-                timestamp = int(datetime.now().timestamp())
-                backup_path = os.path.join(plan_dir, f"index_backup_{timestamp}.html")
+        if not html_code:
+            raise ValueError("未能从 coder 输出中提取完整 HTML")
 
-                # Also save to archive directory for version history
-                archive_dir = os.path.join(plan_dir, "archive")
-                self.ensure_dir(archive_dir)
+        validation = self.web_validator.validate_html_output(
+            html_code,
+            stage="save",
+            requirements=task_title,
+        )
+        report_path = self._write_web_validation_report(plan_dir, validation)
+        saved_files.append(report_path)
 
-                # Count existing archives to determine next iteration number
-                existing_archives = [f for f in os.listdir(archive_dir) if f.startswith("iteration_")]
-                next_iteration = len(existing_archives)
-                archive_path = os.path.join(archive_dir, f"iteration_{next_iteration}", "index.html")
-
-                try:
-                    # Create backup
-                    shutil.copy2(index_path, backup_path)
-                    saved_files.append(backup_path)
-                    print(f"[OutputManager] Backup created: {backup_path}")
-
-                    # Save to archive
-                    archive_dir_full = os.path.dirname(archive_path)
-                    self.ensure_dir(archive_dir_full)
-                    shutil.copy2(index_path, archive_path)
-                    print(f"[OutputManager] Archived to: {archive_path}")
-                except Exception as e:
-                    print(f"[OutputManager] Backup failed: {e}")
-
-            # Save the new HTML content
-            with open(index_path, 'w', encoding='utf-8') as f:
+        if not validation.passed:
+            invalid_candidate_path = os.path.join(plan_dir, "index.invalid.candidate.html")
+            with open(invalid_candidate_path, 'w', encoding='utf-8') as f:
                 f.write(html_code)
-            saved_files.append(index_path)
-            print(f"[OutputManager] Updated index.html for plan {plan_id[:8]}")
+            saved_files.append(invalid_candidate_path)
+            raise ValueError(
+                "生成的 HTML 未通过保存前校验: " + "; ".join(validation.errors[:3])
+            )
 
-        # Also save the task output as markdown for record-keeping
+        # Backup existing authoritative/index file if it exists
+        current_source = authoritative_path if os.path.exists(authoritative_path) else index_path
+        if os.path.exists(current_source):
+            timestamp = int(datetime.now().timestamp())
+            backup_path = os.path.join(plan_dir, f"index_backup_{timestamp}.html")
+
+            archive_dir = os.path.join(plan_dir, "archive")
+            self.ensure_dir(archive_dir)
+            existing_archives = [f for f in os.listdir(archive_dir) if f.startswith("iteration_")]
+            next_iteration = len(existing_archives)
+            archive_path = os.path.join(archive_dir, f"iteration_{next_iteration}", "index.html")
+
+            try:
+                shutil.copy2(current_source, backup_path)
+                saved_files.append(backup_path)
+                print(f"[OutputManager] Backup created: {backup_path}")
+
+                archive_dir_full = os.path.dirname(archive_path)
+                self.ensure_dir(archive_dir_full)
+                shutil.copy2(current_source, archive_path)
+                print(f"[OutputManager] Archived to: {archive_path}")
+            except Exception as e:
+                print(f"[OutputManager] Backup failed: {e}")
+
+        with open(authoritative_path, 'w', encoding='utf-8') as f:
+            f.write(html_code)
+        with open(index_path, 'w', encoding='utf-8') as f:
+            f.write(html_code)
+        saved_files.extend([authoritative_path, index_path])
+        print(f"[OutputManager] Updated authoritative index.html for plan {plan_id[:8]}")
+
         if task_title:
             task_slug = re.sub(r'[^\w\s-]', '', task_title.lower())[:30]
             task_slug = re.sub(r'[\s-]+', '-', task_slug)
@@ -629,19 +709,39 @@ class OutputManager:
         return '\n\n'.join(scripts), html_without
 
     def consolidate_web_app(self, plan_id: str, plan_title: str) -> bool:
-        """Consolidate code fragments into a working web application"""
+        """Consolidate code fragments into a working web application.
+
+        Prefer the last validated authoritative HTML when available. Only fall
+        back to fragment merging when no authoritative page exists or the saved
+        authoritative copy is itself invalid.
+        """
         plan_dir = os.path.join(self.base_dir, plan_id[:8])
         if not os.path.exists(plan_dir):
             return False
 
         index_path = os.path.join(plan_dir, "index.html")
+        authoritative_path = self._authoritative_index_path(plan_dir)
 
-        # Collect all JS code from .js files (browser-compatible only)
+        if os.path.exists(authoritative_path):
+            try:
+                with open(authoritative_path, 'r', encoding='utf-8', errors='replace') as file:
+                    authoritative_html = file.read()
+                validation = self.web_validator.validate_html_output(
+                    authoritative_html,
+                    stage="authoritative",
+                    requirements=plan_title,
+                )
+                self._write_web_validation_report(plan_dir, validation)
+                if validation.passed:
+                    if authoritative_path != index_path:
+                        shutil.copy2(authoritative_path, index_path)
+                    print(f"[OutputManager] Using authoritative HTML for plan {plan_id[:8]}")
+                    return True
+                print(f"[OutputManager] Authoritative HTML failed validation, falling back to merge: {validation.errors}")
+            except OSError as e:
+                print(f"[OutputManager] Failed to read authoritative HTML: {e}")
+
         js_code = []
-        js_files = []
-
-        # Patterns that indicate Node.js/test code (not browser-compatible)
-        # Use \b word boundary to avoid false matches like init(), describeGame()
         node_patterns = [
             r'module\.exports',
             r'\brequire\s*\(',
@@ -652,7 +752,6 @@ class OutputManager:
             r'\bit\s*\(',
             r'\btest\s*\(',
             r'\bexpect\s*\(',
-            # Server-side frameworks and libraries
             r'\bexpress\s*\(\)',
             r'\bsocket\.io\b',
             r'\bsocketIo\b',
@@ -670,7 +769,6 @@ class OutputManager:
             r'\bcors\s*\(\)',
             r'\bjwt\.sign\b',
             r'\bjwt\.verify\b',
-            # MongoDB schema patterns
             r'\bSchema\s*=\s*new\s+mongoose\.Schema',
             r'\bObjectId\b',
         ]
@@ -681,15 +779,12 @@ class OutputManager:
                 try:
                     with open(filepath, 'r', encoding='utf-8', errors='replace') as file:
                         content = file.read()
-                    # Skip Node.js/test code
                     is_node_code = any(re.search(pattern, content) for pattern in node_patterns)
                     if content.strip() and not is_node_code:
-                        js_files.append(f)
                         js_code.append(f"// From {f}\n{content}")
                 except OSError:
                     continue
 
-        # Collect all CSS
         css_code = []
         for f in sorted(os.listdir(plan_dir)):
             if f.endswith('.css'):
@@ -702,67 +797,69 @@ class OutputManager:
                 except OSError:
                     pass
 
-        # Find or create index.html（多个 index_*.html 时优先用编号最大的，通常最完整）
         html_content = None
-        html_files = [f for f in os.listdir(plan_dir) if f.endswith('.html')]
+        html_files = [
+            f for f in os.listdir(plan_dir)
+            if f.endswith('.html') and f not in {'index.authoritative.html', 'index.invalid.candidate.html', 'index.fallback.invalid.html'}
+        ]
         if html_files:
             def _index_num(fname: str) -> int:
                 m = re.search(r'index_(\d+)\.html', fname)
                 return int(m.group(1)) if m else (0 if fname == 'index.html' else -1)
+
             best = max(html_files, key=_index_num)
             filepath = os.path.join(plan_dir, best)
             with open(filepath, 'r', encoding='utf-8', errors='replace') as file:
                 html_content = file.read()
 
         if not html_content:
-            # Create a basic HTML structure
             html_content = self._generate_basic_html(plan_title)
 
-        # ALWAYS remove external script and CSS references - they won't work in single file
         html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*></script>', '', html_content)
         html_content = re.sub(r'<script\s+src=["\'][^"\']*\.js["\']?\s*/>', '', html_content)
         html_content = re.sub(r'<link[^>]*href=["\'][^"\']+\.css["\'][^>]*>', '', html_content)
-
-        # Remove Phaser CDN - we enforce pure Canvas
         html_content = re.sub(r'<script\s+src=["\'][^"\']*phaser[^"\']*\.js["\']?\s*>\s*</script>', '', html_content, flags=re.IGNORECASE)
         html_content = re.sub(r'<script\s+src=["\'][^"\']*phaser[^"\']*["\']?\s*/>', '', html_content, flags=re.IGNORECASE)
 
-        # Inject CSS if not already present (inline styles)
         if css_code and '<style>' not in html_content:
             combined_css = '\n'.join(css_code)
             html_content = html_content.replace('</head>', f'<style>\n{combined_css}\n</style>\n</head>')
 
-        # Handle JavaScript consolidation with deduplication
-        # Extract all existing scripts, merge with new JS, deduplicate, then re-inject
         if js_code or ('<script' in html_content and '</script>' in html_content):
-            # Extract all existing inline JavaScript
             existing_js, html_without_scripts = self._extract_all_scripts(html_content)
-
-            # Combine existing JS with new JS files
             all_js_parts = []
             if existing_js.strip():
                 all_js_parts.append(existing_js)
             if js_code:
                 all_js_parts.append('\n'.join(js_code))
-
             combined_js = '\n\n'.join(all_js_parts)
-
-            # Deduplicate: remove duplicate variable, class, function declarations
             deduplicated_js = self._deduplicate_javascript(combined_js)
-
-            # Re-inject as a single script tag before </body>
             if deduplicated_js.strip():
                 html_content = html_without_scripts.replace(
                     '</body>',
                     f'<script>\n{deduplicated_js}\n</script>\n</body>'
                 )
 
-        # Validate and fix common issues
         html_content = self._validate_and_fix_html(html_content, plan_title)
+        validation = self.web_validator.validate_html_output(
+            html_content,
+            stage="consolidated",
+            requirements=plan_title,
+        )
+        self._write_web_validation_report(plan_dir, validation)
 
-        # Write consolidated index.html
+        if not validation.passed:
+            invalid_fallback_path = os.path.join(plan_dir, "index.fallback.invalid.html")
+            with open(invalid_fallback_path, 'w', encoding='utf-8') as f:
+                f.write(html_content)
+            print(f"[OutputManager] Consolidated HTML failed validation: {validation.errors}")
+            return False
+
         with open(index_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
+        if not os.path.exists(authoritative_path):
+            with open(authoritative_path, 'w', encoding='utf-8') as f:
+                f.write(html_content)
 
         return True
 
@@ -962,9 +1059,10 @@ document.addEventListener('DOMContentLoaded', function() {
         return os.path.join(self.base_dir, plan_id[:8])
 
     def read_existing_code(self, plan_id: str, max_length: int = 20000) -> Optional[str]:
-        """读取 plan 的现有 index.html 代码"""
+        """读取 plan 的现有权威 HTML 代码，若不存在则退回 index.html"""
         plan_dir = os.path.join(self.base_dir, plan_id[:8])
-        index_path = os.path.join(plan_dir, "index.html")
+        authoritative_path = self._authoritative_index_path(plan_dir)
+        index_path = authoritative_path if os.path.exists(authoritative_path) else os.path.join(plan_dir, "index.html")
 
         if not os.path.exists(index_path):
             return None
@@ -1623,150 +1721,30 @@ document.addEventListener('DOMContentLoaded', function() {
         return result
 
     def pre_test_validation(self, plan_id: str) -> Dict[str, Any]:
-        """Pre-test validation to ensure code is complete and error-free"""
+        """Pre-test validation to ensure code is complete and runtime-ready."""
         plan_dir = os.path.join(self.base_dir, plan_id[:8])
-        index_path = os.path.join(plan_dir, "index.html")
-
-        result = {
-            "passed": True,
-            "errors": [],
-            "warnings": [],
-            "auto_fixed": [],
-        }
+        authoritative_path = self._authoritative_index_path(plan_dir)
+        index_path = authoritative_path if os.path.exists(authoritative_path) else os.path.join(plan_dir, "index.html")
 
         if not os.path.exists(index_path):
-            result["passed"] = False
-            result["errors"].append("index.html 不存在")
-            return result
+            return {
+                "passed": False,
+                "errors": ["index.html 不存在"],
+                "warnings": [],
+                "signals": {},
+            }
 
         with open(index_path, 'r', encoding='utf-8') as f:
             html_content = f.read()
 
-        # 1. Check for external file references
-        external_js = re.findall(r'<script\s+src=["\']([^"\']+)["\']', html_content)
-        external_css = re.findall(r'<link[^>]+href=["\']([^"\']+\.css)["\']', html_content)
+        validation = self.web_validator.validate_html_output(
+            html_content,
+            stage="pretest",
+            requirements=os.path.basename(index_path),
+        )
+        self._write_web_validation_report(plan_dir, validation)
+        result = validation.to_dict()
 
-        if external_js:
-            result["errors"].append(f"外部 JS 引用: {external_js}")
-            result["passed"] = False
-
-        if external_css:
-            result["errors"].append(f"外部 CSS 引用: {external_css}")
-            result["passed"] = False
-
-        # 2. Check for CDN dependencies (may be blocked)
-        cdn_refs = re.findall(r'(https?://cdn[^"\']+)', html_content)
-        if cdn_refs:
-            result["warnings"].append(f"CDN 依赖: {cdn_refs[:3]}... (可能被墙)")
-
-        # 3. Check for incomplete code patterns
-        incomplete_patterns = [
-            (r'//\s*TODO', 'TODO 注释'),
-            (r'\.\.\.(?:\s|")', '省略号 ...'),
-            (r'//\s*其他方法', '未实现的方法注释'),
-            (r'//\s*待实现', '待实现注释'),
-            (r'function\s+\w+\s*\(\s*\)\s*\{\s*\}', '空函数'),
-        ]
-
-        for pattern, desc in incomplete_patterns:
-            if re.search(pattern, html_content):
-                result["warnings"].append(f"可能不完整的代码: {desc}")
-
-        # 4. Extract and validate JavaScript (all script tags)
-        script_matches = re.findall(r'<script[^>]*>([\s\S]*?)</script>', html_content)
-        js_code = '\n'.join(script_matches)  # Combine all script contents
-
-        if js_code:
-            # Check for class definitions
-            defined_classes = set(re.findall(r'\bclass\s+(\w+)', js_code))
-
-            # Check for duplicate class definitions
-            class_list = re.findall(r'\bclass\s+(\w+)', js_code)
-            class_counts = {}
-            for cls in class_list:
-                class_counts[cls] = class_counts.get(cls, 0) + 1
-            for cls, count in class_counts.items():
-                if count > 1:
-                    result["errors"].append(f"类 {cls} 被定义了 {count} 次")
-                    result["passed"] = False
-
-            # Check for undefined class usage
-            used_classes = set(re.findall(r'\bnew\s+(\w+)\(', js_code))
-            builtin_classes = {'Object', 'Array', 'String', 'Number', 'Boolean', 'Function',
-                               'Date', 'RegExp', 'Error', 'Map', 'Set', 'Promise', 'Image', 'Audio',
-                               'XMLHttpRequest', 'WebSocket', 'JSON', 'Math', 'Intl', 'Proxy', 'Reflect',
-                               'Animation', 'CanvasGradient', 'CanvasPattern', 'Path2D', 'BigInt',
-                               # Typed Arrays
-                               'ArrayBuffer', 'DataView',
-                               'Int8Array', 'Uint8Array', 'Uint8ClampedArray',
-                               'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array',
-                               'Float32Array', 'Float64Array', 'BigInt64Array', 'BigUint64Array'}
-            undefined_classes = used_classes - defined_classes - builtin_classes
-
-            # Filter Phaser classes if CDN is included
-            if any('phaser' in ref.lower() for ref in cdn_refs):
-                phaser_classes = {'Phaser', 'Game', 'Scene', 'Sprite', 'Text', 'Image'}
-                undefined_classes = undefined_classes - phaser_classes
-
-            if undefined_classes:
-                result["errors"].append(f"使用未定义的类: {undefined_classes}")
-                result["passed"] = False
-
-            # Check for undefined variable references (common patterns)
-            undefined_var_patterns = [
-                (r'\btextureCache\b', 'textureCache'),
-                (r'\baudioCache\b', 'audioCache'),
-                (r'\bbullets\s*=', 'bullets 数组'),
-                (r'\bgetWorldVertices\b', 'getWorldVertices 函数'),
-                (r'\bprojectPolygon\b', 'projectPolygon 函数'),
-            ]
-            for pattern, name in undefined_var_patterns:
-                if re.search(pattern, js_code):
-                    result["warnings"].append(f"可能未定义: {name}")
-
-            # Check for Phaser usage without CDN
-            if re.search(r'Phaser\.(Game|Scene|AUTO)', js_code):
-                if not any('phaser' in ref.lower() for ref in cdn_refs):
-                    result["errors"].append("使用了 Phaser 但未引入库")
-                    result["passed"] = False
-
-            # Check for initialization
-            has_init = bool(re.search(r'(window\.onload|DOMContentLoaded|init\s*\(\)|addEventListener.*load)', js_code))
-            has_class = bool(defined_classes)
-
-            if has_class and not has_init:
-                result["errors"].append("缺少初始化代码")
-                result["passed"] = False
-
-            # Check for game loop (if it's a game)
-            has_game_loop = bool(re.search(r'(requestAnimationFrame|gameLoop|setInterval)', js_code))
-
-            if has_class and not has_game_loop:
-                result["warnings"].append("代码有类但没有游戏循环")
-
-            # Check for Canvas (required for web games)
-            has_canvas = bool(re.search(r'getContext\s*\(', html_content))
-            has_canvas_element = bool(re.search(r'<canvas', html_content))
-
-            if defined_classes and not has_canvas:
-                result["warnings"].append("Web 游戏应该使用 Canvas 渲染")
-
-        # 5. Check HTML structure
-        if not re.search(r'<!DOCTYPE\s+html', html_content, re.IGNORECASE):
-            result["warnings"].append("缺少 DOCTYPE 声明")
-        if not re.search(r'</html>', html_content, re.IGNORECASE):
-            result["errors"].append("HTML 未正确闭合")
-            result["passed"] = False
-        if '<style>' not in html_content and not external_css:
-            result["warnings"].append("没有内联 CSS")
-
-        # 6. Check DOM elements exist
-        dom_ids = re.findall(r'getElementById\s*\(\s*["\']([^"\']+)["\']', html_content)
-        for dom_id in dom_ids:
-            if f'id="{dom_id}"' not in html_content and f"id='{dom_id}'" not in html_content:
-                result["warnings"].append(f"DOM 元素 #{dom_id} 被引用但可能不存在")
-
-        # Print summary
         if result["errors"] or result["warnings"]:
             print(f"[PreTestValidation] 验证结果:")
             for err in result["errors"]:

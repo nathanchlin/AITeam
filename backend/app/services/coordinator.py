@@ -112,6 +112,68 @@ class CoordinatorService:
 
         return selected_agent
 
+    def _infer_web_app_profile(self, request: str = "", existing_code: Optional[str] = None) -> str:
+        """Infer the most suitable implementation profile for a web-app task."""
+        source = f"{request}\n{existing_code or ''}".lower()
+
+        if "<canvas" in source or "getcontext(" in source or "webgl" in source:
+            return "canvas-game"
+
+        canvas_keywords = [
+            "canvas", "webgl", "shader", "particle", "physics", "platformer", "shooter",
+            "bullet", "arcade", "racing", "flight", "pong", "breakout", "snake", "frame loop"
+        ]
+        dom_game_keywords = [
+            "三消", "match-3", "match3", "2048", "sudoku", "棋盘", "board", "grid", "tile",
+            "puzzle", "card", "memory", "inventory", "kanban", "calendar"
+        ]
+        spa_keywords = [
+            "dashboard", "admin", "表单", "form", "settings", "landing", "portfolio", "saas",
+            "管理台", "后台", "仪表盘", "博客", "官网", "工具页"
+        ]
+
+        if any(keyword in source for keyword in canvas_keywords):
+            return "canvas-game"
+        if any(keyword in source for keyword in dom_game_keywords):
+            return "dom-interactive"
+        if any(keyword in source for keyword in spa_keywords):
+            return "single-page-app"
+        return "dom-interactive"
+
+    def _build_web_app_constraints(
+        self,
+        request: str,
+        existing_code: Optional[str] = None,
+        incremental_mode: bool = False,
+    ) -> str:
+        """Build profile-aware constraints for web-app generation."""
+        profile = self._infer_web_app_profile(request, existing_code)
+        profile_labels = {
+            "canvas-game": "Canvas/WebGL 实时游戏",
+            "dom-interactive": "DOM 交互页 / 棋盘类小游戏",
+            "single-page-app": "普通单页应用",
+        }
+        profile_guidance = {
+            "canvas-game": "- 优先使用 Canvas/WebGL 与显式渲染循环\n- 需要真实的输入、状态更新与绘制逻辑\n- 只有这类页面才应使用 `getContext()`、`requestAnimationFrame`、逐帧动画",
+            "dom-interactive": "- 优先使用语义化 DOM、CSS Grid/Flex 和事件绑定\n- 关键按钮、棋盘/列表、状态区、提示区必须真实存在且可操作\n- 禁止为了迎合模板强行塞入空 canvas、假 game loop 或无意义动画循环",
+            "single-page-app": "- 优先使用 DOM 结构、表单、列表、面板和状态切换\n- 交互应真实驱动数据与视图变化，不要只改提示文案\n- 除非需求明确需要逐帧渲染，否则不要引入 canvas 或持续循环",
+        }
+        mode_note = "- 当前为增量修改任务：保留现有可用功能，只修改与当前任务相关的部分\n- 输出仍必须是完整的最终 HTML，而不是 diff 或补丁" if incremental_mode else "- 当前为首次生成/重构任务：按需求选择最合适的实现模式，不要套错模板"
+
+        return f"""
+⚠️ Web应用开发要求（必须全部满足，否则视为未完成任务）：
+1. 生成完整的单文件 HTML（包含内联 CSS 和 JavaScript），打开即可运行。
+2. 不要引用外部文件（如 js/xxx.js, css/xxx.css），也不要使用 Node.js 特有功能（如 require、module.exports、express、socket.io 等）。
+3. 所有功能必须在浏览器中运行；如需数据存储，只能使用 localStorage 或 sessionStorage。
+4. 关键控件、状态区、提示区和主交互对象都必须真实存在且可操作，不能只做静态占位。
+5. 不要为了迎合模板强行加入无关的 `<canvas>`、`getContext('2d')`、`requestAnimationFrame` 或空的游戏循环。
+6. 若本计划中有多个任务分别产出模块，最终必须整合为一个可独立运行的 `index.html`。
+
+【当前推荐实现模式】{profile_labels[profile]}
+{profile_guidance[profile]}
+{mode_note}
+"""
+
     def _load_plans(self):
         """Load plans from persistent storage"""
         import shutil
@@ -207,7 +269,11 @@ class CoordinatorService:
             print(f"[Coordinator] Error loading plans: {e}")
 
     def _reassign_agents(self, plan_id: str):
-        """Re-assign agents to tasks after loading (agent IDs may have changed)"""
+        """Re-assign agents to tasks after loading (agent IDs may have changed)
+
+        Handles both main plan tasks and iteration tasks to ensure all tasks
+        have valid agent assignments after service restart or plan resume.
+        """
         plan = self.plans.get(plan_id)
         if not plan:
             return
@@ -229,16 +295,29 @@ class CoordinatorService:
 
         agents_by_type = self._build_agents_by_type(selected_agents, selected_agent_order)
 
-        # Re-assign agents to tasks (use first agent in each type list for consistency)
-        reassigned = 0
-        for task in plan.tasks:
+        # Helper to reassign a single task
+        def reassign_task(task) -> bool:
+            """Reassign a task if needed. Returns True if reassigned."""
             if task.assigned_agent_type and task.assigned_agent_type in agents_by_type:
                 agent_list = agents_by_type[task.assigned_agent_type]
                 if agent_list:
                     agent = agent_list[0]
                     if task.assigned_agent_id != agent.id:
                         task.assigned_agent_id = agent.id
-                        reassigned += 1
+                        return True
+            return False
+
+        # Re-assign agents to main plan tasks
+        reassigned = 0
+        for task in plan.tasks:
+            if reassign_task(task):
+                reassigned += 1
+
+        # Re-assign agents to iteration tasks
+        for iteration in plan.iterations:
+            for task in iteration.tasks:
+                if reassign_task(task):
+                    reassigned += 1
 
         if reassigned > 0:
             print(f"[Coordinator] Re-assigned {reassigned} agents for plan {plan_id[:8]}")
@@ -749,28 +828,7 @@ class CoordinatorService:
         # Add constraints for web-app projects
         web_app_constraints = ""
         if plan.target_output == "web-app":
-            web_app_constraints = """
-⚠️ 重要约束（Web应用项目必须遵守）：
-1. 只能生成单文件HTML应用（包含内联CSS和JavaScript），无需后端服务器
-2. 禁止创建后端相关任务（如：数据库设计、API开发、服务器搭建、用户认证等）
-3. 禁止使用Node.js特有功能（如require、module.exports、express、socket.io等）
-4. 所有功能必须在浏览器中运行，使用原生Canvas/WebGL/DOM API
-5. 如需数据存储，只能使用localStorage或sessionStorage
-6. 如需多人功能，只能实现本地多人（同一设备轮流或分屏），不能实现网络对战
-7. 任务数量控制在5-8个以内，聚焦核心功能实现
-
-任务示例（正确）：
-- "游戏界面与基础渲染" - 使用Canvas绘制游戏画面
-- "玩家控制与移动逻辑" - 处理键盘/鼠标输入
-- "碰撞检测与得分系统" - 游戏核心逻辑
-- "UI界面与动画效果" - 界面美化
-
-任务示例（错误，禁止）：
-- "后端服务器搭建" ❌
-- "数据库设计与连接" ❌
-- "用户认证系统" ❌
-- "实时同步模块" ❌
-"""
+            web_app_constraints = self._build_web_app_constraints(plan.original_request)
 
         # Add constraints for Godot projects
         godot_constraints = ""
@@ -1512,21 +1570,47 @@ class CoordinatorService:
                     validation = output_manager.pre_test_validation(plan_id)
 
                     if not validation["passed"]:
-                        # Post validation failure message
-                        error_list = "\n".join([f"- ❌ {err}" for err in validation["errors"]])
+                        error_lines = [f"- ❌ {err}" for err in validation.get("errors", [])]
+                        warning_lines = [f"- ⚠️ {warn}" for warn in validation.get("warnings", [])[:3]]
+                        validation_summary = "\n".join(error_lines + warning_lines)
+                        if not validation_summary:
+                            validation_summary = "- ❌ 未知校验失败"
+
                         await self.add_discussion_message(
                             plan_id=plan_id,
                             agent_id="system",
                             agent_name="系统",
                             agent_type="assistant",
-                            content=f"⚠️ 预测试验证失败\n\n{error_list}\n\n请在测试前修复这些问题。",
+                            content=f"⚠️ 预测试验证失败\n\n{validation_summary}\n\n请修复这些问题后重新生成。",
                             message_type="comment",
                         )
-                        print(f"[Coordinator] Pre-test validation failed, skipping tests")
-                        # Skip to end without running tests
-                        plan.status = PlanStatus.COMPLETED
+                        results.append({
+                            "task": "预测试验证",
+                            "agent": "system",
+                            "result": validation_summary,
+                        })
+                        test_feedback.append(validation_summary)
+                        all_tests_passed = False
+                        print(f"[Coordinator] Pre-test validation failed, entering fix loop")
+
+                        if fix_iteration >= max_fix_iterations - 1:
+                            blocking_reason = "预测试验证连续失败，已阻断完成态"
+                            break
+
+                        fix_iteration += 1
+                        await self.add_discussion_message(
+                            plan_id=plan_id,
+                            agent_id="system",
+                            agent_name="系统",
+                            agent_type="assistant",
+                            content=f"🔄 预测试未通过，开始第 {fix_iteration} 轮修复...\n\n问题摘要：\n{validation_summary}",
+                            message_type="comment",
+                        )
+                        for retry_task in coding_tasks:
+                            if retry_task.assigned_agent_type == "coder":
+                                retry_task.status = TaskStatus.PENDING
                         self._save_plans()
-                        return plan
+                        continue
                 except Exception as e:
                     print(f"[Coordinator] Pre-test validation failed with error: {e}")
                     # Continue with execution even if validation fails
@@ -1685,20 +1769,40 @@ class CoordinatorService:
                     elif "THREE" in code_context or "Three.js" in code_context:
                         tech_stack_info = "\n\n【技术栈】此项目使用 Three.js 框架"
 
+                validation_report = output_manager.read_web_validation(plan_id)
+                smoke_report = output_manager.read_web_smoke(plan_id)
+                validation_context = ""
+                if validation_report:
+                    validation_context += "\n\n【结构化校验】\n"
+                    validation_context += f"- passed: {validation_report.get('passed', True)}\n"
+                    validation_context += f"- profile: {(validation_report.get('signals') or {}).get('profile', 'unknown')}\n"
+                    for err in validation_report.get('errors', [])[:5]:
+                        validation_context += f"- error: {err}\n"
+                    for warn in validation_report.get('warnings', [])[:5]:
+                        validation_context += f"- warning: {warn}\n"
+                if smoke_report:
+                    validation_context += "\n【最小DOM Smoke】\n"
+                    validation_context += f"- passed: {smoke_report.get('passed', True)}\n"
+                    if smoke_report.get('skipped'):
+                        validation_context += f"- skipped: {smoke_report.get('reason', 'yes')}\n"
+                    elif smoke_report.get('error'):
+                        validation_context += f"- error: {smoke_report.get('error')}\n"
+
                 test_prompt = f"""作为测试工程师，请对生成的代码进行实际验证。
 
 原始需求：{plan.original_request}
-{tech_stack_info}
+{tech_stack_info}{validation_context}
 
 测试任务：{task.title}
 {code_context}
 
 ⚠️ 重要：首先识别代码使用的技术栈，只测试实际使用的技术，不要假设需要未使用的框架。
+⚠️ 重要：上面的结构化校验与 smoke 结果优先级高于主观猜测；若机器校验已失败，请围绕失败点补充验证与修复建议。
 
 请执行以下测试步骤：
-1. 代码完整性检查：检查必要功能代码是否存在（基于实际技术栈）
-2. 逻辑验证：核心功能逻辑是否正确实现
-3. 边界情况：是否处理了边界条件和错误情况
+1. 结合结构化校验结果确认页面是否具备可运行前提
+2. 验证核心功能逻辑是否正确实现
+3. 验证边界情况、提示文案与真实行为是否一致
 
 输出格式：
 ## 测试结果
@@ -1783,7 +1887,7 @@ class CoordinatorService:
         if output_dir:
             preview_url = f"/api/pipeline/output/{plan_id}/files/index.html"
             result_emoji = "🎉" if all_tests_passed else "⚠️"
-            status_text = "所有测试通过！" if all_tests_passed else f"经过 {fix_iteration + 1} 轮修复后完成"
+            status_text = "所有测试通过！" if all_tests_passed else (blocking_reason or f"经过 {fix_iteration + 1} 轮修复后完成")
             result_message = f"{result_emoji} 项目已完成！\n\n📊 状态: {status_text}\n\n📦 输出目录: {output_dir}\n\n🌐 预览地址: http://localhost:8000{preview_url}\n\n点击链接查看生成的网页。"
             await self.add_discussion_message(
                 plan_id=plan_id,

@@ -8,7 +8,7 @@ This module provides a comprehensive quality assessment system that evaluates:
 5. User Experience - Is the UI/UX properly implemented?
 """
 import re
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass
 
 
@@ -47,41 +47,55 @@ class QualityScorer:
         """Initialize QualityScorer."""
         pass
 
-    def score_output(self, code: str, requirements: str = "") -> Dict[str, Any]:
+    def score_output(
+        self,
+        code: str,
+        requirements: str = "",
+        validation_result: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Perform comprehensive quality scoring.
 
         Args:
             code: The HTML/JS code to evaluate
             requirements: Original requirements for context
+            validation_result: Structured validation signals from WebOutputValidator
 
         Returns:
             Dictionary with scores, total, grade, and recommendations
         """
-        # Calculate individual dimension scores
         completeness = self._score_completeness(code)
         correctness = self._score_correctness(code)
         maintainability = self._score_maintainability(code)
         performance = self._score_performance(code)
         ux = self._score_ux(code, requirements)
 
-        # Calculate weighted total
         scores = {
             "completeness": completeness,
             "correctness": correctness,
             "maintainability": maintainability,
             "performance": performance,
-            "user_experience": ux
+            "user_experience": ux,
         }
+
+        profile = self._infer_profile(code, requirements, validation_result)
+        self._rebalance_for_profile(scores, profile)
+        self._apply_validation_feedback(scores, validation_result)
 
         total = sum(
             scores[dim].percentage * self.WEIGHTS[dim]
             for dim in scores
         )
 
-        # Determine grade
+        if validation_result and validation_result.get("score_hint") is not None:
+            try:
+                total = min(total, float(validation_result["score_hint"]))
+            except (TypeError, ValueError):
+                pass
+        if validation_result and not validation_result.get("passed", True):
+            total = min(total, 59.0)
+
         grade = self._get_grade(total)
 
-        # Collect recommendations
         recommendations = []
         for dim, score_obj in scores.items():
             recommendations.extend(score_obj.recommendations)
@@ -92,15 +106,126 @@ class QualityScorer:
                     "score": score_obj.score,
                     "max_score": score_obj.max_score,
                     "percentage": round(score_obj.percentage, 1),
-                    "checks": score_obj.checks
+                    "checks": score_obj.checks,
                 }
                 for dim, score_obj in scores.items()
             },
             "total": round(total, 1),
             "grade": grade,
-            "recommendations": recommendations[:10],  # Top 10 recommendations
-            "passed": total >= 60
+            "recommendations": recommendations[:10],
+            "passed": total >= 60,
+            "profile": profile,
+            "validation": validation_result,
         }
+
+    def _infer_profile(
+        self,
+        code: str,
+        requirements: str = "",
+        validation_result: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        signals = (validation_result or {}).get("signals", {})
+        profile = signals.get("profile")
+        if profile:
+            return profile
+
+        source = f"{requirements}\n{code}".lower()
+        if "<canvas" in source or "getcontext(" in source or "webgl" in source:
+            return "canvas-game"
+        if any(keyword in source for keyword in ["三消", "match-3", "match3", "2048", "棋盘", "board", "grid", "puzzle", "card"]):
+            return "dom-interactive"
+        if any(keyword in source for keyword in ["dashboard", "admin", "表单", "form", "landing", "portfolio", "管理台", "仪表盘", "工具页"]):
+            return "single-page-app"
+        return "dom-interactive"
+
+    def _refresh_quality_score(self, score_obj: QualityScore) -> None:
+        if score_obj.max_score > 0:
+            score_obj.percentage = max(0.0, min(score_obj.score / score_obj.max_score * 100, 100))
+        else:
+            score_obj.percentage = 0
+
+    def _rebalance_for_profile(self, scores: Dict[str, QualityScore], profile: str) -> None:
+        if profile == "canvas-game":
+            return
+
+        canvas_only_checks = {"Canvas元素", "Canvas 2D上下文", "游戏循环", "游戏类定义"}
+        completeness = scores["completeness"]
+        for check in completeness.checks:
+            if check["name"] in canvas_only_checks and not check.get("passed"):
+                check["passed"] = True
+                check["points"] = check.get("max_points", 0)
+        completeness.score = sum(check.get("points", 0) for check in completeness.checks)
+        completeness.recommendations = [
+            rec for rec in completeness.recommendations
+            if not any(name in rec for name in canvas_only_checks)
+        ]
+        completeness.checks.append({
+            "name": f"按 {profile} 模式放宽 Canvas 专属要求",
+            "passed": True,
+            "points": 0,
+            "max_points": 0,
+        })
+        self._refresh_quality_score(completeness)
+
+        performance = scores["performance"]
+        restored_points = 0
+        for check in performance.checks:
+            if check.get("name") == "建议使用requestAnimationFrame" and not check.get("passed", True):
+                check["passed"] = True
+                restored_points += 10
+        if restored_points:
+            performance.score = min(performance.max_score, performance.score + restored_points)
+            performance.recommendations = [
+                rec for rec in performance.recommendations
+                if "requestAnimationFrame" not in rec
+            ]
+            performance.checks.append({
+                "name": f"按 {profile} 模式取消 requestAnimationFrame 强制要求",
+                "passed": True,
+            })
+            self._refresh_quality_score(performance)
+
+    def _apply_validation_feedback(
+        self,
+        scores: Dict[str, QualityScore],
+        validation_result: Optional[Dict[str, Any]],
+    ) -> None:
+        if not validation_result:
+            return
+
+        errors = validation_result.get("errors", []) or []
+        warnings = validation_result.get("warnings", []) or []
+        signals = validation_result.get("signals", {}) or {}
+        penalty = min(45, len(errors) * 8 + len(warnings) * 2)
+
+        correctness = scores["correctness"]
+        if penalty:
+            correctness.score = max(0, correctness.score - penalty)
+            correctness.checks.append({
+                "name": "结构化校验结果",
+                "passed": not errors,
+                "severity": "error" if errors else "warning",
+                "penalty": penalty,
+                "error_count": len(errors),
+                "warning_count": len(warnings),
+            })
+            correctness.recommendations.insert(
+                0,
+                "结构化校验: " + ("; ".join(errors[:3]) if errors else "; ".join(warnings[:3]))
+            )
+            self._refresh_quality_score(correctness)
+
+        if signals.get("js_syntax_valid") is False:
+            completeness = scores["completeness"]
+            completeness.score = max(0, completeness.score - 10)
+            completeness.checks.append({
+                "name": "JS 语法检查",
+                "passed": False,
+                "points": 0,
+                "max_points": 10,
+            })
+            completeness.recommendations.insert(0, "缺少可通过的 JS 语法检查")
+            self._refresh_quality_score(completeness)
 
     def _score_completeness(self, code: str) -> QualityScore:
         """Check for required components in the code."""
