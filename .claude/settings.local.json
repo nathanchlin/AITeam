@@ -34,7 +34,23 @@
       "Bash(echo === Test 5: Try adding duplicate member ===:*)",
       "Bash(sleep 5:*)",
       "mcp__zai-mcp-server__diagnose_error_screenshot",
-      "Bash(cd D:/AIProject/AITeam/backend && source venv/Scripts/activate && python -c \"from app.main import app; print\\('Import OK'\\)\" 2>&1)"
+      "Bash(cd D:/AIProject/AITeam/backend && source venv/Scripts/activate && python -c \"from app.main import app; print\\('Import OK'\\)\" 2>&1)",
+      "Bash(source:*)",
+      "Bash(npm run:*)",
+      "Bash(git:*)",
+      "Bash(lsof:*)",
+      "Bash(node:*)",
+      "Bash(cat backend/data/plans.json | python3 -c \"import json,sys; plans=json.load\\(sys.stdin\\); p=[x for x in plans if x.get\\('id',''\\).startswith\\('8f7cad32'\\)]; print\\(json.dumps\\(p[0] if p else {}, indent=2, ensure_ascii=False\\)\\)\")",
+      "Bash(cat backend/output/8f7cad32/code_consolidated.json | python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('Tasks:', len\\(d.get\\('tasks',[]\\)\\)\\); [print\\(f\\\\\"  Task {t.get\\('id'\\)}: {t.get\\('title',''\\)[:50]} -> has_code={bool\\(t.get\\('code'\\)\\)}\\\\\"\\) for t in d.get\\('tasks',[]\\)]\")",
+      "Bash(cat backend/data/plans.json | python3 -c \"\nimport json,sys\nplans=json.load\\(sys.stdin\\)\np=[x for x in plans if x.get\\('id',''\\).startswith\\('8f7cad32'\\)][0]\nprint\\('Plan ID:', p.get\\('id'\\)\\)\nprint\\('Status:', p.get\\('status'\\)\\)\nprint\\('Target:', p.get\\('target_output'\\)\\)\nprint\\('Tasks:'\\)\nfor t in p.get\\('tasks',[]\\):\n    print\\(f\\\\\"  [{t.get\\('status'\\)}] {t.get\\('title'\\)[:60]} \\(agent: {t.get\\('assigned_agent_type'\\)}\\)\\\\\"\\)\nprint\\('Iterations:', len\\(p.get\\('iterations',[]\\)\\)\\)\nfor i, it in enumerate\\(p.get\\('iterations',[]\\)\\):\n    print\\(f\\\\\"  Iteration {i}: {it.get\\('reason',''\\)[:50]}\\\\\"\\)\n    for t in it.get\\('tasks',[]\\):\n        print\\(f\\\\\"    [{t.get\\('status'\\)}] {t.get\\('title'\\)[:50]}\\\\\"\\)\n\")",
+      "Bash(wc -l backend/output/8f7cad32/code_*.text)",
+      "Bash(ls -la backend/output/8f7cad32/*.json 2>/dev/null)",
+      "Bash(ls -la backend/output/8f7cad32/*.html 2>/dev/null)",
+      "Bash(python3 << 'EOF'\nimport re\nwith open\\('index.invalid.candidate.html'\\) as f:\n    html = f.read\\(\\)\npattern = re.compile\\(r'<script[^>]*>\\([\\\\s\\\\S]*?\\)</script>', re.IGNORECASE\\)\nmatches = [m.strip\\(\\) for m in pattern.findall\\(html\\) if m.strip\\(\\)]\njs_code = '\\\\n\\\\n'.join\\(matches\\)\n\n# Save to file for easier inspection\nwith open\\('/tmp/extracted.js', 'w'\\) as f:\n    f.write\\(js_code\\)\n\n# Check the actual line 179\nlines = js_code.split\\('\\\\n'\\)\nprint\\(f\"Total lines: {len\\(lines\\)}\"\\)\nprint\\(f\"\\\\nLines 170-185:\"\\)\nfor i in range\\(169, min\\(185, len\\(lines\\)\\)\\):\n    print\\(f\"{i+1:3}: {lines[i][:100]}\"\\)\nEOF)",
+      "Bash(ls -la /Users/lindeng/AITeam/backend/output/8f7cad32/index*.html)",
+      "Bash(cp index.authoritative.html index.html && ls -la index*.html)",
+      "Bash(python3 << 'EOF'\nimport sys\nsys.path.insert\\(0, '/Users/lindeng/AITeam/backend'\\)\n\n# Reload the module to get the updated version\nimport importlib\nimport app.services.web_output_validator as validator_module\nimportlib.reload\\(validator_module\\)\nfrom app.services.web_output_validator import web_output_validator\n\n# Test with the original invalid file\nwith open\\('index.invalid.candidate.html'\\) as f:\n    invalid_html = f.read\\(\\)\n\nresult = web_output_validator.validate_html_output\\(invalid_html, stage=\"test\", requirements=\"测试\"\\)\nprint\\(\"Invalid file validation:\"\\)\nprint\\(f\"  Passed: {result.passed}\"\\)\nprint\\(f\"  Errors: {result.errors}\"\\)\nprint\\(\\)\n\n# Test with the fixed file\nwith open\\('index.authoritative.html'\\) as f:\n    fixed_html = f.read\\(\\)\n\nresult2 = web_output_validator.validate_html_output\\(fixed_html, stage=\"test\", requirements=\"测试\"\\)\nprint\\(\"Fixed file validation:\"\\)\nprint\\(f\"  Passed: {result2.passed}\"\\)\nprint\\(f\"  Errors: {result2.errors}\"\\)\nEOF)",
+      "Bash(echo \"=== Summary of fixes ===\" && echo \"\" && echo \"1. Fixed HTML files:\" && ls -la index.authoritative.html index.html && echo \"\" && echo \"2. File sizes:\" && wc -c index.authoritative.html index.html index.invalid.candidate.html && echo \"\" && echo \"3. Validation status:\" && python3 -c \"\nimport sys\nsys.path.insert\\(0, '/Users/lindeng/AITeam/backend'\\)\nfrom app.services.web_output_validator import web_output_validator\n\nwith open\\('index.authoritative.html'\\) as f:\n    html = f.read\\(\\)\nresult = web_output_validator.validate_html_output\\(html, stage='fixed', requirements='俄罗斯方块'\\)\nprint\\(f'   Passed: {result.passed}'\\)\nprint\\(f'   Score: {result.score_hint}'\\)\nprint\\(f'   Errors: {result.errors}'\\)\n\")"
     ]
   }
 }

@@ -137,10 +137,6 @@ class PipelineQueueService:
                 del self.running[plan_id]
                 print(f"[PipelineQueue] Pipeline {plan_id} completed. Running: {len(self.running)}, Queued: {len(self.queue)}")
 
-            # Update positions for remaining items in queue
-            for i, item in enumerate(self.queue):
-                item.position = i + 1
-
             # Start next if available and under limit
             if self.queue and len(self.running) < self.MAX_CONCURRENT:
                 next_pipeline = self.queue.popleft()
@@ -150,8 +146,16 @@ class PipelineQueueService:
 
                 print(f"[PipelineQueue] Starting next pipeline {next_pipeline.plan_id} from queue")
 
+                # Update positions for the remaining queued items after dequeue
+                for i, item in enumerate(self.queue):
+                    item.position = i + 1
+
                 # Start execution outside the lock
                 asyncio.create_task(self._start_pipeline(next_pipeline))
+            else:
+                # Update positions for remaining items in queue when nothing new starts
+                for i, item in enumerate(self.queue):
+                    item.position = i + 1
 
         # Broadcast queue update
         await self._broadcast_queue_update()

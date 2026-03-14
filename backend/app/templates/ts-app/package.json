@@ -1,0 +1,17 @@
+{
+  "name": "ai-team-ts-app-template",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "bundle-check": "esbuild src/main.ts --bundle --platform=browser --format=esm --outdir=.tsbuild-check"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.2",
+    "vite": "^5.4.14"
+  }
+}

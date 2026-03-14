@@ -350,24 +350,34 @@ async def get_output(plan_id: str):
     return {"plan_id": plan_id, "output_dir": output_dir, "files": files}
 
 
-@router.get("/output/{plan_id}/files/{filename}")
-async def get_output_file(plan_id: str, filename: str):
-    """Get a specific output file"""
+@router.get("/output/{plan_id}/files/{file_path:path}")
+async def get_output_file(plan_id: str, file_path: str):
+    """Get a specific output file, including nested ts-app dist assets."""
     try:
         output_dir = output_manager.get_output_path(plan_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Output path error: {str(e)}")
-    filepath = os.path.join(output_dir, filename)
 
-    if filename == "index.html":
-        plan = coordinator.get_plan(plan_id)
-        plan_title = plan.title if plan else "Output"
+    requested_path = os.path.normpath(file_path).lstrip("/")
+    if requested_path.startswith(".."):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    plan = coordinator.get_plan(plan_id)
+    plan_title = getattr(plan, "title", "Output") if plan else "Output"
+    target_output = getattr(plan, "target_output", None) if plan else None
+
+    filepath = os.path.abspath(os.path.join(output_dir, requested_path))
+    output_root = os.path.abspath(output_dir)
+    if filepath != output_root and not filepath.startswith(output_root + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    if requested_path == "index.html":
         needs_rebuild = (not os.path.exists(filepath)) or output_manager.is_misleading_placeholder_index(plan_id)
 
         if needs_rebuild:
             try:
                 if output_manager.consolidate_web_app(plan_id, plan_title):
-                    filepath = os.path.join(output_dir, filename)
+                    filepath = os.path.join(output_dir, requested_path)
                     if os.path.exists(filepath) and not output_manager.is_misleading_placeholder_index(plan_id):
                         return FileResponse(filepath)
             except Exception as e:
@@ -406,6 +416,10 @@ async def get_output_file(plan_id: str, filename: str):
                 )
             raise HTTPException(status_code=404, detail="index.html not found and could not be generated from fragments")
 
+    if target_output == "ts-app" and requested_path.startswith("ts_app/dist/") and not os.path.exists(filepath):
+        output_manager.consolidate_ts_app(plan_id, plan_title)
+        filepath = os.path.abspath(os.path.join(output_dir, requested_path))
+
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")
 
@@ -414,17 +428,23 @@ async def get_output_file(plan_id: str, filename: str):
 
 @router.get("/output/{plan_id}/preview")
 async def get_output_preview(plan_id: str):
-    """Get preview URL for the generated output"""
-    output_dir = output_manager.get_output_path(plan_id)
+    """Get preview URL for the generated output."""
+    plan = coordinator.get_plan(plan_id)
+    target_output = getattr(plan, "target_output", None) if plan else None
+    plan_title = getattr(plan, "title", "Output") if plan else "Output"
 
-    index_path = os.path.join(output_dir, "index.html")
-    if os.path.exists(index_path) and not output_manager.is_misleading_placeholder_index(plan_id):
+    preview_entry = output_manager.resolve_preview_entry(plan_id, target_output)
+    if not preview_entry and target_output == "ts-app":
+        output_manager.consolidate_ts_app(plan_id, plan_title)
+        preview_entry = output_manager.resolve_preview_entry(plan_id, target_output)
+
+    if preview_entry:
         return {
-            "preview_url": f"/api/pipeline/output/{plan_id}/files/index.html",
+            "preview_url": f"/api/pipeline/output/{plan_id}/files/{preview_entry}",
             "has_preview": True
         }
 
-    if output_manager.is_misleading_placeholder_index(plan_id):
+    if target_output == "web-app" and output_manager.is_misleading_placeholder_index(plan_id):
         validation = output_manager.read_web_validation(plan_id)
         return {
             "has_preview": False,
@@ -1169,6 +1189,56 @@ async def download_godot_project(plan_id: str):
 
     filename = f"godot_project_{plan_id[:8]}.zip"
 
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=filename
+    )
+
+
+@router.get("/output/{plan_id}/ts-app")
+async def get_ts_app_project(plan_id: str):
+    """Get ts-app project metadata and validation status."""
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan.target_output != "ts-app":
+        raise HTTPException(
+            status_code=400,
+            detail=f"This plan is not a TypeScript app project (target_output: {plan.target_output})"
+        )
+
+    project_info = output_manager.get_ts_app_project_info(plan_id)
+    return {
+        "plan_id": plan_id,
+        "plan_title": plan.title,
+        "target_output": plan.target_output,
+        "project": project_info,
+    }
+
+
+@router.get("/output/{plan_id}/ts-app/download")
+async def download_ts_app_project(plan_id: str):
+    """Download ts-app project as zip file."""
+    plan = coordinator.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    if plan.target_output != "ts-app":
+        raise HTTPException(
+            status_code=400,
+            detail=f"This plan is not a TypeScript app project (target_output: {plan.target_output})"
+        )
+
+    zip_path = output_manager.get_ts_app_project_zip(plan_id)
+    if not zip_path or not os.path.exists(zip_path):
+        raise HTTPException(
+            status_code=404,
+            detail="TypeScript app project not found or failed to create zip"
+        )
+
+    filename = f"ts_app_project_{plan_id[:8]}.zip"
     return FileResponse(
         zip_path,
         media_type="application/zip",

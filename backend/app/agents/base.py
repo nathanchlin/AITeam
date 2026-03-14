@@ -79,6 +79,61 @@ class CoderAgent(BaseAgent):
         super().__init__(id, name, AgentType.CODER, **kwargs)
 
     def get_system_prompt(self, target_output: str = "web-app") -> str:
+        if target_output == "ts-app":
+            return self.custom_prompt or """你是一个专业的 TypeScript 浏览器应用开发专家。你的职责是生成完整、可构建、可预览的 Vite + TypeScript 多文件项目代码。
+
+⚠️🚨 严格规则 - 违反将导致工程无法编译：
+
+【项目形态】
+- 目标工程：Vite + TypeScript（浏览器端，不是 Node 服务）
+- 模板已预置：package.json、tsconfig.json、vite.config.ts、index.html
+- 你只需要输出需要写入工程的源码文件，优先放在 src/ 目录
+
+【必须遵守】
+✅ 输出格式：每个文件必须以 `// filename: src/path/to/file.ts` 或 `// filename: src/path/to/file.css` 开头
+✅ 每个输出文件必须是完整文件内容，不是片段、不是 diff
+✅ 代码必须符合 TypeScript strict 模式
+✅ 使用标准 ES Module：import / export
+✅ 浏览器代码必须通过 `document.getElementById('app')` 或其它真实 DOM 节点启动
+✅ 如果是游戏或交互应用，优先使用原生 Canvas API 和浏览器事件
+✅ 至少提供可运行入口文件 `src/main.ts`
+
+【禁止事项】
+❌ 禁止输出 package.json、tsconfig.json、vite.config.ts、index.html（这些由模板提供）
+❌ 禁止使用 CommonJS（require、module.exports）
+❌ 禁止依赖未声明的第三方库
+❌ 禁止只写类骨架、空函数、TODO、伪代码或 `...` 占位符
+❌ 禁止使用 markdown 代码块包裹最终文件内容
+❌ 禁止引用不存在的 DOM 元素或未定义符号
+
+【推荐结构】
+- src/main.ts：应用入口与挂载
+- src/types.ts：类型定义
+- src/game.ts / src/app.ts：核心逻辑
+- src/styles.css：样式
+- src/utils.ts：工具函数
+
+【输出示例】
+// filename: src/main.ts
+import './styles.css';
+import { createGame } from './game';
+
+const root = document.getElementById('app');
+if (!root) {
+  throw new Error('Missing #app root');
+}
+
+createGame(root);
+
+// filename: src/game.ts
+export function createGame(root: HTMLElement): void {
+  root.innerHTML = '<main><h1>Hello</h1></main>';
+}
+
+// filename: src/styles.css
+body { margin: 0; }
+
+请生成完整、可直接写入工程并通过构建的 TypeScript 文件集合。"""
         if target_output == "godot-game":
             return self.custom_prompt or """你是一个专业的 Godot 游戏开发专家。你的职责是生成完整的 Godot 3.6 游戏项目代码。
 
@@ -226,6 +281,11 @@ func _draw():
 ⚠️ 注释不能包含代码语法符号：// Ignore errors } 是错误的！花括号 } 在注释外面
 ⚠️ 正确写法：} catch (e) { // Ignore errors } 而非 } catch (e) { // Ignore errors } }
 ⚠️ 确保所有 { } 括号正确配对，不要在注释中误加括号
+⚠️ 注释和代码必须分行：每行要么是注释，要么是代码，不可在同一行混合
+⚠️ 错误示例：// 获取DOM元素 canvas = document.getElementById('gameCanvas');  ← 代码被注释掉了！
+⚠️ 正确示例：
+    // 获取DOM元素
+    canvas = document.getElementById('gameCanvas');
 
 【必须遵守 - 强制要求】
 ✅ 所有代码必须是单个完整的 HTML 文件
@@ -551,24 +611,51 @@ window.onload = () => new Game();
         self,
         task: str,
         existing_code: Optional[str] = None,
-        incremental_mode: bool = False
+        incremental_mode: bool = False,
+        target_output: str = "web-app"
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """Execute a coding task with optional incremental modification support
+        """Execute a coding task with optional incremental modification support.
 
         Args:
             task: Task description
-            existing_code: Current HTML/JS code to modify (for incremental updates)
-            incremental_mode: If True, instruct LLM to make targeted modifications
+            existing_code: Current code/project snapshot for incremental updates
+            incremental_mode: If True, instruct LLM to modify existing output
+            target_output: Desired output format, e.g. web-app / godot-game / ts-app
         """
         self.update_status(AgentStatus.WORKING)
 
         yield {"type": "thinking", "content": f"[{self.name}] 开始分析代码任务..."}
         yield {"type": "thinking", "content": f"[{self.name}] 理解需求：{task}"}
 
-        # Construct prompt based on mode
+        system_prompt = self.get_system_prompt(target_output)
+
         if existing_code and incremental_mode:
-            # Incremental modification mode - LLM should modify existing code
-            full_prompt = f"""## 当前代码
+            if target_output == "ts-app":
+                full_prompt = f"""## 当前工程文件
+
+```text
+{existing_code}
+```
+
+## 修改任务
+
+{task}
+
+## 重要提示
+
+这是**TypeScript 工程增量修改任务**，你需要基于当前工程继续修改。
+
+⚠️ **输出要求**：
+1. 只输出本轮需要新增或替换的完整文件
+2. 每个文件必须以 `// filename: 相对路径` 开头，后面直接跟完整文件内容
+3. 不要输出 package.json、tsconfig.json、vite.config.ts、index.html
+4. 所有 TypeScript 代码必须满足 strict 模式并使用 import/export
+5. 不要使用 markdown 代码块包裹最终输出
+
+请输出需要修改的完整文件：
+"""
+            else:
+                full_prompt = f"""## 当前代码
 
 ```html
 {existing_code}
@@ -591,10 +678,9 @@ window.onload = () => new Game();
 请输出修改后的完整 HTML 代码：
 """
         else:
-            # Initial generation mode - generate from scratch
             full_prompt = task
 
-        async for chunk in glm_client.chat_stream(full_prompt, "coder", self.custom_prompt):
+        async for chunk in glm_client.chat_stream(full_prompt, "coder", system_prompt):
             yield {"type": "stream", "content": chunk}
 
         self.update_status(AgentStatus.IDLE)

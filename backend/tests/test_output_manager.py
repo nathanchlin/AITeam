@@ -9,6 +9,8 @@ Tests verify that code block extraction:
 5. Handles multiple code blocks in same content
 """
 
+from pathlib import Path
+
 import pytest
 from app.services.output_manager import OutputManager
 
@@ -438,3 +440,39 @@ def test_is_misleading_placeholder_index_detects_blank_fallback(tmp_path):
     )
 
     assert manager.is_misleading_placeholder_index("plan-4") is True
+
+
+def test_save_ts_project_initializes_template_and_writes_src_files(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    content = """// filename: src/main.ts
+import './styles.css';
+
+const root = document.getElementById('app');
+if (!root) throw new Error('Missing root');
+root.innerHTML = '<h1>TS App</h1>';
+
+// filename: src/styles.css
+body { margin: 0; }
+
+// filename: package.json
+this should be ignored
+"""
+
+    saved_files = manager.save_ts_project("plan-ts-1", "ts coder task", content)
+    ts_app_dir = tmp_path / "plan-ts-" / "ts_app"
+
+    assert (ts_app_dir / "src" / "main.ts").exists()
+    assert (ts_app_dir / "src" / "styles.css").exists()
+    assert (ts_app_dir / "package.json").exists()
+    assert not any(path.endswith("package.json") and "this should be ignored" in Path(path).read_text(encoding="utf-8") for path in saved_files if path.endswith("package.json"))
+
+
+def test_resolve_preview_entry_prefers_ts_app_dist(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    plan_dir = tmp_path / "plan-ts-"
+    (plan_dir / "index.html").parent.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "index.html").write_text("<!DOCTYPE html><html><body>legacy</body></html>", encoding="utf-8")
+    (plan_dir / "ts_app" / "dist").mkdir(parents=True, exist_ok=True)
+    (plan_dir / "ts_app" / "dist" / "index.html").write_text("<!DOCTYPE html><html><body>dist</body></html>", encoding="utf-8")
+
+    assert manager.resolve_preview_entry("plan-ts-1", "ts-app") == "ts_app/dist/index.html"

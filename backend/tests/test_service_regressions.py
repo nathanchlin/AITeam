@@ -203,13 +203,45 @@ def test_get_output_preview_suppresses_misleading_placeholder(tmp_path):
     )
 
     with patch.object(pipeline_module.output_manager, "get_output_path", return_value=str(output_dir)), patch.object(
+        pipeline_module.output_manager, "resolve_preview_entry", return_value=None
+    ), patch.object(
         pipeline_module.output_manager, "is_misleading_placeholder_index", return_value=True
     ), patch.object(
         pipeline_module.output_manager,
         "read_web_validation",
         return_value={"passed": False, "errors": ["JavaScript 语法检查失败"]},
+    ), patch.object(
+        pipeline_module.coordinator, "get_plan", return_value=SimpleNamespace(title="Broken Plan", target_output="web-app")
     ):
         result = asyncio.run(pipeline_module.get_output_preview(plan_id))
 
     assert result["has_preview"] is False
     assert result["invalid_candidate"] == "index.invalid.candidate.html"
+
+
+def test_get_output_file_supports_nested_ts_app_assets(tmp_path):
+    plan_id = "plan-ts-1"
+    output_dir = tmp_path / plan_id[:8]
+    asset_path = output_dir / "ts_app" / "dist" / "assets" / "app.js"
+    asset_path.parent.mkdir(parents=True, exist_ok=True)
+    asset_path.write_text("console.log('ok');", encoding="utf-8")
+
+    with patch.object(pipeline_module.output_manager, "get_output_path", return_value=str(output_dir)), patch.object(
+        pipeline_module.coordinator, "get_plan", return_value=SimpleNamespace(title="TS App", target_output="ts-app")
+    ):
+        response = asyncio.run(pipeline_module.get_output_file(plan_id, "ts_app/dist/assets/app.js"))
+
+    assert response.path == str(asset_path)
+
+
+def test_get_output_preview_returns_ts_app_dist_entry():
+    plan_id = "plan-ts-2"
+    with patch.object(
+        pipeline_module.coordinator, "get_plan", return_value=SimpleNamespace(title="TS App", target_output="ts-app")
+    ), patch.object(
+        pipeline_module.output_manager, "resolve_preview_entry", return_value="ts_app/dist/index.html"
+    ):
+        result = asyncio.run(pipeline_module.get_output_preview(plan_id))
+
+    assert result["has_preview"] is True
+    assert result["preview_url"].endswith("/ts_app/dist/index.html")

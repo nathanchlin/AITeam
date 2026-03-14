@@ -691,9 +691,13 @@ export function PipelinePanel() {
   if (!pipelinePanelOpen) return null;
 
   const { phases, currentIndex } = getPhaseInfo(currentPlan?.status || 'draft');
-  // 显示链接的条件：web-app类型且有计划ID（不要求completed，只要有HTML就可能访问）
-  const outputUrl = currentPlan?.id && currentPlan?.target_output === 'web-app'
-    ? `${API_BASE}/api/pipeline/output/${currentPlan.id}/files/index.html`
+  // 显示链接的条件：可预览的前端产物（web-app 或 ts-app）
+  const outputUrl = currentPlan?.id
+    ? currentPlan?.target_output === 'web-app'
+      ? `${API_BASE}/api/pipeline/output/${currentPlan.id}/files/index.html`
+      : currentPlan?.target_output === 'ts-app'
+        ? `${API_BASE}/api/pipeline/output/${currentPlan.id}/files/ts_app/dist/index.html`
+        : null
     : null;
 
   return (

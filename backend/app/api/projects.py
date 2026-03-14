@@ -78,6 +78,9 @@ def _get_project_info_fast(project_dir: str, plan_id_short: str) -> Dict[str, An
         except:
             pass
 
+    if not has_preview and os.path.exists(os.path.join(project_dir, "ts_app", "dist", "index.html")):
+        has_preview = True
+
     return {
         "id": plan_id_short,
         "title": title,
@@ -159,21 +162,31 @@ async def get_project_files(project_id: str):
 
 @router.get("/{project_id}/preview")
 async def get_project_preview(project_id: str):
-    """Get preview (index.html) for a project"""
+    """Get preview entry for a project."""
     project_dir = os.path.join(OUTPUT_DIR, project_id)
     index_path = os.path.join(project_dir, "index.html")
-    
-    if not os.path.exists(index_path):
-        raise HTTPException(status_code=404, detail="Preview not found")
-    
-    return FileResponse(index_path)
+    ts_dist_path = os.path.join(project_dir, "ts_app", "dist", "index.html")
+
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    if os.path.exists(ts_dist_path):
+        return FileResponse(ts_dist_path)
+
+    raise HTTPException(status_code=404, detail="Preview not found")
 
 
-@router.get("/{project_id}/files/{filename}")
-async def get_project_file(project_id: str, filename: str):
-    """Get a specific file from a project"""
+@router.get("/{project_id}/files/{file_path:path}")
+async def get_project_file(project_id: str, file_path: str):
+    """Get a specific file from a project, including nested dist assets."""
     project_dir = os.path.join(OUTPUT_DIR, project_id)
-    filepath = os.path.join(project_dir, filename)
+    requested_path = os.path.normpath(file_path).lstrip("/")
+    if requested_path.startswith(".."):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    filepath = os.path.abspath(os.path.join(project_dir, requested_path))
+    project_root = os.path.abspath(project_dir)
+    if filepath != project_root and not filepath.startswith(project_root + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid file path")
 
     if not os.path.exists(filepath):
         raise HTTPException(status_code=404, detail="File not found")

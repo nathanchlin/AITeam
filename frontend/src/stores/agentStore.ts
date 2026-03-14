@@ -371,7 +371,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         });
         break;
 
-      case 'task_update':
+      case 'task_update': {
         const status = data.status as Task['status'];
         get().updateTask(data.task_id as string, {
           status,
@@ -382,6 +382,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           get().clearStreamContent(data.task_id as string);
         }
         break;
+      }
 
       case 'thinking':
         get().addThinkingLog(
@@ -391,7 +392,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         );
         break;
 
-      case 'stream':
+      case 'stream': {
         // Stream can be for plan (discussion) or task (execution)
         const streamKey = (data.task_id || data.plan_id) as string;
         if (streamKey) {
@@ -406,15 +407,17 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           }
         }
         break;
+      }
 
-      case 'discussion':
+      case 'discussion': {
         const msg = data.message as DiscussionMessage;
         if (msg) {
           get().addDiscussionMessage(msg);
         }
         break;
+      }
 
-      case 'plan_update':
+      case 'plan_update': {
         const planData = data.plan as Plan;
         if (planData) {
           const existingPlan = get().plans.find(p => p.id === planData.id);
@@ -458,8 +461,9 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           }
         }
         break;
+      }
 
-      case 'plan_pending_approval':
+      case 'plan_pending_approval': {
         // Update plan with pending_approval status
         const pendingPlanData = data.plan as Plan;
         if (pendingPlanData) {
@@ -471,6 +475,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           }
         }
         break;
+      }
 
       case 'iteration_pending_approval':
         // Update iteration with pending_approval status
@@ -488,7 +493,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         }
         break;
 
-      case 'iteration_discussion':
+      case 'iteration_discussion': {
         // 迭代讨论消息
         const iterMsg = data.message as DiscussionMessage;
         const iterRound = data.iteration_round as number;
@@ -508,6 +513,7 @@ export const useAgentStore = create<AgentState>((set, get) => ({
           }
         }
         break;
+      }
 
       case 'iteration_task_update':
         // 迭代任务状态更新

@@ -854,11 +854,32 @@ class CoordinatorService:
 - "3D建模" ❌ (外部资源)
 """
 
+        ts_app_constraints = ""
+        if plan.target_output == "ts-app":
+            ts_app_constraints = """
+⚠️ 重要约束（TypeScript 工程项目必须遵守）：
+1. 目标产物是 Vite + TypeScript 浏览器应用，任务必须围绕 src/ 下的模块化代码展开
+2. 禁止规划生成 package.json、tsconfig.json、vite.config.ts、index.html，这些由模板提供
+3. 任务应聚焦入口、核心模块、类型定义、样式与交互逻辑，尽量控制在 3-5 个任务内
+4. 代码必须可编译，采用 ES Module 与 TypeScript strict 模式
+5. 如果是游戏或交互应用，优先使用原生 Canvas API 与浏览器事件
+
+任务示例（正确）：
+- "应用入口与挂载流程" - 实现 src/main.ts 和初始化流程
+- "核心玩法与状态管理" - 拆分 game.ts / app.ts 等模块
+- "类型定义与工具函数" - 抽离 types.ts、utils.ts
+
+任务示例（错误，禁止）：
+- "配置 Vite 构建环境" ❌ (模板已提供)
+- "手写 package.json" ❌ (模板已提供)
+- "新增后端 API 服务" ❌ (目标是浏览器端 ts-app)
+"""
+
         plan_prompt = f"""基于以下讨论，请生成详细的执行计划：
 
 原始需求：{plan.original_request}
 目标输出：{plan.target_output}
-{web_app_constraints}{godot_constraints}
+{web_app_constraints}{godot_constraints}{ts_app_constraints}
 讨论摘要：
 {discussion_summary}
 
@@ -1084,9 +1105,12 @@ class CoordinatorService:
 
         # Track first coding task completion for incremental mode
         first_coding_task_completed = False
-        # Check if index.html already exists (from previous execution)
         if plan.target_output == "web-app":
             existing_code = output_manager.read_existing_code(plan_id)
+            if existing_code:
+                first_coding_task_completed = True
+        elif plan.target_output == "ts-app":
+            existing_code = output_manager.read_existing_ts_code(plan_id)
             if existing_code:
                 first_coding_task_completed = True
 
@@ -1154,19 +1178,20 @@ class CoordinatorService:
                             previous_tasks_context += f"\n---\n### 任务：{task_title}\n\n{task_result}\n"
 
                     # ===== Incremental Code Modification =====
-                    # For web-app projects, read existing code and pass to agent
                     existing_code = None
                     incremental_mode = False
 
-                    if plan.target_output == "web-app" and agent.type.value == "coder":
-                        if first_coding_task_completed:
-                            # Read existing index.html for incremental modification
-                            existing_code = output_manager.read_existing_code(plan_id)
-                            if existing_code:
-                                incremental_mode = True
-                                print(f"[Coordinator] Using incremental mode for task: {task.title} (existing code: {len(existing_code)} chars)")
+                    if plan.target_output == "web-app" and agent.type.value == "coder" and first_coding_task_completed:
+                        existing_code = output_manager.read_existing_code(plan_id)
+                        if existing_code:
+                            incremental_mode = True
+                            print(f"[Coordinator] Using incremental mode for task: {task.title} (existing code: {len(existing_code)} chars)")
+                    elif plan.target_output == "ts-app" and agent.type.value == "coder" and first_coding_task_completed:
+                        existing_code = output_manager.read_existing_ts_code(plan_id)
+                        if existing_code:
+                            incremental_mode = True
+                            print(f"[Coordinator] Using ts-app incremental mode for task: {task.title} (existing code: {len(existing_code)} chars)")
 
-                    # Add web-app specific instructions
                     web_app_instructions = ""
                     if plan.target_output == "web-app" and agent.type.value == "coder":
                         if incremental_mode:
@@ -1189,6 +1214,31 @@ class CoordinatorService:
 
 🚫 禁止使用外部游戏框架（Phaser、Pixi.js、Three.js等）
 ✅ 只能使用原生 Canvas API 进行游戏开发"""
+
+                    ts_app_instructions = ""
+                    if plan.target_output == "ts-app" and agent.type.value == "coder":
+                        if incremental_mode:
+                            ts_app_instructions = """
+
+⚠️ TypeScript 工程增量模式（重要）：
+- 当前已有一个可编译的 ts_app 工程，你需要在现有 src/ 模块基础上继续修改
+- 只输出本轮需要新增或替换的完整文件
+- 每个文件必须以 `// filename: src/...` 标注，后面直接跟完整文件内容
+- 不要输出 package.json、tsconfig.json、vite.config.ts、index.html
+- 保持现有 import/export 关系可编译，不要破坏已有入口"""
+                        else:
+                            ts_app_instructions = """
+
+⚠️ TypeScript 工程开发要求（必须全部满足，否则视为未完成任务）：
+1. 目标是 Vite + TypeScript 浏览器应用，输出多文件源码而不是单文件 HTML。
+2. 输出格式：每个文件必须以 `// filename: src/xxx.ts` 或 `// filename: src/xxx.css` 开头。
+3. 至少包含可运行入口 `src/main.ts`，并通过真实 DOM 节点挂载应用。
+4. 所有代码必须满足 TypeScript strict 模式，使用 ES Module import/export。
+5. 禁止输出模板文件（package.json、tsconfig.json、vite.config.ts、index.html），它们已由系统预置。
+6. 禁止使用未声明依赖、空函数、TODO、伪代码或 markdown 代码块。
+
+✅ 推荐拆分：入口(main.ts) / 核心逻辑(game.ts|app.ts) / 类型(types.ts) / 样式(styles.css)
+✅ 若是互动页面或游戏，优先使用原生 Canvas API 与浏览器事件"""
 
                     # Add Godot-specific instructions
                     godot_instructions = ""
@@ -1221,7 +1271,7 @@ class CoordinatorService:
 描述：{task.description or '无详细描述'}
 
 原始需求上下文：{plan.original_request}
-{discussion_context}{previous_tasks_context}{fix_context}{web_app_instructions}{godot_instructions}
+{discussion_context}{previous_tasks_context}{fix_context}{web_app_instructions}{ts_app_instructions}{godot_instructions}
 
 请完成你的任务部分，提供详细的输出。"""
 
@@ -1392,10 +1442,18 @@ class CoordinatorService:
                             content=full_response,
                             task_title=task.title,
                         )
-                        # Mark first coding task as completed
                         if not first_coding_task_completed:
                             first_coding_task_completed = True
                             print(f"[Coordinator] First coding task completed, incremental mode enabled for subsequent tasks")
+                    elif plan.target_output == "ts-app" and task.assigned_agent_type == "coder":
+                        saved_files = output_manager.save_ts_project(
+                            plan_id=plan_id,
+                            task_title=task.title,
+                            content=full_response,
+                        )
+                        if not first_coding_task_completed:
+                            first_coding_task_completed = True
+                            print(f"[Coordinator] First ts-app coding task completed, incremental mode enabled for subsequent tasks")
                     else:
                         # Default saving for other output types
                         saved_files = output_manager.save_task_output(
@@ -1472,15 +1530,17 @@ class CoordinatorService:
                     plan_id=plan_id,
                     plan_title=plan.title,
                     tasks=[t.model_dump() for t in plan.tasks],
+                    target_output=plan.target_output or "web-app",
                 )
-                # Consolidate web app code fragments
                 if plan.target_output == "web-app":
                     output_manager.consolidate_web_app(plan_id, plan.title)
                     print(f"[OutputManager] Consolidated web app for plan {plan_id[:8]}")
-                # Consolidate Godot project
                 if plan.target_output == "godot-game":
                     output_manager.consolidate_godot_project(plan_id, plan.title)
                     print(f"[OutputManager] Consolidated Godot project for plan {plan_id[:8]}")
+                if plan.target_output == "ts-app":
+                    output_manager.consolidate_ts_app(plan_id, plan.title)
+                    print(f"[OutputManager] Consolidated ts-app project for plan {plan_id[:8]}")
             except Exception as e:
                 print(f"[OutputManager] Error saving plan output: {e}")
 
@@ -1615,6 +1675,56 @@ class CoordinatorService:
                     print(f"[Coordinator] Pre-test validation failed with error: {e}")
                     # Continue with execution even if validation fails
 
+            if plan.target_output == "ts-app":
+                try:
+                    print(f"[Coordinator] Running ts-app pre-test validation...")
+                    validation = output_manager.pre_test_validation_ts_app(plan_id)
+
+                    if not validation["passed"]:
+                        error_lines = [f"- ❌ {err}" for err in validation.get("errors", [])]
+                        warning_lines = [f"- ⚠️ {warn}" for warn in validation.get("warnings", [])[:3]]
+                        validation_summary = "\n".join(error_lines + warning_lines)
+                        if not validation_summary:
+                            validation_summary = "- ❌ TypeScript 工程编译失败"
+
+                        await self.add_discussion_message(
+                            plan_id=plan_id,
+                            agent_id="system",
+                            agent_name="系统",
+                            agent_type="assistant",
+                            content=f"⚠️ TypeScript 工程预测试验证失败\n\n{validation_summary}\n\n请修复这些编译或构建问题后重新生成。",
+                            message_type="comment",
+                        )
+                        results.append({
+                            "task": "TypeScript 预测试验证",
+                            "agent": "system",
+                            "result": validation_summary,
+                        })
+                        test_feedback.append(validation_summary)
+                        all_tests_passed = False
+                        print(f"[Coordinator] ts-app pre-test validation failed, entering fix loop")
+
+                        if fix_iteration >= max_fix_iterations - 1:
+                            blocking_reason = "TypeScript 工程预测试验证连续失败，已阻断完成态"
+                            break
+
+                        fix_iteration += 1
+                        await self.add_discussion_message(
+                            plan_id=plan_id,
+                            agent_id="system",
+                            agent_name="系统",
+                            agent_type="assistant",
+                            content=f"🔄 TypeScript 工程预测试未通过，开始第 {fix_iteration} 轮修复...\n\n问题摘要：\n{validation_summary}",
+                            message_type="comment",
+                        )
+                        for retry_task in coding_tasks:
+                            if retry_task.assigned_agent_type == "coder":
+                                retry_task.status = TaskStatus.PENDING
+                        self._save_plans()
+                        continue
+                except Exception as e:
+                    print(f"[Coordinator] ts-app pre-test validation failed with error: {e}")
+
             # Pre-test validation for Godot
             if plan.target_output == "godot-game":
                 try:
@@ -1640,9 +1750,6 @@ class CoordinatorService:
                     # Continue with execution even if validation fails
 
             # Execute testing tasks
-            all_tests_passed = True
-            test_feedback = []
-
             for task in testing_tasks:
                 # Auto-assign tester agent if not assigned or agent not found
                 # 根据 plan.selected_agent_ids 过滤
@@ -1885,10 +1992,12 @@ class CoordinatorService:
         # Post final result to discussion
         output_dir = output_manager.get_output_path(plan_id)
         if output_dir:
-            preview_url = f"/api/pipeline/output/{plan_id}/files/index.html"
+            preview_entry = output_manager.resolve_preview_entry(plan_id, plan.target_output)
+            preview_url = f"/api/pipeline/output/{plan_id}/files/{preview_entry}" if preview_entry else None
             result_emoji = "🎉" if all_tests_passed else "⚠️"
             status_text = "所有测试通过！" if all_tests_passed else (blocking_reason or f"经过 {fix_iteration + 1} 轮修复后完成")
-            result_message = f"{result_emoji} 项目已完成！\n\n📊 状态: {status_text}\n\n📦 输出目录: {output_dir}\n\n🌐 预览地址: http://localhost:8000{preview_url}\n\n点击链接查看生成的网页。"
+            preview_text = f"🌐 预览地址: http://localhost:8000{preview_url}\n\n点击链接查看生成的网页。" if preview_url else "🌐 当前没有可用预览，请检查构建与校验结果。"
+            result_message = f"{result_emoji} 项目已完成！\n\n📊 状态: {status_text}\n\n📦 输出目录: {output_dir}\n\n{preview_text}"
             await self.add_discussion_message(
                 plan_id=plan_id,
                 agent_id="system",
@@ -2903,13 +3012,15 @@ function 函数名(参数) {{
         plan.updated_at = datetime.utcnow()
         self._save_plans()
 
-        preview_url = f"/api/pipeline/output/{plan_id}/files/index.html"
+        preview_entry = output_manager.resolve_preview_entry(plan_id, plan.target_output)
+        preview_url = f"/api/pipeline/output/{plan_id}/files/{preview_entry}" if preview_entry else None
+        preview_message = f"🎉 迭代第 {iteration_round.round_number} 轮完成！\n\n🌐 预览地址: http://localhost:8000{preview_url}" if preview_url else f"🎉 迭代第 {iteration_round.round_number} 轮完成！\n\n当前没有可用预览，请检查构建结果。"
         await self._add_iteration_discussion_message(
             plan_id, iteration_round.round_number,
             agent_id="system",
             agent_name="系统",
             agent_type="assistant",
-            content=f"🎉 迭代第 {iteration_round.round_number} 轮完成！\n\n🌐 预览地址: http://localhost:8000{preview_url}",
+            content=preview_message,
             message_type="comment",
         )
 

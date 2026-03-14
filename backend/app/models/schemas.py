@@ -162,7 +162,7 @@ class PlanBase(BaseModel):
     title: str
     description: Optional[str] = None
     original_request: str
-    target_output: Optional[str] = None  # e.g., "web-app", "api", "report"
+    target_output: Optional[str] = None  # e.g., "web-app", "ts-app", "godot-game", "api", "report"
 
 
 class PlanCreate(PlanBase):
@@ -221,7 +221,7 @@ class ThinkingStep(BaseModel):
 # Pipeline request
 class PipelineRequest(BaseModel):
     request: str
-    target_output: str = "web-app"  # web-app, api, report, etc.
+    target_output: str = "web-app"  # web-app, ts-app, godot-game, api, report, etc.
     selected_agent_ids: List[str] = Field(default_factory=list)  # Agent IDs to use in pipeline
 
 
