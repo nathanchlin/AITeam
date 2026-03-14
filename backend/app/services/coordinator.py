@@ -174,6 +174,42 @@ class CoordinatorService:
 {mode_note}
 """
 
+    def _summarize_ts_issues(self, payload: Optional[Dict[str, Any]], stage_label: str) -> str:
+        payload = payload or {}
+        error_lines = [f"- ❌ {err}" for err in (payload.get("errors") or [])[:8]]
+        warning_lines = [f"- ⚠️ {warn}" for warn in (payload.get("warnings") or [])[:3]]
+        summary = "\n".join(error_lines + warning_lines).strip()
+        return summary or f"- ❌ TypeScript 工程{stage_label}失败"
+
+    def _build_ts_fix_feedback(self, plan_id: str, stage_label: str, payload: Dict[str, Any], task_request: str) -> str:
+        summary = self._summarize_ts_issues(payload, stage_label)
+        code_snapshot = output_manager.read_existing_ts_code(plan_id, max_length=16000) or ""
+
+        guidance_parts: List[str] = []
+        task_guidance = feedback_store.get_guidance_for_task(task_request)
+        if task_guidance:
+            guidance_parts.append(task_guidance)
+        historical_guidance = feedback_store.get_error_guidance(code_snapshot, task_request)
+        if historical_guidance and historical_guidance not in guidance_parts:
+            guidance_parts.append(historical_guidance)
+
+        guidance_block = ""
+        if guidance_parts:
+            guidance_block = "\n\n历史修复提醒：\n" + "\n\n".join(guidance_parts)
+
+        return f"""TypeScript 工程{stage_label}失败，请基于当前已有工程做定点修复。
+
+失败详情：
+{summary}
+
+修复要求：
+- 当前工程快照已经作为 existing_code 提供，请直接在现有文件基础上修复
+- 优先处理 errors 中点名的文件与首批报错，避免大面积无关重写
+- 只输出本轮需要新增或替换的完整文件，保持 `// filename: src/...` 格式
+- 不要输出 package.json、tsconfig.json、vite.config.ts、index.html
+- 先修复 TypeScript 语法、类型、import/export 与缺失符号，再重新尝试 Vite build{guidance_block}
+"""
+
     def _load_plans(self):
         """Load plans from persistent storage"""
         import shutil
@@ -1114,7 +1150,15 @@ class CoordinatorService:
             if existing_code:
                 first_coding_task_completed = True
 
+        all_tests_passed = True
+        test_feedback: List[str] = []
+        blocking_reason: Optional[str] = None
+        latest_fix_feedback = ""
+
         while fix_iteration < max_fix_iterations:
+            all_tests_passed = True
+            blocking_reason = None
+
             # Execute coding tasks
             for task in coding_tasks:
                 if task.status == TaskStatus.COMPLETED:
@@ -1160,10 +1204,15 @@ class CoordinatorService:
                     # Create task description
                     fix_context = ""
                     if fix_iteration > 0:
-                        # Get previous test results for context
-                        test_results = [r for r in results if '测试' in r.get('task', '')]
-                        if test_results:
-                            fix_context = f"\n\n⚠️ 之前的测试发现问题，请修复以下问题：\n{test_results[-1].get('result', '')}"
+                        if latest_fix_feedback:
+                            fix_context = f"\n\n⚠️ 上一轮自动校验/构建发现问题，请优先修复以下问题：\n{latest_fix_feedback}"
+                        else:
+                            feedback_results = [
+                                r for r in results
+                                if any(keyword in r.get('task', '') for keyword in ('测试', '验证', '构建'))
+                            ]
+                            if feedback_results:
+                                fix_context = f"\n\n⚠️ 之前的测试发现问题，请修复以下问题：\n{feedback_results[-1].get('result', '')}"
 
                     # Build context from previously completed tasks
                     previous_tasks_context = ""
@@ -1286,7 +1335,8 @@ class CoordinatorService:
                                 async for update in agent.execute_task(
                                     task_description,
                                     existing_code=existing_code,
-                                    incremental_mode=incremental_mode
+                                    incremental_mode=incremental_mode,
+                                    target_output=plan.target_output,
                                 ):
                                     if update["type"] == "stream":
                                         # Skip empty or whitespace-only content
@@ -1539,31 +1589,41 @@ class CoordinatorService:
                     output_manager.consolidate_godot_project(plan_id, plan.title)
                     print(f"[OutputManager] Consolidated Godot project for plan {plan_id[:8]}")
                 if plan.target_output == "ts-app":
-                    output_manager.consolidate_ts_app(plan_id, plan.title)
-                    print(f"[OutputManager] Consolidated ts-app project for plan {plan_id[:8]}")
+                    print(f"[OutputManager] Deferred ts-app build until pre-test validation passes for plan {plan_id[:8]}")
             except Exception as e:
                 print(f"[OutputManager] Error saving plan output: {e}")
 
             # ===== Quality Scoring Gate =====
-            if plan.target_output == "web-app":
+            if plan.target_output in {"web-app", "ts-app"}:
                 try:
                     print(f"[Coordinator] Running quality scoring...")
-                    existing_code = output_manager.read_existing_code(plan_id)
+                    validation_payload = None
+                    if plan.target_output == "ts-app":
+                        existing_code = output_manager.read_existing_ts_code(plan_id)
+                        ts_app_dir = output_manager.init_ts_app_project(plan_id)
+                        validation_payload = output_manager.web_validator.validate_ts_project(
+                            ts_app_dir,
+                            stage="quality",
+                            requirements=plan.original_request,
+                        ).to_dict()
+                        quality_result = quality_scorer.score_ts_output(existing_code or "", plan.original_request, validation_payload)
+                    else:
+                        existing_code = output_manager.read_existing_code(plan_id)
+                        quality_result = quality_scorer.score_output(existing_code or "", plan.original_request)
+
                     if existing_code:
-                        quality_result = quality_scorer.score_output(existing_code, plan.original_request)
                         print(f"[QualityScorer] Score: {quality_result['total']:.1f}/100 (Grade: {quality_result['grade']})")
 
-                        # Store quality score in plan for reference
                         if not hasattr(plan, 'quality_scores'):
                             plan.quality_scores = []
                         plan.quality_scores.append({
                             "round": fix_iteration,
                             "score": quality_result["total"],
                             "grade": quality_result["grade"],
-                            "timestamp": datetime.now().isoformat()
+                            "timestamp": datetime.now().isoformat(),
+                            "target_output": plan.target_output,
                         })
 
-                        # Quality gate: if score is below threshold, add feedback for next iteration
                         if quality_result["total"] < 60:
                             quality_feedback = f"""⚠️ 代码质量评分: {quality_result['total']:.1f}/100 (等级: {quality_result['grade']})
 
@@ -1586,19 +1646,18 @@ class CoordinatorService:
                                 message_type="comment",
                             )
 
-                            # Record errors for feedback learning
                             for check in quality_result['scores']['correctness'].get('checks', []):
                                 if not check.get('passed', True):
                                     feedback_store.record_error(
                                         plan_id=plan_id,
                                         error_type=check.get('name', 'unknown'),
                                         description=check.get('name', 'Unknown error'),
-                                        code_snippet=existing_code[:500],
-                                        task_context=plan.original_request[:200]
+                                        code_snippet=(existing_code or '')[:500],
+                                        task_context=plan.original_request[:200],
                                     )
 
-                            # If quality is very low, skip to next iteration
                             if quality_result["total"] < 40:
+                                latest_fix_feedback = quality_feedback
                                 fix_iteration += 1
                                 await self.add_discussion_message(
                                     plan_id=plan_id,
@@ -1610,7 +1669,6 @@ class CoordinatorService:
                                 )
                                 continue
                         else:
-                            # Good quality, post success message
                             await self.add_discussion_message(
                                 plan_id=plan_id,
                                 agent_id="system",
@@ -1649,6 +1707,7 @@ class CoordinatorService:
                             "agent": "system",
                             "result": validation_summary,
                         })
+                        latest_fix_feedback = validation_summary
                         test_feedback.append(validation_summary)
                         all_tests_passed = False
                         print(f"[Coordinator] Pre-test validation failed, entering fix loop")
@@ -1681,18 +1740,20 @@ class CoordinatorService:
                     validation = output_manager.pre_test_validation_ts_app(plan_id)
 
                     if not validation["passed"]:
-                        error_lines = [f"- ❌ {err}" for err in validation.get("errors", [])]
-                        warning_lines = [f"- ⚠️ {warn}" for warn in validation.get("warnings", [])[:3]]
-                        validation_summary = "\n".join(error_lines + warning_lines)
-                        if not validation_summary:
-                            validation_summary = "- ❌ TypeScript 工程编译失败"
+                        validation_summary = self._summarize_ts_issues(validation, "预测试校验")
+                        latest_fix_feedback = self._build_ts_fix_feedback(
+                            plan_id,
+                            "预测试校验",
+                            validation,
+                            plan.original_request,
+                        )
 
                         await self.add_discussion_message(
                             plan_id=plan_id,
                             agent_id="system",
                             agent_name="系统",
                             agent_type="assistant",
-                            content=f"⚠️ TypeScript 工程预测试验证失败\n\n{validation_summary}\n\n请修复这些编译或构建问题后重新生成。",
+                            content=f"⚠️ TypeScript 工程预测试验证失败\n\n{validation_summary}\n\n请基于当前工程定点修复这些编译问题后重新生成。",
                             message_type="comment",
                         )
                         results.append({
@@ -1722,8 +1783,57 @@ class CoordinatorService:
                                 retry_task.status = TaskStatus.PENDING
                         self._save_plans()
                         continue
+
+                    build_payload = output_manager.build_ts_project(plan_id, plan.title)
+                    if not build_payload.get("passed"):
+                        build_summary = self._summarize_ts_issues(build_payload, "构建")
+                        latest_fix_feedback = self._build_ts_fix_feedback(
+                            plan_id,
+                            "构建",
+                            build_payload,
+                            plan.original_request,
+                        )
+
+                        await self.add_discussion_message(
+                            plan_id=plan_id,
+                            agent_id="system",
+                            agent_name="系统",
+                            agent_type="assistant",
+                            content=f"⚠️ TypeScript 工程构建失败\n\n{build_summary}\n\n请基于当前工程定点修复这些构建问题后重新生成。",
+                            message_type="comment",
+                        )
+                        results.append({
+                            "task": "TypeScript 构建验证",
+                            "agent": "system",
+                            "result": build_summary,
+                        })
+                        test_feedback.append(build_summary)
+                        all_tests_passed = False
+                        print(f"[Coordinator] ts-app build failed, entering fix loop")
+
+                        if fix_iteration >= max_fix_iterations - 1:
+                            blocking_reason = "TypeScript 工程构建连续失败，已阻断完成态"
+                            break
+
+                        fix_iteration += 1
+                        await self.add_discussion_message(
+                            plan_id=plan_id,
+                            agent_id="system",
+                            agent_name="系统",
+                            agent_type="assistant",
+                            content=f"🔄 TypeScript 工程构建未通过，开始第 {fix_iteration} 轮修复...\n\n问题摘要：\n{build_summary}",
+                            message_type="comment",
+                        )
+                        for retry_task in coding_tasks:
+                            if retry_task.assigned_agent_type == "coder":
+                                retry_task.status = TaskStatus.PENDING
+                        self._save_plans()
+                        continue
+
+                    latest_fix_feedback = ""
+                    print(f"[Coordinator] ts-app build passed for plan {plan_id[:8]}")
                 except Exception as e:
-                    print(f"[Coordinator] ts-app pre-test validation failed with error: {e}")
+                    print(f"[Coordinator] ts-app validation/build failed with error: {e}")
 
             # Pre-test validation for Godot
             if plan.target_output == "godot-game":
@@ -1991,13 +2101,15 @@ class CoordinatorService:
 
         # Post final result to discussion
         output_dir = output_manager.get_output_path(plan_id)
+        preview_entry = None
         if output_dir:
             preview_entry = output_manager.resolve_preview_entry(plan_id, plan.target_output)
             preview_url = f"/api/pipeline/output/{plan_id}/files/{preview_entry}" if preview_entry else None
             result_emoji = "🎉" if all_tests_passed else "⚠️"
             status_text = "所有测试通过！" if all_tests_passed else (blocking_reason or f"经过 {fix_iteration + 1} 轮修复后完成")
             preview_text = f"🌐 预览地址: http://localhost:8000{preview_url}\n\n点击链接查看生成的网页。" if preview_url else "🌐 当前没有可用预览，请检查构建与校验结果。"
-            result_message = f"{result_emoji} 项目已完成！\n\n📊 状态: {status_text}\n\n📦 输出目录: {output_dir}\n\n{preview_text}"
+            result_title = "项目已完成！" if all_tests_passed else "项目执行结束，但仍有待修复问题"
+            result_message = f"{result_emoji} {result_title}\n\n📊 状态: {status_text}\n\n📦 输出目录: {output_dir}\n\n{preview_text}"
             await self.add_discussion_message(
                 plan_id=plan_id,
                 agent_id="system",
@@ -2028,7 +2140,7 @@ class CoordinatorService:
                 "plan_id": plan_id,
                 "status": "completed",
                 "results": results,
-                "output_url": f"/api/pipeline/output/{plan_id}/files/index.html" if output_dir else None,
+                "output_url": f"/api/pipeline/output/{plan_id}/files/{preview_entry}" if output_dir and preview_entry else None,
             }
         })
 
@@ -2102,7 +2214,10 @@ class CoordinatorService:
             raise ValueError(f"Plan {plan_id} is not completed (status: {plan.status})")
 
         # 读取现有代码作为上下文
-        existing_code = output_manager.read_existing_code(plan_id)
+        if plan.target_output == "ts-app":
+            existing_code = output_manager.read_existing_ts_code(plan_id)
+        else:
+            existing_code = output_manager.read_existing_code(plan_id)
         if not existing_code:
             error_msg = "无法读取现有代码，迭代失败"
             await self.add_discussion_message(
@@ -2757,8 +2872,59 @@ class CoordinatorService:
                 # 显示前 4000 和后 3000 字符
                 code_preview = current_code[:4000] + "\n\n... [代码已截断，中间部分省略] ...\n\n" + current_code[-3000:]
 
-            # 构建迭代任务描述 - 使用增量修改格式
-            iteration_prompt = f"""你是专业的开发工程师。现在需要对现有代码进行**增量修改**。
+            # 构建迭代任务描述 - 使用目标输出对应的增量修改格式
+            if plan.target_output == "ts-app":
+                iteration_prompt = f"""你是专业的 TypeScript 工程开发工程师。现在需要对现有 ts-app 工程进行**增量修改**。
+
+## 原始需求
+{plan.original_request}
+
+## 迭代需求
+{iteration_round.iteration_request}
+
+## 当前任务
+{task.title}
+{task.description or ''}
+
+## 现有工程快照（仅供理解结构）
+```
+{code_preview}
+```
+
+## 🎯 输出格式要求（必须严格遵守）
+
+### 第一步：分析（必须）
+简要说明：
+- 你要修改哪些文件
+- 每个文件为什么要改
+- 修改后如何满足迭代需求
+
+### 第二步：输出文件块
+只输出发生变化的完整文件，使用以下格式：
+
+<<<FILE: src/main.ts>>>
+// 该文件的完整最新内容
+<<<END_FILE>>>
+
+<<<FILE: src/styles.css>>>
+/* 该文件的完整最新内容 */
+<<<END_FILE>>>
+
+如果需要删除文件，使用：
+<<<DELETE_FILE: src/obsolete.ts>>>
+<<<END_FILE>>>
+
+### ⚠️ 重要规则
+1. 只输出变更文件，不要重复未修改文件
+2. 每个 FILE 块必须是**完整文件内容**，不能只给局部 diff
+3. 路径只能放在 src/ 或 public/ 下
+4. 不要输出 markdown 代码块包裹文件内容
+5. 保持 import/export 路径正确，可直接被 Vite + TypeScript 工程使用
+6. 如果改动较大，可以一次输出多个 FILE 块
+
+请先分析，然后输出文件块。"""
+            else:
+                iteration_prompt = f"""你是专业的开发工程师。现在需要对现有代码进行**增量修改**。
 
 ## 原始需求
 {plan.original_request}
@@ -2863,10 +3029,12 @@ function 函数名(参数) {{
 
                 # 优先检查是否使用了增量修改格式
                 if code_merger.has_modifications(full_response):
-                    # 使用增量合并模式
                     modifications = code_merger.parse_modifications(full_response)
                     if modifications:
-                        merge_result = code_merger.merge_html(current_code, modifications)
+                        if plan.target_output == "ts-app":
+                            merge_result = code_merger.merge_ts_project(current_code, modifications)
+                        else:
+                            merge_result = code_merger.merge_html(current_code, modifications)
                         current_code = merge_result.code
                         code_updated = merge_result.applied > 0
 
@@ -2874,7 +3042,6 @@ function 函数名(参数) {{
                         if merge_result.failed:
                             print(f"[Iteration] Failed modifications: {merge_result.failed}")
 
-                        # 记录修改内容
                         mod_summary = ", ".join([f"{m.type}:{m.target}" for m in modifications])
                         status_emoji = "✅" if not merge_result.failed else "⚠️"
                         await self._add_iteration_discussion_message(
@@ -2885,6 +3052,16 @@ function 函数名(参数) {{
                             content=f"{status_emoji} 增量修改 ({merge_result.applied}个)：{mod_summary}",
                             message_type="comment",
                         )
+
+                if not code_updated and plan.target_output == "ts-app":
+                    extracted_files = output_manager.extract_ts_app_files(full_response)
+                    if extracted_files:
+                        current_code = "\n\n".join(
+                            f"// filename: {file_info['path']}\n{file_info['content']}\n"
+                            for file_info in extracted_files
+                        ).strip()
+                        code_updated = True
+                        print("[Iteration] Using ts-app full file replacement (fallback mode)")
 
                 # 如果没有修改块，检查是否输出完整 HTML（兼容模式）
                 if not code_updated and '<html' in full_response.lower():
@@ -2913,24 +3090,94 @@ function 函数名(参数) {{
 
                 # 验证并保存代码
                 if code_updated:
-                    # 检查是否是 HTML 内容
-                    is_html_content = current_code.strip().lower().startswith('<!doctype') or \
-                                   current_code.strip().lower().startswith('<html')
+                    if plan.target_output == "ts-app":
+                        try:
+                            output_manager.save_ts_project(plan_id, task.title, current_code)
+                            validation = output_manager.pre_test_validation_ts_app(plan_id)
+                            if validation.get("passed"):
+                                build_payload = output_manager.build_ts_project(plan_id, plan.title)
+                                if build_payload.get("passed"):
+                                    task.status = TaskStatus.COMPLETED
+                                    await self._add_iteration_discussion_message(
+                                        plan_id, iteration_round.round_number,
+                                        agent_id=agent.id,
+                                        agent_name=agent.name,
+                                        agent_type=agent.type.value,
+                                        content=f"✅ 完成任务：{task.title}",
+                                        message_type="comment",
+                                    )
+                                else:
+                                    task.status = TaskStatus.FAILED
+                                    build_summary = self._summarize_ts_issues(build_payload, "构建")
+                                    await self._add_iteration_discussion_message(
+                                        plan_id, iteration_round.round_number,
+                                        agent_id=agent.id,
+                                        agent_name=agent.name,
+                                        agent_type=agent.type.value,
+                                        content=f"❌ TypeScript 工程构建失败：\n{build_summary}\n\n请重新输出只包含修复文件的完整文件块。",
+                                        message_type="comment",
+                                    )
+                            else:
+                                task.status = TaskStatus.FAILED
+                                validation_summary = self._summarize_ts_issues(validation, "校验")
+                                await self._add_iteration_discussion_message(
+                                    plan_id, iteration_round.round_number,
+                                    agent_id=agent.id,
+                                    agent_name=agent.name,
+                                    agent_type=agent.type.value,
+                                    content=f"❌ TypeScript 工程校验失败：\n{validation_summary}\n\n请重新输出可编译的完整文件块。",
+                                    message_type="comment",
+                                )
+                        except Exception as e:
+                            task.status = TaskStatus.FAILED
+                            print(f"[Coordinator] Error saving ts-app iteration code: {e}")
+                            await self._add_iteration_discussion_message(
+                                plan_id, iteration_round.round_number,
+                                agent_id=agent.id,
+                                agent_name=agent.name,
+                                agent_type=agent.type.value,
+                                content=f"❌ TypeScript 工程保存失败：{e}",
+                                message_type="comment",
+                            )
+                    else:
+                        is_html_content = current_code.strip().lower().startswith('<!doctype') or \
+                                       current_code.strip().lower().startswith('<html')
 
-                    if is_html_content:
-                        # 验证 HTML 结构完整性
-                        is_complete, error_msg = self._validate_html_completeness(current_code)
-                        if is_complete:
+                        if is_html_content:
+                            is_complete, error_msg = self._validate_html_completeness(current_code)
+                            if is_complete:
+                                task.status = TaskStatus.COMPLETED
+
+                                try:
+                                    plan_dir = output_manager.get_output_path(plan_id)
+                                    index_path = os.path.join(plan_dir, "index.html")
+                                    with open(index_path, 'w', encoding='utf-8') as f:
+                                        f.write(current_code)
+                                except Exception as e:
+                                    print(f"[Coordinator] Error saving iteration code: {e}")
+
+                                await self._add_iteration_discussion_message(
+                                    plan_id, iteration_round.round_number,
+                                    agent_id=agent.id,
+                                    agent_name=agent.name,
+                                    agent_type=agent.type.value,
+                                    content=f"✅ 完成任务：{task.title}",
+                                    message_type="comment",
+                                )
+                            else:
+                                task.status = TaskStatus.FAILED
+                                print(f"[Coordinator] HTML validation failed: {error_msg}")
+                                await self._add_iteration_discussion_message(
+                                    plan_id, iteration_round.round_number,
+                                    agent_id=agent.id,
+                                    agent_name=agent.name,
+                                    agent_type=agent.type.value,
+                                    content=f"❌ HTML 生成不完整：{error_msg}\n\n请重新生成完整的 HTML 代码，确保包含所有必要的闭合标签（</head>, </body>, </html> 等）。",
+                                    message_type="comment",
+                                )
+                        else:
                             task.status = TaskStatus.COMPLETED
-
-                            # 保存到输出目录
-                            try:
-                                plan_dir = output_manager.get_output_path(plan_id)
-                                index_path = os.path.join(plan_dir, "index.html")
-                                with open(index_path, 'w', encoding='utf-8') as f:
-                                    f.write(current_code)
-                            except Exception as e:
-                                print(f"[Coordinator] Error saving iteration code: {e}")
+                            print(f"[Coordinator] Task output is not valid HTML, skipping index.html update")
 
                             await self._add_iteration_discussion_message(
                                 plan_id, iteration_round.round_number,
@@ -2940,31 +3187,6 @@ function 函数名(参数) {{
                                 content=f"✅ 完成任务：{task.title}",
                                 message_type="comment",
                             )
-                        else:
-                            # HTML 不完整，标记失败并请求重试
-                            task.status = TaskStatus.FAILED
-                            print(f"[Coordinator] HTML validation failed: {error_msg}")
-                            await self._add_iteration_discussion_message(
-                                plan_id, iteration_round.round_number,
-                                agent_id=agent.id,
-                                agent_name=agent.name,
-                                agent_type=agent.type.value,
-                                content=f"❌ HTML 生成不完整：{error_msg}\n\n请重新生成完整的 HTML 代码，确保包含所有必要的闭合标签（</head>, </body>, </html> 等）。",
-                                message_type="comment",
-                            )
-                    else:
-                        # 测试报告等非代码输出，标记完成但不更新代码
-                        task.status = TaskStatus.COMPLETED
-                        print(f"[Coordinator] Task output is not valid HTML, skipping index.html update")
-
-                        await self._add_iteration_discussion_message(
-                            plan_id, iteration_round.round_number,
-                            agent_id=agent.id,
-                            agent_name=agent.name,
-                            agent_type=agent.type.value,
-                            content=f"✅ 完成任务：{task.title}",
-                            message_type="comment",
-                        )
                 else:
                     # 没有检测到有效代码，但可能是纯文本回复（如分析说明）
                     if full_response.strip():

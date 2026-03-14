@@ -9,10 +9,12 @@ Tests verify that code block extraction:
 5. Handles multiple code blocks in same content
 """
 
+import json
 from pathlib import Path
 
 import pytest
 from app.services.output_manager import OutputManager
+from app.services.ts_builder import TSCommandResult
 
 
 class TestExtractCodeBlocks:
@@ -349,6 +351,73 @@ def test_update_index_html_writes_authoritative_html(tmp_path):
     assert validation["signals"]["profile"] == "dom-interactive"
 
 
+def test_update_index_html_repairs_comment_code_mixed_lines_before_validation(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    content = """```html
+<!DOCTYPE html>
+<html>
+<head><style>body { font-family: sans-serif; }</style></head>
+<body>
+  <canvas id=\"gameCanvas\"></canvas>
+  <div id=\"status\"></div>
+  <button id=\"actionBtn\">Run</button>
+  <script>
+  class DemoGame {
+    constructor() {
+      this.values = [];
+      this.canvas = document.getElementById('gameCanvas');
+      // 尺寸设置 this.canvas.width = 320;
+      this.canvas.height = 480;
+    }
+
+    // 粒子效果 addParticles(count) {
+    for (let i = 0; i < count; i++) {
+      this.values.push(i);
+    }
+    }
+
+    ease(t) {
+      if (!t) return0;
+      return1 + t;
+    }
+
+    draw(ctx) {
+      // 清空画布 ctx.fillStyle = '#111';
+      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+  }
+
+  window.onload = () => {
+    const game = new DemoGame();
+    game.addParticles(3);
+    document.getElementById('actionBtn').addEventListener('click', () => {
+      document.getElementById('status').textContent = String(game.values.length + game.ease(1));
+      game.draw(game.canvas.getContext('2d'));
+    });
+  };
+  </script>
+</body>
+</html>
+```"""
+
+    manager.update_index_html("plan-repair-1", content, task_title="repair mixed comment code")
+
+    saved_html = manager.read_existing_code("plan-repair-1")
+    validation = manager.read_web_validation("plan-repair-1", "save")
+
+    assert saved_html is not None
+    assert "// 粒子效果" in saved_html
+    assert "\n    addParticles(count) {" in saved_html
+    assert "this.canvas.width = 320;" in saved_html
+    assert "ctx.fillStyle = '#111';" in saved_html
+    assert "return 0;" in saved_html
+    assert "return 1 + t;" in saved_html
+    assert validation is not None
+    assert validation["passed"] is True
+    assert any("自动拆分了" in warning for warning in validation["warnings"])
+    assert any("return 字面量" in warning for warning in validation["warnings"])
+
+
 def test_update_index_html_rejects_invalid_candidate_and_keeps_last_good_version(tmp_path):
     manager = OutputManager(base_dir=str(tmp_path))
     valid_content = """```html
@@ -467,6 +536,197 @@ this should be ignored
     assert not any(path.endswith("package.json") and "this should be ignored" in Path(path).read_text(encoding="utf-8") for path in saved_files if path.endswith("package.json"))
 
 
+def test_extract_ts_app_files_from_markdown_fenced_blocks_with_filename_markers():
+    manager = OutputManager()
+    content = """这是说明文字。
+
+```ts
+// filename: src/main.ts
+import './styles.css';
+const root = document.getElementById('app');
+if (!root) throw new Error('Missing root');
+root.innerHTML = '<h1>TS App</h1>';
+```
+
+这里是两段代码之间的分析文字，不应该混进文件内容。
+
+```css
+// filename: src/styles.css
+body { margin: 0; }
+```
+"""
+
+    files = manager.extract_ts_app_files(content)
+
+    assert [file_info["path"] for file_info in files] == ["src/main.ts", "src/styles.css"]
+    assert "这里是两段代码之间的分析文字" not in files[0]["content"]
+    assert "```" not in files[0]["content"]
+    assert files[1]["content"] == "body { margin: 0; }"
+
+
+def test_extract_ts_app_files_handles_glued_filename_marker_and_inline_code():
+    manager = OutputManager()
+    content = """```ts
+// filename: src/main.tsimport './styles.css';
+import { Game } from './Game';
+
+const game = new Game();
+game.start();
+
+// filename: src/Game.tsexport class Game {
+  start() {
+    document.getElementById('app')?.setAttribute('data-ready', 'true');
+  }
+}
+
+// filename: src/styles.cssbody { margin: 0; }
+#app { min-height: 100vh; }
+```
+"""
+
+    files = manager.extract_ts_app_files(content)
+
+    assert [file_info["path"] for file_info in files] == ["src/main.ts", "src/Game.ts", "src/styles.css"]
+    assert files[0]["content"].startswith("import './styles.css';")
+    assert "import { Game } from './Game';" in files[0]["content"]
+    assert files[1]["content"].startswith("export class Game {")
+    assert "data-ready" in files[1]["content"]
+    assert files[2]["content"].startswith("body { margin: 0; }")
+    assert "#app { min-height: 100vh; }" in files[2]["content"]
+
+
+def test_save_ts_project_avoids_garbled_filename_outputs_for_glued_ts_markers(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    content = """// filename: src/main.tsimport './styles.css';
+import { Game } from './Game';
+
+const game = new Game();
+game.start();
+
+// filename: src/Game.tsexport class Game {
+  start() {
+    document.getElementById('app')?.setAttribute('data-ready', 'true');
+  }
+}
+
+// filename: src/styles.cssbody { margin: 0; }
+#app { min-height: 100vh; }
+"""
+
+    manager.save_ts_project("plan-ts-glued", "glued filename marker", content)
+    src_dir = tmp_path / "plan-ts-" / "ts_app" / "src"
+
+    assert (src_dir / "main.ts").read_text(encoding="utf-8").startswith("import './styles.css';")
+    assert (src_dir / "Game.ts").read_text(encoding="utf-8").startswith("export class Game {")
+    assert (src_dir / "styles.css").read_text(encoding="utf-8").startswith("body { margin: 0; }")
+    assert not any(path.name.startswith("Game.tsimport") or path.name.startswith("main.tsimport") for path in src_dir.iterdir())
+
+
+def test_save_ts_project_extracts_markdown_heading_hints_and_loose_fences(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    content = """### 入口文件 (`src/main.ts`)
+实例化并启动应用。
+
+```typescriptimport './styles.css';
+const root = document.getElementById('app');
+if (!root) throw new Error('Missing root');
+root.innerHTML = '<h1>TS App</h1>';
+```
+
+### 样式文件 (`src/styles.css`)
+```css
+body { margin: 0; }
+```
+"""
+
+    manager.save_ts_project("plan-ts-2", "markdown ts coder task", content)
+    ts_app_dir = tmp_path / "plan-ts-" / "ts_app"
+
+    assert (ts_app_dir / "src" / "main.ts").read_text(encoding="utf-8").startswith("import './styles.css';")
+    assert (ts_app_dir / "src" / "styles.css").read_text(encoding="utf-8") == "body { margin: 0; }"
+
+
+def test_extract_ts_app_files_truncates_malformed_closing_fence_and_trailing_prose():
+    manager = OutputManager()
+    content = """# 应用入口与交互控制
+
+```typescript// filename: src/main.tsimport './styles.css';
+const root = document.getElementById('app');
+if (!root) throw new Error('Missing root');
+root.textContent = 'ready';
+```根据您提供的代码片段，代码逻辑已经完整。
+
+```html</script>
+</body>
+</html>
+```
+"""
+
+    files = manager.extract_ts_app_files(content)
+
+    assert [file_info["path"] for file_info in files] == ["src/main.ts"]
+    assert files[0]["content"].endswith("root.textContent = 'ready';")
+    assert "根据您提供的代码片段" not in files[0]["content"]
+    assert "```html" not in files[0]["content"]
+    assert "</script>" not in files[0]["content"]
+
+
+def test_save_ts_project_discards_trailing_markdown_pollution_after_ts_block(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    content = """# 应用入口与交互控制
+
+```typescript// filename: src/main.tsimport './styles.css';
+const root = document.getElementById('app');
+if (!root) throw new Error('Missing root');
+root.textContent = 'ready';
+```根据您提供的代码片段，代码逻辑已经完整。
+
+```html</script>
+</body>
+</html>
+```
+"""
+
+    manager.save_ts_project("plan-ts-polluted", "polluted ts markdown", content)
+    saved_main = (tmp_path / "plan-ts-" / "ts_app" / "src" / "main.ts").read_text(encoding="utf-8")
+
+    assert saved_main.endswith("root.textContent = 'ready';")
+    assert "根据您提供的代码片段" not in saved_main
+    assert "```html" not in saved_main
+    assert "</script>" not in saved_main
+
+
+def test_extract_ts_app_files_prefers_fuller_candidate_for_same_path():
+    manager = OutputManager()
+    content = """### 完整文件 (`src/core/Game.ts`)
+```typescript
+import { Board } from './Board';
+
+export class Game {
+  constructor(private readonly board: Board) {}
+
+  start() {
+    return this.board;
+  }
+}
+```
+
+### 更新 `src/core/Game.ts`
+```typescript// src/core/Game.ts (关键更新部分)
+export class Game {
+  start() {}
+}
+```
+"""
+
+    files = manager.extract_ts_app_files(content)
+
+    assert len(files) == 1
+    assert files[0]["path"] == "src/core/Game.ts"
+    assert "import { Board } from './Board';" in files[0]["content"]
+    assert "关键更新部分" not in files[0]["content"]
+
+
 def test_resolve_preview_entry_prefers_ts_app_dist(tmp_path):
     manager = OutputManager(base_dir=str(tmp_path))
     plan_dir = tmp_path / "plan-ts-"
@@ -474,5 +734,74 @@ def test_resolve_preview_entry_prefers_ts_app_dist(tmp_path):
     (plan_dir / "index.html").write_text("<!DOCTYPE html><html><body>legacy</body></html>", encoding="utf-8")
     (plan_dir / "ts_app" / "dist").mkdir(parents=True, exist_ok=True)
     (plan_dir / "ts_app" / "dist" / "index.html").write_text("<!DOCTYPE html><html><body>dist</body></html>", encoding="utf-8")
+    (plan_dir / "ts_app_build.json").write_text(json.dumps({"passed": True}), encoding="utf-8")
 
     assert manager.resolve_preview_entry("plan-ts-1", "ts-app") == "ts_app/dist/index.html"
+
+
+def test_resolve_preview_entry_hides_stale_ts_app_dist_after_failed_build(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    plan_dir = tmp_path / "plan-ts-"
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "index.html").write_text("<!DOCTYPE html><html><body>legacy</body></html>", encoding="utf-8")
+    (plan_dir / "ts_app" / "dist").mkdir(parents=True, exist_ok=True)
+    (plan_dir / "ts_app" / "dist" / "index.html").write_text("<!DOCTYPE html><html><body>stale dist</body></html>", encoding="utf-8")
+    (plan_dir / "ts_app_build.json").write_text(json.dumps({"passed": False}), encoding="utf-8")
+
+    assert manager.resolve_preview_entry("plan-ts-1", "ts-app") == "index.html"
+
+
+def test_build_ts_project_returns_report_payload_and_persists_json(tmp_path, monkeypatch):
+    manager = OutputManager(base_dir=str(tmp_path))
+    manager.save_ts_project(
+        "plan-ts-build",
+        "initial ts task",
+        """// filename: src/main.ts
+const root = document.getElementById('app');
+if (!root) throw new Error('Missing root');
+root.textContent = 'hello';
+""",
+    )
+
+    def fake_build(_project_dir: str) -> TSCommandResult:
+        return TSCommandResult(
+            passed=False,
+            command=["npm", "run", "build"],
+            stdout="",
+            stderr="build failed",
+            returncode=1,
+            errors=["src/main.ts:3: error TS1005: ';' expected"],
+            warnings=[],
+        )
+
+    monkeypatch.setattr("app.services.output_manager.ts_builder.build", fake_build)
+
+    payload = manager.build_ts_project("plan-ts-build", "Build Plan")
+    report_path = tmp_path / "plan-ts-" / "ts_app_build.json"
+
+    assert payload["passed"] is False
+    assert payload["project_dir"].endswith("/ts_app")
+    assert report_path.exists()
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["passed"] is False
+    assert report["errors"] == ["src/main.ts:3: error TS1005: ';' expected"]
+
+
+def test_save_ts_project_clears_stale_dist_output(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    ts_app_dir = tmp_path / "plan-ts-" / "ts_app"
+    stale_dist = ts_app_dir / "dist"
+    stale_dist.mkdir(parents=True, exist_ok=True)
+    (stale_dist / "index.html").write_text("<!DOCTYPE html><html><body>old build</body></html>", encoding="utf-8")
+
+    manager.save_ts_project(
+        "plan-ts-1",
+        "rewrite ts app",
+        """// filename: src/main.ts
+const root = document.getElementById('app');
+if (!root) throw new Error('Missing root');
+root.textContent = 'fresh source';
+""",
+    )
+
+    assert not stale_dist.exists()

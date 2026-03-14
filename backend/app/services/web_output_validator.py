@@ -7,7 +7,10 @@ import shutil
 import subprocess
 import tempfile
 from dataclasses import asdict, dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
+
+from app.services.ts_builder import ts_builder
 
 
 @dataclass
@@ -345,6 +348,118 @@ try {{
                 "error": last_line,
             }
 
+    def _collect_ts_project_files(self, project_dir: str) -> Dict[str, str]:
+        project_path = Path(project_dir)
+        files: Dict[str, str] = {}
+        allowed_suffixes = {'.ts', '.tsx', '.js', '.jsx', '.css', '.html', '.json'}
+        ignored_dirs = {'node_modules', 'dist', '.git', '.tsbuild-check'}
+
+        if not project_path.exists():
+            return files
+
+        for path in sorted(project_path.rglob('*')):
+            if not path.is_file():
+                continue
+            if any(part in ignored_dirs for part in path.parts):
+                continue
+            if path.suffix.lower() not in allowed_suffixes:
+                continue
+            rel_path = path.relative_to(project_path).as_posix()
+            try:
+                files[rel_path] = path.read_text(encoding='utf-8')
+            except OSError:
+                continue
+
+        return files
+
+    def _infer_ts_profile(self, files: Dict[str, str], requirements: str = "") -> str:
+        source = requirements.lower() + "\n" + "\n".join(content.lower() for content in files.values())
+        if any(keyword in source for keyword in ['canvas', 'getcontext(', 'requestanimationframe', 'tetromino', 'snake', 'game loop']):
+            return 'canvas-game'
+        if any(keyword in source for keyword in ['dashboard', 'admin', 'router', 'form', 'settings', 'portfolio', 'landing']):
+            return 'single-page-app'
+        return 'dom-interactive'
+
+    def validate_ts_project(
+        self,
+        project_dir: str,
+        stage: str,
+        requirements: str = "",
+    ) -> WebOutputValidationResult:
+        files = self._collect_ts_project_files(project_dir)
+        errors: List[str] = []
+        warnings: List[str] = []
+        signals: Dict[str, Any] = {
+            'project_dir': project_dir,
+            'file_count': len(files),
+            'files': sorted(files.keys()),
+        }
+
+        if not files:
+            return WebOutputValidationResult(
+                passed=False,
+                stage=stage,
+                errors=['TypeScript 工程目录为空或未找到可校验文件'],
+                warnings=[],
+                signals=signals,
+                score_hint=0.0,
+            )
+
+        ts_files = {path: content for path, content in files.items() if path.endswith(('.ts', '.tsx', '.js', '.jsx'))}
+        css_files = {path: content for path, content in files.items() if path.endswith('.css')}
+        main_entry = next((path for path in ('src/main.ts', 'src/main.tsx') if path in files), None)
+        profile = self._infer_ts_profile(files, requirements)
+        combined_source = "\n\n".join(ts_files.values())
+
+        signals['profile'] = profile
+        signals['ts_file_count'] = len(ts_files)
+        signals['css_file_count'] = len(css_files)
+        signals['has_main_entry'] = bool(main_entry)
+        signals['has_styles'] = bool(css_files)
+        signals['import_count'] = len(re.findall(r'\bimport\b', combined_source))
+        signals['export_count'] = len(re.findall(r'\bexport\b', combined_source))
+        signals['type_signal_count'] = len(re.findall(r'\b(interface|type|enum|implements|readonly)\b|:\s*[A-Z_a-z][A-Za-z0-9_<>, \[\]\|]*', combined_source))
+        signals['placeholder_detected'] = bool(re.search(r'等待生成具体业务代码|代码生成尚未完成|TODO|FIXME|待实现', combined_source, re.IGNORECASE))
+
+        if not main_entry:
+            errors.append('缺少 src/main.ts 或 src/main.tsx 入口文件')
+        if len(ts_files) == 0:
+            errors.append('未检测到任何 TypeScript/JavaScript 源文件')
+        elif len(ts_files) == 1:
+            warnings.append('当前工程只有一个脚本入口文件，模块化程度偏弱')
+
+        if signals['placeholder_detected']:
+            errors.append('工程中仍包含明显占位或待实现内容')
+        if len(css_files) == 0:
+            warnings.append('未检测到样式文件，界面可能仍较为粗糙')
+        if signals['import_count'] == 0 and len(ts_files) > 1:
+            warnings.append('检测到多个源码文件，但缺少明显的 import 依赖关系')
+        if main_entry and not re.search(r'document\.(getElementById|querySelector)|new\s+\w+\(|render\(|mount\(|start\(', files.get(main_entry, '')):
+            warnings.append('入口文件缺少明显的启动或挂载逻辑')
+
+        compile_result = ts_builder.compile_check(project_dir)
+        signals['compile_checked'] = True
+        signals['compile_passed'] = compile_result.passed
+        signals['compile_command'] = compile_result.command
+        signals['compile_returncode'] = compile_result.returncode
+
+        if not compile_result.passed:
+            errors.extend([f'TypeScript 编译检查失败: {message}' for message in compile_result.errors[:8]])
+        else:
+            warnings.extend(compile_result.warnings[:5])
+
+        score_hint = max(0.0, 100.0 - len(errors) * 15.0 - len(warnings) * 4.0)
+        signals['score_hint'] = round(score_hint, 1)
+
+        return WebOutputValidationResult(
+            passed=not errors,
+            stage=stage,
+            errors=errors,
+            warnings=warnings,
+            signals=signals,
+            score_hint=round(score_hint, 1),
+        )
+
     def validate_html_output(
         self,
         html_content: str,
@@ -432,7 +547,10 @@ try {{
             if not signals["has_canvas_context"]:
                 errors.append("Canvas/WebGL 游戏缺少渲染上下文初始化")
             if not has_render_loop:
-                errors.append("Canvas/WebGL 游戏缺少持续渲染或更新循环")
+                if signals["has_event_binding"]:
+                    warnings.append("Canvas/WebGL 场景未检测到持续渲染循环，将按事件驱动模式处理")
+                else:
+                    errors.append("Canvas/WebGL 游戏缺少持续渲染或更新循环")
             if not signals["has_event_binding"]:
                 warnings.append("Canvas/WebGL 游戏未检测到输入事件绑定")
         elif profile == "dom-interactive":

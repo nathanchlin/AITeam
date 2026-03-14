@@ -118,6 +118,264 @@ class QualityScorer:
             "validation": validation_result,
         }
 
+    def score_ts_output(
+        self,
+        project_snapshot: str,
+        requirements: str = "",
+        validation_result: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        files = self._extract_ts_project_files(project_snapshot)
+        completeness = self._score_ts_completeness(files)
+        correctness = self._score_ts_correctness(files)
+        maintainability = self._score_ts_maintainability(files)
+        performance = self._score_ts_performance(files, requirements)
+        ux = self._score_ts_ux(files, requirements)
+
+        scores = {
+            "completeness": completeness,
+            "correctness": correctness,
+            "maintainability": maintainability,
+            "performance": performance,
+            "user_experience": ux,
+        }
+
+        self._apply_validation_feedback(scores, validation_result)
+
+        total = sum(scores[dim].percentage * self.WEIGHTS[dim] for dim in scores)
+        if validation_result and validation_result.get("score_hint") is not None:
+            try:
+                total = min(total, float(validation_result["score_hint"]))
+            except (TypeError, ValueError):
+                pass
+        if validation_result and not validation_result.get("passed", True):
+            total = min(total, 59.0)
+
+        recommendations: List[str] = []
+        for score_obj in scores.values():
+            recommendations.extend(score_obj.recommendations)
+
+        return {
+            "scores": {
+                dim: {
+                    "score": score_obj.score,
+                    "max_score": score_obj.max_score,
+                    "percentage": round(score_obj.percentage, 1),
+                    "checks": score_obj.checks,
+                }
+                for dim, score_obj in scores.items()
+            },
+            "total": round(total, 1),
+            "grade": self._get_grade(total),
+            "recommendations": recommendations[:10],
+            "passed": total >= 60,
+            "profile": "ts-app",
+            "validation": validation_result,
+        }
+
+    def _extract_ts_project_files(self, project_snapshot: str) -> Dict[str, str]:
+        files: Dict[str, str] = {}
+        pattern = re.compile(
+            r'(?:^|\n)\s*(?://|#)\s*filename:\s*([^\n]+)\n(.*?)(?=(?:\n\s*(?://|#)\s*filename:)|$)',
+            re.DOTALL,
+        )
+        for match in pattern.finditer(project_snapshot or ""):
+            path = match.group(1).strip().replace('\\', '/')
+            while path.startswith('./'):
+                path = path[2:]
+            if not path:
+                continue
+            files[path] = match.group(2).strip()
+        return files
+
+    def _score_ts_completeness(self, files: Dict[str, str]) -> QualityScore:
+        checks: List[Dict[str, Any]] = []
+        score = 0
+        max_score = 100
+        joined = "\n\n".join(files.values())
+
+        rules = [
+            ("存在入口文件", 25, any(path in files for path in ("src/main.ts", "src/main.tsx"))),
+            ("至少两个源码模块", 15, len([path for path in files if path.endswith((".ts", ".tsx", ".js", ".jsx"))]) >= 2),
+            ("存在样式文件", 10, any(path.endswith('.css') for path in files)),
+            ("存在类型或常量模块", 15, any(token in path.lower() for path in files for token in ("types", "constants"))),
+            ("存在模块 import/export", 20, bool(re.search(r'\bimport\b|\bexport\b', joined))),
+            ("存在启动或挂载逻辑", 15, bool(re.search(r'document\.(getElementById|querySelector)|new\s+\w+\(|render\(|mount\(|start\(', joined))),
+        ]
+
+        for name, points, passed in rules:
+            if passed:
+                score += points
+            checks.append({"name": name, "passed": passed, "points": points if passed else 0, "max_points": points})
+
+        recommendations = [f"缺少 {check['name']}" for check in checks if not check["passed"]]
+        return QualityScore(score=score, max_score=max_score, percentage=score, checks=checks, recommendations=recommendations)
+
+    def _score_ts_correctness(self, files: Dict[str, str]) -> QualityScore:
+        checks: List[Dict[str, Any]] = []
+        penalties: List[str] = []
+        score = 100
+
+        if not files:
+            return QualityScore(score=0, max_score=100, percentage=0, checks=[{"name": "工程文件", "passed": False, "penalty": 100}], recommendations=["未检测到任何 ts-app 文件"])
+
+        unresolved_imports: List[str] = []
+        placeholder_hits: List[str] = []
+        duplicate_class_hits: List[str] = []
+        seen_classes: Dict[str, str] = {}
+
+        for path, content in files.items():
+            if re.search(r'等待生成具体业务代码|代码生成尚未完成|TODO|FIXME|待实现', content, re.IGNORECASE):
+                placeholder_hits.append(path)
+
+            for cls in re.findall(r'\bclass\s+(\w+)', content):
+                if cls in seen_classes and seen_classes[cls] != path:
+                    duplicate_class_hits.append(cls)
+                else:
+                    seen_classes[cls] = path
+
+            if not path.endswith((".ts", ".tsx", ".js", ".jsx")):
+                continue
+            for import_path in re.findall(r'import\s+(?:[^;]+?from\s+)?["\']([^"\']+)["\']', content):
+                if not import_path.startswith('.'):
+                    continue
+                if not self._ts_import_resolves(files, path, import_path):
+                    unresolved_imports.append(f"{path} -> {import_path}")
+
+        if placeholder_hits:
+            penalty = min(40, 15 * len(placeholder_hits))
+            score -= penalty
+            checks.append({"name": "占位/待实现内容", "passed": False, "severity": "error", "count": len(placeholder_hits), "penalty": penalty})
+            penalties.append(f"存在占位内容: -{penalty}分 ({', '.join(placeholder_hits[:3])})")
+        else:
+            checks.append({"name": "占位/待实现内容", "passed": True, "severity": "error"})
+
+        if unresolved_imports:
+            penalty = min(35, 10 * len(unresolved_imports))
+            score -= penalty
+            checks.append({"name": "无法解析的相对导入", "passed": False, "severity": "error", "count": len(unresolved_imports), "penalty": penalty})
+            penalties.append(f"存在无法解析的导入: -{penalty}分")
+        else:
+            checks.append({"name": "无法解析的相对导入", "passed": True, "severity": "error"})
+
+        if duplicate_class_hits:
+            penalty = min(25, 10 * len(set(duplicate_class_hits)))
+            score -= penalty
+            checks.append({"name": "跨文件重复类名", "passed": False, "severity": "warning", "count": len(set(duplicate_class_hits)), "penalty": penalty})
+            penalties.append(f"存在重复类名: -{penalty}分")
+        else:
+            checks.append({"name": "跨文件重复类名", "passed": True, "severity": "warning"})
+
+        if any(path in files for path in ("src/main.ts", "src/main.tsx")):
+            checks.append({"name": "存在入口文件", "passed": True, "severity": "error"})
+        else:
+            score -= 20
+            checks.append({"name": "存在入口文件", "passed": False, "severity": "error", "penalty": 20})
+            penalties.append("缺少入口文件: -20分")
+
+        score = max(0, score)
+        return QualityScore(score=score, max_score=100, percentage=score, checks=checks, recommendations=penalties)
+
+    def _ts_import_resolves(self, files: Dict[str, str], from_path: str, import_path: str) -> bool:
+        base_parts = from_path.replace('\\', '/').split('/')[:-1]
+        target_parts: List[str] = list(base_parts)
+        for segment in import_path.split('/'):
+            if segment in ('', '.'):
+                continue
+            if segment == '..':
+                if target_parts:
+                    target_parts.pop()
+            else:
+                target_parts.append(segment)
+        target = '/'.join(target_parts)
+        candidates = [
+            target,
+            f"{target}.ts",
+            f"{target}.tsx",
+            f"{target}.js",
+            f"{target}.jsx",
+            f"{target}.css",
+            f"{target}/index.ts",
+            f"{target}/index.tsx",
+            f"{target}/index.js",
+        ]
+        return any(candidate in files for candidate in candidates)
+
+    def _score_ts_maintainability(self, files: Dict[str, str]) -> QualityScore:
+        checks: List[Dict[str, Any]] = []
+        score = 0
+        max_score = 100
+        joined = "\n\n".join(files.values())
+        source_files = [path for path in files if path.endswith((".ts", ".tsx", ".js", ".jsx"))]
+
+        rules = [
+            ("文件拆分清晰", 20, len(source_files) >= 3),
+            ("使用类型/interface/enum", 20, bool(re.search(r'\b(interface|type|enum|implements|readonly)\b', joined))),
+            ("使用 class 或函数模块化", 20, bool(re.search(r'\bclass\s+\w+|\bfunction\s+\w+|=>\s*\{', joined))),
+            ("使用 const/let", 15, bool(re.search(r'\bconst\s+\w+|\blet\s+\w+', joined))),
+            ("存在注释或语义命名", 10, bool(re.search(r'//|/\*|export\s+(class|function|const)', joined))),
+            ("单文件体量不过大", 15, max((len(content.splitlines()) for content in files.values()), default=0) <= 250),
+        ]
+
+        for name, points, passed in rules:
+            if passed:
+                score += points
+            checks.append({"name": name, "passed": passed, "points": points if passed else 0, "max_points": points})
+
+        recommendations = [f"建议补强 {check['name']}" for check in checks if not check["passed"]]
+        return QualityScore(score=score, max_score=max_score, percentage=score, checks=checks, recommendations=recommendations)
+
+    def _score_ts_performance(self, files: Dict[str, str], requirements: str = "") -> QualityScore:
+        checks: List[Dict[str, Any]] = []
+        score = 100
+        joined = (requirements + "\n" + "\n\n".join(files.values())).lower()
+        is_game = any(keyword in joined for keyword in ['canvas', 'game', 'tetromino', 'snake', 'physics'])
+
+        if is_game:
+            if re.search(r'requestanimationframe', joined):
+                checks.append({"name": "游戏使用 requestAnimationFrame", "passed": True})
+            else:
+                score -= 15
+                checks.append({"name": "游戏使用 requestAnimationFrame", "passed": False, "penalty": 15})
+        else:
+            checks.append({"name": "非游戏场景放宽动画循环要求", "passed": True})
+
+        perf_issues = [
+            (r'setinterval\s*\(', "频繁 setInterval", 10),
+            (r'document\.queryselector|document\.getelementbyid', "重复 DOM 查询", 8),
+            (r'innerhtml\s*\+=', "频繁拼接 innerHTML", 8),
+        ]
+        for pattern, name, penalty in perf_issues:
+            if re.search(pattern, joined):
+                score -= penalty
+                checks.append({"name": name, "passed": False, "penalty": penalty})
+
+        score = max(0, score)
+        recommendations = [f"性能: {check['name']}" for check in checks if not check.get('passed', True)]
+        return QualityScore(score=score, max_score=100, percentage=score, checks=checks, recommendations=recommendations)
+
+    def _score_ts_ux(self, files: Dict[str, str], requirements: str = "") -> QualityScore:
+        checks: List[Dict[str, Any]] = []
+        score = 0
+        max_score = 100
+        joined = requirements + "\n" + "\n\n".join(files.values())
+
+        rules = [
+            (r'button|addEventListener\s*\(\s*["\'](?:click|keydown|input|submit)', "交互事件", 25),
+            (r'暂停|重开|重新开始|restart|start|submit|save', "关键动作入口", 20),
+            (r'score|status|toast|error|loading|empty|game over|胜利|失败', "状态反馈", 20),
+            (r'font-size|background|color|box-shadow|display:\s*grid|display:\s*flex|max-width|@media', "基础样式与布局", 20),
+            (r'aria-|role=|tabindex|focus\(', "可访问性线索", 15),
+        ]
+
+        for pattern, name, points in rules:
+            passed = bool(re.search(pattern, joined, re.IGNORECASE))
+            if passed:
+                score += points
+            checks.append({"name": name, "passed": passed, "points": points if passed else 0, "max_points": points})
+
+        recommendations = [f"UX: 建议补充 {check['name']}" for check in checks if not check['passed']]
+        return QualityScore(score=score, max_score=max_score, percentage=score, checks=checks, recommendations=recommendations)
+
     def _infer_profile(
         self,
         code: str,

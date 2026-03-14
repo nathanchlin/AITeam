@@ -2,6 +2,7 @@ import shutil
 
 import pytest
 
+from app.services.ts_builder import TSCommandResult
 from app.services.web_output_validator import WebOutputValidator
 
 
@@ -79,3 +80,34 @@ def test_minimal_dom_smoke_detects_runtime_bootstrap_error():
 
     assert smoke["passed"] is False
     assert "missingGlobal" in smoke.get("error", "")
+
+
+def test_validate_ts_project_detects_placeholder_and_compile_failure(tmp_path, monkeypatch):
+    validator = WebOutputValidator()
+    project_dir = tmp_path / "ts-app"
+    src_dir = project_dir / "src"
+    src_dir.mkdir(parents=True)
+    (src_dir / "main.ts").write_text(
+        "const root = document.getElementById('app');\nroot!.textContent = '等待生成具体业务代码';\n",
+        encoding="utf-8",
+    )
+
+    def fake_compile_check(_project_dir: str) -> TSCommandResult:
+        return TSCommandResult(
+            passed=False,
+            command=["npm", "run", "typecheck"],
+            stdout="",
+            stderr="compile failed",
+            returncode=1,
+            errors=["src/main.ts:1: error TS2304: Cannot find name 'document'."],
+            warnings=[],
+        )
+
+    monkeypatch.setattr("app.services.web_output_validator.ts_builder.compile_check", fake_compile_check)
+
+    result = validator.validate_ts_project(str(project_dir), stage="pretest", requirements="做一个 TypeScript 页面")
+
+    assert result.passed is False
+    assert result.signals["has_main_entry"] is True
+    assert any("占位" in error for error in result.errors)
+    assert any("编译检查失败" in error for error in result.errors)

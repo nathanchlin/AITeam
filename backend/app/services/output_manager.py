@@ -392,11 +392,15 @@ class OutputManager:
         if not html_code:
             raise ValueError("未能从 coder 输出中提取完整 HTML")
 
+        html_code, repair_notes = self._repair_html_comment_code_mix(html_code)
+
         validation = self.web_validator.validate_html_output(
             html_code,
             stage="save",
             requirements=task_title,
         )
+        if repair_notes:
+            validation.warnings.extend(repair_notes)
         report_path = self._write_web_validation_report(plan_dir, validation)
         saved_files.append(report_path)
 
@@ -494,6 +498,90 @@ class OutputManager:
                 return self._is_basic_html_placeholder(f.read())
         except OSError:
             return False
+
+    def _find_trailing_comment_code_start(self, comment_text: str) -> Optional[int]:
+        patterns = [
+            r'(?:this\.)?[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+\s*(?:\(|=)',
+            r'\b(?:if|for|while|switch|try|catch|finally|return|throw|break|continue|const|let|var|class|function|await|new)\b',
+            r'(?:this\.)?[A-Za-z_$][A-Za-z0-9_$]*\s*\(',
+            r'(?:this\.)?[A-Za-z_$][A-Za-z0-9_$]*\s*=',
+        ]
+
+        best_start: Optional[int] = None
+        for pattern in patterns:
+            match = re.search(pattern, comment_text)
+            if match and (best_start is None or match.start() < best_start):
+                best_start = match.start()
+
+        if best_start is None:
+            return None
+
+        if not comment_text[:best_start].strip():
+            return None
+
+        return best_start
+
+    def _split_comment_and_code_line(self, line: str) -> List[str]:
+        marker_match = re.search(r'(^|[\s;{}()])//', line)
+        if not marker_match:
+            return [line]
+
+        comment_index = marker_match.start() + len(marker_match.group(1))
+        before = line[:comment_index]
+        comment_text = line[comment_index + 2:]
+        code_start = self._find_trailing_comment_code_start(comment_text)
+        if code_start is None:
+            return [line]
+
+        comment_prefix = comment_text[:code_start].rstrip()
+        trailing_code = comment_text[code_start:].lstrip()
+        if not comment_prefix or not trailing_code:
+            return [line]
+
+        indent = re.match(r'\s*', line).group(0)
+        comment_line = f"{before}//{comment_prefix}".rstrip()
+        code_line = f"{indent}{trailing_code}"
+        return [comment_line, code_line]
+
+    def _repair_mixed_comment_code_javascript(self, js_code: str) -> Tuple[str, int]:
+        repaired_lines: List[str] = []
+        repair_count = 0
+
+        for line in js_code.splitlines():
+            split_lines = self._split_comment_and_code_line(line)
+            repaired_lines.extend(split_lines)
+            repair_count += max(0, len(split_lines) - 1)
+
+        return "\n".join(repaired_lines), repair_count
+
+    def _repair_mashed_return_literals_javascript(self, js_code: str) -> Tuple[str, int]:
+        repaired_code, repair_count = re.subn(
+            r'(?<![A-Za-z0-9_$])return(?=\d)',
+            'return ',
+            js_code,
+        )
+        return repaired_code, repair_count
+
+    def _repair_html_comment_code_mix(self, html_content: str) -> Tuple[str, List[str]]:
+        repair_notes: List[str] = []
+
+        def _replace_script(match: re.Match) -> str:
+            script_open, script_body, script_close = match.groups()
+            repaired_body, repair_count = self._repair_mixed_comment_code_javascript(script_body)
+            mashed_return_fixed, return_fix_count = self._repair_mashed_return_literals_javascript(repaired_body)
+            if repair_count:
+                repair_notes.append(f"自动拆分了 {repair_count} 处注释与代码混写行")
+            if return_fix_count:
+                repair_notes.append(f"自动修复了 {return_fix_count} 处缺少空格的 return 字面量")
+            return f"{script_open}{mashed_return_fixed}{script_close}"
+
+        repaired_html = re.sub(
+            r'(<script[^>]*>)([\s\S]*?)(</script>)',
+            _replace_script,
+            html_content,
+            flags=re.IGNORECASE,
+        )
+        return repaired_html, repair_notes
 
     def _deduplicate_javascript(self, js_code: str) -> str:
         """Remove duplicate variable declarations, class and function definitions.
@@ -931,6 +1019,9 @@ class OutputManager:
         """Validate and fix common issues in HTML content"""
         issues = []
 
+        html_content, comment_code_repairs = self._repair_html_comment_code_mix(html_content)
+        issues.extend(comment_code_repairs)
+
         # Check for external file references that don't exist
         external_js = re.findall(r'<script\s+src=["\']([^"\']+\.js)["\']', html_content)
         if external_js:
@@ -1126,9 +1217,21 @@ document.addEventListener('DOMContentLoaded', function() {
         """Resolve the best preview entry relative path for a plan."""
         plan_dir = self.get_output_path(plan_id)
         candidates: List[str] = []
+        ts_dist_entry = "ts_app/dist/index.html"
+        ts_dist_path = os.path.join(plan_dir, ts_dist_entry)
+        ts_build_report_path = os.path.join(plan_dir, "ts_app_build.json")
 
-        if target_output == "ts-app" or os.path.exists(os.path.join(plan_dir, "ts_app", "dist", "index.html")):
-            candidates.append("ts_app/dist/index.html")
+        ts_dist_is_previewable = os.path.exists(ts_dist_path)
+        if os.path.exists(ts_build_report_path):
+            try:
+                with open(ts_build_report_path, 'r', encoding='utf-8') as f:
+                    ts_build_report = json.load(f)
+                ts_dist_is_previewable = ts_dist_is_previewable and bool(ts_build_report.get('passed'))
+            except (OSError, ValueError, TypeError):
+                ts_dist_is_previewable = False
+
+        if (target_output == "ts-app" or os.path.exists(ts_dist_path)) and ts_dist_is_previewable:
+            candidates.append(ts_dist_entry)
 
         candidates.append("index.html")
 
@@ -1877,38 +1980,277 @@ document.addEventListener('DOMContentLoaded', function() {
 
         return ts_app_dir
 
+    def _normalize_ts_app_filepath(self, filepath: str) -> Optional[str]:
+        normalized = filepath.strip().replace('\\', '/')
+        if not normalized:
+            return None
+        if normalized.startswith('/') or normalized.startswith('..') or '/../' in normalized:
+            return None
+        while normalized.startswith('./'):
+            normalized = normalized[2:]
+        normalized = normalized.strip()
+        if not normalized:
+            return None
+        if normalized.startswith('/') or normalized.startswith('..') or '/../' in normalized:
+            return None
+        if not (normalized.startswith('src/') or normalized.startswith('public/')):
+            return None
+        return normalized
+
+    def _clean_ts_app_file_content(self, file_content: str) -> str:
+        cleaned = file_content.lstrip('\ufeff').strip()
+        cleaned = re.sub(r'^```[\w-]*\s*\n?', '', cleaned)
+
+        cleaned_lines: List[str] = []
+        for raw_line in cleaned.splitlines():
+            if re.match(r'^\s*```+', raw_line):
+                break
+            cleaned_lines.append(raw_line)
+
+        if cleaned_lines:
+            cleaned = '\n'.join(cleaned_lines)
+
+        cleaned = re.sub(r'\n?```\s*$', '', cleaned)
+        return cleaned.strip()
+
+    def _match_ts_app_filename_marker(self, line: str) -> Optional[Tuple[str, str]]:
+        marker_pattern = re.compile(
+            r'^\s*(?://|#)\s*filename:\s*'
+            r'((?:src/[A-Za-z0-9_./-]+\.(?:ts|tsx|js|jsx|css|json))|(?:public/[A-Za-z0-9_./-]+(?:\.[A-Za-z0-9_-]+)?))(.*)$'
+        )
+        match = marker_pattern.match(line)
+        if not match:
+            return None
+
+        normalized = self._normalize_ts_app_filepath(match.group(1))
+        if not normalized:
+            return None
+
+        return normalized, match.group(2)
+
+    def _is_ts_app_inline_code_fragment(self, fragment: str) -> bool:
+        candidate = fragment.lstrip()
+        if not candidate:
+            return False
+
+        return bool(
+            re.search(
+                r'\b(import|export|class|function|interface|type|enum|const|let|var|return|if|for|while|new)\b|[{};=<>\[\]]|^<|^\{|^\[|^\.|^@',
+                candidate,
+            )
+        )
+
+    def _extract_ts_app_files_from_filename_markers(self, content: str) -> List[Dict[str, str]]:
+        files: List[Dict[str, str]] = []
+        current_path: Optional[str] = None
+        current_lines: List[str] = []
+
+        def flush_current_file() -> None:
+            nonlocal current_path, current_lines
+            if not current_path:
+                return
+
+            file_content = self._clean_ts_app_file_content('\n'.join(current_lines))
+            if file_content:
+                files.append({
+                    'path': current_path,
+                    'content': file_content,
+                })
+
+            current_path = None
+            current_lines = []
+
+        for raw_line in content.splitlines():
+            marker_match = self._match_ts_app_filename_marker(raw_line)
+            if marker_match:
+                flush_current_file()
+                current_path, inline_fragment = marker_match
+                inline_code = inline_fragment.lstrip()
+                if inline_code and self._is_ts_app_inline_code_fragment(inline_code):
+                    current_lines.append(inline_code)
+                continue
+
+            if current_path:
+                current_lines.append(raw_line)
+
+        flush_current_file()
+        return files
+
+    def _split_ts_app_markdown_fence_info(self, raw_info: str) -> Tuple[str, str]:
+        info = raw_info.strip()
+        if not info:
+            return 'text', ''
+
+        known_languages = ['typescript', 'javascript', 'tsx', 'jsx', 'ts', 'js', 'css', 'html', 'json', 'text']
+        lowered = info.lower()
+
+        for language in sorted(known_languages, key=len, reverse=True):
+            if lowered == language:
+                return language, ''
+            if lowered.startswith(language):
+                remainder = info[len(language):]
+                return language, remainder.lstrip()
+
+        parts = info.split(None, 1)
+        if len(parts) == 2:
+            return parts[0], parts[1]
+        return info, ''
+
+    def _iter_ts_app_markdown_blocks(self, content: str) -> List[Dict[str, Any]]:
+        blocks: List[Dict[str, Any]] = []
+        recent_context: List[str] = []
+        in_block = False
+        block_lines: List[str] = []
+        block_language = 'text'
+
+        for raw_line in content.splitlines():
+            if not in_block:
+                fence_match = re.match(r'^\s*```+(.*)$', raw_line)
+                if fence_match:
+                    in_block = True
+                    block_language, inline_code = self._split_ts_app_markdown_fence_info(fence_match.group(1))
+                    block_lines = [inline_code] if inline_code else []
+                    continue
+
+                recent_context.append(raw_line)
+                recent_context = recent_context[-8:]
+                continue
+
+            if re.match(r'^\s*```+', raw_line):
+                blocks.append({
+                    'language': block_language,
+                    'code': '\n'.join(block_lines).strip(),
+                    'context': '\n'.join(recent_context),
+                })
+                in_block = False
+                block_lines = []
+                block_language = 'text'
+                continue
+
+            block_lines.append(raw_line)
+
+        if in_block and block_lines:
+            blocks.append({
+                'language': block_language,
+                'code': '\n'.join(block_lines).strip(),
+                'context': '\n'.join(recent_context),
+            })
+
+        return blocks
+
+    def _extract_ts_app_path_hint(self, text: str) -> Optional[str]:
+        path_pattern = re.compile(
+            r'((?:src/[A-Za-z0-9_./-]+\.(?:ts|tsx|js|jsx|css|json))|(?:public/[A-Za-z0-9_./-]+(?:\.[A-Za-z0-9_-]+)?))'
+        )
+        matches = path_pattern.findall(text)
+        for candidate in reversed(matches):
+            normalized = self._normalize_ts_app_filepath(candidate)
+            if normalized:
+                return normalized
+        return None
+
+    def _score_ts_app_file_candidate(self, content: str) -> int:
+        cleaned = content.strip()
+        if not cleaned:
+            return -10000
+
+        score = len(cleaned)
+        first_line = cleaned.splitlines()[0].strip()
+
+        if re.search(r'\b(import|export|class|function|interface|type|enum|const|let|var)\b', cleaned):
+            score += 800
+        if re.search(r'(document\.|requestAnimationFrame|fillRect|querySelector|getElementById|=>|render\(|update\()', cleaned):
+            score += 400
+        if re.search(r'^[（(].*[)）]$', first_line) or '关键更新部分' in first_line or '新增方法' in first_line:
+            score -= 3000
+
+        return score
+
+    def _infer_ts_app_file_from_markdown_block(self, code: str, context_hint: str) -> Optional[Dict[str, str]]:
+        cleaned = self._clean_ts_app_file_content(code)
+        if not cleaned:
+            return None
+
+        lines = cleaned.splitlines()
+        path_comment_pattern = re.compile(
+            r'^\s*(?://|#|/\*+|\*)\s*((?:src/[A-Za-z0-9_./-]+\.(?:ts|tsx|js|jsx|css|json))|(?:public/[A-Za-z0-9_./-]+(?:\.[A-Za-z0-9_-]+)?))(.*)$'
+        )
+        code_signal_pattern = re.compile(r'\b(import|export|class|function|interface|type|enum|const|let|var|return|if|for|while|new)\b|[{};=<>]')
+
+        for index, line in enumerate(lines[:3]):
+            match = path_comment_pattern.match(line)
+            if not match:
+                continue
+
+            normalized = self._normalize_ts_app_filepath(match.group(1))
+            if not normalized:
+                continue
+
+            remainder = match.group(2).lstrip(' \t*-:')
+            candidate_lines = list(lines)
+            if remainder and code_signal_pattern.search(remainder):
+                candidate_lines[index] = remainder
+            else:
+                del candidate_lines[index]
+            candidate_content = '\n'.join(candidate_lines).strip()
+            if candidate_content:
+                return {
+                    'path': normalized,
+                    'content': candidate_content,
+                }
+
+        hinted_path = self._extract_ts_app_path_hint(context_hint)
+        if hinted_path and self._score_ts_app_file_candidate(cleaned) > 0:
+            return {
+                'path': hinted_path,
+                'content': cleaned,
+            }
+
+        return None
+
+    def _extract_ts_app_files_from_markdown_blocks(self, content: str) -> List[Dict[str, str]]:
+        files: List[Dict[str, str]] = []
+
+        for block in self._iter_ts_app_markdown_blocks(content):
+            if not block['code']:
+                continue
+
+            nested_files = self._extract_ts_app_files_from_filename_markers(block['code'])
+            if nested_files:
+                files.extend(nested_files)
+                continue
+
+            inferred = self._infer_ts_app_file_from_markdown_block(block['code'], block['context'])
+            if inferred:
+                files.append(inferred)
+
+        return files
+
     def extract_ts_app_files(self, content: str) -> List[Dict[str, str]]:
         """Extract ts-app project files from LLM output.
 
-        Supported marker format:
-        // filename: src/main.ts
-        // filename: src/styles.css
+        Supported inputs include either direct filename markers or markdown code blocks
+        that carry filename hints in headings, comments, or inline path annotations.
         """
-        files: List[Dict[str, str]] = []
-        pattern = r'(?:^|\n)\s*(?://|#)\s*filename:\s*([^\n]+)\n(.*?)(?=(?:\n\s*(?://|#)\s*filename:)|$)'
-        matches = re.findall(pattern, content, re.DOTALL)
+        files = self._extract_ts_app_files_from_markdown_blocks(content) if '```' in content else []
+        if not files:
+            files = self._extract_ts_app_files_from_filename_markers(content)
 
-        for filepath, file_content in matches:
-            normalized = filepath.strip().replace('\\', '/')
-            normalized = normalized.lstrip('./')
-            file_content = file_content.strip()
-            file_content = re.sub(r'^```[\w-]*\n?', '', file_content)
-            file_content = re.sub(r'\n?```$', '', file_content)
-            file_content = file_content.strip()
-
-            if not normalized or not file_content:
-                continue
-            if normalized.startswith('/') or normalized.startswith('..') or '/../' in normalized:
-                continue
-            if not (normalized.startswith('src/') or normalized.startswith('public/')):
+        selected: Dict[str, Dict[str, str]] = {}
+        order: List[str] = []
+        for file_info in files:
+            path = file_info['path']
+            if path not in selected:
+                selected[path] = file_info
+                order.append(path)
                 continue
 
-            files.append({
-                'path': normalized,
-                'content': file_content,
-            })
+            current_score = self._score_ts_app_file_candidate(selected[path]['content'])
+            incoming_score = self._score_ts_app_file_candidate(file_info['content'])
+            if incoming_score >= current_score:
+                selected[path] = file_info
 
-        return files
+        return [selected[path] for path in order]
 
     def save_ts_project(self, plan_id: str, task_title: str, content: str) -> List[str]:
         """Save ts-app project files into ts_app/ directory."""
@@ -1918,6 +2260,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if not files:
             raise ValueError("未能从 coder 输出中提取任何 TypeScript 工程文件")
+
+        dist_dir = os.path.join(ts_app_dir, 'dist')
+        if os.path.exists(dist_dir):
+            shutil.rmtree(dist_dir, ignore_errors=True)
 
         for file_info in files:
             full_path = os.path.join(ts_app_dir, file_info['path'])
@@ -1958,41 +2304,43 @@ document.addEventListener('DOMContentLoaded', function() {
         joined = "\n".join(collected).strip()
         return joined[:max_length] if len(joined) > max_length else joined
 
-    def consolidate_ts_app(self, plan_id: str, plan_title: str) -> bool:
-        ts_app_dir = self.init_ts_app_project(plan_id)
+    def _ensure_ts_app_main_entry(self, ts_app_dir: str, plan_title: str) -> None:
         src_main = os.path.join(ts_app_dir, 'src', 'main.ts')
+        if os.path.exists(src_main):
+            return
 
-        if not os.path.exists(src_main):
-            self.ensure_dir(os.path.dirname(src_main))
-            fallback_markup = json.dumps(f"<main><h1>{plan_title}</h1><p>代码生成尚未完成。</p></main>")
-            with open(src_main, 'w', encoding='utf-8') as f:
-                f.write(
-                    "import './styles.css';\n"
-                    "const root = document.getElementById('app');\n"
-                    "if (!root) throw new Error('Missing #app root');\n"
-                    f"root.innerHTML = {fallback_markup};\n"
-                )
+        self.ensure_dir(os.path.dirname(src_main))
+        fallback_markup = json.dumps(f"<main><h1>{plan_title}</h1><p>代码生成尚未完成。</p></main>")
+        with open(src_main, 'w', encoding='utf-8') as f:
+            f.write(
+                "import './styles.css';\n"
+                "const root = document.getElementById('app');\n"
+                "if (!root) throw new Error('Missing #app root');\n"
+                f"root.innerHTML = {fallback_markup};\n"
+            )
+
+    def build_ts_project(self, plan_id: str, plan_title: str) -> Dict[str, Any]:
+        ts_app_dir = self.init_ts_app_project(plan_id)
+        self._ensure_ts_app_main_entry(ts_app_dir, plan_title)
+
+        dist_dir = os.path.join(ts_app_dir, 'dist')
+        if os.path.exists(dist_dir):
+            shutil.rmtree(dist_dir, ignore_errors=True)
 
         build_result = ts_builder.build(ts_app_dir)
-        self._write_ts_report(plan_id, 'ts_app_build.json', build_result.to_dict())
-        return build_result.passed
+        payload = build_result.to_dict()
+        payload['project_dir'] = ts_app_dir
+        self._write_ts_report(plan_id, 'ts_app_build.json', payload)
+        return payload
+
+    def consolidate_ts_app(self, plan_id: str, plan_title: str) -> bool:
+        return bool(self.build_ts_project(plan_id, plan_title).get('passed'))
 
     def pre_test_validation_ts_app(self, plan_id: str) -> Dict[str, Any]:
         ts_app_dir = self.init_ts_app_project(plan_id)
-        compile_result = ts_builder.compile_check(ts_app_dir)
-        files: List[str] = []
-
-        for root, dirs, filenames in os.walk(ts_app_dir):
-            dirs[:] = [d for d in sorted(dirs) if d not in {'node_modules', '.tsbuild-check'}]
-            filenames.sort()
-            for filename in filenames:
-                rel_path = os.path.relpath(os.path.join(root, filename), ts_app_dir).replace('\\', '/')
-                files.append(rel_path)
-
-        payload = compile_result.to_dict()
-        payload['files'] = files
+        validation = self.web_validator.validate_ts_project(ts_app_dir, stage='pretest')
+        payload = validation.to_dict()
         payload['project_dir'] = ts_app_dir
-        payload['passed'] = compile_result.passed
         self._write_ts_report(plan_id, 'ts_app_validation.json', payload)
         return payload
 

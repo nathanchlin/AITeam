@@ -31,7 +31,7 @@ export function PipelinePanel() {
   } = useAgentStore();
 
   const [request, setRequest] = useState('');
-  const [targetOutput, setTargetOutput] = useState('web-app');
+  const [targetOutput, setTargetOutput] = useState('ts-app');
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [starting, setStarting] = useState(false);
   const [resuming, setResuming] = useState(false);
@@ -815,6 +815,7 @@ export function PipelinePanel() {
                 className="px-2 py-1 bg-gray-700 rounded text-white text-xs border border-gray-600"
               >
                 <option value="web-app">Web应用</option>
+                <option value="ts-app">TS工程应用</option>
                 <option value="godot-game">Godot游戏</option>
                 <option value="api">API服务</option>
                 <option value="report">分析报告</option>
