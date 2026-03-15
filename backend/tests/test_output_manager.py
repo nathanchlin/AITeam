@@ -696,6 +696,271 @@ root.textContent = 'ready';
     assert "</script>" not in saved_main
 
 
+def test_extract_ts_app_files_heals_source_level_comment_gluing():
+    manager = OutputManager()
+    content = """```text
+// filename: src/config.ts/**
+*游戏配置聚合模块 *重新导出常量配置，并提供聚合的 GameConfig 对象 */
+import type { GameConfig } from './types';
+// 从 constants 导入以构建聚合配置import {
+  COLORS,
+} from './constants';
+
+export const GAME_CONFIG: GameConfig = {
+  colors: COLORS,
+};
+
+// filename: src/main.ts
+class App {
+  private onGameStart(): void {
+    //游戏开始的视觉反馈 }
+  }
+}
+
+//初始化应用window.addEventListener('DOMContentLoaded', () => {
+  new App();
+});
+```
+"""
+
+    files = manager.extract_ts_app_files(content)
+
+    assert [file_info["path"] for file_info in files] == ["src/config.ts", "src/main.ts"]
+    assert files[0]["content"].splitlines()[0].startswith("/**")
+    assert "// 从 constants 导入以构建聚合配置" in files[0]["content"]
+    assert "\nimport {" in files[0]["content"]
+    assert "//初始化应用window.addEventListener" not in files[1]["content"]
+    assert "//游戏开始的视觉反馈 }" not in files[1]["content"]
+    assert "// 初始化应用" in files[1]["content"]
+    assert "window.addEventListener('DOMContentLoaded', () => {" in files[1]["content"]
+    assert "// 游戏开始的视觉反馈" in files[1]["content"]
+    assert "\n  }\n}" in files[1]["content"]
+
+
+def test_save_ts_project_heals_source_level_comment_gluing(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    content = """```text
+// filename: src/config.ts/**
+*游戏配置聚合模块 *重新导出常量配置，并提供聚合的 GameConfig 对象 */
+import type { GameConfig } from './types';
+// 从 constants 导入以构建聚合配置import {
+  COLORS,
+} from './constants';
+
+export const GAME_CONFIG: GameConfig = {
+  colors: COLORS,
+};
+
+// filename: src/main.ts
+class App {
+  private onGameStart(): void {
+    //游戏开始的视觉反馈 }
+  }
+}
+
+//初始化应用window.addEventListener('DOMContentLoaded', () => {
+  new App();
+});
+```
+"""
+
+    manager.save_ts_project("plan-ts-source-heal", "source level healing", content)
+    saved_config = (tmp_path / "plan-ts-" / "ts_app" / "src" / "config.ts").read_text(encoding="utf-8")
+    saved_main = (tmp_path / "plan-ts-" / "ts_app" / "src" / "main.ts").read_text(encoding="utf-8")
+
+    assert saved_config.splitlines()[0].startswith("/**")
+    assert "// 从 constants 导入以构建聚合配置\nimport {" in saved_config
+    assert "// 初始化应用" in saved_main
+    assert "window.addEventListener('DOMContentLoaded', () => {" in saved_main
+    assert "// 游戏开始的视觉反馈\n    }" in saved_main
+
+
+def test_extract_ts_app_files_heals_comment_gluing_with_whitespace_before_code():
+    manager = OutputManager()
+    content = """```text
+// filename: src/core/Game.ts
+export class Game {
+  update(): void {
+    // 应用缓冲的方向 this.direction = this.nextDirection;
+    //计算下一帧头部位置 const nextHead = this.snake.getNextHeadPosition();
+    // 检查墙壁碰撞 if (OPPOSITE_DIRECTION[
+      this.direction] === this.nextDirection) {
+      return;
+    }
+    //执行移动 this.snake.move();
+  }
+}
+
+// filename: src/models/Snake.ts
+export class Snake {
+  setDirection(): void {
+    // 如果新方向与当前方向相反，忽略 if (OPPOSITE_DIRECTION[
+      this.direction] === newDirection) {
+      return;
+    }
+    //获取需要检测的身体部分 // 如果蛇会增长，尾部不会被移除，所以需要检测整个身体 // 如果蛇不会增长，尾部会被移除，所以检测时排除尾部 const bodyToCheck = willGrow ? this.body : this.body.slice(0, -1);
+  }
+}
+```
+"""
+
+    files = manager.extract_ts_app_files(content)
+    game_content = next(file_info["content"] for file_info in files if file_info["path"] == "src/core/Game.ts")
+    snake_content = next(file_info["content"] for file_info in files if file_info["path"] == "src/models/Snake.ts")
+
+    assert "// 应用缓冲的方向\n    this.direction = this.nextDirection;" in game_content
+    assert "// 计算下一帧头部位置\n    const nextHead = this.snake.getNextHeadPosition();" in game_content
+    assert "// 检查墙壁碰撞\n    if (OPPOSITE_DIRECTION[" in game_content
+    assert "// 执行移动\n    this.snake.move();" in game_content
+    assert "// 如果新方向与当前方向相反，忽略\n    if (OPPOSITE_DIRECTION[" in snake_content
+    assert "// 获取需要检测的身体部分 // 如果蛇会增长，尾部不会被移除，所以需要检测整个身体 // 如果蛇不会增长，尾部会被移除，所以检测时排除尾部\n    const bodyToCheck = willGrow ? this.body : this.body.slice(0, -1);" in snake_content
+
+
+def test_save_ts_project_heals_comment_gluing_with_whitespace_before_code(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    content = """```text
+// filename: src/core/Game.ts
+export class Game {
+  update(): void {
+    // 应用缓冲的方向 this.direction = this.nextDirection;
+    //检查是否会吃到食物 const willEatFood = this.food.checkCollision(nextHead);
+    //处理吃食物 if (willEatFood) {
+      this.score += 10;
+    }
+  }
+}
+
+// filename: src/models/Snake.ts
+export class Snake {
+  move(): void {
+    // 应用缓冲的方向 this.direction = this.nextDirection;
+    //计算新头部位置 const newHead = this.getNextHeadPosition();
+    // 将新头部插入队列首位 this.body.unshift(newHead);
+  }
+}
+```
+"""
+
+    manager.save_ts_project("plan-ts-inline-comment-heal", "inline whitespace comment healing", content)
+    saved_game = (tmp_path / "plan-ts-" / "ts_app" / "src" / "core" / "Game.ts").read_text(encoding="utf-8")
+    saved_snake = (tmp_path / "plan-ts-" / "ts_app" / "src" / "models" / "Snake.ts").read_text(encoding="utf-8")
+
+    assert "// 应用缓冲的方向\n    this.direction = this.nextDirection;" in saved_game
+    assert "// 检查是否会吃到食物\n    const willEatFood = this.food.checkCollision(nextHead);" in saved_game
+    assert "// 处理吃食物\n    if (willEatFood) {" in saved_game
+    assert "// 应用缓冲的方向\n    this.direction = this.nextDirection;" in saved_snake
+    assert "// 计算新头部位置\n    const newHead = this.getNextHeadPosition();" in saved_snake
+    assert "// 将新头部插入队列首位\n    this.body.unshift(newHead);" in saved_snake
+
+
+def test_extract_ts_app_files_heals_typed_declaration_comment_gluing_and_return_literals():
+    manager = OutputManager()
+    content = """```text
+// filename: src/main.ts
+class App {}
+// 初始化应用let appInstance: App | null = null;
+// 暴露工厂函数 function createApp(): App {
+  returnnew App();
+}
+
+function loadHighScore(): number {
+  if (Math.random() > 0.5) {
+    return0;
+  }
+  returnfalse ? 1 : 0;
+}
+
+// 备用实现 class FallbackApp extends App {}
+export { App, appInstance, createApp, FallbackApp };
+```
+"""
+
+    files = manager.extract_ts_app_files(content)
+    main_content = next(file_info["content"] for file_info in files if file_info["path"] == "src/main.ts")
+
+    assert "// 初始化应用\nlet appInstance: App | null = null;" in main_content
+    assert "// 暴露工厂函数\nfunction createApp(): App {" in main_content
+    assert "return new App();" in main_content
+    assert "return 0;" in main_content
+    assert "return false ? 1 : 0;" in main_content
+    assert "// 备用实现\nclass FallbackApp extends App {}" in main_content
+
+
+def test_save_ts_project_heals_typed_declaration_comment_gluing_and_return_literals(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    content = """```text
+// filename: src/main.ts
+class App {}
+// 初始化应用let appInstance: App | null = null;
+
+function loadHighScore(): number {
+  return0;
+}
+
+// 创建实例函数 function initApp(): App {
+  returnnew App();
+}
+
+export { App, appInstance, initApp };
+```
+"""
+
+    manager.save_ts_project("plan-ts-token-heal", "typed declaration and return literal healing", content)
+    saved_main = (tmp_path / "plan-ts-" / "ts_app" / "src" / "main.ts").read_text(encoding="utf-8")
+
+    assert "// 初始化应用\nlet appInstance: App | null = null;" in saved_main
+    assert "return 0;" in saved_main
+    assert "// 创建实例函数\nfunction initApp(): App {" in saved_main
+    assert "return new App();" in saved_main
+
+
+def test_extract_ts_app_files_truncates_inline_tail_prose_after_valid_code_end():
+    manager = OutputManager()
+    content = """```text
+// filename: src/main.ts
+class SnakeGameApp {}
+function initGame(): void {
+  return;
+}
+export { SnakeGameApp };这段代码主要是 TypeScript/JavaScript 逻辑的结尾部分。接下来只需要关闭 HTML 结构即可。
+</body>
+</html>
+```
+"""
+
+    files = manager.extract_ts_app_files(content)
+    main_content = next(file_info["content"] for file_info in files if file_info["path"] == "src/main.ts")
+
+    assert main_content.endswith("export { SnakeGameApp };")
+    assert "这段代码主要是" not in main_content
+    assert "</body>" not in main_content
+    assert "</html>" not in main_content
+
+
+def test_save_ts_project_truncates_inline_tail_fence_pollution_after_valid_code_end(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    content = """```text
+// filename: src/main.ts
+class SnakeGameApp {}
+function initGame(): void {
+  return;
+}
+export { SnakeGameApp };```html</script>
+</body>
+</html>
+```
+"""
+
+    manager.save_ts_project("plan-ts-tail-pollution", "tail pollution truncation", content)
+    saved_main = (tmp_path / "plan-ts-" / "ts_app" / "src" / "main.ts").read_text(encoding="utf-8")
+
+    assert saved_main.endswith("export { SnakeGameApp };")
+    assert "```html" not in saved_main
+    assert "</script>" not in saved_main
+    assert "</body>" not in saved_main
+    assert "</html>" not in saved_main
+
+
 def test_extract_ts_app_files_prefers_fuller_candidate_for_same_path():
     manager = OutputManager()
     content = """### 完整文件 (`src/core/Game.ts`)

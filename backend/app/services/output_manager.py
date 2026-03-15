@@ -1997,6 +1997,128 @@ document.addEventListener('DOMContentLoaded', function() {
             return None
         return normalized
 
+    def _find_ts_app_comment_code_split_index(self, comment_body: str) -> Optional[int]:
+        candidate_indexes: List[int] = []
+        code_patterns = [
+            r'import\s+(?:type\s+)?(?:\{|\*|[A-Za-z_$])',
+            r'export\s+(?:default\b|\{|\*|const\b|class\b|function\b|interface\b|type\b|enum\b)',
+            r'class\s+[A-Za-z_$][\w$]*',
+            r'interface\s+[A-Za-z_$][\w$]*',
+            r'type\s+[A-Za-z_$][\w$]*\s*=',
+            r'enum\s+[A-Za-z_$][\w$]*',
+            r'(?:const|let|var)\s+(?:[A-Za-z_$][\w$]*|\{[^}]+\}|\[[^\]]+\])(?:\s*:\s*[^=;]+)?\s*(?:=|;|$)',
+            r'function(?:\s+[A-Za-z_$][\w$]*)?\s*\(',
+            r'return(?:\s+(?:new\b|[\[{(\'"`A-Za-z_$]))|return\s*;',
+            r'if\s*\(',
+            r'for\s*\(',
+            r'while\s*\(',
+            r'switch\s*\(',
+            r'throw\s+(?:new\b|[A-Za-z_$])',
+            r'new\s+[A-Za-z_$][\w$]*',
+            r'(?:window|document|this)(?:\.[A-Za-z_$][\w$]*)+\s*(?:\(|=|\[|\.|\+\+|--)',
+            r'(?:setTimeout|setInterval|requestAnimationFrame|addEventListener)\s*\(',
+            r'(?:public|private|protected|readonly|async)\s+[A-Za-z_$][\w$]*(?:\??\s*[:=(]|\s*\()',
+        ]
+
+        for pattern in code_patterns:
+            for match in re.finditer(pattern, comment_body):
+                index = match.start()
+                if index <= 0:
+                    continue
+
+                prefix = comment_body[:index].strip()
+                suffix = comment_body[index:].strip()
+                if not prefix or not suffix:
+                    continue
+
+                candidate_indexes.append(index)
+
+        brace_suffix_match = re.search(r'\s+([)}\]}]+;?)\s*$', comment_body)
+        if brace_suffix_match and brace_suffix_match.start(1) > 0:
+            candidate_indexes.append(brace_suffix_match.start(1))
+
+        if not candidate_indexes:
+            return None
+
+        split_index = min(candidate_indexes)
+        prefix = comment_body[:split_index].strip()
+        suffix = comment_body[split_index:].strip()
+        if not prefix or not suffix:
+            return None
+
+        return split_index
+
+    def _repair_ts_app_mashed_return_literals(self, content: str) -> str:
+        repaired_content, _ = re.subn(
+            r'(?<![A-Za-z0-9_$])return(?=(?:\d|[\'"`\[\]{}()]|true\b|false\b|null\b|undefined\b|this\b|new\b))',
+            'return ',
+            content,
+        )
+        return repaired_content
+
+    def _heal_ts_app_source_lines(self, lines: List[str]) -> List[str]:
+        healed_lines: List[str] = []
+        in_block_comment = False
+
+        for raw_line in lines:
+            line = raw_line.rstrip()
+            stripped = line.lstrip()
+            indent = line[:len(line) - len(stripped)]
+
+            if not in_block_comment and stripped.startswith('*') and not stripped.startswith('*/'):
+                line = f"{indent}/** {stripped[1:].lstrip()}"
+                stripped = line.lstrip()
+
+            line_comment_match = re.match(r'^(\s*)//(.*)$', line)
+            if line_comment_match:
+                comment_indent, comment_body = line_comment_match.groups()
+                split_index = self._find_ts_app_comment_code_split_index(comment_body)
+                if split_index is not None:
+                    comment_text = comment_body[:split_index].rstrip()
+                    code_text = comment_body[split_index:].lstrip()
+                    if comment_text:
+                        healed_lines.append(f"{comment_indent}// {comment_text.lstrip()}")
+                    else:
+                        healed_lines.append(f"{comment_indent}//")
+                    if code_text:
+                        healed_lines.append(f"{comment_indent}{code_text}")
+                    continue
+
+            healed_lines.append(line)
+
+            normalized = line.lstrip()
+            if normalized.startswith('/**') or normalized.startswith('/*'):
+                in_block_comment = '*/' not in normalized
+            elif in_block_comment and '*/' in normalized:
+                in_block_comment = False
+
+        return healed_lines
+
+    def _truncate_ts_app_trailing_pollution(self, content: str) -> str:
+        truncated_lines: List[str] = []
+
+        for raw_line in content.splitlines():
+            line = raw_line
+            should_stop = False
+
+            inline_fence_index = line.find('```')
+            if inline_fence_index >= 0:
+                line = line[:inline_fence_index].rstrip()
+                should_stop = True
+            else:
+                trailing_prose_match = re.search(r'(;)(\s*)(?=[\u4e00-\u9fff])', line)
+                if trailing_prose_match:
+                    line = line[:trailing_prose_match.start(2)].rstrip()
+                    should_stop = True
+
+            if line.strip() or not should_stop:
+                truncated_lines.append(line)
+
+            if should_stop:
+                break
+
+        return '\n'.join(truncated_lines)
+
     def _clean_ts_app_file_content(self, file_content: str) -> str:
         cleaned = file_content.lstrip('\ufeff').strip()
         cleaned = re.sub(r'^```[\w-]*\s*\n?', '', cleaned)
@@ -2010,6 +2132,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if cleaned_lines:
             cleaned = '\n'.join(cleaned_lines)
 
+        healed_lines = self._heal_ts_app_source_lines(cleaned.splitlines())
+        cleaned = '\n'.join(healed_lines)
+        cleaned = self._repair_ts_app_mashed_return_literals(cleaned)
+        cleaned = self._truncate_ts_app_trailing_pollution(cleaned)
         cleaned = re.sub(r'\n?```\s*$', '', cleaned)
         return cleaned.strip()
 
@@ -2192,7 +2318,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 candidate_lines[index] = remainder
             else:
                 del candidate_lines[index]
-            candidate_content = '\n'.join(candidate_lines).strip()
+            candidate_content = self._clean_ts_app_file_content('\n'.join(candidate_lines))
             if candidate_content:
                 return {
                     'path': normalized,
