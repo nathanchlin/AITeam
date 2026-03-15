@@ -193,9 +193,27 @@ class CoordinatorService:
         if historical_guidance and historical_guidance not in guidance_parts:
             guidance_parts.append(historical_guidance)
 
+        signals = payload.get("signals") or {}
+        targeted_hints: List[str] = []
+
+        missing_css_imports = signals.get("missing_css_imports") or []
+        if missing_css_imports:
+            targeted_hints.append("- 样式文件统一使用 `src/styles.css`；请修正 `./style.css` / `./styles.css` 的引用与实际文件名一致")
+
+        missing_dom_ids = signals.get("missing_dom_ids") or []
+        if missing_dom_ids:
+            dom_preview = ", ".join(missing_dom_ids[:4])
+            targeted_hints.append(
+                f"- 模板 `index.html` 默认只预置 `#app` 根节点；不要假设 {dom_preview} 已存在。请在 TypeScript 中创建这些节点并挂到 `#app` 下，或改为只查询真实存在的节点"
+            )
+
         guidance_block = ""
         if guidance_parts:
             guidance_block = "\n\n历史修复提醒：\n" + "\n\n".join(guidance_parts)
+
+        targeted_hint_block = ""
+        if targeted_hints:
+            targeted_hint_block = "\n- 针对本次失败的额外提醒：\n" + "\n".join(targeted_hints)
 
         return f"""TypeScript 工程{stage_label}失败，请基于当前已有工程做定点修复。
 
@@ -207,7 +225,7 @@ class CoordinatorService:
 - 优先处理 errors 中点名的文件与首批报错，避免大面积无关重写
 - 只输出本轮需要新增或替换的完整文件，保持 `// filename: src/...` 格式
 - 不要输出 package.json、tsconfig.json、vite.config.ts、index.html
-- 先修复 TypeScript 语法、类型、import/export 与缺失符号，再重新尝试 Vite build{guidance_block}
+- 先修复 TypeScript 语法、类型、import/export 与缺失符号，再重新尝试 Vite build{targeted_hint_block}{guidance_block}
 """
 
     def _load_plans(self):
@@ -1274,6 +1292,8 @@ class CoordinatorService:
 - 只输出本轮需要新增或替换的完整文件
 - 每个文件必须以 `// filename: src/...` 标注，后面直接跟完整文件内容
 - 不要输出 package.json、tsconfig.json、vite.config.ts、index.html
+- 样式文件统一使用 `src/styles.css`，不要新造 `style.css`
+- 模板 HTML 默认只保证 `#app` 根节点存在；若需要 `canvas`、按钮、分数区等节点，请在 TypeScript 中创建并挂到 `#app` 下
 - 保持现有 import/export 关系可编译，不要破坏已有入口"""
                         else:
                             ts_app_instructions = """
@@ -1281,12 +1301,14 @@ class CoordinatorService:
 ⚠️ TypeScript 工程开发要求（必须全部满足，否则视为未完成任务）：
 1. 目标是 Vite + TypeScript 浏览器应用，输出多文件源码而不是单文件 HTML。
 2. 输出格式：每个文件必须以 `// filename: src/xxx.ts` 或 `// filename: src/xxx.css` 开头。
-3. 至少包含可运行入口 `src/main.ts`，并通过真实 DOM 节点挂载应用。
-4. 所有代码必须满足 TypeScript strict 模式，使用 ES Module import/export。
-5. 禁止输出模板文件（package.json、tsconfig.json、vite.config.ts、index.html），它们已由系统预置。
-6. 禁止使用未声明依赖、空函数、TODO、伪代码或 markdown 代码块。
+3. 至少包含可运行入口 `src/main.ts`，并通过模板里真实存在的 DOM 节点挂载应用；模板默认只保证 `#app` 根节点存在。
+4. 若需要 `canvas`、按钮、分数区等节点，必须在 TypeScript 中创建并挂到 `#app` 下，不能假设 `index.html` 已预置 `#gameCanvas` 等元素。
+5. 所有代码必须满足 TypeScript strict 模式，使用 ES Module import/export。
+6. 禁止输出模板文件（package.json、tsconfig.json、vite.config.ts、index.html），它们已由系统预置。
+7. 禁止使用未声明依赖、空函数、TODO、伪代码或 markdown 代码块。
 
 ✅ 推荐拆分：入口(main.ts) / 核心逻辑(game.ts|app.ts) / 类型(types.ts) / 样式(styles.css)
+✅ 样式文件统一命名为 `src/styles.css`
 ✅ 若是互动页面或游戏，优先使用原生 Canvas API 与浏览器事件"""
 
                     # Add Godot-specific instructions

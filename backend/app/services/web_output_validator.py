@@ -35,6 +35,9 @@ class WebOutputValidator:
     _DEFINED_ID_RE = re.compile(r'id=["\']([^"\']+)["\']', re.IGNORECASE)
     _GET_ID_RE = re.compile(r'getElementById\s*\(\s*["\']([^"\']+)["\']\s*\)')
     _QUERY_SELECTOR_ID_RE = re.compile(r'querySelector\s*\(\s*["\']#([^"\']+)["\']\s*\)')
+    _TS_CSS_IMPORT_RE = re.compile(r'import\s+(?:[^"\']+from\s+)?["\']([^"\']+\.css)["\']\s*;?')
+    _ELEMENT_ID_ASSIGN_RE = re.compile(r'\.id\s*=\s*["\']([^"\']+)["\']')
+    _SET_ATTRIBUTE_ID_RE = re.compile(r'setAttribute\s*\(\s*["\']id["\']\s*,\s*["\']([^"\']+)["\']\s*\)')
     _INLINE_HANDLER_RE = re.compile(
         r'on(?:click|input|change|submit|keydown|keyup|pointerdown|pointerup|touchstart|touchend|mousedown|mouseup)=',
         re.IGNORECASE,
@@ -85,6 +88,41 @@ class WebOutputValidator:
         referenced.update(self._QUERY_SELECTOR_ID_RE.findall(js_code))
         referenced.update(self._QUERY_SELECTOR_ID_RE.findall(html_content))
         return referenced
+
+    def _collect_created_dom_ids_from_source(self, source: str) -> Set[str]:
+        created = set(self._DEFINED_ID_RE.findall(source))
+        created.update(self._ELEMENT_ID_ASSIGN_RE.findall(source))
+        created.update(self._SET_ATTRIBUTE_ID_RE.findall(source))
+        return created
+
+    def _resolve_project_relative_import(self, source_path: str, import_path: str) -> Optional[str]:
+        if not import_path.startswith('.'):
+            return None
+        return os.path.normpath(os.path.join(os.path.dirname(source_path), import_path)).replace('\\', '/')
+
+    def _collect_ts_css_import_issues(self, files: Dict[str, str], ts_files: Dict[str, str]) -> List[str]:
+        issues: List[str] = []
+
+        for source_path, content in ts_files.items():
+            for import_path in self._TS_CSS_IMPORT_RE.findall(content):
+                resolved_path = self._resolve_project_relative_import(source_path, import_path)
+                if not resolved_path or resolved_path in files:
+                    continue
+
+                alternate_path: Optional[str] = None
+                if resolved_path.endswith('style.css'):
+                    alternate_path = resolved_path[:-len('style.css')] + 'styles.css'
+                elif resolved_path.endswith('styles.css'):
+                    alternate_path = resolved_path[:-len('styles.css')] + 'style.css'
+
+                if alternate_path and alternate_path in files:
+                    issues.append(
+                        f"{source_path} 引用了 {import_path}，但工程中存在 {alternate_path}；请统一使用 {alternate_path.split('/')[-1]}"
+                    )
+                else:
+                    issues.append(f"{source_path} 引用了缺失的样式文件 {import_path}")
+
+        return issues
 
     def _check_javascript_syntax(self, js_code: str) -> Tuple[bool, Optional[str], bool]:
         node_path = shutil.which("node")
@@ -407,19 +445,32 @@ try {{
 
         ts_files = {path: content for path, content in files.items() if path.endswith(('.ts', '.tsx', '.js', '.jsx'))}
         css_files = {path: content for path, content in files.items() if path.endswith('.css')}
+        html_files = {path: content for path, content in files.items() if path.endswith('.html')}
         main_entry = next((path for path in ('src/main.ts', 'src/main.tsx') if path in files), None)
         profile = self._infer_ts_profile(files, requirements)
         combined_source = "\n\n".join(ts_files.values())
+        index_html = files.get('index.html', '')
+        defined_dom_ids = self._collect_defined_dom_ids(index_html)
+        created_dom_ids = self._collect_created_dom_ids_from_source(combined_source)
+        referenced_dom_ids = self._collect_referenced_dom_ids('', combined_source)
+        missing_dom_ids = sorted(referenced_dom_ids - defined_dom_ids - created_dom_ids)
+        css_import_issues = self._collect_ts_css_import_issues(files, ts_files)
 
         signals['profile'] = profile
         signals['ts_file_count'] = len(ts_files)
         signals['css_file_count'] = len(css_files)
+        signals['html_file_count'] = len(html_files)
         signals['has_main_entry'] = bool(main_entry)
         signals['has_styles'] = bool(css_files)
         signals['import_count'] = len(re.findall(r'\bimport\b', combined_source))
         signals['export_count'] = len(re.findall(r'\bexport\b', combined_source))
         signals['type_signal_count'] = len(re.findall(r'\b(interface|type|enum|implements|readonly)\b|:\s*[A-Z_a-z][A-Za-z0-9_<>, \[\]\|]*', combined_source))
         signals['placeholder_detected'] = bool(re.search(r'等待生成具体业务代码|代码生成尚未完成|TODO|FIXME|待实现', combined_source, re.IGNORECASE))
+        signals['defined_dom_id_count'] = len(defined_dom_ids)
+        signals['created_dom_id_count'] = len(created_dom_ids)
+        signals['referenced_dom_id_count'] = len(referenced_dom_ids)
+        signals['missing_dom_ids'] = missing_dom_ids
+        signals['missing_css_imports'] = css_import_issues
 
         if not main_entry:
             errors.append('缺少 src/main.ts 或 src/main.tsx 入口文件')
@@ -436,6 +487,10 @@ try {{
             warnings.append('检测到多个源码文件，但缺少明显的 import 依赖关系')
         if main_entry and not re.search(r'document\.(getElementById|querySelector)|new\s+\w+\(|render\(|mount\(|start\(', files.get(main_entry, '')):
             warnings.append('入口文件缺少明显的启动或挂载逻辑')
+        if missing_dom_ids:
+            errors.append(f"TypeScript 工程引用了模板或源码中不存在的 DOM id: {missing_dom_ids}")
+        if css_import_issues:
+            errors.extend([f"TypeScript 工程样式导入路径异常: {issue}" for issue in css_import_issues[:5]])
 
         compile_result = ts_builder.compile_check(project_dir)
         signals['compile_checked'] = True

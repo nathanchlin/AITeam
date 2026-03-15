@@ -130,3 +130,29 @@ def test_execute_plan_retries_ts_app_when_build_fails(_mock_load_plans, monkeypa
     assert "TS1005" in agent.calls[1]["task_description"]
     assert plan.tasks[0].status == TaskStatus.COMPLETED
     assert plan.status == PlanStatus.COMPLETED
+
+
+@patch.object(CoordinatorService, "_load_plans", return_value=None)
+def test_build_ts_fix_feedback_adds_styles_and_dom_contract_guidance(_mock_load_plans, monkeypatch):
+    service = CoordinatorService()
+
+    monkeypatch.setattr(coordinator_module.output_manager, "read_existing_ts_code", lambda *_args, **_kwargs: "// filename: src/main.ts")
+    monkeypatch.setattr(coordinator_module.feedback_store, "get_guidance_for_task", lambda _task: None)
+    monkeypatch.setattr(coordinator_module.feedback_store, "get_error_guidance", lambda _code, _task=None: None)
+
+    feedback = service._build_ts_fix_feedback(
+        "plan-ts-2",
+        "预测试校验",
+        {
+            "errors": ["TypeScript 工程样式导入路径异常: src/main.ts 引用了 ./style.css"],
+            "signals": {
+                "missing_css_imports": ["src/main.ts 引用了 ./style.css，但工程中存在 src/styles.css；请统一使用 styles.css"],
+                "missing_dom_ids": ["gameCanvas"],
+            },
+        },
+        "做一个 TypeScript 贪吃蛇游戏",
+    )
+
+    assert "src/styles.css" in feedback
+    assert "#app" in feedback
+    assert "gameCanvas" in feedback

@@ -94,7 +94,8 @@ class CoderAgent(BaseAgent):
 ✅ 每个输出文件必须是完整文件内容，不是片段、不是 diff
 ✅ 代码必须符合 TypeScript strict 模式
 ✅ 使用标准 ES Module：import / export
-✅ 浏览器代码必须通过 `document.getElementById('app')` 或其它真实 DOM 节点启动
+✅ 浏览器代码必须通过模板里真实存在的 DOM 节点启动；模板默认只保证 `#app` 根节点存在
+✅ 如果需要 canvas、按钮、分数面板等节点，必须在 TypeScript 中创建并挂到 `#app` 下，不能假设 `index.html` 已有 `#gameCanvas`、`#score` 等元素
 ✅ 如果是游戏或交互应用，优先使用原生 Canvas API 和浏览器事件
 ✅ 至少提供可运行入口文件 `src/main.ts`
 

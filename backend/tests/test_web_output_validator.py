@@ -111,3 +111,43 @@ def test_validate_ts_project_detects_placeholder_and_compile_failure(tmp_path, m
     assert result.signals["has_main_entry"] is True
     assert any("占位" in error for error in result.errors)
     assert any("编译检查失败" in error for error in result.errors)
+
+
+def test_validate_ts_project_flags_css_import_drift_and_missing_dom_anchor(tmp_path, monkeypatch):
+    validator = WebOutputValidator()
+    project_dir = tmp_path / "ts-app"
+    src_dir = project_dir / "src"
+    src_dir.mkdir(parents=True)
+
+    (project_dir / "index.html").write_text(
+        "<!DOCTYPE html><html><body><div id='app'></div></body></html>",
+        encoding="utf-8",
+    )
+    (src_dir / "main.ts").write_text(
+        "import './style.css';\n"
+        "const canvas = document.getElementById('gameCanvas');\n"
+        "if (!canvas) throw new Error('Canvas missing');\n",
+        encoding="utf-8",
+    )
+    (src_dir / "styles.css").write_text("body { margin: 0; }", encoding="utf-8")
+
+    def fake_compile_check(_project_dir: str) -> TSCommandResult:
+        return TSCommandResult(
+            passed=True,
+            command=["npm", "run", "typecheck"],
+            stdout="",
+            stderr="",
+            returncode=0,
+            errors=[],
+            warnings=[],
+        )
+
+    monkeypatch.setattr("app.services.web_output_validator.ts_builder.compile_check", fake_compile_check)
+
+    result = validator.validate_ts_project(str(project_dir), stage="pretest", requirements="做一个 TypeScript 贪吃蛇游戏")
+
+    assert result.passed is False
+    assert result.signals["missing_dom_ids"] == ["gameCanvas"]
+    assert result.signals["missing_css_imports"]
+    assert any("gameCanvas" in error for error in result.errors)
+    assert any("styles.css" in error for error in result.errors)
