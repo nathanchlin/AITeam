@@ -124,6 +124,67 @@ class WebOutputValidator:
 
         return issues
 
+    def _find_ts_comment_swallow_split_index(self, comment_body: str) -> Optional[int]:
+        patterns = [
+            r'(?:this\.)?[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+\s*(?:\(|=|\[|\.|\+\+|--)',
+            r'\b(?:if|for|while|switch|try|catch|finally|return|throw|break|continue|const|let|var|class|function|await|new|import|export)\b',
+            r'(?:this\.)?[A-Za-z_$][A-Za-z0-9_$]*\s*\(',
+            r'(?:this\.)?[A-Za-z_$][A-Za-z0-9_$]*\s*=',
+        ]
+
+        best_start: Optional[int] = None
+        for pattern in patterns:
+            match = re.search(pattern, comment_body)
+            if match and match.start() > 0:
+                prefix = comment_body[:match.start()].strip()
+                suffix = comment_body[match.start():].strip()
+                if prefix and suffix and (best_start is None or match.start() < best_start):
+                    best_start = match.start()
+
+        acronym_boundary_match = re.search(
+            r'([A-Z]{2,})([a-z_$][A-Za-z0-9_$]*(?:(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+\s*(?:\(|=|\[|\.|\+\+|--)|\s*\())',
+            comment_body,
+        )
+        if acronym_boundary_match and acronym_boundary_match.start(2) > 0:
+            prefix = comment_body[:acronym_boundary_match.start(2)].strip()
+            suffix = comment_body[acronym_boundary_match.start(2):].strip()
+            if prefix and suffix:
+                acronym_start = acronym_boundary_match.start(1)
+                code_start = acronym_boundary_match.start(2)
+                if best_start is None or best_start >= acronym_start:
+                    best_start = code_start
+
+        brace_suffix_match = re.search(r'\s+([)}\]}]+;?)\s*$', comment_body)
+        if brace_suffix_match and brace_suffix_match.start(1) > 0:
+            prefix = comment_body[:brace_suffix_match.start(1)].strip()
+            suffix = comment_body[brace_suffix_match.start(1):].strip()
+            if prefix and suffix and (best_start is None or brace_suffix_match.start(1) < best_start):
+                best_start = brace_suffix_match.start(1)
+
+        return best_start
+
+    def _collect_ts_comment_swallow_issues(self, ts_files: Dict[str, str]) -> List[Dict[str, Any]]:
+        hits: List[Dict[str, Any]] = []
+
+        for source_path, content in ts_files.items():
+            for line_number, raw_line in enumerate(content.splitlines(), start=1):
+                line_comment_match = re.match(r'^\s*//(.*)$', raw_line)
+                if not line_comment_match:
+                    continue
+
+                comment_body = line_comment_match.group(1)
+                split_index = self._find_ts_comment_swallow_split_index(comment_body)
+                if split_index is None:
+                    continue
+
+                hits.append({
+                    'path': source_path,
+                    'line': line_number,
+                    'snippet': raw_line.strip(),
+                })
+
+        return hits
+
     def _check_javascript_syntax(self, js_code: str) -> Tuple[bool, Optional[str], bool]:
         node_path = shutil.which("node")
         if not node_path:
@@ -455,6 +516,7 @@ try {{
         referenced_dom_ids = self._collect_referenced_dom_ids('', combined_source)
         missing_dom_ids = sorted(referenced_dom_ids - defined_dom_ids - created_dom_ids)
         css_import_issues = self._collect_ts_css_import_issues(files, ts_files)
+        comment_swallow_hits = self._collect_ts_comment_swallow_issues(ts_files)
 
         signals['profile'] = profile
         signals['ts_file_count'] = len(ts_files)
@@ -471,6 +533,7 @@ try {{
         signals['referenced_dom_id_count'] = len(referenced_dom_ids)
         signals['missing_dom_ids'] = missing_dom_ids
         signals['missing_css_imports'] = css_import_issues
+        signals['comment_swallow_hits'] = comment_swallow_hits
 
         if not main_entry:
             errors.append('缺少 src/main.ts 或 src/main.tsx 入口文件')
@@ -491,6 +554,12 @@ try {{
             errors.append(f"TypeScript 工程引用了模板或源码中不存在的 DOM id: {missing_dom_ids}")
         if css_import_issues:
             errors.extend([f"TypeScript 工程样式导入路径异常: {issue}" for issue in css_import_issues[:5]])
+        if comment_swallow_hits:
+            preview = "；".join(
+                f"{hit['path']}:{hit['line']} {hit['snippet']}"
+                for hit in comment_swallow_hits[:3]
+            )
+            errors.append(f"TypeScript 工程检测到疑似“注释吞语句”混写行：{preview}")
 
         compile_result = ts_builder.compile_check(project_dir)
         signals['compile_checked'] = True

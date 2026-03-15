@@ -2033,6 +2033,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 candidate_indexes.append(index)
 
+        acronym_start: Optional[int] = None
+        acronym_code_start: Optional[int] = None
+        acronym_boundary_match = re.search(
+            r'([A-Z]{2,})([a-z_$][A-Za-z0-9_$]*(?:(?:\.[A-Za-z_$][A-Za-z0-9_$]*)+\s*(?:\(|=|\[|\.|\+\+|--)|\s*\())',
+            comment_body,
+        )
+        if acronym_boundary_match and acronym_boundary_match.start(2) > 0:
+            prefix = comment_body[:acronym_boundary_match.start(2)].strip()
+            suffix = comment_body[acronym_boundary_match.start(2):].strip()
+            if prefix and suffix:
+                acronym_start = acronym_boundary_match.start(1)
+                acronym_code_start = acronym_boundary_match.start(2)
+                candidate_indexes = [
+                    index for index in candidate_indexes
+                    if index < acronym_start or index >= acronym_code_start
+                ]
+                candidate_indexes.append(acronym_code_start)
+
+        generic_code_start = self._find_trailing_comment_code_start(comment_body)
+        if generic_code_start is not None:
+            if acronym_start is None or acronym_code_start is None or generic_code_start < acronym_start or generic_code_start >= acronym_code_start:
+                candidate_indexes.append(generic_code_start)
+
         brace_suffix_match = re.search(r'\s+([)}\]}]+;?)\s*$', comment_body)
         if brace_suffix_match and brace_suffix_match.start(1) > 0:
             candidate_indexes.append(brace_suffix_match.start(1))

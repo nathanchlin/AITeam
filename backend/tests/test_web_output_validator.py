@@ -151,3 +151,44 @@ def test_validate_ts_project_flags_css_import_drift_and_missing_dom_anchor(tmp_p
     assert result.signals["missing_css_imports"]
     assert any("gameCanvas" in error for error in result.errors)
     assert any("styles.css" in error for error in result.errors)
+
+
+def test_validate_ts_project_flags_comment_swallowed_statements(tmp_path, monkeypatch):
+    validator = WebOutputValidator()
+    project_dir = tmp_path / "ts-app"
+    src_dir = project_dir / "src"
+    src_dir.mkdir(parents=True)
+
+    (project_dir / "index.html").write_text(
+        "<!DOCTYPE html><html><body><div id='app'></div></body></html>",
+        encoding="utf-8",
+    )
+    (src_dir / "main.ts").write_text(
+        "const hud = document.createElement('div');\n"
+        "const topBar = document.createElement('div');\n"
+        "const gameContainer = document.createElement('section');\n"
+        "const canvas = document.createElement('canvas');\n"
+        "// 组装 HUDhud.append(topBar, topBar);\n"
+        "// 13. 启动 UI 更新循环startUIUpdateLoop();\n",
+        encoding="utf-8",
+    )
+
+    def fake_compile_check(_project_dir: str) -> TSCommandResult:
+        return TSCommandResult(
+            passed=True,
+            command=["npm", "run", "typecheck"],
+            stdout="",
+            stderr="",
+            returncode=0,
+            errors=[],
+            warnings=[],
+        )
+
+    monkeypatch.setattr("app.services.web_output_validator.ts_builder.compile_check", fake_compile_check)
+
+    result = validator.validate_ts_project(str(project_dir), stage="pretest", requirements="做一个 TypeScript 躲避游戏")
+
+    assert result.passed is False
+    assert result.signals["comment_swallow_hits"]
+    assert result.signals["comment_swallow_hits"][0]["path"] == "src/main.ts"
+    assert any("注释吞语句" in error for error in result.errors)

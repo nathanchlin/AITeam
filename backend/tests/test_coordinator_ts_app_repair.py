@@ -133,7 +133,7 @@ def test_execute_plan_retries_ts_app_when_build_fails(_mock_load_plans, monkeypa
 
 
 @patch.object(CoordinatorService, "_load_plans", return_value=None)
-def test_build_ts_fix_feedback_adds_styles_and_dom_contract_guidance(_mock_load_plans, monkeypatch):
+def test_build_ts_fix_feedback_adds_styles_dom_and_comment_swallow_guidance(_mock_load_plans, monkeypatch):
     service = CoordinatorService()
 
     monkeypatch.setattr(coordinator_module.output_manager, "read_existing_ts_code", lambda *_args, **_kwargs: "// filename: src/main.ts")
@@ -148,6 +148,9 @@ def test_build_ts_fix_feedback_adds_styles_and_dom_contract_guidance(_mock_load_
             "signals": {
                 "missing_css_imports": ["src/main.ts 引用了 ./style.css，但工程中存在 src/styles.css；请统一使用 styles.css"],
                 "missing_dom_ids": ["gameCanvas"],
+                "comment_swallow_hits": [
+                    {"path": "src/main.ts", "line": 18, "snippet": "// 组装 HUDhud.append(topBar, bottomBar);"},
+                ],
             },
         },
         "做一个 TypeScript 贪吃蛇游戏",
@@ -156,3 +159,5 @@ def test_build_ts_fix_feedback_adds_styles_and_dom_contract_guidance(_mock_load_
     assert "src/styles.css" in feedback
     assert "#app" in feedback
     assert "gameCanvas" in feedback
+    assert "注释" in feedback
+    assert "hud.append" in feedback

@@ -853,6 +853,34 @@ export class Snake {
     assert "// 将新头部插入队列首位\n    this.body.unshift(newHead);" in saved_snake
 
 
+def test_save_ts_project_heals_comment_swallowed_member_calls_and_named_bootstrap(tmp_path):
+    manager = OutputManager(base_dir=str(tmp_path))
+    content = """```text
+// filename: src/main.ts
+const hud = document.createElement('div');
+const topBar = document.createElement('div');
+const bottomBar = document.createElement('div');
+const gameContainer = document.createElement('section');
+const canvas = document.createElement('canvas');
+
+function startUIUpdateLoop(): void {
+  console.log('hud ready');
+}
+
+// 组装 HUDhud.append(topBar, bottomBar);
+// 6. 组装游戏容器gameContainer.append(canvas, hud);
+// 13. 启动 UI 更新循环startUIUpdateLoop();
+```
+"""
+
+    manager.save_ts_project("plan-ts-comment-swallow", "comment swallow healing", content)
+    saved_main = (tmp_path / "plan-ts-" / "ts_app" / "src" / "main.ts").read_text(encoding="utf-8")
+
+    assert "// 组装 HUD\nhud.append(topBar, bottomBar);" in saved_main
+    assert "// 6. 组装游戏容器\ngameContainer.append(canvas, hud);" in saved_main
+    assert "// 13. 启动 UI 更新循环\nstartUIUpdateLoop();" in saved_main
+
+
 def test_extract_ts_app_files_heals_typed_declaration_comment_gluing_and_return_literals():
     manager = OutputManager()
     content = """```text

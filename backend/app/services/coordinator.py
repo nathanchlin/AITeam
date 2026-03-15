@@ -207,6 +207,18 @@ class CoordinatorService:
                 f"- 模板 `index.html` 默认只预置 `#app` 根节点；不要假设 {dom_preview} 已存在。请在 TypeScript 中创建这些节点并挂到 `#app` 下，或改为只查询真实存在的节点"
             )
 
+        comment_swallow_hits = signals.get("comment_swallow_hits") or []
+        if comment_swallow_hits:
+            hit_preview = "，".join(
+                f"{hit.get('path')}:{hit.get('line')}"
+                for hit in comment_swallow_hits[:3]
+                if isinstance(hit, dict)
+            )
+            targeted_hints.append(
+                "- 严禁把说明性注释和可执行语句粘在同一行；像 `// 初始化应用window.addEventListener(...)`、`// 组装 HUDhud.append(...)` 这种写法会把后半句整行注释掉。请让注释单独成行，后续语句另起一行"
+                + (f"（本轮命中：{hit_preview}）" if hit_preview else "")
+            )
+
         guidance_block = ""
         if guidance_parts:
             guidance_block = "\n\n历史修复提醒：\n" + "\n\n".join(guidance_parts)
@@ -1294,6 +1306,7 @@ class CoordinatorService:
 - 不要输出 package.json、tsconfig.json、vite.config.ts、index.html
 - 样式文件统一使用 `src/styles.css`，不要新造 `style.css`
 - 模板 HTML 默认只保证 `#app` 根节点存在；若需要 `canvas`、按钮、分数区等节点，请在 TypeScript 中创建并挂到 `#app` 下
+- 注释必须单独成行，禁止输出 `// 注释说明后直接粘连可执行语句`；像 `// 初始化应用window.addEventListener(...)` 这种写法会把真正代码整行注释掉
 - 保持现有 import/export 关系可编译，不要破坏已有入口"""
                         else:
                             ts_app_instructions = """
@@ -1306,6 +1319,7 @@ class CoordinatorService:
 5. 所有代码必须满足 TypeScript strict 模式，使用 ES Module import/export。
 6. 禁止输出模板文件（package.json、tsconfig.json、vite.config.ts、index.html），它们已由系统预置。
 7. 禁止使用未声明依赖、空函数、TODO、伪代码或 markdown 代码块。
+8. 注释必须与可执行语句分行书写，禁止输出 `// 注释说明后直接粘连可执行语句` 的形式；否则会造成“注释吞语句”并引发白屏或逻辑缺失。
 
 ✅ 推荐拆分：入口(main.ts) / 核心逻辑(game.ts|app.ts) / 类型(types.ts) / 样式(styles.css)
 ✅ 样式文件统一命名为 `src/styles.css`
