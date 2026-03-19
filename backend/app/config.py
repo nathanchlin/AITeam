@@ -5,11 +5,11 @@ from typing import Optional
 class Settings(BaseSettings):
     # GLM API Configuration
     glm_api_key: str = ""
-    glm_model: str = "glm-5"  # 统一使用 glm-5 进行所有任务
+    glm_model: str = "glm-5-turbo"  # 统一使用 glm-5-turbo 进行所有任务
     glm_base_url: str = ""  # 可选的备用端点
 
     # GLM Coding Model (用于代码生成，更强的能力)
-    glm_coding_model: str = "glm-5"  # 代码生成专用模型
+    glm_coding_model: str = "glm-5-turbo"  # 代码生成专用模型
     glm_coding_base_url: str = "https://open.bigmodel.cn/api/coding/paas/v4"  # Coding Plan 端点
 
     # Token limits
