@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Search, X, Plus, Users, Layout, MessageSquare, GitBranch, Settings, Moon, Sun, Bell, BellOff, Volume2, VolumeX, Layers, FolderOpen, HelpCircle, Zap, ArrowRight } from 'lucide-react';
+import { Search, Plus, Users, Layout, MessageSquare, GitBranch, Moon, Sun, Bell, BellOff, Volume2, VolumeX, FolderOpen, HelpCircle, Zap, ArrowRight } from 'lucide-react';
 import { useAgentStore } from '../../stores/agentStore';
 import { useTheme } from '../../hooks/useTheme';
 import { useNotifications } from '../../hooks/useNotifications';
@@ -204,7 +204,7 @@ export function CommandPalette({ isOpen, onClose, onCreateAgent, onSelectAgent }
               <div className="px-4 py-2 text-xs text-gray-500 font-medium bg-gray-800/50 sticky top-0">
                 {category}
               </div>
-              {cmds.map((cmd, idx) => {
+              {cmds.map((cmd) => {
                 const globalIndex = filteredCommands.indexOf(cmd);
                 return (
                   <div

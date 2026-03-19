@@ -2,7 +2,8 @@ import { useState, useMemo } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { Task, TaskPriority, TaskStatus } from '../../types';
 import { getAgentDisplayType } from '../../types';
-import { ClipboardList, Play, Plus, X, CheckCircle, Clock, AlertCircle, Trash2, Copy, Download, ClipboardPaste, Flag, Layers } from 'lucide-react';
+import { ClipboardList, Play, Plus, X, CheckCircle, Clock, AlertCircle, Trash2, Copy, Download, ClipboardPaste, Flag, Layers, Sparkles } from 'lucide-react';
+import { useTaskTemplates } from '../../hooks/useTaskTemplates';
 
 interface TaskPanelProps {
   tasks: Task[];
@@ -21,6 +22,7 @@ export function TaskPanel({ tasks, onCreateTask, onStartTask, onDeleteTasks, onC
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [groupByPriority, setGroupByPriority] = useState(true);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'all'>('all');
+  const { templates, applyTemplate } = useTaskTemplates();
 
   // Calculate position: stack horizontally after Agent Sidebar and Pipeline History
   const agentSidebarWidth = sidebarOpen ? 320 : 0;
@@ -29,7 +31,19 @@ export function TaskPanel({ tasks, onCreateTask, onStartTask, onDeleteTasks, onC
   const taskPanelWidth = 280;
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskDescription, setNewTaskDescription] = useState('');
+  const [newTaskPriority, setNewTaskPriority] = useState<TaskPriority>('p2');
   const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+
+  // Apply template to form
+  const handleSelectTemplate = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      const data = applyTemplate(template);
+      setNewTaskTitle(data.title);
+      setNewTaskDescription(data.description || '');
+      setNewTaskPriority(data.priority);
+    }
+  };
 
   // Filter tasks by status first
   const filteredByStatus = useMemo(() => {
@@ -375,11 +389,31 @@ export function TaskPanel({ tasks, onCreateTask, onStartTask, onDeleteTasks, onC
           {/* Create Task Modal - positioned within the panel */}
           {showCreateModal && (
             <div className="absolute inset-0 bg-black/70 flex items-center justify-center z-30">
-              <div className="bg-gray-800 rounded-lg p-6 w-[260px] mx-4">
+              <div className="bg-gray-800 rounded-lg p-6 w-[280px] mx-4 max-h-[90%] overflow-y-auto">
                 <h3 className="text-white text-lg font-bold mb-4">Create New Task</h3>
 
                 <div className="space-y-4">
+                  {/* Template selector */}
                   <div>
+                    <label className="text-gray-400 text-sm block mb-1 flex items-center gap-1">
+                      <Sparkles size={12} className="text-yellow-400" />
+                      Quick Templates
+                    </label>
+                    <select
+                      onChange={(e) => handleSelectTemplate(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-700 rounded text-white border border-gray-600 focus:border-blue-500 focus:outline-none text-sm"
+                      value=""
+                    >
+                      <option value="">Choose a template...</option>
+                      {templates.map(template => (
+                        <option key={template.id} value={template.id}>
+                          {template.name} ({template.priority.toUpperCase()})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="border-t border-gray-700 pt-3">
                     <label className="text-gray-400 text-sm block mb-1">Title</label>
                     <input
                       type="text"
@@ -399,6 +433,28 @@ export function TaskPanel({ tasks, onCreateTask, onStartTask, onDeleteTasks, onC
                       placeholder="Task description..."
                       rows={3}
                     />
+                  </div>
+
+                  <div>
+                    <label className="text-gray-400 text-sm block mb-1">Priority</label>
+                    <div className="flex gap-1">
+                      {(['p0', 'p1', 'p2', 'p3'] as const).map(p => (
+                        <button
+                          key={p}
+                          onClick={() => setNewTaskPriority(p)}
+                          className={`flex-1 py-1.5 text-xs rounded transition-colors ${
+                            newTaskPriority === p
+                              ? p === 'p0' ? 'bg-red-600 text-white' :
+                                p === 'p1' ? 'bg-orange-600 text-white' :
+                                p === 'p2' ? 'bg-yellow-600 text-white' :
+                                'bg-blue-600 text-white'
+                              : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                          }`}
+                        >
+                          {p.toUpperCase()}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div>
