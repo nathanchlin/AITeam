@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { Agent, Task } from '../../types';
 import { AGENT_COLORS, getAgentDisplayType } from '../../types';
-import { X, Send, Loader2, Settings, Trash2, Check, Eraser } from 'lucide-react';
+import { X, Send, Loader2, Settings, Trash2, Check, Eraser, Copy, CheckCheck, Download, Brain, ChevronDown, ChevronRight } from 'lucide-react';
+import { useAutoResize } from '../../hooks/useAutoResize';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
@@ -21,9 +22,56 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
   const [editDisplayType, setEditDisplayType] = useState(agent.display_type || '');
   const [editDescription, setEditDescription] = useState(agent.description || '');
   const [editPrompt, setEditPrompt] = useState(agent.custom_prompt || '');
+  const [editTags, setEditTags] = useState<string[]>(agent.tags || []);
+  const [newTagInput, setNewTagInput] = useState('');
   const [localStreamContent, setLocalStreamContent] = useState('');
+  const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
+  const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
+  const textareaRef = useAutoResize({ value: message, minHeight: 40, maxHeight: 200 });
+
+  // Quick prompts by agent type
+  const getQuickPrompts = (type: string): string[] => {
+    const prompts: Record<string, string[]> = {
+      coder: ['帮我写一个函数...', '解释这段代码的作用', '优化这段代码', '写一个单元测试', '重构这段代码'],
+      analyst: ['分析这组数据', '生成数据报告', '找出数据中的规律', '可视化建议'],
+      assistant: ['帮我整理一下思路', '总结一下要点', '翻译成英文', '写一封邮件', '制定一个计划'],
+      tester: ['写一个测试用例', '检查边界条件', '性能测试', '测试这个功能', '回归测试'],
+      'pua-coder': ['用最高效的方式实现...', '严格审视代码质量', '确保零缺陷'],
+      'pua-analyst': ['深度分析数据', '全面评估', '找出关键指标'],
+      'pua-assistant': ['确保任务完成', '对结果负责', '闭环验证'],
+      'pua-tester': ['穷尽所有测试场景', '验证每个边界', '确保质量'],
+      custom: ['帮我设计一下', '给出建议', '优化方案'],
+    };
+    return prompts[type] || prompts.assistant || [];
+  };
+
+  const quickPrompts = getQuickPrompts(agent.type);
+
+  // Format timestamp for display
+  const formatTimestamp = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+    if (isToday) {
+      return timeStr;
+    }
+    return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) + ' ' + timeStr;
+  };
+
+  // Copy text to clipboard
+  const handleCopy = async (text: string, taskId: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedTaskId(taskId);
+      setTimeout(() => setCopiedTaskId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   // Get running task and completed tasks
   const runningTask = tasks.find((t) => t.status === 'running');
@@ -43,7 +91,8 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
     setEditDisplayType(agent.display_type || '');
     setEditDescription(agent.description || '');
     setEditPrompt(agent.custom_prompt || '');
-  }, [agent.id, agent.name, agent.display_type, agent.description, agent.custom_prompt]);
+    setEditTags(agent.tags || []);
+  }, [agent.id, agent.name, agent.display_type, agent.description, agent.custom_prompt, agent.tags]);
 
   // Poll for task updates when there's a running task
   useEffect(() => {
@@ -122,6 +171,7 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
           display_type: editDisplayType || null,
           description: editDescription,
           custom_prompt: editPrompt,
+          tags: editTags,
         }),
       });
       const updated = await res.json();
@@ -162,6 +212,79 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
     }
   };
 
+  // Export chat history
+  const handleExportChat = (format: 'json' | 'txt') => {
+    const agentTasks = tasks.filter((t) => t.agent_id === agent.id && t.status === 'completed' && t.result);
+
+    if (agentTasks.length === 0) {
+      alert('No conversations to export');
+      return;
+    }
+
+    let content: string;
+    let filename: string;
+    let mimeType: string;
+
+    if (format === 'json') {
+      const exportData = {
+        agent: {
+          name: agent.name,
+          type: agent.type,
+          display_type: agent.display_type,
+        },
+        exported_at: new Date().toISOString(),
+        conversations: agentTasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          result: t.result,
+          created_at: t.created_at,
+          updated_at: t.updated_at,
+        })),
+      };
+      content = JSON.stringify(exportData, null, 2);
+      filename = `${agent.name.replace(/\s+/g, '_')}_chat_${new Date().toISOString().slice(0, 10)}.json`;
+      mimeType = 'application/json';
+    } else {
+      // TXT format
+      const lines = [
+        `# Chat History with ${agent.name}`,
+        `# Agent Type: ${getAgentDisplayType(agent)}`,
+        `# Exported: ${new Date().toLocaleString()}`,
+        '',
+        '---',
+        '',
+      ];
+
+      agentTasks.forEach((task, index) => {
+        lines.push(`## Conversation ${index + 1}`);
+        lines.push(`Date: ${task.created_at ? new Date(task.created_at).toLocaleString() : 'N/A'}`);
+        lines.push('');
+        lines.push(`**User:** ${task.title}`);
+        lines.push('');
+        lines.push(`**${agent.name}:**`);
+        lines.push(task.result || '');
+        lines.push('');
+        lines.push('---');
+        lines.push('');
+      });
+
+      content = lines.join('\n');
+      filename = `${agent.name.replace(/\s+/g, '_')}_chat_${new Date().toISOString().slice(0, 10)}.txt`;
+      mimeType = 'text/plain';
+    }
+
+    // Download file
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // Sort completed tasks by creation time (newest first)
   const sortedTasks = [...completedTasks].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -169,15 +292,22 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
 
   return (
     <div className="absolute bottom-4 right-4 w-[450px] h-[520px] bg-gray-800/95 backdrop-blur rounded-lg flex flex-col z-20 overflow-hidden shadow-2xl border border-gray-700">
+      {/* Global shimmer animation style */}
+      <style>{`
+        @keyframes shimmer {
+          0% { background-position: -200% 0; }
+          100% { background-position: 200% 0; }
+        }
+      `}</style>
       {/* Header */}
       <div className="p-3 border-b border-gray-700 flex items-center justify-between bg-gray-800">
         <div className="flex items-center gap-3">
           <div
             className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg"
-            style={{ backgroundColor: AGENT_COLORS[agent.type].primary }}
+            style={{ backgroundColor: AGENT_COLORS[agent.type]?.primary || '#6B7280' }}
           >
             <span className="text-white text-sm font-bold">
-              {agent.name.charAt(0).toUpperCase()}
+              {(agent.name || '?').charAt(0).toUpperCase()}
             </span>
           </div>
           <div>
@@ -190,6 +320,22 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
               }`} />
               <span>{agent.status === 'working' ? '思考中...' : '在线'}</span>
             </p>
+            {/* Task Progress Bar */}
+            {agent.status === 'working' && (
+              <div className="mt-1 w-32">
+                <div className="h-1 bg-gray-600 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: '100%',
+                      background: 'linear-gradient(90deg, #3B82F6, #06B6D4, #3B82F6)',
+                      backgroundSize: '200% 100%',
+                      animation: 'shimmer 1.5s infinite linear'
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -274,6 +420,59 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
             </p>
           </div>
 
+          {/* Tags Section */}
+          <div>
+            <label className="text-gray-400 text-xs block mb-1">标签</label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {editTags.map((tag, index) => (
+                <span
+                  key={index}
+                  className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs flex items-center gap-1"
+                >
+                  {tag}
+                  <button
+                    onClick={() => setEditTags(editTags.filter((_, i) => i !== index))}
+                    className="text-gray-400 hover:text-red-400 transition-colors"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newTagInput}
+                onChange={(e) => setNewTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newTagInput.trim()) {
+                    e.preventDefault();
+                    if (!editTags.includes(newTagInput.trim())) {
+                      setEditTags([...editTags, newTagInput.trim()]);
+                    }
+                    setNewTagInput('');
+                  }
+                }}
+                placeholder="输入标签后按 Enter 添加"
+                className="flex-1 px-3 py-1.5 bg-gray-700 rounded text-white text-sm border border-gray-600 focus:border-blue-500 focus:outline-none"
+              />
+              <button
+                onClick={() => {
+                  if (newTagInput.trim() && !editTags.includes(newTagInput.trim())) {
+                    setEditTags([...editTags, newTagInput.trim()]);
+                  }
+                  setNewTagInput('');
+                }}
+                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-500 transition-colors"
+              >
+                添加
+              </button>
+            </div>
+            <p className="text-gray-500 text-xs mt-1">
+              标签可以帮助分类和筛选 Agent
+            </p>
+          </div>
+
           <div className="flex gap-2 pt-2">
             <button
               onClick={handleDeleteAgent}
@@ -281,6 +480,23 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
             >
               <Trash2 size={14} />
               删除
+            </button>
+            {/* Export Buttons */}
+            <button
+              onClick={() => handleExportChat('json')}
+              className="px-3 py-2 bg-green-600/20 text-green-400 rounded hover:bg-green-600/30 transition-colors flex items-center gap-1 text-sm"
+              title="Export as JSON"
+            >
+              <Download size={14} />
+              JSON
+            </button>
+            <button
+              onClick={() => handleExportChat('txt')}
+              className="px-3 py-2 bg-blue-600/20 text-blue-400 rounded hover:bg-blue-600/30 transition-colors flex items-center gap-1 text-sm"
+              title="Export as TXT"
+            >
+              <Download size={14} />
+              TXT
             </button>
             <div className="flex-1" />
             <button
@@ -305,12 +521,76 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
             {/* Completed conversations */}
             {sortedTasks.map((task) => (
               <div key={task.id} className="space-y-2">
-                <div className="bg-gray-700/70 rounded-lg p-3 text-sm text-gray-300">
-                  {task.title}
+                {/* User message */}
+                <div className="group relative">
+                  <div className="bg-gray-700/70 rounded-lg p-3 text-sm text-gray-300">
+                    {task.title}
+                  </div>
+                  {task.created_at && (
+                    <span className="absolute -bottom-4 right-2 text-[10px] text-gray-500">
+                      {formatTimestamp(task.created_at)}
+                    </span>
+                  )}
                 </div>
+                {/* Thinking Process */}
+                {task.thinking_process && task.thinking_process.length > 0 && (
+                  <div className="mt-3 mb-2">
+                    <button
+                      onClick={() => {
+                        const newSet = new Set(expandedThinking);
+                        if (newSet.has(task.id)) {
+                          newSet.delete(task.id);
+                        } else {
+                          newSet.add(task.id);
+                        }
+                        setExpandedThinking(newSet);
+                      }}
+                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-300 transition-colors"
+                    >
+                      <Brain size={12} className="text-purple-400" />
+                      <span>思考过程</span>
+                      {expandedThinking.has(task.id) ? (
+                        <ChevronDown size={12} />
+                      ) : (
+                        <ChevronRight size={12} />
+                      )}
+                      <span className="text-gray-500">({task.thinking_process.length} 步)</span>
+                    </button>
+                    {expandedThinking.has(task.id) && (
+                      <div className="mt-2 space-y-1.5 pl-3 border-l-2 border-purple-500/30">
+                        {task.thinking_process.map((step, idx) => (
+                          <div key={idx} className="text-xs">
+                            <span className="text-purple-400 font-medium">步骤 {step.step}:</span>
+                            <span className="text-gray-400 ml-1">{step.thought}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* Agent response */}
                 {task.result && (
-                  <div className="bg-gradient-to-r from-blue-600/30 to-purple-600/30 rounded-lg p-3 text-sm text-white whitespace-pre-wrap border-l-2 border-blue-500">
-                    {task.result}
+                  <div className="group relative mt-5">
+                    <div className="bg-gradient-to-r from-blue-600/30 to-purple-600/30 rounded-lg p-3 text-sm text-white whitespace-pre-wrap border-l-2 border-blue-500">
+                      {task.result}
+                    </div>
+                    {/* Copy button */}
+                    <button
+                      onClick={() => handleCopy(task.result || '', task.id)}
+                      className="absolute top-2 right-2 p-1.5 bg-gray-700/80 hover:bg-gray-600 rounded text-gray-400 hover:text-white opacity-0 group-hover:opacity-100 transition-all"
+                      title={copiedTaskId === task.id ? '已复制' : '复制回复'}
+                    >
+                      {copiedTaskId === task.id ? (
+                        <CheckCheck size={14} className="text-green-400" />
+                      ) : (
+                        <Copy size={14} />
+                      )}
+                    </button>
+                    {task.updated_at && (
+                      <span className="absolute -bottom-4 right-2 text-[10px] text-gray-500">
+                        {formatTimestamp(task.updated_at)}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
@@ -318,8 +598,19 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
 
             {/* Running task indicator */}
             {runningTask && (
-              <div className="bg-gray-700/50 rounded-lg p-3 text-sm text-gray-300">
-                {runningTask.title}
+              <div className="space-y-2">
+                <div className="bg-gray-700/70 rounded-lg p-3 text-sm text-gray-300">
+                  {runningTask.title}
+                </div>
+                {/* Typing indicator */}
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-700/50 rounded-lg w-fit">
+                  <div className="flex gap-1">
+                    <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                    <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                    <span className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  </div>
+                  <span className="text-xs text-gray-400 ml-1">正在思考...</span>
+                </div>
               </div>
             )}
 
@@ -344,14 +635,30 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
 
           {/* Input area */}
           <div className="p-3 border-t border-gray-700 bg-gray-800">
+            {/* Quick Prompts */}
+            {quickPrompts.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {quickPrompts.map((prompt, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setMessage(prompt)}
+                    disabled={sending || agent.status === 'working'}
+                    className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex gap-2">
               <textarea
+                ref={textareaRef}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={agent.status === 'working' ? 'Agent 正在思考...' : '输入消息... (Enter 发送)'}
-                className="flex-1 px-3 py-2 bg-gray-700 rounded-lg text-white text-sm border border-gray-600 focus:border-blue-500 focus:outline-none resize-none"
-                rows={2}
+                className="flex-1 px-3 py-2 bg-gray-700 rounded-lg text-white text-sm border border-gray-600 focus:border-blue-500 focus:outline-none resize-none overflow-y-auto"
+                style={{ minHeight: '40px', maxHeight: '200px' }}
                 disabled={sending || agent.status === 'working'}
               />
               <button

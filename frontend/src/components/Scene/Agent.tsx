@@ -99,6 +99,7 @@ function getRandomDestination(currentId: string): string {
 
 export function AgentModel({ agent }: AgentModelProps) {
   const meshRef = useRef<THREE.Group>(null);
+  const workingRingRef = useRef<THREE.Mesh>(null);
   const [hovered, setHovered] = useState(false);
   const { selectAgent, selectedAgentId, updateAgentPosition } = useAgentStore();
 
@@ -125,18 +126,22 @@ export function AgentModel({ agent }: AgentModelProps) {
     if (deskNodes.length === 0) {
       return NAV_GRAPH[0]; // Fallback to first node
     }
-    const index = parseInt(agent.id.slice(-1), 16) % deskNodes.length;
+    // Defensive: ensure agent.id exists before slicing
+    const agentIdSafe = agent.id || '0';
+    const index = parseInt(agentIdSafe.slice(-1), 16) % deskNodes.length;
     return deskNodes[index];
   }, [agent.id]);
 
   const isSelected = selectedAgentId === agent.id;
-  const colors = AGENT_COLORS[agent.type];
+  const colors = AGENT_COLORS[agent.type] || { primary: '#6B7280', secondary: '#9CA3AF', light: '#D1D5DB' };
 
   // Initialize
   useEffect(() => {
-    const nearest = findNearestNode(agent.position.x, agent.position.z);
+    // Defensive: ensure agent.position exists
+    const pos = agent.position || { x: 0, y: 0, z: 0 };
+    const nearest = findNearestNode(pos.x, pos.z);
     setCurrentNodeId(nearest.id);
-  }, [agent.position.x, agent.position.z]);
+  }, [agent.position?.x, agent.position?.z]);
 
   // Monitor plan status
   useEffect(() => {
@@ -155,7 +160,7 @@ export function AgentModel({ agent }: AgentModelProps) {
     const selectedIds = currentPlan.selected_agent_ids || [];
     const isSelectedAgent = selectedIds.length === 0 || selectedIds.includes(agent.id);
 
-    console.log(`[Agent ${agent.name}] Plan status: ${currentPlan.status}, isSelected: ${isSelectedAgent}, selectedIds:`, selectedIds);
+    console.log(`[Agent ${agent.name || 'Unknown'}] Plan status: ${currentPlan.status}, isSelected: ${isSelectedAgent}, selectedIds:`, selectedIds);
 
     switch (currentPlan.status) {
       case 'discussing':
@@ -167,7 +172,7 @@ export function AgentModel({ agent }: AgentModelProps) {
           const effectiveSelectedIds = selectedIds.length > 0 ? selectedIds : useAgentStore.getState().agents.map(a => a.id);
           const seatIdx = effectiveSelectedIds.indexOf(agent.id) % 3;
           const targetSeatId = MEETING_SEATS[room][seatIdx >= 0 ? seatIdx : Math.floor(Math.random() * 3)];
-          console.log(`[Agent ${agent.name}] Going to meeting room, seat: ${targetSeatId}`);
+          console.log(`[Agent ${agent.name || 'Unknown'}] Going to meeting room, seat: ${targetSeatId}`);
           const newPath = findPath(currentNodeId || homeNode.id, targetSeatId);
           if (newPath.length > 1) {
             setPath(newPath);
@@ -306,6 +311,11 @@ export function AgentModel({ agent }: AgentModelProps) {
 
     const targetScale = hovered ? 1.1 : isSelected ? 1.05 : 1;
     meshRef.current.scale.lerp(new THREE.Vector3(targetScale, targetScale, targetScale), 0.1);
+
+    // Rotate working ring
+    if (workingRingRef.current && agent.status === 'working') {
+      workingRingRef.current.rotation.z = state.clock.elapsedTime * 2;
+    }
   });
 
   const getStatusColor = () => {
@@ -317,10 +327,13 @@ export function AgentModel({ agent }: AgentModelProps) {
     }
   };
 
+  // Defensive: ensure position exists with defaults
+  const position = agent.position || { x: 0, y: 0, z: 0 };
+
   return (
     <group
       ref={meshRef}
-      position={[agent.position.x, agent.position.y, agent.position.z]}
+      position={[position.x, position.y, position.z]}
       onClick={() => selectAgent(isSelected ? null : agent.id)}
       onPointerOver={() => setHovered(true)}
       onPointerOut={() => setHovered(false)}
@@ -337,10 +350,22 @@ export function AgentModel({ agent }: AgentModelProps) {
         </mesh>
 
         {isSelected && (
-          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
-            <ringGeometry args={[0.4, 0.5, 32]} />
-            <meshBasicMaterial color={colors.primary} side={THREE.DoubleSide} />
-          </mesh>
+          <>
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+              <ringGeometry args={[0.4, 0.5, 32]} />
+              <meshBasicMaterial color={colors.primary} side={THREE.DoubleSide} />
+            </mesh>
+            {/* Spotlight cone effect */}
+            <mesh position={[0, 2.5, 0]}>
+              <coneGeometry args={[0.8, 2, 32, 1, true]} />
+              <meshBasicMaterial color={colors.primary} transparent opacity={0.15} side={THREE.DoubleSide} />
+            </mesh>
+            {/* Spotlight ground glow */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.005, 0]}>
+              <circleGeometry args={[0.6, 32]} />
+              <meshBasicMaterial color={colors.primary} transparent opacity={0.3} />
+            </mesh>
+          </>
         )}
 
         {(isWalking || behaviorMode !== 'idle') && (
@@ -348,6 +373,28 @@ export function AgentModel({ agent }: AgentModelProps) {
             <ringGeometry args={[0.25, 0.3, 32]} />
             <meshBasicMaterial color={getStatusColor()} transparent opacity={0.7} side={THREE.DoubleSide} />
           </mesh>
+        )}
+
+        {/* Working status rotating ring */}
+        {agent.status === 'working' && (
+          <mesh ref={workingRingRef} position={[0, 1.2, 0]}>
+            <torusGeometry args={[0.15, 0.02, 8, 32]} />
+            <meshBasicMaterial color="#3B82F6" transparent opacity={0.8} />
+          </mesh>
+        )}
+
+        {/* Error status pulsing warning ring */}
+        {agent.status === 'error' && (
+          <>
+            <mesh position={[0, 0.03, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+              <ringGeometry args={[0.35, 0.45, 32]} />
+              <meshBasicMaterial color="#EF4444" transparent opacity={0.6} side={THREE.DoubleSide} />
+            </mesh>
+            <mesh position={[0, 1.3, 0]}>
+              <octahedronGeometry args={[0.12]} />
+              <meshBasicMaterial color="#EF4444" />
+            </mesh>
+          </>
         )}
 
         {behaviorMode === 'celebrating' && (
@@ -358,9 +405,14 @@ export function AgentModel({ agent }: AgentModelProps) {
         )}
 
         <Html position={[0, 1.5, 0]} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none', whiteSpace: 'nowrap' }}>
-          <div className="bg-gray-800/90 px-3 py-1.5 rounded-lg text-sm text-white whitespace-nowrap shadow-lg backdrop-blur-sm border border-gray-700/50">
-            {agent.name}
+          <div className={`px-3 py-1.5 rounded-lg text-sm text-white whitespace-nowrap shadow-lg backdrop-blur-sm border ${
+            agent.status === 'error'
+              ? 'bg-red-900/90 border-red-500/50 animate-pulse'
+              : 'bg-gray-800/90 border-gray-700/50'
+          }`}>
+            {agent.name || 'Unknown'}
             <span className="ml-2 text-gray-400">({getAgentDisplayType(agent)})</span>
+            {agent.status === 'error' && <span className="ml-2 text-red-400">⚠️</span>}
             {behaviorMode === 'meeting' && <span className="ml-2 text-purple-400">💬</span>}
             {behaviorMode === 'working' && <span className="ml-2 text-yellow-400">⚡</span>}
             {behaviorMode === 'celebrating' && <span className="ml-2">🎉</span>}
@@ -386,11 +438,22 @@ export function AgentModel({ agent }: AgentModelProps) {
         )}
 
         {agent.status === 'working' && agent.current_task_id && (
-          <Html position={[0, 1.8, 0]} center zIndexRange={[5, 0]}>
-            <div className="w-20 h-2 bg-gray-700/80 rounded-full overflow-hidden shadow-lg">
-              <div className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 animate-pulse" style={{ width: '60%' }} />
-            </div>
-          </Html>
+          <>
+            {/* Progress bar */}
+            <Html position={[0, 1.8, 0]} center zIndexRange={[5, 0]}>
+              <div className="w-20 h-2 bg-gray-700/80 rounded-full overflow-hidden shadow-lg">
+                <div className="h-full bg-gradient-to-r from-yellow-500 to-orange-500 animate-pulse" style={{ width: '60%' }} />
+              </div>
+            </Html>
+            {/* Thinking animation dots */}
+            <Html position={[0, 2.1, 0]} center zIndexRange={[5, 0]} style={{ pointerEvents: 'none' }}>
+              <div className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+              </div>
+            </Html>
+          </>
         )}
       </group>
   );

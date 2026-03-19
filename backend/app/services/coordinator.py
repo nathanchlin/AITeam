@@ -1221,6 +1221,7 @@ class CoordinatorService:
 
                     # Update task status
                     task.status = TaskStatus.RUNNING
+                    task.started_at = datetime.utcnow()
 
                     await self.broadcast({
                         "type": "plan_update",
@@ -1394,8 +1395,13 @@ class CoordinatorService:
                             # Task completed successfully - now check for truncation
                             task_success = True
 
-                            # Check code completeness for coder tasks
-                            if agent.type.value == "coder" and full_response:
+                            # PUA Agent: 任务成功，重置压力状态
+                            if hasattr(agent, 'is_pua_agent') and agent.is_pua_agent():
+                                agent.reset_pressure()
+                                print(f"[Pipeline] PUA Agent pressure reset after successful task")
+
+                            # Check code completeness for coder tasks (including PUA Coder)
+                            if agent.type.value in ("coder", "pua-coder") and full_response:
                                 completeness = output_manager.validate_code_completeness(full_response)
                                 if not completeness["is_complete"]:
                                     print(f"[Pipeline] Truncation detected in task: {task.title}")
@@ -1433,12 +1439,21 @@ class CoordinatorService:
                             error_msg = f"⚠️ 任务超时（{task_timeout}秒/15分钟），第 {task_retry_count} 次尝试失败"
                             print(f"[Pipeline] Task timeout: {task.title}, retry {task_retry_count}/{max_task_retries}")
 
+                            # PUA Agent: 记录失败并升级压力
+                            pua_pressure_msg = ""
+                            if hasattr(agent, 'is_pua_agent') and agent.is_pua_agent():
+                                pressure_level = agent.record_failure()
+                                pressure_prompt = agent.get_pressure_prompt()
+                                if pressure_prompt:
+                                    pua_pressure_msg = f"\n\n{pressure_prompt}"
+                                    print(f"[Pipeline] PUA Agent pressure level: {pressure_level}")
+
                             await self.add_discussion_message(
                                 plan_id=plan_id,
                                 agent_id=agent.id,
                                 agent_name=agent.name,
                                 agent_type=agent.type.value,
-                                content=error_msg,
+                                content=error_msg + pua_pressure_msg,
                                 message_type="comment",
                             )
 
@@ -1478,12 +1493,21 @@ class CoordinatorService:
                             error_msg = f"❌ 任务执行出错：{str(e)}"
                             print(f"[Pipeline] Task error: {task.title} - {e}")
 
+                            # PUA Agent: 记录失败并升级压力
+                            pua_pressure_msg = ""
+                            if hasattr(agent, 'is_pua_agent') and agent.is_pua_agent():
+                                pressure_level = agent.record_failure()
+                                pressure_prompt = agent.get_pressure_prompt()
+                                if pressure_prompt:
+                                    pua_pressure_msg = f"\n\n{pressure_prompt}"
+                                    print(f"[Pipeline] PUA Agent pressure level: {pressure_level}")
+
                             await self.add_discussion_message(
                                 plan_id=plan_id,
                                 agent_id=agent.id,
                                 agent_name=agent.name,
                                 agent_type=agent.type.value,
-                                content=error_msg,
+                                content=error_msg + pua_pressure_msg,
                                 message_type="comment",
                             )
 
@@ -1505,6 +1529,7 @@ class CoordinatorService:
                     full_response = "[任务未产生输出]"
 
                 task.status = TaskStatus.COMPLETED
+                task.completed_at = datetime.utcnow()
                 results.append({
                     "task": task.title,
                     "agent": agent.name,
@@ -1921,6 +1946,7 @@ class CoordinatorService:
                     else:
                         # No tester available, mark task as completed to avoid blocking
                         task.status = TaskStatus.COMPLETED
+                        task.completed_at = datetime.utcnow()
                         self._save_plans()
                         print(f"[Coordinator] No tester agent available, skipping test task: {task.title}")
                         continue
@@ -1936,6 +1962,7 @@ class CoordinatorService:
                 )
 
                 task.status = TaskStatus.RUNNING
+                task.started_at = datetime.utcnow()
                 agent.update_status(AgentStatus.WORKING)
 
                 # Read generated code for testing context
@@ -2074,6 +2101,7 @@ class CoordinatorService:
                         full_response += update["content"]
 
                 task.status = TaskStatus.COMPLETED
+                task.completed_at = datetime.utcnow()
                 results.append({
                     "task": task.title,
                     "agent": agent.name,
@@ -2882,6 +2910,7 @@ class CoordinatorService:
 
             agent.update_status(AgentStatus.WORKING)
             task.status = TaskStatus.RUNNING
+            task.started_at = datetime.utcnow()
 
             await self._add_iteration_discussion_message(
                 plan_id, iteration_round.round_number,
@@ -3134,6 +3163,7 @@ function 函数名(参数) {{
                                 build_payload = output_manager.build_ts_project(plan_id, plan.title)
                                 if build_payload.get("passed"):
                                     task.status = TaskStatus.COMPLETED
+                                    task.completed_at = datetime.utcnow()
                                     await self._add_iteration_discussion_message(
                                         plan_id, iteration_round.round_number,
                                         agent_id=agent.id,
@@ -3183,6 +3213,7 @@ function 函数名(参数) {{
                             is_complete, error_msg = self._validate_html_completeness(current_code)
                             if is_complete:
                                 task.status = TaskStatus.COMPLETED
+                                task.completed_at = datetime.utcnow()
 
                                 try:
                                     plan_dir = output_manager.get_output_path(plan_id)
@@ -3213,6 +3244,7 @@ function 函数名(参数) {{
                                 )
                         else:
                             task.status = TaskStatus.COMPLETED
+                            task.completed_at = datetime.utcnow()
                             print(f"[Coordinator] Task output is not valid HTML, skipping index.html update")
 
                             await self._add_iteration_discussion_message(
@@ -3227,6 +3259,7 @@ function 函数名(参数) {{
                     # 没有检测到有效代码，但可能是纯文本回复（如分析说明）
                     if full_response.strip():
                         task.status = TaskStatus.COMPLETED
+                        task.completed_at = datetime.utcnow()
                         print(f"[Coordinator] Task completed without code changes")
                     else:
                         task.status = TaskStatus.FAILED

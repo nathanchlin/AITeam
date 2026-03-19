@@ -52,6 +52,7 @@ async def update_agent(agent_id: str, agent_data: AgentUpdate):
         position=agent_data.position,
         status=agent_data.status,
         display_type=agent_data.display_type,
+        tags=agent_data.tags,
     )
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")

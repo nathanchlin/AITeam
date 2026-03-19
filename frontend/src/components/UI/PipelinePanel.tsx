@@ -2,10 +2,23 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { QueueStatus } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
-import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square } from 'lucide-react';
+import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square, ArrowUp, ArrowDown, Search, ChevronLeft, FileText, Clock } from 'lucide-react';
 import { ArchivePanel } from './ArchivePanel';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
+
+// Helper function to format duration
+const formatDuration = (startTime: string, endTime?: string): string => {
+  const start = new Date(startTime).getTime();
+  const end = endTime ? new Date(endTime).getTime() : Date.now();
+  const seconds = Math.floor((end - start) / 1000);
+
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  return `${hours}h ${mins}m`;
+};
 
 // Default panel size
 const DEFAULT_WIDTH = 900;
@@ -45,11 +58,16 @@ export function PipelinePanel() {
   const [restoring, setRestoring] = useState(false);
   const [restoreMessage, setRestoreMessage] = useState('');
   const [showArchivePanel, setShowArchivePanel] = useState(false);
+  const [showDiscussionPanel, setShowDiscussionPanel] = useState(true);
   const [godotProjectInfo, setGodotProjectInfo] = useState<any>(null);
   const [godotDownloading, setGodotDownloading] = useState(false);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
+  const [taskSortBy, setTaskSortBy] = useState<'order' | 'status' | 'agent'>('order');
+  const [taskSortAsc, setTaskSortAsc] = useState(true);
+  const [taskSearchQuery, setTaskSearchQuery] = useState('');
+  const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'completed' | 'running' | 'pending'>('all');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -140,7 +158,33 @@ export function PipelinePanel() {
       return iteration?.tasks || [];
     }
   };
-  const displayTasks = getDisplayTasks();
+  const rawTasks = getDisplayTasks();
+
+  // Filter and sort tasks
+  const displayTasks = [...rawTasks]
+    .filter(task => {
+      // Status filter
+      if (taskStatusFilter !== 'all' && task.status !== taskStatusFilter) return false;
+
+      // Search filter
+      if (!taskSearchQuery.trim()) return true;
+      const query = taskSearchQuery.toLowerCase();
+      return task.title.toLowerCase().includes(query);
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      if (taskSortBy === 'order') {
+        comparison = (a.order || 0) - (b.order || 0);
+      } else if (taskSortBy === 'status') {
+        const statusOrder = { running: 0, pending: 1, completed: 2 };
+        comparison = (statusOrder[a.status as keyof typeof statusOrder] || 3) - (statusOrder[b.status as keyof typeof statusOrder] || 3);
+      } else if (taskSortBy === 'agent') {
+        const agentA = agents.find(ag => ag.id === a.assigned_agent_id)?.name || '';
+        const agentB = agents.find(ag => ag.id === b.assigned_agent_id)?.name || '';
+        comparison = agentA.localeCompare(agentB);
+      }
+      return taskSortAsc ? comparison : -comparison;
+    });
 
   // 获取当前迭代的运行任务
   const getRunningTask = () => {
@@ -688,6 +732,90 @@ export function PipelinePanel() {
     setTimeout(() => setCopiedUrl(false), 2000);
   };
 
+  // Export current plan to Markdown
+  const exportPlanToMarkdown = () => {
+    if (!currentPlan) return;
+
+    const date = new Date().toISOString().split('T')[0];
+    let md = `# Pipeline Plan: ${currentPlan.title || 'Untitled'}\n\n`;
+    md += `**ID**: ${currentPlan.id}\n`;
+    md += `**Status**: ${currentPlan.status}\n`;
+    md += `**Created**: ${currentPlan.created_at}\n`;
+    if (currentPlan.completed_at) {
+      md += `**Completed**: ${currentPlan.completed_at}\n`;
+    }
+    md += `\n---\n\n`;
+
+    md += `## Original Request\n\n`;
+    md += `${currentPlan.original_request}\n\n`;
+
+    if (currentPlan.description) {
+      md += `## Description\n\n`;
+      md += `${currentPlan.description}\n\n`;
+    }
+
+    // Tasks
+    if (currentPlan.tasks.length > 0) {
+      md += `## Tasks (${currentPlan.tasks.length})\n\n`;
+      const statusEmoji: Record<string, string> = {
+        completed: '✅',
+        running: '🔄',
+        pending: '⏳',
+        failed: '❌',
+      };
+
+      for (const task of currentPlan.tasks) {
+        const emoji = statusEmoji[task.status] || '📝';
+        const agent = agents.find(a => a.id === task.assigned_agent_id);
+        md += `### ${emoji} ${task.title}\n`;
+        if (task.description) {
+          md += `> ${task.description}\n`;
+        }
+        md += `- **Status**: ${task.status}\n`;
+        if (agent) {
+          md += `- **Agent**: ${agent.name} (${getAgentDisplayType(agent)})\n`;
+        }
+        if (task.dependencies.length > 0) {
+          md += `- **Dependencies**: ${task.dependencies.join(', ')}\n`;
+        }
+        md += `\n`;
+      }
+    }
+
+    // Discussion
+    if (currentPlan.discussion.length > 0) {
+      md += `## Discussion (${currentPlan.discussion.length} messages)\n\n`;
+      for (const msg of currentPlan.discussion) {
+        const time = new Date(msg.timestamp).toLocaleString();
+        md += `**${msg.agent_name}** (${time}):\n`;
+        md += `${msg.content}\n\n`;
+      }
+    }
+
+    // Iterations
+    if (currentPlan.iterations.length > 0) {
+      md += `## Iterations (${currentPlan.iterations.length} rounds)\n\n`;
+      for (const iter of currentPlan.iterations) {
+        md += `### Round ${iter.round_number}\n`;
+        md += `- **Status**: ${iter.status}\n`;
+        md += `- **Request**: ${iter.iteration_request}\n`;
+        md += `- **Tasks**: ${iter.tasks.length}\n`;
+        if (iter.archive_path) {
+          md += `- **Archive**: ${iter.archive_path}\n`;
+        }
+        md += `\n`;
+      }
+    }
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `plan_${currentPlan.id.slice(0, 8)}_${date}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   if (!pipelinePanelOpen) return null;
 
   const { phases, currentIndex } = getPhaseInfo(currentPlan?.status || 'draft');
@@ -717,13 +845,26 @@ export function PipelinePanel() {
           <GitBranch size={20} className="text-purple-400" />
           <h2 className="text-white font-bold">协作流水线</h2>
           <span className="text-xs text-gray-400">讨论 → 计划 → 执行</span>
+          <kbd className="hidden md:inline-block px-1.5 py-0.5 text-[10px] bg-gray-700/50 rounded border border-gray-600 text-gray-400">P</kbd>
+          <kbd className="hidden md:inline-block px-1.5 py-0.5 text-[10px] bg-gray-700/50 rounded border border-gray-600 text-gray-400">3</kbd>
         </div>
-        <button
-          onClick={togglePipelinePanel}
-          className="p-2 hover:bg-gray-700 rounded transition-colors text-gray-400"
-        >
-          <X size={16} />
-        </button>
+        <div className="flex items-center gap-1">
+          {currentPlan && (
+            <button
+              onClick={exportPlanToMarkdown}
+              className="p-2 hover:bg-gray-700 rounded transition-colors text-gray-400 hover:text-white"
+              title="Export plan as Markdown"
+            >
+              <FileText size={16} />
+            </button>
+          )}
+          <button
+            onClick={togglePipelinePanel}
+            className="p-2 hover:bg-gray-700 rounded transition-colors text-gray-400"
+          >
+            <X size={16} />
+          </button>
+        </div>
       </div>
 
       {/* Input Section */}
@@ -786,7 +927,7 @@ export function PipelinePanel() {
                       className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold"
                       style={{ backgroundColor: agentColor }}
                     >
-                      {agent.name.charAt(0)}
+                      {(agent.name || '?').charAt(0)}
                     </div>
                     <span>{agent.name}</span>
                     <span className="text-[10px] opacity-70">
@@ -941,25 +1082,39 @@ export function PipelinePanel() {
               </div>
 
               {/* Phase Progress */}
-              <div className="flex items-center gap-1 mb-3">
-                {phases.map((phase, index) => (
-                  <div key={phase.key} className="flex items-center flex-1">
-                    <div
-                      className={`flex items-center justify-center w-8 h-8 rounded-full text-sm transition-all ${
-                        index <= currentIndex
-                          ? `${getStatusBgColor(currentPlan.status)} text-white`
-                          : 'bg-gray-700 text-gray-500'
-                      } ${index === currentIndex ? 'ring-2 ring-white/30' : ''}`}
-                    >
-                      {index < currentIndex ? '✓' : phase.icon}
+              <div className="mb-4">
+                <div className="flex items-center gap-1 mb-1">
+                  {phases.map((phase, index) => (
+                    <div key={phase.key} className="flex items-center flex-1">
+                      <div
+                        className={`flex items-center justify-center w-7 h-7 rounded-full text-xs transition-all ${
+                          index <= currentIndex
+                            ? `${getStatusBgColor(currentPlan.status)} text-white`
+                            : 'bg-gray-700 text-gray-500'
+                        } ${index === currentIndex ? 'ring-2 ring-white/30' : ''}`}
+                      >
+                        {index < currentIndex ? '✓' : phase.icon}
+                      </div>
+                      {index < phases.length - 1 && (
+                        <div className={`flex-1 h-0.5 mx-1 rounded ${
+                          index < currentIndex ? 'bg-green-500' : 'bg-gray-700'
+                        }`} />
+                      )}
                     </div>
-                    {index < phases.length - 1 && (
-                      <div className={`flex-1 h-1 mx-1 rounded ${
-                        index < currentIndex ? 'bg-green-500' : 'bg-gray-700'
-                      }`} />
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
+                {/* Phase labels */}
+                <div className="flex items-center gap-1">
+                  {phases.map((phase, index) => (
+                    <div key={phase.key} className="flex-1 text-center">
+                      <span className={`text-[10px] ${
+                        index <= currentIndex ? 'text-gray-300' : 'text-gray-600'
+                      } ${index === currentIndex ? 'font-medium' : ''}`}>
+                        {phase.label}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Restart success hint */}
@@ -1129,77 +1284,234 @@ export function PipelinePanel() {
 
             {/* Main Content Area - Split View */}
             <div className="flex-1 flex min-h-0">
-              {/* Left: Group Chat */}
-              <div className="w-1/2 flex flex-col border-r border-gray-700 min-h-0">
-                <div className="p-3 border-b border-gray-700 bg-gray-800/50 flex items-center gap-2 flex-shrink-0">
-                  <Users size={16} className="text-blue-400" />
-                  <span className="text-sm font-medium text-white">
-                    {activeIterationTab === 0 ? '团队群聊' : `迭代${activeIterationTab} 讨论`}
-                  </span>
-                  <span className="text-xs text-gray-500">({planDiscussions.length} 条消息)</span>
+              {/* Left: Group Chat - Collapsible */}
+              <div className={`flex flex-col border-r border-gray-700 min-h-0 transition-all duration-300 ${showDiscussionPanel ? 'w-1/2' : 'w-12'}`}>
+                {/* Collapse Toggle Header */}
+                <div
+                  className="p-3 border-b border-gray-700 bg-gray-800/50 flex items-center gap-2 flex-shrink-0 cursor-pointer hover:bg-gray-700/50 transition-colors"
+                  onClick={() => setShowDiscussionPanel(!showDiscussionPanel)}
+                >
+                  {showDiscussionPanel ? (
+                    <>
+                      <Users size={16} className="text-blue-400" />
+                      <span className="text-sm font-medium text-white flex-1">
+                        {activeIterationTab === 0 ? '团队群聊' : `迭代${activeIterationTab} 讨论`}
+                      </span>
+                      <span className="text-xs text-gray-500">({planDiscussions.length})</span>
+                      <ChevronLeft size={14} className="text-gray-500 hover:text-white" />
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center w-full gap-1">
+                      <Users size={16} className="text-blue-400" />
+                      <span className="text-[10px] text-gray-500 transform -rotate-0">{planDiscussions.length}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
-                  {planDiscussions.length > 0 ? (
-                    planDiscussions.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`p-3 rounded border-l-2 ${getMessageTypeStyle(msg.message_type)}`}
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <div
-                            className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-                            style={{
-                              backgroundColor: msg.agent_name === '系统' ? '#10B981' : (AGENT_COLORS[msg.agent_type as keyof typeof AGENT_COLORS]?.primary || '#888'),
-                            }}
-                          >
-                            {msg.agent_name.charAt(0)}
+                {/* Discussion Content */}
+                {showDiscussionPanel && (
+                  <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
+                    {planDiscussions.length > 0 ? (
+                      planDiscussions.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={`p-3 rounded border-l-2 ${getMessageTypeStyle(msg.message_type)}`}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <div
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                              style={{
+                                backgroundColor: msg.agent_name === '系统' ? '#10B981' : (AGENT_COLORS[msg.agent_type as keyof typeof AGENT_COLORS]?.primary || '#888'),
+                              }}
+                            >
+                              {msg.agent_name.charAt(0)}
+                            </div>
+                            <span className="text-sm font-medium text-white">{msg.agent_name}</span>
+                            {msg.agent_name !== '系统' && (
+                              <span className="text-xs text-gray-500">
+                                {AGENT_LABELS[msg.agent_type as keyof typeof AGENT_LABELS] || msg.agent_type}
+                              </span>
+                            )}
                           </div>
-                          <span className="text-sm font-medium text-white">{msg.agent_name}</span>
-                          {msg.agent_name !== '系统' && (
-                            <span className="text-xs text-gray-500">
-                              {AGENT_LABELS[msg.agent_type as keyof typeof AGENT_LABELS] || msg.agent_type}
+                          <p className="text-sm text-gray-300 whitespace-pre-wrap">{msg.content}</p>
+                          {/* If message contains URL, make it clickable */}
+                          {msg.content.includes('http://') && (
+                            <div className="mt-2 flex gap-2">
+                              {msg.content.match(/http:\/\/[^\s]+/g)?.map((url, i) => (
+                                <a
+                                  key={i}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600/30 hover:bg-blue-600/50 rounded text-xs text-blue-300 transition-colors"
+                                >
+                                  <ExternalLink size={12} />
+                                  打开网页
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                        <MessageCircle size={32} className="mb-2 opacity-30" />
+                        <p className="text-sm">等待讨论开始...</p>
+                      </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Agent Work Panels - Expands when discussion collapsed */}
+              <div className={`flex flex-col min-h-0 transition-all duration-300 ${showDiscussionPanel ? 'w-1/2' : 'flex-1'}`}>
+                <div className="p-3 border-b border-gray-700 bg-gray-800/50 flex-shrink-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle size={16} className="text-green-400" />
+                      <span className="text-sm font-medium text-white">
+                        {activeIterationTab === 0 ? '任务执行' : `迭代${activeIterationTab} 任务`}
+                      </span>
+                      <span className="text-xs text-gray-500">({displayTasks.length}/{rawTasks.length})</span>
+                    </div>
+                    {/* Sort Controls */}
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-500">排序:</span>
+                      <button
+                        onClick={() => { setTaskSortBy('order'); setTaskSortAsc(taskSortBy === 'order' ? !taskSortAsc : true); }}
+                        className={`px-1.5 py-0.5 text-[10px] rounded transition-colors flex items-center gap-0.5 ${
+                          taskSortBy === 'order' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        顺序
+                        {taskSortBy === 'order' && (taskSortAsc ? <ArrowUp size={8} /> : <ArrowDown size={8} />)}
+                      </button>
+                      <button
+                        onClick={() => { setTaskSortBy('status'); setTaskSortAsc(taskSortBy === 'status' ? !taskSortAsc : true); }}
+                        className={`px-1.5 py-0.5 text-[10px] rounded transition-colors flex items-center gap-0.5 ${
+                          taskSortBy === 'status' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        状态
+                        {taskSortBy === 'status' && (taskSortAsc ? <ArrowUp size={8} /> : <ArrowDown size={8} />)}
+                      </button>
+                      <button
+                        onClick={() => { setTaskSortBy('agent'); setTaskSortAsc(taskSortBy === 'agent' ? !taskSortAsc : true); }}
+                        className={`px-1.5 py-0.5 text-[10px] rounded transition-colors flex items-center gap-0.5 ${
+                          taskSortBy === 'agent' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        }`}
+                      >
+                        Agent
+                        {taskSortBy === 'agent' && (taskSortAsc ? <ArrowUp size={8} /> : <ArrowDown size={8} />)}
+                      </button>
+                    </div>
+                  </div>
+                  {/* Task Search */}
+                  <div className="relative">
+                    <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-500" />
+                    <input
+                      type="text"
+                      value={taskSearchQuery}
+                      onChange={(e) => setTaskSearchQuery(e.target.value)}
+                      placeholder="搜索任务..."
+                      className="w-full pl-7 pr-2 py-1 bg-gray-700 rounded text-xs text-white placeholder-gray-500 border border-gray-600 focus:border-blue-500 focus:outline-none"
+                    />
+                    {taskSearchQuery && (
+                      <button
+                        onClick={() => setTaskSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+                      >
+                        <X size={10} />
+                      </button>
+                    )}
+                  </div>
+                  {/* Status Filter Chips */}
+                  <div className="flex items-center gap-1 mt-1">
+                    <button
+                      onClick={() => setTaskStatusFilter('all')}
+                      className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+                        taskStatusFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      全部
+                    </button>
+                    <button
+                      onClick={() => setTaskStatusFilter('running')}
+                      className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+                        taskStatusFilter === 'running' ? 'bg-yellow-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      执行中
+                    </button>
+                    <button
+                      onClick={() => setTaskStatusFilter('pending')}
+                      className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+                        taskStatusFilter === 'pending' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      待处理
+                    </button>
+                    <button
+                      onClick={() => setTaskStatusFilter('completed')}
+                      className={`px-1.5 py-0.5 text-[10px] rounded transition-colors ${
+                        taskStatusFilter === 'completed' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      已完成
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+                  {/* Task Progress Ring */}
+                  {totalTasks > 0 && (
+                    <div className="flex items-center gap-3 p-2 bg-gray-800/50 rounded-lg">
+                      <div className="relative w-10 h-10">
+                        <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r="14"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            className="text-gray-700"
+                          />
+                          <circle
+                            cx="18"
+                            cy="18"
+                            r="14"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="3"
+                            strokeDasharray={`${(completedTasksCount / totalTasks) * 88} 88`}
+                            className="text-green-500 transition-all duration-500"
+                          />
+                        </svg>
+                        <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+                          {Math.round((completedTasksCount / totalTasks) * 100)}%
+                        </span>
+                      </div>
+                      <div className="flex-1">
+                        <div className="text-xs text-gray-300">
+                          {completedTasksCount} / {totalTasks} tasks
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          {displayTasks.filter(t => t.status === 'running').length > 0 && (
+                            <span className="flex items-center gap-1 text-[10px] text-yellow-400">
+                              <Loader2 size={10} className="animate-spin" />
+                              {displayTasks.filter(t => t.status === 'running').length} running
+                            </span>
+                          )}
+                          {displayTasks.filter(t => t.status === 'pending').length > 0 && (
+                            <span className="text-[10px] text-gray-500">
+                              {displayTasks.filter(t => t.status === 'pending').length} pending
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-300 whitespace-pre-wrap">{msg.content}</p>
-                        {/* If message contains URL, make it clickable */}
-                        {msg.content.includes('http://') && (
-                          <div className="mt-2 flex gap-2">
-                            {msg.content.match(/http:\/\/[^\s]+/g)?.map((url, i) => (
-                              <a
-                                key={i}
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-2 py-1 bg-blue-600/30 hover:bg-blue-600/50 rounded text-xs text-blue-300 transition-colors"
-                              >
-                                <ExternalLink size={12} />
-                                打开网页
-                              </a>
-                            ))}
-                          </div>
-                        )}
                       </div>
-                    ))
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                      <MessageCircle size={32} className="mb-2 opacity-30" />
-                      <p className="text-sm">等待讨论开始...</p>
                     </div>
                   )}
-                  <div ref={messagesEndRef} />
-                </div>
-              </div>
 
-              {/* Right: Agent Work Panels */}
-              <div className="w-1/2 flex flex-col min-h-0">
-                <div className="p-3 border-b border-gray-700 bg-gray-800/50 flex items-center gap-2 flex-shrink-0">
-                  <CheckCircle size={16} className="text-green-400" />
-                  <span className="text-sm font-medium text-white">
-                    {activeIterationTab === 0 ? '任务执行' : `迭代${activeIterationTab} 任务`}
-                  </span>
-                </div>
-                <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
                   {/* Task List */}
                   {displayTasks.length > 0 ? (
                     <div className="space-y-2">
@@ -1215,21 +1527,38 @@ export function PipelinePanel() {
                               isRunning
                                 ? 'bg-green-500/10 border-green-500/50'
                                 : task.status === 'completed'
-                                ? 'bg-gray-700/30 border-gray-600'
+                                ? 'bg-gray-700/30 border-gray-600 animate-success-pulse'
                                 : 'bg-gray-800/50 border-gray-700'
                             }`}
                           >
                             <div className="flex items-center gap-3">
                               <div
-                                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${
+                                className={`relative w-6 h-6 rounded-full flex items-center justify-center text-xs ${
                                   task.status === 'completed'
-                                    ? 'bg-green-500'
+                                    ? 'bg-green-500 animate-checkmark-pop'
                                     : isRunning
-                                    ? 'bg-yellow-500 animate-pulse'
+                                    ? 'bg-yellow-500/20'
                                     : 'bg-gray-600'
                                 }`}
                               >
-                                {task.status === 'completed' ? '✓' : task.order}
+                                {/* Spinning ring for running tasks */}
+                                {isRunning && (
+                                  <svg className="absolute inset-0 w-full h-full animate-spin" viewBox="0 0 24 24" style={{ animationDuration: '3s' }}>
+                                    <circle
+                                      cx="12"
+                                      cy="12"
+                                      r="10"
+                                      fill="none"
+                                      stroke="#eab308"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeDasharray="31.4 31.4"
+                                    />
+                                  </svg>
+                                )}
+                                <span className={isRunning ? 'text-yellow-400' : ''}>
+                                  {task.status === 'completed' ? <CheckCircle size={14} className="text-white" /> : task.order}
+                                </span>
                               </div>
                               <div className="flex-1 min-w-0">
                                 <div className="text-sm text-white truncate">{task.title}</div>
@@ -1239,22 +1568,33 @@ export function PipelinePanel() {
                                       className="w-4 h-4 rounded-full flex items-center justify-center text-[10px]"
                                       style={{ backgroundColor: AGENT_COLORS[assignedAgent.type]?.primary || '#888' }}
                                     >
-                                      {assignedAgent.name.charAt(0)}
+                                      {(assignedAgent.name || '?').charAt(0)}
                                     </div>
                                     <span className="text-xs text-gray-400">{assignedAgent.name}</span>
                                   </div>
                                 )}
                               </div>
-                              <div
-                                className={`text-xs px-2 py-1 rounded ${
-                                  task.status === 'completed'
-                                    ? 'bg-green-500/20 text-green-400'
-                                    : isRunning
-                                    ? 'bg-yellow-500/20 text-yellow-400'
-                                    : 'bg-gray-600/50 text-gray-400'
-                                }`}
-                              >
-                                {task.status === 'completed' ? '完成' : isRunning ? '执行中' : '等待'}
+                              <div className="flex items-center gap-2">
+                                {/* Task duration */}
+                                {(isRunning || task.status === 'completed') && task.started_at && (
+                                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                                    <Clock size={10} />
+                                    <span className={isRunning ? 'text-yellow-400' : 'text-gray-400'}>
+                                      {formatDuration(task.started_at, task.completed_at)}
+                                    </span>
+                                  </div>
+                                )}
+                                <div
+                                  className={`text-xs px-2 py-1 rounded ${
+                                    task.status === 'completed'
+                                      ? 'bg-green-500/20 text-green-400'
+                                      : isRunning
+                                      ? 'bg-yellow-500/20 text-yellow-400'
+                                      : 'bg-gray-600/50 text-gray-400'
+                                  }`}
+                                >
+                                  {task.status === 'completed' ? '完成' : isRunning ? '执行中' : '等待'}
+                                </div>
                               </div>
                             </div>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { X, ExternalLink, Folder, RefreshCw, MessageCircle, ChevronRight, Heart } from 'lucide-react';
+import { X, ExternalLink, Folder, RefreshCw, MessageCircle, ChevronRight, Heart, Search } from 'lucide-react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS } from '../../types';
 
@@ -57,6 +57,10 @@ export function ProjectsPanel() {
     return new Set();
   });
 
+  // Search and filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'liked' | 'preview' | 'discussion'>('all');
+
   // 持久化点赞数据
   useEffect(() => {
     localStorage.setItem('likedProjects', JSON.stringify([...likedProjects]));
@@ -86,6 +90,24 @@ export function ProjectsPanel() {
       return b.modified - a.modified;
     });
   }, [projects, likedProjects]);
+
+  // Filtered projects based on search and filter type
+  const filteredProjects = useMemo(() => {
+    return sortedProjects.filter(project => {
+      // Filter by type
+      if (filterType === 'liked' && !likedProjects.has(project.id)) return false;
+      if (filterType === 'preview' && !project.has_preview) return false;
+      if (filterType === 'discussion' && !project.has_discussion) return false;
+
+      // Search filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        if (!project.title.toLowerCase().includes(query)) return false;
+      }
+
+      return true;
+    });
+  }, [sortedProjects, filterType, searchQuery, likedProjects]);
 
   const fetchProjects = async () => {
     setLoading(true);
@@ -250,7 +272,9 @@ export function ProjectsPanel() {
         <div className="flex items-center gap-3">
           <Folder size={20} className="text-yellow-400" />
           <h2 className="text-white font-bold">已生成的项目</h2>
-          <span className="text-xs text-gray-400">({projects.length})</span>
+          <span className="text-xs text-gray-400">
+            ({filteredProjects.length}/{projects.length})
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -270,6 +294,69 @@ export function ProjectsPanel() {
         </div>
       </div>
 
+      {/* Search and Filter Bar */}
+      <div className="p-3 border-b border-gray-700 space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜索项目..."
+              className="w-full pl-8 pr-2 py-1.5 bg-gray-700 rounded text-sm text-white placeholder-gray-500 border border-gray-600 focus:border-blue-500 focus:outline-none"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-white"
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Filter Chips */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={() => setFilterType('all')}
+            className={`px-2 py-0.5 text-xs rounded transition-colors ${
+              filterType === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            全部
+          </button>
+          <button
+            onClick={() => setFilterType('liked')}
+            className={`px-2 py-0.5 text-xs rounded transition-colors flex items-center gap-1 ${
+              filterType === 'liked' ? 'bg-red-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            <Heart size={10} />
+            已点赞
+          </button>
+          <button
+            onClick={() => setFilterType('preview')}
+            className={`px-2 py-0.5 text-xs rounded transition-colors flex items-center gap-1 ${
+              filterType === 'preview' ? 'bg-green-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            <ExternalLink size={10} />
+            可预览
+          </button>
+          <button
+            onClick={() => setFilterType('discussion')}
+            className={`px-2 py-0.5 text-xs rounded transition-colors flex items-center gap-1 ${
+              filterType === 'discussion' ? 'bg-purple-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+          >
+            <MessageCircle size={10} />
+            有讨论
+          </button>
+        </div>
+      </div>
+
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {loading ? (
@@ -277,8 +364,8 @@ export function ProjectsPanel() {
             <RefreshCw size={24} className="animate-spin mb-2" />
             <p className="text-sm">加载中...</p>
           </div>
-        ) : sortedProjects.length > 0 ? (
-          sortedProjects.map((project) => (
+        ) : filteredProjects.length > 0 ? (
+          filteredProjects.map((project) => (
             <div
               key={project.id}
               className="p-4 bg-gray-800/50 rounded-lg border border-gray-700 hover:border-gray-600 transition-colors"
@@ -359,10 +446,21 @@ export function ProjectsPanel() {
               )}
             </div>
           ))
-        ) : (
+        ) : projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 text-gray-400">
             <Folder size={32} className="mb-2 opacity-30" />
             <p className="text-sm">暂无已完成的项目</p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+            <Search size={32} className="mb-2 opacity-50" />
+            <p className="text-sm">未找到匹配的项目</p>
+            <button
+              onClick={() => { setSearchQuery(''); setFilterType('all'); }}
+              className="text-xs text-blue-400 hover:text-blue-300 mt-2"
+            >
+              清除筛选
+            </button>
           </div>
         )}
       </div>

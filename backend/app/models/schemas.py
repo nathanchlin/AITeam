@@ -10,6 +10,11 @@ class AgentType(str, Enum):
     ASSISTANT = "assistant"
     TESTER = "tester"
     CUSTOM = "custom"
+    # PUA 增强版
+    PUA_CODER = "pua-coder"
+    PUA_ANALYST = "pua-analyst"
+    PUA_ASSISTANT = "pua-assistant"
+    PUA_TESTER = "pua-tester"
 
 
 class AgentStatus(str, Enum):
@@ -24,6 +29,13 @@ class TaskStatus(str, Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class TaskPriority(str, Enum):
+    P0 = "p0"  # Urgent
+    P1 = "p1"  # High
+    P2 = "p2"  # Medium
+    P3 = "p3"  # Low
 
 
 class PlanStatus(str, Enum):
@@ -41,6 +53,7 @@ class AgentBase(BaseModel):
     display_type: Optional[str] = None  # 自定义显示名称，如 "UI设计师"
     description: Optional[str] = None
     custom_prompt: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
     position: Dict[str, float] = Field(default_factory=lambda: {"x": 0, "y": 0, "z": 0})
 
 
@@ -53,6 +66,7 @@ class AgentUpdate(BaseModel):
     display_type: Optional[str] = None  # 允许更新自定义类型名称
     description: Optional[str] = None
     custom_prompt: Optional[str] = None
+    tags: Optional[List[str]] = None
     position: Optional[Dict[str, float]] = None
     status: Optional[AgentStatus] = None
 
@@ -73,10 +87,13 @@ class TaskBase(BaseModel):
     description: Optional[str] = None
     agent_id: Optional[str] = None
     parent_task_id: Optional[str] = None
+    priority: TaskPriority = TaskPriority.P2
+    due_date: Optional[datetime] = None
 
 
 class TaskCreate(TaskBase):
-    pass
+    priority: TaskPriority = TaskPriority.P2
+    due_date: Optional[datetime] = None
 
 
 class TaskUpdate(BaseModel):
@@ -85,6 +102,8 @@ class TaskUpdate(BaseModel):
     status: Optional[TaskStatus] = None
     progress: Optional[float] = None
     result: Optional[str] = None
+    priority: Optional[TaskPriority] = None
+    due_date: Optional[datetime] = None
 
 
 class Task(TaskBase):
@@ -131,6 +150,8 @@ class PlanTask(BaseModel):
     dependencies: List[str] = Field(default_factory=list)
     status: TaskStatus = TaskStatus.PENDING
     order: int = 0
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
 
 class IterationTask(BaseModel):
@@ -144,6 +165,8 @@ class IterationTask(BaseModel):
     dependencies: List[str] = Field(default_factory=list)
     status: TaskStatus = TaskStatus.PENDING
     order: int = 0
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
 
 
 class IterationRound(BaseModel):

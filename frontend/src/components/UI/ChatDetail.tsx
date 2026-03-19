@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { Agent, GroupChat } from '../../types';
 import { AGENT_COLORS, getAgentDisplayType } from '../../types';
-import { X, Send, Loader2, Users, FileText, UserPlus, Paperclip, MessageCircle } from 'lucide-react';
+import { X, Send, Loader2, Users, FileText, UserPlus, Paperclip, MessageCircle, Copy, Check } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
@@ -29,6 +29,7 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [addMemberAgentIds, setAddMemberAgentIds] = useState<string[]>([]);
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const isInitialMountRef = useRef(true);
@@ -229,6 +230,16 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
     return colors[index];
   };
 
+  const handleCopyMessage = async (content: string, messageId: string) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedMessageId(messageId);
+      setTimeout(() => setCopiedMessageId(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
   // Sort completed tasks by creation time (newest first)
   const sortedTasks = [...completedTasks].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -243,10 +254,10 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
           <div className="flex items-center gap-3">
             <div
               className="w-10 h-10 rounded-full flex items-center justify-center shadow-lg"
-              style={{ backgroundColor: AGENT_COLORS[agent.type].primary }}
+              style={{ backgroundColor: AGENT_COLORS[agent.type]?.primary || '#6B7280' }}
             >
               <span className="text-white text-sm font-bold">
-                {agent.name.charAt(0).toUpperCase()}
+                {(agent.name || '?').charAt(0).toUpperCase()}
               </span>
             </div>
             <div>
@@ -273,12 +284,34 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
         <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-900/50">
           {sortedTasks.map((task) => (
             <div key={task.id} className="space-y-2">
-              <div className="bg-gray-700/70 rounded-lg p-3 text-sm text-gray-300">
+              <div className="bg-gray-700/70 rounded-lg p-3 text-sm text-gray-300 group relative">
                 {task.title}
+                <button
+                  onClick={() => handleCopyMessage(task.title, `task-title-${task.id}`)}
+                  className="absolute right-2 top-2 p-1 rounded bg-gray-600/80 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-500"
+                  title="复制"
+                >
+                  {copiedMessageId === `task-title-${task.id}` ? (
+                    <Check size={12} className="text-green-400" />
+                  ) : (
+                    <Copy size={12} className="text-gray-300" />
+                  )}
+                </button>
               </div>
               {task.result && (
-                <div className="bg-gradient-to-r from-blue-600/30 to-purple-600/30 rounded-lg p-3 text-sm text-white whitespace-pre-wrap border-l-2 border-blue-500">
+                <div className="bg-gradient-to-r from-blue-600/30 to-purple-600/30 rounded-lg p-3 text-sm text-white whitespace-pre-wrap border-l-2 border-blue-500 group relative">
                   {task.result}
+                  <button
+                    onClick={() => handleCopyMessage(task.result || '', `task-result-${task.id}`)}
+                    className="absolute right-2 top-2 p-1 rounded bg-gray-600/80 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-500"
+                    title="复制"
+                  >
+                    {copiedMessageId === `task-result-${task.id}` ? (
+                      <Check size={12} className="text-green-400" />
+                    ) : (
+                      <Copy size={12} className="text-gray-300" />
+                    )}
+                </button>
                 </div>
               )}
             </div>
@@ -404,7 +437,7 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
                   <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} max-w-[70%]`}>
                     <span className="text-xs text-gray-400 mb-1">{msg.sender_name}</span>
                     <div
-                      className={`rounded-lg px-3 py-2 ${
+                      className={`rounded-lg px-3 py-2 group relative ${
                         isUser
                           ? 'bg-blue-600 text-white rounded-br-none'
                           : 'bg-gray-700 text-gray-200 rounded-bl-none'
@@ -415,6 +448,19 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
                       ) : (
                         <>
                           <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                          <button
+                            onClick={() => handleCopyMessage(msg.content, msg.id)}
+                            className={`absolute -right-8 top-1/2 -translate-y-1/2 p-1 rounded bg-gray-600/80 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-gray-500 ${
+                              isUser ? '-right-8' : '-right-8'
+                            }`}
+                            title="复制"
+                          >
+                            {copiedMessageId === msg.id ? (
+                              <Check size={12} className="text-green-400" />
+                            ) : (
+                              <Copy size={12} className="text-gray-300" />
+                            )}
+                          </button>
                           {msg.attachments.length > 0 && (
                             <div className="mt-2 space-y-2">
                               {msg.attachments.map((attachment) => (
@@ -521,9 +567,9 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
                             />
                             <div
                               className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0"
-                              style={{ backgroundColor: AGENT_COLORS[a.type].primary }}
+                              style={{ backgroundColor: AGENT_COLORS[a.type]?.primary || '#6B7280' }}
                             >
-                              {a.name.charAt(0)}
+                              {(a.name || '?').charAt(0)}
                             </div>
                             <span className="text-white text-sm truncate">{a.name}</span>
                           </label>

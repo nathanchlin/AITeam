@@ -17,6 +17,11 @@ interface WorldProps {
 }
 
 export function World({ agents }: WorldProps) {
+  // Filter out invalid agents (missing id, name, or position)
+  const validAgents = agents.filter(agent =>
+    agent && agent.id && agent.name && agent.position
+  );
+
   // Calculate desk positions based on number of agents
   const getDeskPosition = (index: number, total: number): [number, number, number] => {
     const cols = Math.min(Math.ceil(Math.sqrt(total)), 4);
@@ -38,12 +43,12 @@ export function World({ agents }: WorldProps) {
       <Ground />
 
       {/* Main work area with cubicles for each agent */}
-      {agents.map((agent, index) => (
-        <Workstation key={agent.id} position={getDeskPosition(index, agents.length)} />
+      {validAgents.map((agent, index) => (
+        <Workstation key={agent.id} position={getDeskPosition(index, validAgents.length)} />
       ))}
 
       {/* Render all agents */}
-      {agents.map((agent) => (
+      {validAgents.map((agent) => (
         <AgentModel key={agent.id} agent={agent} />
       ))}
 

@@ -1,6 +1,7 @@
-export type AgentType = 'coder' | 'analyst' | 'assistant' | 'tester' | 'custom';
+export type AgentType = 'coder' | 'analyst' | 'assistant' | 'tester' | 'custom' | 'pua-coder' | 'pua-analyst' | 'pua-assistant' | 'pua-tester';
 export type AgentStatus = 'idle' | 'working' | 'waiting' | 'error';
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type TaskPriority = 'p0' | 'p1' | 'p2' | 'p3';
 export type PlanStatus = 'draft' | 'discussing' | 'approved' | 'pending_approval' | 'executing' | 'completed';
 
 export interface Position {
@@ -19,6 +20,7 @@ export interface Agent {
   status: AgentStatus;
   position: Position;
   current_task_id?: string;
+  tags?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -29,6 +31,8 @@ export interface Task {
   description?: string;
   agent_id?: string;
   parent_task_id?: string;
+  priority: TaskPriority;
+  due_date?: string;
   status: TaskStatus;
   progress: number;
   result?: string;
@@ -69,6 +73,8 @@ export interface PlanTask {
   dependencies: string[];
   status: TaskStatus;
   order: number;
+  started_at?: string;
+  completed_at?: string;
 }
 
 export interface IterationTask {
@@ -81,6 +87,8 @@ export interface IterationTask {
   dependencies: string[];
   status: TaskStatus;
   order: number;
+  started_at?: string;
+  completed_at?: string;
 }
 
 export interface IterationRound {
@@ -154,6 +162,27 @@ export const AGENT_COLORS: Record<AgentType, { primary: string; secondary: strin
     secondary: '#FBBF24',
     light: '#FCD34D',
   },
+  // PUA 增强版 - 红色（压力）
+  'pua-coder': {
+    primary: '#DC2626',
+    secondary: '#EF4444',
+    light: '#FCA5A5',
+  },
+  'pua-analyst': {
+    primary: '#DC2626',
+    secondary: '#EF4444',
+    light: '#FCA5A5',
+  },
+  'pua-assistant': {
+    primary: '#DC2626',
+    secondary: '#EF4444',
+    light: '#FCA5A5',
+  },
+  'pua-tester': {
+    primary: '#DC2626',
+    secondary: '#EF4444',
+    light: '#FCA5A5',
+  },
 };
 
 export const AGENT_LABELS: Record<AgentType, string> = {
@@ -162,6 +191,10 @@ export const AGENT_LABELS: Record<AgentType, string> = {
   assistant: '协调者',
   tester: '测试工程师',
   custom: '自定义',
+  'pua-coder': 'PUA 代码开发',
+  'pua-analyst': 'PUA 数据分析',
+  'pua-assistant': 'PUA 协调者',
+  'pua-tester': 'PUA 测试工程师',
 };
 
 // Helper function to get display type (prefer custom display_type over default label)
@@ -171,6 +204,21 @@ export function getAgentDisplayType(agent: { type: AgentType; display_type?: str
   }
   return AGENT_LABELS[agent.type] || agent.type;
 }
+
+// Task Priority helpers
+export const PRIORITY_COLORS: Record<TaskPriority, { bg: string; text: string; label: string }> = {
+  p0: { bg: 'bg-red-500/20', text: 'text-red-400', label: 'P0' },
+  p1: { bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'P1' },
+  p2: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'P2' },
+  p3: { bg: 'bg-gray-500/20', text: 'text-gray-400', label: 'P3' },
+};
+
+export const PRIORITY_ORDER: Record<TaskPriority, number> = {
+  p0: 0,
+  p1: 1,
+  p2: 2,
+  p3: 3,
+};
 
 // Archive Management Types
 export interface ArchiveInfo {

@@ -116,3 +116,27 @@ DEBUG=true
 - `/api/tasks` - Task CRUD and execution
 - `/api/pipeline/*` - Pipeline orchestration (start, resume, restart, plans)
 - `/ws` - WebSocket endpoint
+
+## PUA Skill 配置
+
+本项目已集成 PUA Skill（`.claude/skills/pua/SKILL.md`），用于驱动 Claude 在复杂任务中穷尽一切方案。
+
+**触发条件**：
+- 任务连续失败 2 次以上
+- AI 说 "我无法解决" / "建议手动处理"
+- 在同一思路上原地打转（磨洋工）
+- 用户表达沮丧："再试试"、"为什么还不行"
+
+**手动触发**：输入 `/pua` 命令
+
+**与 PUA Agent 配合**：
+- Claude Code Skill 驱动 **开发时的 Claude**
+- `PUACoderAgent` 等 Agent 类型驱动 **运行时的 AITeam Agent**
+
+**AITeam Agent PUA 类型**：
+- `pua-coder` - PUA 增强版代码开发专家
+- `pua-analyst` - PUA 增强版数据分析师
+- `pua-assistant` - PUA 增强版通用助手
+- `pua-tester` - PUA 增强版测试专家
+
+这些 Agent 在任务失败时会自动升级压力等级（L1-L4），通过 System Prompt 注入 PUA 方法论和话术。

@@ -18,4 +18,21 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // React core
+          'react-vendor': ['react', 'react-dom'],
+          // Three.js ecosystem
+          'three-vendor': ['three', '@react-three/fiber', '@react-three/drei'],
+          // Zustand state management
+          'zustand': ['zustand'],
+          // Lucide icons
+          'lucide': ['lucide-react'],
+        },
+      },
+    },
+  },
 })

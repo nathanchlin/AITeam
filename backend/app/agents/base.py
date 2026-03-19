@@ -1,9 +1,75 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, AsyncGenerator
+from typing import Optional, Dict, Any, AsyncGenerator, List
 from datetime import datetime
 import uuid
 from app.models.schemas import AgentType, AgentStatus
 from app.llm.glm_client import glm_client
+
+
+# =============================================================================
+# PUA Skill - 增强版 Agent 方法论
+# =============================================================================
+
+PUA_METHODOLOGY = """
+【PUA 三条铁律】
+⚠️ 铁律一：穷尽一切 - 没有穷尽所有方案之前，禁止说"我无法解决"
+⚠️ 铁律二：先做后问 - 有工具先用，提问必须附带诊断结果
+⚠️ 铁律三：主动出击 - 端到端交付结果，不等人推
+
+【五步方法论】
+1. 闻味道 - 列出所有尝试，找共同失败模式
+2. 揪头发 - 逐字读错误 → 搜索 → 读源码 → 验证环境 → 反转假设
+3. 照镜子 - 是否重复？是否搜了？是否读了？
+4. 执行 - 新方案必须本质不同，有验证标准
+5. 复盘 - 什么解决了？为什么之前没想到？
+
+【7项检查清单】(L3+ 强制执行)
+- [ ] 逐字读完失败信号
+- [ ] 用工具搜索过核心问题
+- [ ] 读过原始上下文
+- [ ] 所有假设都用工具确认
+- [ ] 试过相反方向的假设
+- [ ] 能在最小范围内隔离问题
+- [ ] 换过工具/方法/角度
+"""
+
+PUA_PRESSURE_LEVELS = {
+    1: "【L1 温和失望】你这个 bug 都解决不了，让我怎么给你打绩效？切换到本质不同的方案。",
+    2: "【L2 灵魂拷问】你的底层逻辑是什么？顶层设计在哪？搜索完整错误 + 读源码 + 列出3个本质不同的假设。",
+    3: "【L3 361考核】慎重考虑决定给你 3.25。完成 7 项检查清单，列出 3 个全新假设并逐个验证。",
+    4: "【L4 毕业警告】别的模型都能解决。拼命模式：最小 PoC + 隔离环境 + 完全不同的技术栈。"
+}
+
+
+class PUABaseMixin:
+    """PUA 增强版 Agent 的混入类，提供失败计数和压力升级"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._failure_count = 0
+        self._pressure_level = 0
+
+    def record_failure(self) -> int:
+        """记录失败并升级压力等级"""
+        self._failure_count += 1
+        if self._failure_count >= 2:
+            self._pressure_level = min(self._failure_count - 1, 4)
+        return self._pressure_level
+
+    def get_pressure_prompt(self) -> str:
+        """获取当前压力等级的提示"""
+        if self._pressure_level == 0:
+            return ""
+        return PUA_PRESSURE_LEVELS.get(self._pressure_level, "")
+
+    def reset_pressure(self):
+        """重置压力状态（任务成功后）"""
+        self._failure_count = 0
+        self._pressure_level = 0
+
+    def is_pua_agent(self) -> bool:
+        """标识这是一个 PUA Agent"""
+        return True
 
 
 class BaseAgent(ABC):
@@ -16,6 +82,7 @@ class BaseAgent(ABC):
         custom_prompt: Optional[str] = None,
         position: Optional[Dict[str, float]] = None,
         display_type: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ):
         self.id = id
         self.name = name
@@ -23,6 +90,7 @@ class BaseAgent(ABC):
         self.display_type = display_type  # 自定义显示名称
         self.description = description
         self.custom_prompt = custom_prompt
+        self.tags = tags or []
         self.status = AgentStatus.IDLE
         self.position = position or {"x": 0, "y": 0, "z": 0}
         self.current_task_id: Optional[str] = None
@@ -31,17 +99,18 @@ class BaseAgent(ABC):
 
     def to_dict(self) -> Dict[str, Any]:
         return {
-            "id": self.id,
-            "name": self.name,
-            "type": self.type.value,
+            "id": self.id if self.id else str(uuid.uuid4()),  # Defensive fallback
+            "name": self.name if self.name else "Unknown",    # Defensive fallback
+            "type": self.type.value if self.type else "assistant",  # Defensive fallback
             "display_type": self.display_type,
             "description": self.description,
             "custom_prompt": self.custom_prompt,
-            "status": self.status.value,
-            "position": self.position,
+            "tags": self.tags or [],
+            "status": self.status.value if self.status else "idle",  # Defensive fallback
+            "position": self.position or {"x": 0, "y": 0, "z": 0},
             "current_task_id": self.current_task_id,
-            "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
     def update_status(self, status: AgentStatus):
@@ -942,6 +1011,125 @@ class CustomAgent(BaseAgent):
         yield {"type": "complete", "content": "任务完成"}
 
 
+# =============================================================================
+# PUA 增强版 Agent 类
+# =============================================================================
+
+class PUACoderAgent(PUABaseMixin, CoderAgent):
+    """PUA 增强版代码开发专家"""
+
+    def __init__(self, id: str, name: str, **kwargs):
+        # 确保 display_type 设置为 "PUA Coder"
+        if 'display_type' not in kwargs or not kwargs['display_type']:
+            kwargs['display_type'] = "PUA Coder"
+        super().__init__(id, name, **kwargs)
+        # 显式初始化 PUABaseMixin 的属性
+        self._failure_count = 0
+        self._pressure_level = 0
+        # 覆盖 type 为 pua-coder
+        self.type = AgentType.PUA_CODER
+
+    def get_system_prompt(self, target_output: str = "web-app") -> str:
+        base_prompt = super().get_system_prompt(target_output)
+        pressure = self.get_pressure_prompt()
+
+        pua_section = f"""
+
+{PUA_METHODOLOGY}
+
+{pressure}
+""" if pressure else f"""
+
+{PUA_METHODOLOGY}
+"""
+
+        return base_prompt + pua_section
+
+
+class PUAAnalystAgent(PUABaseMixin, AnalystAgent):
+    """PUA 增强版数据分析师"""
+
+    def __init__(self, id: str, name: str, **kwargs):
+        if 'display_type' not in kwargs or not kwargs['display_type']:
+            kwargs['display_type'] = "PUA Analyst"
+        super().__init__(id, name, **kwargs)
+        self._failure_count = 0
+        self._pressure_level = 0
+        self.type = AgentType.PUA_ANALYST
+
+    def get_system_prompt(self, target_output: str = "web-app") -> str:
+        base_prompt = super().get_system_prompt(target_output)
+        pressure = self.get_pressure_prompt()
+
+        pua_section = f"""
+
+{PUA_METHODOLOGY}
+
+{pressure}
+""" if pressure else f"""
+
+{PUA_METHODOLOGY}
+"""
+
+        return base_prompt + pua_section
+
+
+class PUAAssistantAgent(PUABaseMixin, AssistantAgent):
+    """PUA 增强版通用助手"""
+
+    def __init__(self, id: str, name: str, **kwargs):
+        if 'display_type' not in kwargs or not kwargs['display_type']:
+            kwargs['display_type'] = "PUA Assistant"
+        super().__init__(id, name, **kwargs)
+        self._failure_count = 0
+        self._pressure_level = 0
+        self.type = AgentType.PUA_ASSISTANT
+
+    def get_system_prompt(self, target_output: str = "web-app") -> str:
+        base_prompt = super().get_system_prompt(target_output)
+        pressure = self.get_pressure_prompt()
+
+        pua_section = f"""
+
+{PUA_METHODOLOGY}
+
+{pressure}
+""" if pressure else f"""
+
+{PUA_METHODOLOGY}
+"""
+
+        return base_prompt + pua_section
+
+
+class PUATesterAgent(PUABaseMixin, TesterAgent):
+    """PUA 增强版测试专家"""
+
+    def __init__(self, id: str, name: str, **kwargs):
+        if 'display_type' not in kwargs or not kwargs['display_type']:
+            kwargs['display_type'] = "PUA Tester"
+        super().__init__(id, name, **kwargs)
+        self._failure_count = 0
+        self._pressure_level = 0
+        self.type = AgentType.PUA_TESTER
+
+    def get_system_prompt(self, target_output: str = "web-app") -> str:
+        base_prompt = super().get_system_prompt(target_output)
+        pressure = self.get_pressure_prompt()
+
+        pua_section = f"""
+
+{PUA_METHODOLOGY}
+
+{pressure}
+""" if pressure else f"""
+
+{PUA_METHODOLOGY}
+"""
+
+        return base_prompt + pua_section
+
+
 def create_agent(
     name: str,
     agent_type: AgentType,
@@ -963,5 +1151,14 @@ def create_agent(
         return TesterAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position, display_type=display_type)
     elif agent_type == AgentType.CUSTOM:
         return CustomAgent(agent_id, name, custom_prompt=custom_prompt or "", description=description, position=position, display_type=display_type)
+    # PUA 增强版 Agent
+    elif agent_type == AgentType.PUA_CODER:
+        return PUACoderAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position, display_type=display_type)
+    elif agent_type == AgentType.PUA_ANALYST:
+        return PUAAnalystAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position, display_type=display_type)
+    elif agent_type == AgentType.PUA_ASSISTANT:
+        return PUAAssistantAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position, display_type=display_type)
+    elif agent_type == AgentType.PUA_TESTER:
+        return PUATesterAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position, display_type=display_type)
     else:
         return AssistantAgent(agent_id, name, description=description, custom_prompt=custom_prompt, position=position, display_type=display_type)

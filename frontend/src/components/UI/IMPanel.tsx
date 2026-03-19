@@ -17,6 +17,7 @@ export function IMPanel({ onClose }: IMPanelProps) {
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [selectedChatType, setSelectedChatType] = useState<'private' | 'group'>('private');
   const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const { agents, groupChats } = useAgentStore();
 
@@ -62,7 +63,7 @@ export function IMPanel({ onClose }: IMPanelProps) {
       <div className="w-[80px] bg-gray-800/95 backdrop-blur rounded-l-lg border border-r-0 border-gray-700 flex flex-col items-center py-4 gap-2">
         <button
           onClick={() => setActiveView('messages')}
-          className={`w-14 h-14 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors ${
+          className={`w-14 h-14 rounded-lg flex flex-col items-center justify-center gap-1 transition-colors relative ${
             activeView === 'messages'
               ? 'bg-blue-600 text-white'
               : 'text-gray-400 hover:bg-gray-700 hover:text-white'
@@ -71,6 +72,13 @@ export function IMPanel({ onClose }: IMPanelProps) {
         >
           <MessageCircle size={20} />
           <span className="text-xs">消息</span>
+          <kbd className="absolute bottom-0.5 right-0.5 px-1 text-[8px] bg-gray-800/80 rounded text-gray-500">G</kbd>
+          {/* Unread badge on button */}
+          {unreadCount > 0 && activeView !== 'messages' && (
+            <span className="absolute top-1 right-1 min-w-[16px] h-[16px] px-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </button>
 
         <button
@@ -121,6 +129,7 @@ export function IMPanel({ onClose }: IMPanelProps) {
                   onSelectChat={handleSelectChat}
                   showCreateGroup={showCreateGroup}
                   onCloseCreateGroup={() => setShowCreateGroup(false)}
+                  onUnreadCountChange={setUnreadCount}
                 />
               </div>
             </div>

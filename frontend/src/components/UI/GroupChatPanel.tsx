@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { GroupChat } from '../../types';
 import { X, Send, Plus, Paperclip, MessageCircle, Users, Clock, FileText, UserPlus } from 'lucide-react';
+import { useAutoResize } from '../../hooks/useAutoResize';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
@@ -26,6 +27,7 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
   const [newChatDescription, setNewChatDescription] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useAutoResize({ value: message, minHeight: 40, maxHeight: 200 });
 
   // Agent multi-select for creating group chat
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
@@ -252,7 +254,7 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
                       className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
                       style={{ backgroundColor: getUserAvatarColor(chat.name) }}
                     >
-                      {chat.name.charAt(0).toUpperCase()}
+                      {(chat.name || '?').charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
@@ -337,7 +339,7 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
                             className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0"
                             style={{ backgroundColor: getAgentColor(agent.type) }}
                           >
-                            {agent.name.charAt(0)}
+                            {(agent.name || '?').charAt(0)}
                           </div>
                           <span className="text-white text-sm truncate">{agent.name}</span>
                           <span className="text-gray-400 text-xs">({agent.type})</span>
@@ -391,7 +393,7 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
               className="w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-sm"
               style={{ backgroundColor: getUserAvatarColor(currentChat.name) }}
             >
-              {currentChat.name.charAt(0).toUpperCase()}
+              {(currentChat.name || '?').charAt(0).toUpperCase()}
             </div>
             <div>
               <h3 className="text-white text-sm font-bold">{currentChat.name}</h3>
@@ -408,6 +410,44 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
           >
             <UserPlus size={16} />
           </button>
+        </div>
+
+        {/* Member Status Row */}
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {currentChat.members.slice(0, 8).map((member) => {
+            const agent = agents.find(a => a.id === member.id);
+            const status = agent?.status || 'idle';
+            const statusDotColor = status === 'working' ? '#22C55E' :
+                                   status === 'error' ? '#EF4444' :
+                                   status === 'waiting' ? '#EAB308' : '#9CA3AF';
+            const statusText = status === 'working' ? '工作中' :
+                              status === 'error' ? '错误' :
+                              status === 'waiting' ? '等待中' : '在线';
+
+            return (
+              <div
+                key={member.id}
+                className="flex items-center gap-1 px-2 py-0.5 bg-gray-700/50 rounded-full"
+                title={`${member.name}: ${statusText}`}
+              >
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold"
+                  style={{ backgroundColor: member.avatar_color || '#6B7280' }}
+                >
+                  {(member.name || '?').charAt(0).toUpperCase()}
+                </div>
+                <span
+                  className={`w-2 h-2 rounded-full ${status === 'working' ? 'animate-pulse' : ''}`}
+                  style={{ backgroundColor: statusDotColor }}
+                />
+              </div>
+            );
+          })}
+          {currentChat.members.length > 8 && (
+            <span className="text-xs text-gray-500 self-center">
+              +{currentChat.members.length - 8}
+            </span>
+          )}
         </div>
       </div>
 
@@ -505,12 +545,13 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
             </label>
           </div>
           <textarea
+            ref={textareaRef}
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="输入消息... (Enter 发送)"
-            className="flex-1 px-3 py-2 bg-gray-700 rounded-lg text-white text-sm border border-gray-600 focus:border-blue-500 focus:outline-none resize-none"
-            rows={2}
+            className="flex-1 px-3 py-2 bg-gray-700 rounded-lg text-white text-sm border border-gray-600 focus:border-blue-500 focus:outline-none resize-none overflow-y-auto"
+            style={{ minHeight: '40px', maxHeight: '200px' }}
             disabled={sending}
           />
           <button
@@ -558,7 +599,7 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
                             className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs flex-shrink-0"
                             style={{ backgroundColor: getAgentColor(agent.type) }}
                           >
-                            {agent.name.charAt(0)}
+                            {(agent.name || '?').charAt(0)}
                           </div>
                           <span className="text-white text-sm truncate">{agent.name}</span>
                           <span className="text-gray-400 text-xs">({agent.type})</span>

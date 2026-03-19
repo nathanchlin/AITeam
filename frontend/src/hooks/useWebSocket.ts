@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useAgentStore } from '../stores/agentStore';
+import { useToast } from '../components/common/Toast';
 
 // Production: use VITE_API_BASE_URL env var
 // Development: use empty string to let Vite proxy handle requests
@@ -15,7 +16,9 @@ const WS_URL = API_BASE
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const wasConnectedRef = useRef(false); // Track if we were ever connected (for toast)
   const { setWsConnected, handleWebSocketMessage, currentPlanId, updatePlan } = useAgentStore();
+  const toast = useToast();
 
   // Sync current plan state from server (called on WebSocket reconnect)
   const syncCurrentPlan = useCallback(async () => {
@@ -45,6 +48,13 @@ export function useWebSocket() {
     ws.onopen = () => {
       console.log('[WS] Connected successfully');
       setWsConnected(true);
+
+      // Show reconnection toast if this is a reconnect
+      if (wasConnectedRef.current) {
+        toast.success('WebSocket reconnected');
+      }
+      wasConnectedRef.current = true;
+
       // Sync current plan state on reconnect
       syncCurrentPlan();
     };
@@ -52,6 +62,11 @@ export function useWebSocket() {
     ws.onclose = () => {
       console.log('WebSocket disconnected');
       setWsConnected(false);
+
+      // Show disconnection toast (only if we were previously connected)
+      if (wasConnectedRef.current) {
+        toast.warning('WebSocket disconnected, reconnecting...');
+      }
 
       // Attempt to reconnect after 3 seconds
       reconnectTimeoutRef.current = window.setTimeout(() => {

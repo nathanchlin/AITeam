@@ -21,11 +21,20 @@ class AgentManager:
                 with open(self.data_file, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     for agent_data in data.get('agents', []):
+                        # Validate required fields before loading
+                        if not agent_data.get('id'):
+                            print(f"[AgentManager] Warning: Agent missing id: {agent_data.get('name', 'Unknown')}")
+                            continue  # Skip invalid agent
+                        if not agent_data.get('name'):
+                            print(f"[AgentManager] Warning: Agent missing name: {agent_data.get('id', 'Unknown')}")
+                            agent_data['name'] = 'Unknown'  # Provide default
+
                         # Convert string type back to AgentType enum
                         agent_type_str = agent_data.get('type', 'assistant')
                         try:
                             agent_type = AgentType(agent_type_str)
                         except ValueError:
+                            print(f"[AgentManager] Warning: Unknown agent type '{agent_type_str}' for agent {agent_data.get('id')}, using CUSTOM")
                             agent_type = AgentType.CUSTOM
 
                         agent = create_agent(
@@ -105,6 +114,7 @@ class AgentManager:
         position: Optional[Dict[str, float]] = None,
         status: Optional[AgentStatus] = None,
         display_type: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> Optional[BaseAgent]:
         agent = self.agents.get(agent_id)
         if not agent:
@@ -122,6 +132,8 @@ class AgentManager:
             agent.status = status
         if display_type is not None:
             agent.display_type = display_type
+        if tags is not None:
+            agent.tags = tags
 
         agent.updated_at = datetime.utcnow()
         self._save_agents()  # Persist after update
