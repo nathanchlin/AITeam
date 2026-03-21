@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { QueueStatus } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
-import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square, ArrowUp, ArrowDown, Search, ChevronLeft, FileText, Clock } from 'lucide-react';
+import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square, ArrowUp, ArrowDown, Search, ChevronLeft, FileText, Clock, Wrench } from 'lucide-react';
 import { ArchivePanel } from './ArchivePanel';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
@@ -68,6 +68,8 @@ export function PipelinePanel() {
   const [taskSortAsc, setTaskSortAsc] = useState(true);
   const [taskSearchQuery, setTaskSearchQuery] = useState('');
   const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'completed' | 'running' | 'pending'>('all');
+  const [isFixingHtml, setIsFixingHtml] = useState(false);
+  const [fixResult, setFixResult] = useState<{ success: boolean; fixes_count: number; message?: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -730,6 +732,46 @@ export function PipelinePanel() {
     navigator.clipboard.writeText(text);
     setCopiedUrl(true);
     setTimeout(() => setCopiedUrl(false), 2000);
+  };
+
+  // Fix HTML syntax errors
+  const handleFixHtml = async () => {
+    if (!currentPlanId || isFixingHtml) return;
+
+    setIsFixingHtml(true);
+    setFixResult(null);
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/pipeline/output/${currentPlanId}/fix-html?file_path=index.html`,
+        { method: 'POST' }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      setFixResult({
+        success: data.success,
+        fixes_count: data.fix_result?.fixes_count || 0,
+        message: data.fix_result?.diff_summary,
+      });
+
+      // Auto-hide success message after 3 seconds
+      if (data.success) {
+        setTimeout(() => setFixResult(null), 3000);
+      }
+    } catch (error) {
+      console.error('Fix HTML error:', error);
+      setFixResult({
+        success: false,
+        fixes_count: 0,
+        message: '修复失败，请检查网络连接',
+      });
+    } finally {
+      setIsFixingHtml(false);
+    }
   };
 
   // Export current plan to Markdown
@@ -1689,6 +1731,33 @@ export function PipelinePanel() {
                     {/* Web app buttons */}
                     {currentPlan.target_output !== 'godot-game' && (
                       <>
+                        {/* Fix HTML Button */}
+                        {(currentPlan.target_output === 'web-app' || currentPlan.target_output === 'ts-app') && (
+                          <button
+                            onClick={handleFixHtml}
+                            disabled={isFixingHtml}
+                            className={`px-3 py-2 rounded transition-colors flex items-center gap-2 text-sm ${
+                              isFixingHtml
+                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                : fixResult?.success
+                                  ? 'bg-green-600/30 text-green-300 hover:bg-green-600/50'
+                                  : 'bg-orange-600/30 text-orange-300 hover:bg-orange-600/50'
+                            }`}
+                            title="修复 LLM 生成代码中常见的语法错误（如缺少空格）"
+                          >
+                            {isFixingHtml ? (
+                              <>
+                                <Loader2 size={14} className="animate-spin" />
+                                修复中...
+                              </>
+                            ) : (
+                              <>
+                                <Wrench size={14} />
+                                {fixResult ? `已修复 ${fixResult.fixes_count} 处` : '修复代码'}
+                              </>
+                            )}
+                          </button>
+                        )}
                         {archives.length > 0 && (
                           <button
                             onClick={() => setShowArchivePanel(true)}
