@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse
 from typing import List, Optional
 import os
+import shutil
 from app.models.schemas import (
     PipelineRequest,
     IterationRequest,
@@ -459,14 +460,31 @@ async def fix_output_html(plan_id: str, file_path: str = "index.html"):
     if filepath != output_root and not filepath.startswith(output_root + os.sep):
         raise HTTPException(status_code=400, detail="Invalid file path")
 
+    # If index.html doesn't exist, try to fix the invalid candidate
+    if not os.path.exists(filepath) and file_path == "index.html":
+        invalid_candidate = os.path.join(output_dir, "index.invalid.candidate.html")
+        if os.path.exists(invalid_candidate):
+            filepath = invalid_candidate
+
     if not os.path.exists(filepath):
-        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"文件不存在: {file_path}。请先生成代码。"
+        )
 
     if not filepath.endswith('.html'):
-        raise HTTPException(status_code=400, detail="Only HTML files can be fixed")
+        raise HTTPException(status_code=400, detail="只能修复 HTML 文件")
 
     try:
         result = fix_html_file(filepath, backup=True)
+
+        # If we fixed the invalid candidate, always copy it to index.html
+        # (whether or not there were changes - the file should be usable now)
+        if "invalid.candidate" in filepath:
+            index_path = os.path.join(output_dir, "index.html")
+            shutil.copy2(filepath, index_path)
+            print(f"[fix-html] Copied fixed candidate to {index_path}")
+
         return {
             "success": True,
             "plan_id": plan_id,
@@ -476,7 +494,7 @@ async def fix_output_html(plan_id: str, file_path: str = "index.html"):
     except Exception as e:
         import traceback
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to fix HTML: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"修复失败: {str(e)}")
 
 
 @router.get("/output/{plan_id}/preview")
