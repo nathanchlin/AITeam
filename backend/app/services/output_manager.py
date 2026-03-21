@@ -12,6 +12,7 @@ import difflib
 
 from app.services.web_output_validator import web_output_validator
 from app.services.ts_builder import ts_builder
+from app.utils.html_fixer import html_fixer
 
 
 def _default_output_dir() -> str:
@@ -393,6 +394,14 @@ class OutputManager:
             raise ValueError("未能从 coder 输出中提取完整 HTML")
 
         html_code, repair_notes = self._repair_html_comment_code_mix(html_code)
+
+        # Apply LLM syntax fixes (missing spaces in CSS/JS)
+        fix_result = html_fixer.fix(html_code)
+        if fix_result.has_changes:
+            html_code = fix_result.fixed_content
+            for fix in fix_result.fixes_applied:
+                repair_notes.append(f"[自动修复] {fix['category']}: {fix['type']}")
+            print(f"[OutputManager] HTML fixer applied {len(fix_result.fixes_applied)} fixes")
 
         validation = self.web_validator.validate_html_output(
             html_code,
@@ -1021,6 +1030,14 @@ class OutputManager:
 
         html_content, comment_code_repairs = self._repair_html_comment_code_mix(html_content)
         issues.extend(comment_code_repairs)
+
+        # Apply LLM syntax fixes (missing spaces in CSS/JS)
+        fix_result = html_fixer.fix(html_content)
+        if fix_result.has_changes:
+            html_content = fix_result.fixed_content
+            for fix in fix_result.fixes_applied:
+                issues.append(f"[自动修复] {fix['category']}: {fix['type']}")
+            print(f"[OutputManager] HTML fixer applied {len(fix_result.fixes_applied)} fixes in _validate_and_fix_html")
 
         # Check for external file references that don't exist
         external_js = re.findall(r'<script\s+src=["\']([^"\']+\.js)["\']', html_content)

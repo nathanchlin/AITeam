@@ -426,6 +426,59 @@ async def get_output_file(plan_id: str, file_path: str):
     return FileResponse(filepath)
 
 
+@router.post("/output/{plan_id}/fix-html")
+async def fix_output_html(plan_id: str, file_path: str = "index.html"):
+    """Fix common syntax errors in LLM-generated HTML files.
+
+    This endpoint automatically fixes issues like:
+    - Missing spaces in CSS (padding:14px0 → padding:14px 0)
+    - Missing spaces in SVG viewBox (viewBox='00512512' → viewBox='0 0 512 512')
+    - Missing spaces in JS switch cases (case0: → case 0:)
+    - Merged font declarations ('20052px' → '200 52px')
+
+    Args:
+        plan_id: The plan ID (first 8 chars used for directory)
+        file_path: The HTML file to fix (default: index.html)
+
+    Returns:
+        Fix result with details of what was changed
+    """
+    from app.utils.html_fixer import fix_html_file
+
+    try:
+        output_dir = output_manager.get_output_path(plan_id)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Output path error: {str(e)}")
+
+    requested_path = os.path.normpath(file_path).lstrip("/")
+    if requested_path.startswith(".."):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    filepath = os.path.abspath(os.path.join(output_dir, requested_path))
+    output_root = os.path.abspath(output_dir)
+    if filepath != output_root and not filepath.startswith(output_root + os.sep):
+        raise HTTPException(status_code=400, detail="Invalid file path")
+
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail=f"File not found: {file_path}")
+
+    if not filepath.endswith('.html'):
+        raise HTTPException(status_code=400, detail="Only HTML files can be fixed")
+
+    try:
+        result = fix_html_file(filepath, backup=True)
+        return {
+            "success": True,
+            "plan_id": plan_id,
+            "file_path": file_path,
+            "fix_result": result.to_dict()
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to fix HTML: {str(e)}")
+
+
 @router.get("/output/{plan_id}/preview")
 async def get_output_preview(plan_id: str):
     """Get preview URL for the generated output."""
