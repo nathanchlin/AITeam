@@ -749,7 +749,13 @@ export function PipelinePanel() {
     if (!currentPlanId || isFixingHtml) return;
 
     setIsFixingHtml(true);
-    setFixResult(null);
+    // Show initial analyzing state
+    setFixResult({
+      success: true,
+      fixes_count: 0,
+      message: '正在分析代码...',
+      fixes: [],
+    });
 
     try {
       const response = await fetch(
@@ -758,14 +764,15 @@ export function PipelinePanel() {
       );
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
       }
 
       const data = await response.json();
       setFixResult({
         success: data.success,
         fixes_count: data.fix_result?.fixes_count || 0,
-        message: data.fix_result?.diff_summary,
+        message: data.fix_result?.diff_summary || (data.fix_result?.fixes_count > 0 ? '修复完成' : '代码检查通过'),
         fixes: data.fix_result?.fixes || [],
       });
     } catch (error) {
@@ -773,7 +780,8 @@ export function PipelinePanel() {
       setFixResult({
         success: false,
         fixes_count: 0,
-        message: '修复失败，请检查网络连接',
+        message: `修复失败: ${error instanceof Error ? error.message : '未知错误'}`,
+        fixes: [],
       });
     } finally {
       setIsFixingHtml(false);
@@ -1760,15 +1768,24 @@ export function PipelinePanel() {
                               ) : (
                                 <>
                                   <Wrench size={14} />
-                                  {fixResult ? `已修复 ${fixResult.fixes_count} 处` : '修复代码'}
+                                  {fixResult
+                                    ? fixResult.fixes_count > 0
+                                      ? `已修复 ${fixResult.fixes_count} 处`
+                                      : '检查完成'
+                                    : '修复代码'}
                                 </>
                               )}
                             </button>
-                            {/* Fix details dropdown */}
-                            {fixResult && fixResult.fixes && fixResult.fixes.length > 0 && (
-                              <div className="absolute top-full left-0 mt-2 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 overflow-hidden">
+                            {/* Fix details dropdown - show even when 0 fixes */}
+                            {fixResult && (
+                              <div className="absolute top-full left-0 mt-2 w-96 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 overflow-hidden">
                                 <div className="px-3 py-2 bg-gray-700/50 border-b border-gray-600 flex items-center justify-between">
-                                  <span className="text-xs font-medium text-gray-300">修复详情 ({fixResult.fixes_count} 处)</span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm">🔧</span>
+                                    <span className="text-xs font-medium text-gray-300">
+                                      HTML Fixer 修复报告
+                                    </span>
+                                  </div>
                                   <button
                                     onClick={() => setFixResult(null)}
                                     className="text-gray-400 hover:text-white"
@@ -1776,29 +1793,73 @@ export function PipelinePanel() {
                                     <X size={14} />
                                   </button>
                                 </div>
-                                <div className="max-h-60 overflow-y-auto">
-                                  {fixResult.fixes.map((fix, idx) => (
-                                    <div key={idx} className="px-3 py-2 border-b border-gray-700/50 last:border-0">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                          fix.category === 'css' ? 'bg-blue-500/20 text-blue-300' :
-                                          fix.category === 'javascript' ? 'bg-yellow-500/20 text-yellow-300' :
-                                          'bg-purple-500/20 text-purple-300'
-                                        }`}>
-                                          {fix.category}
+
+                                {/* Status summary */}
+                                <div className={`px-3 py-2 ${fixResult.fixes_count > 0 ? 'bg-green-500/10' : 'bg-blue-500/10'}`}>
+                                  <div className="flex items-center gap-2">
+                                    {fixResult.fixes_count > 0 ? (
+                                      <>
+                                        <CheckCircle size={14} className="text-green-400" />
+                                        <span className="text-xs text-green-300">
+                                          已修复 {fixResult.fixes_count} 处语法错误
                                         </span>
-                                        <span className="text-xs text-gray-400">{fix.type}</span>
-                                      </div>
-                                      <div className="text-xs font-mono">
-                                        <div className="text-red-400 line-through opacity-70 truncate" title={fix.original}>
-                                          - {fix.original}
-                                        </div>
-                                        <div className="text-green-400 truncate" title={fix.fixed}>
-                                          + {fix.fixed}
-                                        </div>
-                                      </div>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <CheckCircle size={14} className="text-blue-400" />
+                                        <span className="text-xs text-blue-300">
+                                          检测完成，未发现需要修复的语法错误
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                  {fixResult.message && (
+                                    <div className="text-xs text-gray-400 mt-1">
+                                      {fixResult.message}
                                     </div>
-                                  ))}
+                                  )}
+                                </div>
+
+                                {/* Fix details */}
+                                {fixResult.fixes && fixResult.fixes.length > 0 && (
+                                  <div className="max-h-60 overflow-y-auto">
+                                    <div className="px-3 py-1.5 bg-gray-700/30 text-xs text-gray-400 border-b border-gray-700/50">
+                                      修复详情
+                                    </div>
+                                    {fixResult.fixes.map((fix, idx) => (
+                                      <div key={idx} className="px-3 py-2 border-b border-gray-700/50 last:border-0">
+                                        <div className="flex items-center gap-2 mb-1">
+                                          <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                            fix.category === 'css' ? 'bg-blue-500/20 text-blue-300' :
+                                            fix.category === 'javascript' ? 'bg-yellow-500/20 text-yellow-300' :
+                                            fix.category === 'svg' ? 'bg-purple-500/20 text-purple-300' :
+                                            'bg-gray-500/20 text-gray-300'
+                                          }`}>
+                                            {fix.category}
+                                          </span>
+                                          <span className="text-xs text-gray-400">{fix.type}</span>
+                                        </div>
+                                        <div className="text-xs font-mono bg-gray-900/50 rounded p-1.5">
+                                          <div className="text-red-400 line-through opacity-70 truncate" title={fix.original}>
+                                            - {fix.original}
+                                          </div>
+                                          <div className="text-green-400 truncate" title={fix.fixed}>
+                                            + {fix.fixed}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
+                                {/* Footer */}
+                                <div className="px-3 py-2 bg-gray-700/20 border-t border-gray-700/50 flex justify-between items-center">
+                                  <span className="text-xs text-gray-500">
+                                    修复器版本 v1.0
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    文件: index.html
+                                  </span>
                                 </div>
                               </div>
                             )}
