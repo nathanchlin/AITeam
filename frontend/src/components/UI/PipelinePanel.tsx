@@ -69,7 +69,17 @@ export function PipelinePanel() {
   const [taskSearchQuery, setTaskSearchQuery] = useState('');
   const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'completed' | 'running' | 'pending'>('all');
   const [isFixingHtml, setIsFixingHtml] = useState(false);
-  const [fixResult, setFixResult] = useState<{ success: boolean; fixes_count: number; message?: string } | null>(null);
+  const [fixResult, setFixResult] = useState<{
+    success: boolean;
+    fixes_count: number;
+    message?: string;
+    fixes?: Array<{
+      category: string;
+      type: string;
+      original: string;
+      fixed: string;
+    }>;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -756,12 +766,8 @@ export function PipelinePanel() {
         success: data.success,
         fixes_count: data.fix_result?.fixes_count || 0,
         message: data.fix_result?.diff_summary,
+        fixes: data.fix_result?.fixes || [],
       });
-
-      // Auto-hide success message after 3 seconds
-      if (data.success) {
-        setTimeout(() => setFixResult(null), 3000);
-      }
     } catch (error) {
       console.error('Fix HTML error:', error);
       setFixResult({
@@ -1733,30 +1739,70 @@ export function PipelinePanel() {
                       <>
                         {/* Fix HTML Button */}
                         {(currentPlan.target_output === 'web-app' || currentPlan.target_output === 'ts-app') && (
-                          <button
-                            onClick={handleFixHtml}
-                            disabled={isFixingHtml}
-                            className={`px-3 py-2 rounded transition-colors flex items-center gap-2 text-sm ${
-                              isFixingHtml
-                                ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                                : fixResult?.success
-                                  ? 'bg-green-600/30 text-green-300 hover:bg-green-600/50'
-                                  : 'bg-orange-600/30 text-orange-300 hover:bg-orange-600/50'
-                            }`}
-                            title="修复 LLM 生成代码中常见的语法错误（如缺少空格）"
-                          >
-                            {isFixingHtml ? (
-                              <>
-                                <Loader2 size={14} className="animate-spin" />
-                                修复中...
-                              </>
-                            ) : (
-                              <>
-                                <Wrench size={14} />
-                                {fixResult ? `已修复 ${fixResult.fixes_count} 处` : '修复代码'}
-                              </>
+                          <div className="relative">
+                            <button
+                              onClick={handleFixHtml}
+                              disabled={isFixingHtml}
+                              className={`px-3 py-2 rounded transition-colors flex items-center gap-2 text-sm ${
+                                isFixingHtml
+                                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                                  : fixResult?.success
+                                    ? 'bg-green-600/30 text-green-300 hover:bg-green-600/50'
+                                    : 'bg-orange-600/30 text-orange-300 hover:bg-orange-600/50'
+                              }`}
+                              title="修复 LLM 生成代码中常见的语法错误（如缺少空格）"
+                            >
+                              {isFixingHtml ? (
+                                <>
+                                  <Loader2 size={14} className="animate-spin" />
+                                  修复中...
+                                </>
+                              ) : (
+                                <>
+                                  <Wrench size={14} />
+                                  {fixResult ? `已修复 ${fixResult.fixes_count} 处` : '修复代码'}
+                                </>
+                              )}
+                            </button>
+                            {/* Fix details dropdown */}
+                            {fixResult && fixResult.fixes && fixResult.fixes.length > 0 && (
+                              <div className="absolute top-full left-0 mt-2 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 overflow-hidden">
+                                <div className="px-3 py-2 bg-gray-700/50 border-b border-gray-600 flex items-center justify-between">
+                                  <span className="text-xs font-medium text-gray-300">修复详情 ({fixResult.fixes_count} 处)</span>
+                                  <button
+                                    onClick={() => setFixResult(null)}
+                                    className="text-gray-400 hover:text-white"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                                <div className="max-h-60 overflow-y-auto">
+                                  {fixResult.fixes.map((fix, idx) => (
+                                    <div key={idx} className="px-3 py-2 border-b border-gray-700/50 last:border-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                          fix.category === 'css' ? 'bg-blue-500/20 text-blue-300' :
+                                          fix.category === 'javascript' ? 'bg-yellow-500/20 text-yellow-300' :
+                                          'bg-purple-500/20 text-purple-300'
+                                        }`}>
+                                          {fix.category}
+                                        </span>
+                                        <span className="text-xs text-gray-400">{fix.type}</span>
+                                      </div>
+                                      <div className="text-xs font-mono">
+                                        <div className="text-red-400 line-through opacity-70 truncate" title={fix.original}>
+                                          - {fix.original}
+                                        </div>
+                                        <div className="text-green-400 truncate" title={fix.fixed}>
+                                          + {fix.fixed}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
                             )}
-                          </button>
+                          </div>
                         )}
                         {archives.length > 0 && (
                           <button
