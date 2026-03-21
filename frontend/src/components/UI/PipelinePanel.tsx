@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { QueueStatus } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
-import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square, ArrowUp, ArrowDown, Search, ChevronLeft, FileText, Clock, Wrench } from 'lucide-react';
+import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square, ArrowUp, ArrowDown, Search, ChevronLeft, FileText, Clock, Wrench, AlertCircle } from 'lucide-react';
 import { ArchivePanel } from './ArchivePanel';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
@@ -1776,93 +1776,6 @@ export function PipelinePanel() {
                                 </>
                               )}
                             </button>
-                            {/* Fix details dropdown - show even when 0 fixes */}
-                            {fixResult && (
-                              <div className="absolute top-full left-0 mt-2 w-96 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 overflow-hidden">
-                                <div className="px-3 py-2 bg-gray-700/50 border-b border-gray-600 flex items-center justify-between">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-sm">🔧</span>
-                                    <span className="text-xs font-medium text-gray-300">
-                                      HTML Fixer 修复报告
-                                    </span>
-                                  </div>
-                                  <button
-                                    onClick={() => setFixResult(null)}
-                                    className="text-gray-400 hover:text-white"
-                                  >
-                                    <X size={14} />
-                                  </button>
-                                </div>
-
-                                {/* Status summary */}
-                                <div className={`px-3 py-2 ${fixResult.fixes_count > 0 ? 'bg-green-500/10' : 'bg-blue-500/10'}`}>
-                                  <div className="flex items-center gap-2">
-                                    {fixResult.fixes_count > 0 ? (
-                                      <>
-                                        <CheckCircle size={14} className="text-green-400" />
-                                        <span className="text-xs text-green-300">
-                                          已修复 {fixResult.fixes_count} 处语法错误
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <CheckCircle size={14} className="text-blue-400" />
-                                        <span className="text-xs text-blue-300">
-                                          检测完成，未发现需要修复的语法错误
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
-                                  {fixResult.message && (
-                                    <div className="text-xs text-gray-400 mt-1">
-                                      {fixResult.message}
-                                    </div>
-                                  )}
-                                </div>
-
-                                {/* Fix details */}
-                                {fixResult.fixes && fixResult.fixes.length > 0 && (
-                                  <div className="max-h-60 overflow-y-auto">
-                                    <div className="px-3 py-1.5 bg-gray-700/30 text-xs text-gray-400 border-b border-gray-700/50">
-                                      修复详情
-                                    </div>
-                                    {fixResult.fixes.map((fix, idx) => (
-                                      <div key={idx} className="px-3 py-2 border-b border-gray-700/50 last:border-0">
-                                        <div className="flex items-center gap-2 mb-1">
-                                          <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                            fix.category === 'css' ? 'bg-blue-500/20 text-blue-300' :
-                                            fix.category === 'javascript' ? 'bg-yellow-500/20 text-yellow-300' :
-                                            fix.category === 'svg' ? 'bg-purple-500/20 text-purple-300' :
-                                            'bg-gray-500/20 text-gray-300'
-                                          }`}>
-                                            {fix.category}
-                                          </span>
-                                          <span className="text-xs text-gray-400">{fix.type}</span>
-                                        </div>
-                                        <div className="text-xs font-mono bg-gray-900/50 rounded p-1.5">
-                                          <div className="text-red-400 line-through opacity-70 truncate" title={fix.original}>
-                                            - {fix.original}
-                                          </div>
-                                          <div className="text-green-400 truncate" title={fix.fixed}>
-                                            + {fix.fixed}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-
-                                {/* Footer */}
-                                <div className="px-3 py-2 bg-gray-700/20 border-t border-gray-700/50 flex justify-between items-center">
-                                  <span className="text-xs text-gray-500">
-                                    修复器版本 v1.0
-                                  </span>
-                                  <span className="text-xs text-gray-500">
-                                    文件: index.html
-                                  </span>
-                                </div>
-                              </div>
-                            )}
                           </div>
                         )}
                         {archives.length > 0 && (
@@ -1930,6 +1843,85 @@ export function PipelinePanel() {
           <path d="M12 2L2 12M12 7L7 12M12 12L12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
         </svg>
       </div>
+
+      {/* Fix Result Toast - fixed position, doesn't affect layout */}
+      {fixResult && (
+        <div className="fixed bottom-4 right-4 z-[100] w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl overflow-hidden animate-slide-up">
+          <div className="px-3 py-2 bg-gray-700/50 border-b border-gray-600 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm">🔧</span>
+              <span className="text-xs font-medium text-gray-300">HTML Fixer</span>
+            </div>
+            <button
+              onClick={() => setFixResult(null)}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <X size={14} />
+            </button>
+          </div>
+
+          {/* Status summary */}
+          <div className={`px-3 py-3 ${fixResult.fixes_count > 0 ? 'bg-green-500/10' : fixResult.success ? 'bg-blue-500/10' : 'bg-red-500/10'}`}>
+            <div className="flex items-center gap-2">
+              {fixResult.success ? (
+                <CheckCircle size={16} className={fixResult.fixes_count > 0 ? 'text-green-400' : 'text-blue-400'} />
+              ) : (
+                <AlertCircle size={16} className="text-red-400" />
+              )}
+              <span className={`text-sm ${fixResult.fixes_count > 0 ? 'text-green-300' : fixResult.success ? 'text-blue-300' : 'text-red-300'}`}>
+                {fixResult.fixes_count > 0
+                  ? `已修复 ${fixResult.fixes_count} 处语法错误`
+                  : fixResult.success
+                    ? '检测完成，代码语法正确'
+                    : '修复失败'}
+              </span>
+            </div>
+            {fixResult.message && (
+              <div className="text-xs text-gray-400 mt-1.5 pl-6">
+                {fixResult.message}
+              </div>
+            )}
+          </div>
+
+          {/* Fix details - expandable */}
+          {fixResult.fixes && fixResult.fixes.length > 0 && (
+            <div className="max-h-48 overflow-y-auto">
+              <div className="px-3 py-1.5 bg-gray-700/30 text-xs text-gray-400 border-b border-gray-700/50">
+                修复详情
+              </div>
+              {fixResult.fixes.map((fix, idx) => (
+                <div key={idx} className="px-3 py-2 border-b border-gray-700/50 last:border-0 hover:bg-gray-700/30 transition-colors">
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                      fix.category === 'css' ? 'bg-blue-500/20 text-blue-300' :
+                      fix.category === 'javascript' ? 'bg-yellow-500/20 text-yellow-300' :
+                      fix.category === 'svg' ? 'bg-purple-500/20 text-purple-300' :
+                      'bg-gray-500/20 text-gray-300'
+                    }`}>
+                      {fix.category}
+                    </span>
+                    <span className="text-xs text-gray-400">{fix.type}</span>
+                  </div>
+                  <div className="text-xs font-mono bg-gray-900/50 rounded p-2 space-y-1">
+                    <div className="text-red-400/80 line-through truncate" title={fix.original}>
+                      − {fix.original}
+                    </div>
+                    <div className="text-green-400 truncate" title={fix.fixed}>
+                      + {fix.fixed}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Footer */}
+          <div className="px-3 py-2 bg-gray-700/20 border-t border-gray-700/50 flex justify-between items-center text-xs text-gray-500">
+            <span>修复器 v1.0</span>
+            <span>index.html</span>
+          </div>
+        </div>
+      )}
 
       {/* Archive Management Panel */}
       {showArchivePanel && currentPlanId && (
