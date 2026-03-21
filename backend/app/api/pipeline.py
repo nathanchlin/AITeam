@@ -460,11 +460,22 @@ async def fix_output_html(plan_id: str, file_path: str = "index.html"):
     if filepath != output_root and not filepath.startswith(output_root + os.sep):
         raise HTTPException(status_code=400, detail="Invalid file path")
 
-    # If index.html doesn't exist, try to fix the invalid candidate
+    # If index.html doesn't exist, try multiple candidate paths
     if not os.path.exists(filepath) and file_path == "index.html":
-        invalid_candidate = os.path.join(output_dir, "index.invalid.candidate.html")
-        if os.path.exists(invalid_candidate):
-            filepath = invalid_candidate
+        # Try ts_app/index.html for TypeScript projects
+        ts_app_index = os.path.join(output_dir, "ts_app", "index.html")
+        if os.path.exists(ts_app_index):
+            filepath = ts_app_index
+        else:
+            # Try root invalid candidate
+            invalid_candidate = os.path.join(output_dir, "index.invalid.candidate.html")
+            if os.path.exists(invalid_candidate):
+                filepath = invalid_candidate
+            else:
+                # Try ts_app invalid candidate for TypeScript projects
+                ts_invalid = os.path.join(output_dir, "ts_app", "index.invalid.candidate.html")
+                if os.path.exists(ts_invalid):
+                    filepath = ts_invalid
 
     if not os.path.exists(filepath):
         raise HTTPException(
@@ -481,7 +492,11 @@ async def fix_output_html(plan_id: str, file_path: str = "index.html"):
         # If we fixed the invalid candidate, always copy it to index.html
         # (whether or not there were changes - the file should be usable now)
         if "invalid.candidate" in filepath:
-            index_path = os.path.join(output_dir, "index.html")
+            # Determine the correct index.html path based on where the candidate was found
+            if "ts_app" in filepath:
+                index_path = os.path.join(output_dir, "ts_app", "index.html")
+            else:
+                index_path = os.path.join(output_dir, "index.html")
             shutil.copy2(filepath, index_path)
             print(f"[fix-html] Copied fixed candidate to {index_path}")
 
