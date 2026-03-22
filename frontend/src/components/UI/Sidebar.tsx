@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType, type AgentType, type Agent } from '../../types';
-import { Plus, Users, X, Star, ChevronDown, MoreVertical, MessageSquare, Trash2, BarChart2, ClipboardList, Search, Filter, Copy, ExternalLink } from 'lucide-react';
+import { Plus, Users, X, Star, ChevronDown, MoreVertical, MessageSquare, Trash2, BarChart2, ClipboardList, Search, Filter, Copy, ExternalLink, Image } from 'lucide-react';
 import { AgentCardSkeleton } from '../common/Skeleton';
 import { Tooltip } from '../common/Tooltip';
 
 interface SidebarProps {
-  onCreateAgent: (name: string, type: AgentType) => void;
+  onCreateAgent: (name: string, type: AgentType, avatarUrl?: string) => void;
   onCreateTask?: (title: string, agentId?: string) => void;
   onDeleteAgent?: (agentId: string) => void;
   onStartChat?: (agentId: string) => void;
@@ -18,6 +18,7 @@ export function Sidebar({ onCreateAgent, onCreateTask, onDeleteAgent, onStartCha
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newAgentName, setNewAgentName] = useState('');
   const [newAgentType, setNewAgentType] = useState<AgentType>('assistant');
+  const [newAgentAvatarUrl, setNewAgentAvatarUrl] = useState('');
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
   // Favorite agents - persisted to localStorage
@@ -228,8 +229,9 @@ export function Sidebar({ onCreateAgent, onCreateTask, onDeleteAgent, onStartCha
 
   const handleCreate = () => {
     if (newAgentName.trim()) {
-      onCreateAgent(newAgentName.trim(), newAgentType);
+      onCreateAgent(newAgentName.trim(), newAgentType, newAgentAvatarUrl.trim() || undefined);
       setNewAgentName('');
+      setNewAgentAvatarUrl('');
       setShowCreateModal(false);
     }
   };
@@ -563,12 +565,24 @@ export function Sidebar({ onCreateAgent, onCreateTask, onDeleteAgent, onStartCha
                           <div className="flex items-start gap-3">
                             <div className="relative">
                               <div
-                                className="w-8 h-8 rounded-full flex items-center justify-center"
+                                className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden"
                                 style={{ backgroundColor: AGENT_COLORS[agent.type]?.primary || '#6B7280' }}
                               >
-                                <span className="text-white text-xs font-bold">
-                                  {(agent.name || '?').charAt(0).toUpperCase()}
-                                </span>
+                                {agent.avatar_url ? (
+                                  <img
+                                    src={agent.avatar_url}
+                                    alt={agent.name}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      // Fallback to initial on image load error
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                ) : (
+                                  <span className="text-white text-xs font-bold">
+                                    {(agent.name || '?').charAt(0).toUpperCase()}
+                                  </span>
+                                )}
                               </div>
                               {/* Level Badge */}
                               {agentStats[agent.id] && (
@@ -842,6 +856,38 @@ export function Sidebar({ onCreateAgent, onCreateTask, onDeleteAgent, onStartCha
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <label className="text-gray-400 text-sm block mb-1 flex items-center gap-1">
+                  <Image size={12} />
+                  Avatar URL (optional)
+                </label>
+                <input
+                  type="text"
+                  value={newAgentAvatarUrl}
+                  onChange={(e) => setNewAgentAvatarUrl(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 rounded text-white border border-gray-600 focus:border-blue-500 focus:outline-none text-sm"
+                  placeholder="https://example.com/avatar.png"
+                />
+                {newAgentAvatarUrl && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <div
+                      className="w-8 h-8 rounded-full overflow-hidden bg-gray-700 flex items-center justify-center"
+                      style={{ backgroundColor: AGENT_COLORS[newAgentType]?.primary || '#6B7280' }}
+                    >
+                      <img
+                        src={newAgentAvatarUrl}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-400">Preview</span>
+                  </div>
+                )}
               </div>
             </div>
 

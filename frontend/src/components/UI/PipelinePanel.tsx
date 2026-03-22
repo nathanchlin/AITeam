@@ -2,8 +2,9 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { QueueStatus } from '../../stores/agentStore';
 import { AGENT_COLORS, AGENT_LABELS, getAgentDisplayType } from '../../types';
-import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square, ArrowUp, ArrowDown, Search, ChevronLeft, FileText, Clock, Wrench, AlertCircle } from 'lucide-react';
+import { X, Play, GitBranch, MessageCircle, CheckCircle, Loader2, Users, ExternalLink, Copy, Check, RotateCw, Trash2, RefreshCw, Layers, Archive, Undo2, Square, ArrowUp, ArrowDown, Search, ChevronLeft, FileText, Clock, Wrench, AlertCircle, Sparkles } from 'lucide-react';
 import { ArchivePanel } from './ArchivePanel';
+import { pipelineTemplates, templateCategories, type PipelineTemplate } from '../../data/pipelineTemplates';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
@@ -68,6 +69,9 @@ export function PipelinePanel() {
   const [taskSortAsc, setTaskSortAsc] = useState(true);
   const [taskSearchQuery, setTaskSearchQuery] = useState('');
   const [taskStatusFilter, setTaskStatusFilter] = useState<'all' | 'completed' | 'running' | 'pending'>('all');
+  const [selectedTemplateCategory, setSelectedTemplateCategory] = useState<string | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<PipelineTemplate | null>(null);
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
   const [isFixingHtml, setIsFixingHtml] = useState(false);
   const [fixResult, setFixResult] = useState<{
     success: boolean;
@@ -926,6 +930,76 @@ export function PipelinePanel() {
       {/* Input Section */}
       <div className="p-4 border-b border-gray-700 bg-gray-800/50">
         <div className="space-y-3">
+          {/* Template Picker */}
+          {!currentPlan || currentPlan.status === 'completed' ? (
+            <div className="relative">
+              <button
+                onClick={() => setShowTemplatePicker(!showTemplatePicker)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
+              >
+                <Sparkles size={14} className="text-yellow-400" />
+                <span>{selectedTemplate ? `${selectedTemplate.icon} ${selectedTemplate.name}` : '快速模板'}</span>
+              </button>
+              {showTemplatePicker && (
+                <div className="absolute top-full left-0 mt-1 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 max-h-96 overflow-hidden">
+                  {/* Categories */}
+                  <div className="flex border-b border-gray-700 overflow-x-auto">
+                    <button
+                      onClick={() => setSelectedTemplateCategory(null)}
+                      className={`px-3 py-2 text-xs whitespace-nowrap ${
+                        selectedTemplateCategory === null ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-gray-300'
+                      }`}
+                    >
+                      全部
+                    </button>
+                    {templateCategories.map(cat => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setSelectedTemplateCategory(cat.id)}
+                        className={`px-3 py-2 text-xs whitespace-nowrap ${
+                          selectedTemplateCategory === cat.id ? 'text-purple-400 border-b-2 border-purple-400' : 'text-gray-400 hover:text-gray-300'
+                        }`}
+                      >
+                        {cat.icon} {cat.name}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Templates List */}
+                  <div className="overflow-y-auto max-h-72">
+                    {(selectedTemplateCategory
+                      ? pipelineTemplates.filter(t => t.category === selectedTemplateCategory)
+                      : pipelineTemplates
+                    ).map(template => (
+                      <button
+                        key={template.id}
+                        onClick={() => {
+                          setSelectedTemplate(template);
+                          setRequest(template.request);
+                          // Auto-select recommended agents
+                          const recommendedIds = agents
+                            .filter(a => template.recommendedAgents.includes(a.type))
+                            .map(a => a.id);
+                          if (recommendedIds.length > 0) {
+                            setSelectedAgentIds(recommendedIds);
+                          }
+                          setShowTemplatePicker(false);
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-gray-700 transition-colors border-b border-gray-700/50 last:border-0"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg">{template.icon}</span>
+                          <div>
+                            <div className="text-sm text-white">{template.name}</div>
+                            <div className="text-xs text-gray-400">{template.description}</div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : null}
           <textarea
             value={request}
             onChange={(e) => setRequest(e.target.value)}

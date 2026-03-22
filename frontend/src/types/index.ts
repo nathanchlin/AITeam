@@ -4,6 +4,22 @@ export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
 export type TaskPriority = 'p0' | 'p1' | 'p2' | 'p3';
 export type PlanStatus = 'draft' | 'discussing' | 'approved' | 'pending_approval' | 'executing' | 'completed';
 
+// Task Tag System
+export interface TaskTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+export const DEFAULT_TAGS: TaskTag[] = [
+  { id: 'bug', name: 'Bug', color: '#EF4444' },
+  { id: 'feature', name: 'Feature', color: '#3B82F6' },
+  { id: 'improvement', name: 'Improvement', color: '#10B981' },
+  { id: 'docs', name: 'Docs', color: '#8B5CF6' },
+  { id: 'urgent', name: 'Urgent', color: '#F97316' },
+  { id: 'wontfix', name: 'Wontfix', color: '#6B7280' },
+];
+
 export interface Position {
   x: number;
   y: number;
@@ -17,6 +33,7 @@ export interface Agent {
   display_type?: string | null;
   description?: string;
   custom_prompt?: string;
+  avatar_url?: string;  // Custom avatar image URL
   status: AgentStatus;
   position: Position;
   current_task_id?: string;
@@ -32,7 +49,12 @@ export interface Task {
   agent_id?: string;
   parent_task_id?: string;
   priority: TaskPriority;
+  tags?: string[];
+  comments?: TaskComment[];
+  subtasks?: SubTask[];
+  dependencies?: string[]; // Task IDs that this task depends on
   due_date?: string;
+  estimated_hours?: number; // Estimated time to complete in hours
   status: TaskStatus;
   progress: number;
   result?: string;
@@ -41,6 +63,20 @@ export interface Task {
   updated_at: string;
   started_at?: string;
   completed_at?: string;
+  archived?: boolean;  // Whether the task is archived
+  archived_at?: string;  // When the task was archived
+  history?: TaskHistoryEntry[];  // Task status change history
+}
+
+// Task history entry for tracking status changes
+export interface TaskHistoryEntry {
+  id: string;
+  task_id: string;
+  event_type: 'created' | 'started' | 'completed' | 'failed' | 'archived' | 'restored' | 'priority_changed' | 'assigned' | 'unassigned';
+  old_value?: string;
+  new_value?: string;
+  actor?: string;  // Who made the change (agent name or 'user')
+  timestamp: string;
 }
 
 export interface ThinkingStep {
@@ -48,6 +84,29 @@ export interface ThinkingStep {
   thought: string;
   action?: string;
   timestamp: string;
+}
+
+// SubTask System
+export interface SubTask {
+  id: string;
+  title: string;
+  completed: boolean;
+  created_at: string;
+  completed_at?: string;
+}
+
+// Task Comment System
+export interface TaskComment {
+  id: string;
+  task_id: string;
+  author_id: string;
+  author_name: string;
+  author_type: 'user' | 'agent';
+  content: string;
+  mentions?: string[];
+  timestamp: string;
+  updated_at?: string;
+  is_edited?: boolean;
 }
 
 // Discussion system
@@ -315,6 +374,11 @@ export interface GroupChatMember {
   joined_at: string;
 }
 
+export interface MessageReaction {
+  emoji: string;
+  users: string[];
+}
+
 export interface GroupChatMessage {
   id: string;
   chat_id: string;
@@ -326,6 +390,8 @@ export interface GroupChatMessage {
   attachments: FileAttachment[];
   reply_to?: string;
   timestamp: string;
+  reactions?: MessageReaction[];
+  read_by?: string[]; // Array of member IDs who have read this message
 }
 
 export interface GroupChat {

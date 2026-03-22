@@ -1,9 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
-import type { Agent, Task } from '../../types';
+import type { Agent, Task, MessageReaction } from '../../types';
 import { AGENT_COLORS, getAgentDisplayType } from '../../types';
-import { X, Send, Loader2, Settings, Trash2, Check, Eraser, Copy, CheckCheck, Download, Brain, ChevronDown, ChevronRight } from 'lucide-react';
+import { X, Send, Loader2, Settings, Trash2, Check, Eraser, Copy, CheckCheck, Download, Brain, ChevronDown, ChevronRight, Search } from 'lucide-react';
 import { useAutoResize } from '../../hooks/useAutoResize';
+import { MessageSearch } from './MessageSearch';
+import { ReactionPicker, ReactionDisplay } from './ReactionPicker';
+import { highlightCode, parseCodeBlocks } from '../../utils/syntaxHighlight';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
@@ -18,6 +21,7 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [editName, setEditName] = useState(agent.name);
   const [editDisplayType, setEditDisplayType] = useState(agent.display_type || '');
   const [editDescription, setEditDescription] = useState(agent.description || '');
@@ -28,8 +32,69 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
   const [copiedTaskId, setCopiedTaskId] = useState<string | null>(null);
   const [expandedThinking, setExpandedThinking] = useState<Set<string>>(new Set());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const textareaRef = useAutoResize({ value: message, minHeight: 40, maxHeight: 200 });
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [taskReactions, setTaskReactions] = useState<Record<string, MessageReaction[]>>({});
+
+  const currentUserName = 'You';
+
+  // Get reactions for a task
+  const getReactions = (taskId: string): MessageReaction[] => {
+    return taskReactions[taskId] || [];
+  };
+
+  // Handle add reaction
+  const handleAddReaction = (taskId: string, emoji: string) => {
+    setTaskReactions(prev => {
+      const current = prev[taskId] || [];
+      const existing = current.find(r => r.emoji === emoji);
+
+      if (existing) {
+        if (!existing.users.includes(currentUserName)) {
+          return {
+            ...prev,
+            [taskId]: current.map(r =>
+              r.emoji === emoji ? { ...r, users: [...r.users, currentUserName] } : r
+            ),
+          };
+        }
+        return prev;
+      } else {
+        return {
+          ...prev,
+          [taskId]: [...current, { emoji, users: [currentUserName] }],
+        };
+      }
+    });
+  };
+
+  // Handle remove reaction
+  const handleRemoveReaction = (taskId: string, emoji: string) => {
+    setTaskReactions(prev => {
+      const current = prev[taskId] || [];
+      return {
+        ...prev,
+        [taskId]: current
+          .map(r =>
+            r.emoji === emoji ? { ...r, users: r.users.filter(u => u !== currentUserName) } : r
+          )
+          .filter(r => r.users.length > 0),
+      };
+    });
+  };
+
+  // Toggle reaction
+  const handleToggleReaction = (taskId: string, emoji: string) => {
+    const reactions = getReactions(taskId);
+    const existing = reactions.find(r => r.emoji === emoji);
+    if (existing && existing.users.includes(currentUserName)) {
+      handleRemoveReaction(taskId, emoji);
+    } else {
+      handleAddReaction(taskId, emoji);
+    }
+  };
 
   // Quick prompts by agent type
   const getQuickPrompts = (type: string): string[] => {
@@ -48,6 +113,16 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
   };
 
   const quickPrompts = getQuickPrompts(agent.type);
+
+  // Jump to message handler
+  const handleJumpToMessage = (messageId: string) => {
+    const messageElement = messagesContainerRef.current?.querySelector(`[data-message-id="${messageId}"]`);
+    if (messageElement) {
+      messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedMessageId(messageId);
+      setTimeout(() => setHighlightedMessageId(null), 2000);
+    }
+  };
 
   // Format timestamp for display
   const formatTimestamp = (dateString: string) => {
@@ -285,6 +360,47 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
     URL.revokeObjectURL(url);
   };
 
+  // Render message content with code highlighting
+  const renderMessageContent = (content: string) => {
+    const parsedParts = parseCodeBlocks(content);
+    const result: React.ReactNode[] = [];
+
+    parsedParts.forEach((part, partIndex) => {
+      if (part.type === 'code') {
+        result.push(
+          <div key={`code-${partIndex}`} className="my-2 relative group">
+            <div className="flex items-center justify-between bg-gray-900 px-3 py-1 rounded-t-lg border-b border-gray-700">
+              <span className="text-xs text-gray-400 font-mono">{part.language || 'code'}</span>
+              <button
+                onClick={() => navigator.clipboard.writeText(part.content)}
+                className="text-gray-400 hover:text-white p-1 rounded transition-colors"
+                title="复制代码"
+              >
+                <Copy size={12} />
+              </button>
+            </div>
+            <pre className="bg-gray-900/80 p-3 rounded-b-lg overflow-x-auto text-sm font-mono">
+              <code>{highlightCode(part.content, part.language || 'plaintext')}</code>
+            </pre>
+          </div>
+        );
+      } else if (part.type === 'inline-code') {
+        result.push(
+          <code
+            key={`inline-${partIndex}`}
+            className="bg-gray-700 text-pink-400 px-1.5 py-0.5 rounded text-sm font-mono"
+          >
+            {part.content}
+          </code>
+        );
+      } else {
+        result.push(part.content);
+      }
+    });
+
+    return result.length > 0 ? result : content;
+  };
+
   // Sort completed tasks by creation time (newest first)
   const sortedTasks = [...completedTasks].sort(
     (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -346,6 +462,16 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
             title="清空对话记录"
           >
             <Eraser size={16} />
+          </button>
+          <button
+            onClick={() => setShowSearch(!showSearch)}
+            disabled={completedTasks.length === 0}
+            className={`p-2 rounded transition-colors ${
+              showSearch ? 'bg-purple-600 text-white' : 'hover:bg-gray-700 text-gray-400'
+            } disabled:opacity-30 disabled:cursor-not-allowed`}
+            title="搜索消息"
+          >
+            <Search size={16} />
           </button>
           <button
             onClick={() => setShowSettings(!showSettings)}
@@ -517,10 +643,16 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
       ) : (
         <>
           {/* Chat Content */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-900/50">
+          <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-900/50 relative">
             {/* Completed conversations */}
             {sortedTasks.map((task) => (
-              <div key={task.id} className="space-y-2">
+              <div
+                key={task.id}
+                data-message-id={task.id}
+                className={`space-y-2 transition-all duration-300 ${
+                  highlightedMessageId === task.id ? 'ring-2 ring-purple-500 rounded-lg p-2 -m-2 bg-purple-500/10' : ''
+                }`}
+              >
                 {/* User message */}
                 <div className="group relative">
                   <div className="bg-gray-700/70 rounded-lg p-3 text-sm text-gray-300">
@@ -571,8 +703,8 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
                 {/* Agent response */}
                 {task.result && (
                   <div className="group relative mt-5">
-                    <div className="bg-gradient-to-r from-blue-600/30 to-purple-600/30 rounded-lg p-3 text-sm text-white whitespace-pre-wrap border-l-2 border-blue-500">
-                      {task.result}
+                    <div className="bg-gradient-to-r from-blue-600/30 to-purple-600/30 rounded-lg p-3 text-sm text-white border-l-2 border-blue-500">
+                      {renderMessageContent(task.result)}
                     </div>
                     {/* Copy button */}
                     <button
@@ -586,10 +718,30 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
                         <Copy size={14} />
                       )}
                     </button>
+                    {/* Reaction button */}
+                    <div className="absolute top-2 right-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <ReactionPicker
+                        reactions={getReactions(task.id)}
+                        currentUserName={currentUserName}
+                        onAddReaction={(emoji) => handleAddReaction(task.id, emoji)}
+                        onRemoveReaction={(emoji) => handleRemoveReaction(task.id, emoji)}
+                        showTrigger={true}
+                      />
+                    </div>
                     {task.updated_at && (
                       <span className="absolute -bottom-4 right-2 text-[10px] text-gray-500">
                         {formatTimestamp(task.updated_at)}
                       </span>
+                    )}
+                    {/* Reaction display */}
+                    {getReactions(task.id).length > 0 && (
+                      <div className="mt-1 flex justify-end">
+                        <ReactionDisplay
+                          reactions={getReactions(task.id)}
+                          currentUserName={currentUserName}
+                          onToggleReaction={(emoji) => handleToggleReaction(task.id, emoji)}
+                        />
+                      </div>
                     )}
                   </div>
                 )}
@@ -616,8 +768,8 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
 
             {/* Stream content */}
             {streamContent && (
-              <div className="bg-gradient-to-r from-blue-600/30 to-purple-600/30 rounded-lg p-3 text-sm text-white whitespace-pre-wrap border-l-2 border-green-500 animate-pulse">
-                {streamContent}
+              <div className="bg-gradient-to-r from-blue-600/30 to-purple-600/30 rounded-lg p-3 text-sm text-white border-l-2 border-green-500 animate-pulse">
+                {renderMessageContent(streamContent)}
               </div>
             )}
 
@@ -676,6 +828,21 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
           </div>
         </>
       )}
+
+      {/* Message Search */}
+      <MessageSearch
+        isOpen={showSearch}
+        onClose={() => setShowSearch(false)}
+        messages={completedTasks.map(t => ({
+          id: t.id,
+          content: t.result || t.title,
+          sender_name: t.title ? 'You' : agent.name,
+          sender_type: t.result ? 'agent' : 'user',
+          timestamp: t.updated_at || t.created_at || new Date().toISOString(),
+        }))}
+        onJumpToMessage={handleJumpToMessage}
+        placeholder="搜索对话记录..."
+      />
     </div>
   );
 }

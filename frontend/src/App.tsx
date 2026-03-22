@@ -12,6 +12,7 @@ import { GroupChatPanel } from './components/UI/GroupChatPanel';
 import { IMPanel } from './components/UI/IMPanel';
 import { AgentActivityPanel } from './components/UI/AgentActivityPanel';
 import { ActivityLogPanel } from './components/UI/ActivityLogPanel';
+import { DashboardPanel } from './components/UI/DashboardPanel';
 import { KeyboardHelpModal, type ShortcutItem } from './components/UI/KeyboardHelpModal';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { ToastProvider } from './components/common/Toast';
@@ -32,12 +33,13 @@ import type { Agent, TaskPriority } from './types';
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
 function AppContent() {
-  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan, groupChats, setGroupChats, groupChatPanelOpen, imPanelOpen, toggleIMPanel, selectAgent, sidebarOpen, toggleSidebar, taskPanelOpen, toggleTaskPanel } = useAgentStore();
+  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan, groupChats, setGroupChats, groupChatPanelOpen, imPanelOpen, toggleIMPanel, selectAgent, sidebarOpen, toggleSidebar, taskPanelOpen, toggleTaskPanel, toggleChatPanel } = useAgentStore();
   const { selectedAgentId, chatPanelOpen, streamContent, isDraggingAgent } = useAgentStore();
   const [loading, setLoading] = useState(true);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [showAgentActivity, setShowAgentActivity] = useState(false);
   const [showActivityLog, setShowActivityLog] = useState(false);
+  const [showDashboard, setShowDashboard] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const { enabled: notificationsEnabled, toggleNotifications, isSupported: notificationsSupported } = useNotifications();
   useWebSocket();
@@ -48,38 +50,58 @@ function AppContent() {
   // Define keyboard shortcuts
   const shortcuts = useMemo(() => [
     { key: '?', description: 'Show keyboard help', action: () => setShowKeyboardHelp(prev => !prev) },
+    { key: '/', description: 'Show keyboard help (alt)', ctrl: true, action: () => setShowKeyboardHelp(prev => !prev) },
     { key: 'Escape', description: 'Close all panels', action: () => {
       selectAgent(null);
-      if (chatPanelOpen) useAgentStore.getState().toggleChatPanel?.();
+      if (chatPanelOpen) toggleChatPanel();
       if (pipelinePanelOpen) togglePipelinePanel();
       if (projectsPanelOpen) toggleProjectsPanel();
       if (imPanelOpen) toggleIMPanel();
       setShowKeyboardHelp(false);
     }},
     { key: 'p', description: 'Toggle pipeline panel', action: togglePipelinePanel },
+    { key: 'P', description: 'Quick open Pipeline', ctrl: true, action: () => {
+      if (!pipelinePanelOpen) togglePipelinePanel();
+    }},
     { key: 'g', description: 'Toggle IM panel', action: toggleIMPanel },
     { key: 's', description: 'Toggle sidebar', action: toggleSidebar },
     { key: 't', description: 'Toggle task panel', action: toggleTaskPanel },
-    { key: '/', description: 'Focus search (future)', action: () => {} },
+    { key: 'n', description: 'New task (when task panel open)', ctrl: true, action: () => {
+      if (taskPanelOpen) {
+        // Dispatch custom event that TaskPanel can listen to
+        window.dispatchEvent(new CustomEvent('shortcut:newTask'));
+      }
+    }},
     // Number key shortcuts for quick panel access
     { key: '1', description: 'Toggle sidebar (alt)', action: toggleSidebar },
     { key: '2', description: 'Toggle task panel (alt)', action: toggleTaskPanel },
     { key: '3', description: 'Toggle pipeline panel (alt)', action: togglePipelinePanel },
     { key: '4', description: 'Toggle IM panel (alt)', action: toggleIMPanel },
     { key: '5', description: 'Toggle projects panel (alt)', action: toggleProjectsPanel },
-  ], [selectAgent, chatPanelOpen, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, imPanelOpen, toggleIMPanel, sidebarOpen, toggleSidebar, taskPanelOpen, toggleTaskPanel]);
+    // Agent quick select with Alt+number
+    ...agents.slice(0, 9).map((agent, index) => ({
+      key: String(index + 1),
+      description: `Select ${agent.name}`,
+      alt: true,
+      action: () => selectAgent(agent.id)
+    })),
+  ], [selectAgent, chatPanelOpen, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, imPanelOpen, toggleIMPanel, sidebarOpen, toggleSidebar, taskPanelOpen, toggleTaskPanel, agents]);
 
   useKeyboardShortcuts(shortcuts, !loading);
 
   // Shortcut items for help modal
   const helpShortcuts: ShortcutItem[] = useMemo(() => [
     { key: '?', description: 'Show/hide keyboard help' },
+    { key: 'Ctrl+/', description: 'Show keyboard help (alt)' },
     { key: 'Esc', description: 'Close all panels' },
     { key: 'P', description: 'Toggle pipeline panel' },
+    { key: 'Ctrl+P', description: 'Quick open Pipeline' },
     { key: 'G', description: 'Toggle IM panel' },
     { key: 'S', description: 'Toggle sidebar' },
     { key: 'T', description: 'Toggle task panel' },
-    { key: '1-5', description: 'Quick toggle panels (Sidebar/Task/Pipeline/IM/Projects)' },
+    { key: 'Ctrl+N', description: 'New task (in task panel)' },
+    { key: '1-5', description: 'Quick toggle panels' },
+    { key: 'Alt+1-9', description: 'Select Agent by index' },
   ], []);
 
   // Fetch initial data
@@ -117,7 +139,7 @@ function AppContent() {
     fetchData();
   }, [setAgents, setTasks, setPlans, setCurrentPlan, setGroupChats]);
 
-  const createAgent = async (name: string, type: Agent['type']) => {
+  const createAgent = async (name: string, type: Agent['type'], avatarUrl?: string) => {
     // Calculate non-overlapping position using spiral layout
     const agentCount = agents.length;
     const angle = agentCount * 0.8; // Golden angle for better distribution
@@ -136,6 +158,7 @@ function AppContent() {
           name,
           type,
           position,
+          avatar_url: avatarUrl,
         }),
       });
       if (!res.ok) {
@@ -218,6 +241,60 @@ function AppContent() {
     } catch (error) {
       console.error('Failed to update task priority:', error);
     }
+  };
+
+  const updateTaskTags = async (taskId: string, tags: string[]) => {
+    try {
+      await fetch(`${API_BASE}/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags }),
+      });
+      useAgentStore.getState().setTasks(tasks.map(t =>
+        t.id === taskId ? { ...t, tags } : t
+      ));
+    } catch (error) {
+      console.error('Failed to update task tags:', error);
+    }
+  };
+
+  const addTaskComment = async (taskId: string, content: string, mentions?: string[]) => {
+    const newComment = {
+      id: `comment-${Date.now()}`,
+      task_id: taskId,
+      author_id: 'user',
+      author_name: 'You',
+      author_type: 'user' as const,
+      content,
+      mentions,
+      timestamp: new Date().toISOString(),
+    };
+    useAgentStore.getState().setTasks(tasks.map(t =>
+      t.id === taskId ? { ...t, comments: [...(t.comments || []), newComment] } : t
+    ));
+  };
+
+  const editTaskComment = async (taskId: string, commentId: string, content: string) => {
+    useAgentStore.getState().setTasks(tasks.map(t =>
+      t.id === taskId
+        ? {
+            ...t,
+            comments: t.comments?.map(c =>
+              c.id === commentId
+                ? { ...c, content, updated_at: new Date().toISOString(), is_edited: true }
+                : c
+            ),
+          }
+        : t
+    ));
+  };
+
+  const deleteTaskComment = async (taskId: string, commentId: string) => {
+    useAgentStore.getState().setTasks(tasks.map(t =>
+      t.id === taskId
+        ? { ...t, comments: t.comments?.filter(c => c.id !== commentId) }
+        : t
+    ));
   };
 
   const duplicateTask = async (taskId: string) => {
@@ -314,8 +391,12 @@ function AppContent() {
         onDeleteTasks={deleteTasks}
         onCompleteTasks={completeTasks}
         onUpdateTaskPriority={updateTaskPriority}
+        onUpdateTaskTags={updateTaskTags}
         onDuplicateTask={duplicateTask}
         onBatchUpdatePriority={async (ids, priority) => { await Promise.all(ids.map(id => updateTaskPriority(id, priority))); }}
+        onAddComment={addTaskComment}
+        onEditComment={editTaskComment}
+        onDeleteComment={deleteTaskComment}
       />
 
       {/* Achievement Notifications - Temporarily hidden due to UI issues */}
@@ -459,9 +540,27 @@ function AppContent() {
         <Activity size={18} />
       </button>
 
+      {/* Dashboard Button */}
+      <button
+        onClick={() => setShowDashboard(!showDashboard)}
+        className={`absolute top-2 right-[260px] z-20 p-2 rounded-lg transition-colors ${
+          showDashboard
+            ? 'bg-purple-600 text-white'
+            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+        }`}
+        title="效能仪表盘"
+      >
+        <BarChart2 size={18} />
+      </button>
+
       {/* Activity Log Panel */}
       {showActivityLog && (
         <ActivityLogPanel onClose={() => setShowActivityLog(false)} />
+      )}
+
+      {/* Dashboard Panel */}
+      {showDashboard && (
+        <DashboardPanel onClose={() => setShowDashboard(false)} />
       )}
 
       {/* Keyboard Help Modal */}

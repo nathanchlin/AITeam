@@ -14,8 +14,8 @@ export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[], enabled: boo
     // Ignore if typing in input/textarea
     const target = e.target as HTMLElement;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
-      // Only allow Escape to pass through
-      if (e.key !== 'Escape') {
+      // Only allow Escape and Ctrl+key combinations to pass through
+      if (e.key !== 'Escape' && !e.ctrlKey && !e.metaKey) {
         return;
       }
     }
