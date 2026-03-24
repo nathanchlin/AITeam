@@ -17,25 +17,45 @@ export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
   const wasConnectedRef = useRef(false); // Track if we were ever connected (for toast)
-  const { setWsConnected, handleWebSocketMessage, currentPlanId, updatePlan } = useAgentStore();
+  const { setWsConnected, handleWebSocketMessage, updatePlan, currentPlanId } = useAgentStore();
   const toast = useToast();
 
-  // Sync current plan state from server (called on WebSocket reconnect)
-  const syncCurrentPlan = useCallback(async () => {
-    if (!currentPlanId) return;
+  // Use refs to avoid triggering reconnect when these values change
+  const currentPlanIdRef = useRef<string | null>(null);
+  const toastRef = useRef(toast);
 
-    try {
-      const res = await fetch(`${API_BASE}/api/pipeline/plans/${currentPlanId}`);
-      if (res.ok) {
-        const plan = await res.json();
-        console.log('[WS] Synced plan state:', plan.status);
-        updatePlan(currentPlanId, plan);
+  // Keep refs in sync with store/context
+  useEffect(() => {
+    currentPlanIdRef.current = currentPlanId;
+  }, [currentPlanId]);
+
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
+
+  // Store syncCurrentPlan in ref to ensure stable reference for connect
+  const syncCurrentPlanRef = useRef<() => Promise<void>>(async () => {});
+
+  // Update the sync function when dependencies change
+  useEffect(() => {
+    syncCurrentPlanRef.current = async () => {
+      const planId = currentPlanIdRef.current;
+      if (!planId) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/pipeline/plans/${planId}`);
+        if (res.ok) {
+          const plan = await res.json();
+          console.log('[WS] Synced plan state:', plan.status);
+          updatePlan(planId, plan);
+        }
+      } catch (e) {
+        console.error('[WS] Failed to sync plan state:', e);
       }
-    } catch (e) {
-      console.error('[WS] Failed to sync plan state:', e);
-    }
-  }, [currentPlanId, updatePlan]);
+    };
+  }, [updatePlan]);
 
+  // Stable connect function with minimal dependencies
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       console.log('[WS] Already connected, skipping');
@@ -51,12 +71,12 @@ export function useWebSocket() {
 
       // Show reconnection toast if this is a reconnect
       if (wasConnectedRef.current) {
-        toast.success('WebSocket reconnected');
+        toastRef.current?.success('WebSocket reconnected');
       }
       wasConnectedRef.current = true;
 
       // Sync current plan state on reconnect
-      syncCurrentPlan();
+      syncCurrentPlanRef.current();
     };
 
     ws.onclose = () => {
@@ -65,7 +85,7 @@ export function useWebSocket() {
 
       // Show disconnection toast (only if we were previously connected)
       if (wasConnectedRef.current) {
-        toast.warning('WebSocket disconnected, reconnecting...');
+        toastRef.current?.warning('WebSocket disconnected, reconnecting...');
       }
 
       // Attempt to reconnect after 3 seconds
@@ -88,7 +108,7 @@ export function useWebSocket() {
     };
 
     wsRef.current = ws;
-  }, [setWsConnected, handleWebSocketMessage, syncCurrentPlan]);
+  }, [setWsConnected, handleWebSocketMessage]); // Minimal stable dependencies
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
