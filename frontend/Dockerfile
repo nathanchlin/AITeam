@@ -7,6 +7,9 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 WORKDIR /app
 
+# Configure npm to use China mirror
+RUN npm config set registry https://registry.npmmirror.com
+
 # Copy package files
 COPY package*.json ./
 
