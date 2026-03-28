@@ -157,7 +157,10 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
 
   // Auto-scroll when new content arrives
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only scroll within the container, not the whole page
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }, [streamContent, completedTasks.length]);
 
   // Sync edit state when agent changes

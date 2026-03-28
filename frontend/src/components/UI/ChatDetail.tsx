@@ -47,7 +47,10 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
   // Initial scroll to bottom (instant, no animation)
   useEffect(() => {
     if (isInitialMountRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      // Only scroll within the container, not the whole page
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+      }
       isInitialMountRef.current = false;
     }
   }, []);
@@ -55,7 +58,10 @@ export function ChatDetail({ chatType, agent, groupChat, onClose }: ChatDetailPr
   // Auto-scroll when new content arrives (smooth animation)
   useEffect(() => {
     if (!isInitialMountRef.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      // Only scroll within the container, not the whole page
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     }
   }, [currentStreamContent, completedTasks.length, groupChatMessages.length]);
 

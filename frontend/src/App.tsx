@@ -13,11 +13,11 @@ import { IMPanel } from './components/UI/IMPanel';
 import { AgentActivityPanel } from './components/UI/AgentActivityPanel';
 import { ActivityLogPanel } from './components/UI/ActivityLogPanel';
 import { DashboardPanel } from './components/UI/DashboardPanel';
+import { VibeCodingPanel } from './components/UI/VibeCodingPanel';
 import { KeyboardHelpModal, type ShortcutItem } from './components/UI/KeyboardHelpModal';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { ToastProvider } from './components/common/Toast';
 import { LoadingScreen } from './components/common/LoadingScreen';
-import { GlobalTaskIndicator } from './components/common/GlobalTaskIndicator';
 import { StatusBar } from './components/common/StatusBar';
 import { useAgentStore } from './stores/agentStore';
 import { useWebSocket } from './hooks/useWebSocket';
@@ -27,13 +27,13 @@ import { useNotifications } from './hooks/useNotifications';
 import { useEventNotifications } from './hooks/useEventNotifications';
 import { useAutoRefresh } from './hooks/useAutoRefresh';
 import { usePanelPersistence } from './hooks/usePanelPersistence';
-import { GitBranch, Folder, MessageCircle, Keyboard, BarChart2, Sun, Moon, Activity, Bell, BellOff } from 'lucide-react';
+import { GitBranch, Folder, MessageCircle, Keyboard, BarChart2, Sun, Moon, Activity, Bell, BellOff, Gamepad2 } from 'lucide-react';
 import type { Agent, TaskPriority } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
 function AppContent() {
-  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan, groupChats, setGroupChats, groupChatPanelOpen, imPanelOpen, toggleIMPanel, selectAgent, sidebarOpen, toggleSidebar, taskPanelOpen, toggleTaskPanel, toggleChatPanel } = useAgentStore();
+  const { agents, setAgents, tasks, setTasks, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, setPlans, setCurrentPlan, groupChats, setGroupChats, groupChatPanelOpen, imPanelOpen, toggleIMPanel, selectAgent, sidebarOpen, toggleSidebar, taskPanelOpen, toggleTaskPanel, toggleChatPanel, vibeCodingPanelOpen, toggleVibeCodingPanel } = useAgentStore();
   const { selectedAgentId, chatPanelOpen, streamContent, isDraggingAgent } = useAgentStore();
   const [loading, setLoading] = useState(true);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
@@ -57,8 +57,10 @@ function AppContent() {
       if (pipelinePanelOpen) togglePipelinePanel();
       if (projectsPanelOpen) toggleProjectsPanel();
       if (imPanelOpen) toggleIMPanel();
+      if (vibeCodingPanelOpen) toggleVibeCodingPanel();
       setShowKeyboardHelp(false);
     }},
+    { key: 'v', description: 'Toggle VibeCoding panel', action: toggleVibeCodingPanel },
     { key: 'p', description: 'Toggle pipeline panel', action: togglePipelinePanel },
     { key: 'P', description: 'Quick open Pipeline', ctrl: true, action: () => {
       if (!pipelinePanelOpen) togglePipelinePanel();
@@ -85,7 +87,7 @@ function AppContent() {
       alt: true,
       action: () => selectAgent(agent.id)
     })),
-  ], [selectAgent, chatPanelOpen, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, imPanelOpen, toggleIMPanel, sidebarOpen, toggleSidebar, taskPanelOpen, toggleTaskPanel, agents]);
+  ], [selectAgent, chatPanelOpen, pipelinePanelOpen, togglePipelinePanel, projectsPanelOpen, toggleProjectsPanel, imPanelOpen, toggleIMPanel, sidebarOpen, toggleSidebar, taskPanelOpen, toggleTaskPanel, vibeCodingPanelOpen, toggleVibeCodingPanel, agents]);
 
   useKeyboardShortcuts(shortcuts, !loading);
 
@@ -94,6 +96,7 @@ function AppContent() {
     { key: '?', description: 'Show/hide keyboard help' },
     { key: 'Ctrl+/', description: 'Show keyboard help (alt)' },
     { key: 'Esc', description: 'Close all panels' },
+    { key: 'V', description: 'Toggle VibeCoding panel' },
     { key: 'P', description: 'Toggle pipeline panel' },
     { key: 'Ctrl+P', description: 'Quick open Pipeline' },
     { key: 'G', description: 'Toggle IM panel' },
@@ -403,12 +406,25 @@ function AppContent() {
       {/* <AchievementNotification /> */}
 
       {/* Global Task Indicator */}
-      <GlobalTaskIndicator />
+      
+      {/* VibeCoding Button */}
+      <button
+        onClick={toggleVibeCodingPanel}
+        className={`absolute top-2 left-1/2 -translate-x-[calc(50%+200px)] z-20 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+          vibeCodingPanelOpen
+            ? 'bg-pink-600 text-white'
+            : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+        }`}
+      >
+        <Gamepad2 size={18} />
+        <span className="text-sm font-medium">游戏工坊</span>
+        <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] bg-gray-700/50 rounded border border-gray-600 text-gray-400 ml-1">V</kbd>
+      </button>
 
       {/* Pipeline Button */}
       <button
         onClick={togglePipelinePanel}
-        className={`absolute top-2 left-1/2 transform -translate-x-1/2 z-20 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+        className={`absolute top-2 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
           pipelinePanelOpen
             ? 'bg-purple-600 text-white'
             : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
@@ -422,7 +438,7 @@ function AppContent() {
       {/* IM Button */}
       <button
         onClick={toggleIMPanel}
-        className={`absolute top-2 left-[calc(50%+80px)] z-20 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+        className={`absolute top-2 left-1/2 translate-x-[calc(50%+80px)] z-20 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
           imPanelOpen
             ? 'bg-green-600 text-white'
             : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
@@ -473,6 +489,9 @@ function AppContent() {
 
       {/* Pipeline Panel */}
       <PipelinePanel />
+
+      {/* VibeCoding Panel */}
+      <VibeCodingPanel />
 
       {/* Projects Panel */}
       <ProjectsPanel />

@@ -320,7 +320,10 @@ export function GroupChatPanel({ groupChats: groupChatsProp, currentGroupChatId 
 
   // Auto-scroll when new messages arrive
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only scroll within the container, not the whole page
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }, [currentChat?.messages.length]);
 
   // Mark all messages as read when opening the chat

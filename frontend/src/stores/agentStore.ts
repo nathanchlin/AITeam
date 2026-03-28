@@ -106,6 +106,8 @@ interface AgentState {
   projectsPanelOpen: boolean;
   groupChatPanelOpen: boolean;
   imPanelOpen: boolean;
+  vibeCodingPanelOpen: boolean;
+  vibeCodingPlanId: string | null;
   thinkingLog: Array<{ agentId: string; agentName: string; thought: string; timestamp: number }>;
 
   toggleSidebar: () => void;
@@ -116,6 +118,8 @@ interface AgentState {
   toggleProjectsPanel: () => void;
   toggleGroupChatPanel: () => void;
   toggleIMPanel: () => void;
+  toggleVibeCodingPanel: () => void;
+  setVibeCodingPlanId: (id: string | null) => void;
   addThinkingLog: (agentId: string, agentName: string, thought: string) => void;
   clearThinkingLog: () => void;
   appendStreamContent: (taskId: string, content: string) => void;
@@ -297,6 +301,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   projectsPanelOpen: false,
   groupChatPanelOpen: false,
   imPanelOpen: false,
+  vibeCodingPanelOpen: false,
+  vibeCodingPlanId: null,
   thinkingLog: [],
 
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
@@ -306,6 +312,8 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   togglePipelinePanel: () => set((state) => ({ pipelinePanelOpen: !state.pipelinePanelOpen })),
   toggleProjectsPanel: () => set((state) => ({ projectsPanelOpen: !state.projectsPanelOpen })),
   toggleIMPanel: () => set((state) => ({ imPanelOpen: !state.imPanelOpen })),
+  toggleVibeCodingPanel: () => set((state) => ({ vibeCodingPanelOpen: !state.vibeCodingPanelOpen })),
+  setVibeCodingPlanId: (id) => set({ vibeCodingPlanId: id }),
   addThinkingLog: (agentId, agentName, thought) =>
     set((state) => ({
       thinkingLog: [

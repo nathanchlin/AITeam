@@ -432,7 +432,10 @@ export function PipelinePanel() {
   }, [currentPlanId, currentPlan, updatePlan]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only scroll within the container, not the whole page
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }, [planDiscussions.length, currentStream]);
 
   // Fetch queue status periodically
@@ -894,9 +897,9 @@ export function PipelinePanel() {
       className="absolute top-16 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur rounded-lg flex flex-col z-20 overflow-hidden shadow-2xl border border-gray-700"
       style={{
         width: panelSize.width,
-        height: panelSize.height,
         maxWidth: '95vw',
-        maxHeight: '85vh',
+        maxHeight: 'calc(90vh - 80px)',
+        height: `min(${panelSize.height}px, calc(90vh - 80px))`,
       }}
     >
       {/* Header */}

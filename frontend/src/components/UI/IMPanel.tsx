@@ -107,12 +107,12 @@ export function IMPanel({ onClose }: IMPanelProps) {
       </div>
 
       {/* Content Area */}
-      <div className="w-[400px] bg-gray-800/95 backdrop-blur rounded-r-lg border border-gray-700 flex flex-col overflow-hidden">
+      <div className="w-[400px] h-full bg-gray-800/95 backdrop-blur rounded-r-lg border border-gray-700 flex flex-col overflow-hidden">
         {activeView === 'messages' && (
           <>
             {/* Conversation List */}
-            <div className="w-full border-r border-gray-700">
-              <div className="p-3 border-b border-gray-700 flex items-center justify-between">
+            <div className="flex-1 min-h-0 flex flex-col border-r border-gray-700">
+              <div className="p-3 border-b border-gray-700 flex items-center justify-between flex-shrink-0">
                 <h3 className="text-white text-sm font-bold">消息</h3>
                 <button
                   onClick={handleCreateGroup}
@@ -122,7 +122,7 @@ export function IMPanel({ onClose }: IMPanelProps) {
                   <Plus size={16} />
                 </button>
               </div>
-              <div className="h-[calc(100vh-200px)] overflow-y-auto">
+              <div className="flex-1 min-h-0 overflow-y-auto">
                 <ConversationList
                   selectedChatId={selectedChatId}
                   selectedChatType={selectedChatType}

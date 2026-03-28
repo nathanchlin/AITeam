@@ -44,7 +44,10 @@ export function TaskCommentPanel({
 
   // Auto-scroll to bottom when new comments arrive
   useEffect(() => {
-    commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Only scroll within the container, not the whole page
+    if (commentsEndRef.current) {
+      commentsEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }, [task?.comments?.length]);
 
   // Filter agents for mention picker
