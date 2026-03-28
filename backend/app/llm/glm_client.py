@@ -34,6 +34,11 @@ class GLMClient:
         # Track last token usage
         self._last_token_usage: TokenUsage = TokenUsage()
 
+        # Rate limiting
+        self._lock = asyncio.Lock()
+        self._last_request_time: float = 0.0
+        self._min_interval: float = settings.glm_request_interval
+
         # 配置代理 - 优先使用 HTTP 代理，避免 SOCKS 依赖问题
         http_proxy = os.environ.get('HTTP_PROXY') or os.environ.get('http_proxy')
         https_proxy = os.environ.get('HTTPS_PROXY') or os.environ.get('https_proxy')
@@ -66,6 +71,17 @@ class GLMClient:
     def get_last_token_usage(self) -> TokenUsage:
         """Get the token usage from the last API call."""
         return self._last_token_usage
+
+    async def _throttle(self):
+        """Ensure minimum interval between consecutive API calls."""
+        async with self._lock:
+            now = time.monotonic()
+            elapsed = now - self._last_request_time
+            if elapsed < self._min_interval:
+                wait = self._min_interval - elapsed
+                print(f"[GLMClient] Rate limiting: waiting {wait:.1f}s before next request")
+                await asyncio.sleep(wait)
+            self._last_request_time = time.monotonic()
 
     def _get_system_prompt(self, agent_type: str, custom_prompt: Optional[str] = None) -> str:
         base_prompts = {
@@ -124,6 +140,7 @@ class GLMClient:
         last_error = None
         for attempt in range(max_retries):
             try:
+                await self._throttle()
                 response = await asyncio.to_thread(
                     self.client.chat.completions.create,
                     model=self.model,
@@ -178,6 +195,7 @@ class GLMClient:
         last_error = None
         for attempt in range(max_retries):
             try:
+                await self._throttle()
                 # 在线程中创建流，避免阻塞事件循环
                 response = await asyncio.to_thread(
                     self.client.chat.completions.create,

@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # Token limits
     glm_max_tokens: int = 131072  # Maximum output tokens (128K for GLM-5.1)
 
+    # Rate limiting: minimum interval (seconds) between consecutive API calls
+    glm_request_interval: float = 1.5
+
     # Server Configuration
     host: str = "0.0.0.0"
     port: int = 8000
