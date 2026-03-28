@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Send, Loader2, Bot, User, Sparkles, CheckCircle2, Clock, History, Gamepad2, ArrowLeft, Plus } from 'lucide-react';
+import { Send, Loader2, Bot, User, Sparkles, CheckCircle2, Clock, History, Gamepad2 } from 'lucide-react';
 import type { Plan } from '../../../types';
 import { AGENT_COLORS } from '../../../types';
 
@@ -23,7 +23,6 @@ interface ChatAreaProps {
   onStart: () => void;
   starting: boolean;
   onSelectPlan: (planId: string) => void;
-  onClearPlan: () => void;
 }
 
 const getAgentColor = (agentType: string): string => {
@@ -31,7 +30,7 @@ const getAgentColor = (agentType: string): string => {
   return colors?.primary || '#6b7280';
 };
 
-export function ChatArea({ plan, plans, request, setRequest, onStart, starting, onSelectPlan, onClearPlan }: ChatAreaProps) {
+export function ChatArea({ plan, plans, request, setRequest, onStart, starting, onSelectPlan }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -39,7 +38,7 @@ export function ChatArea({ plan, plans, request, setRequest, onStart, starting, 
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [plan?.discussion, plan?.tasks]);
+  }, [plan?.discussion, plan?.tasks, plan?.iterations]);
 
   const handleSubmit = () => {
     if (!request.trim() || starting) return;
@@ -55,6 +54,12 @@ export function ChatArea({ plan, plans, request, setRequest, onStart, starting, 
 
   const completedTasks = plan?.tasks?.filter(t => t.status === 'completed') || [];
   const totalTasks = plan?.tasks?.length || 0;
+
+  // Check if latest iteration is executing for progress bar
+  const latestIteration = plan?.iterations?.[plan.iterations.length - 1];
+  const iterationExecuting = latestIteration?.status === 'executing';
+  const iterCompletedTasks = latestIteration?.tasks?.filter(t => t.status === 'completed') || [];
+  const iterTotalTasks = latestIteration?.tasks?.length || 0;
 
   // Filter web-app plans for history, sorted by created_at descending
   const gamePlans = plans
@@ -118,6 +123,58 @@ export function ChatArea({ plan, plans, request, setRequest, onStart, starting, 
     });
   }
 
+  // Show iteration rounds
+  if (plan?.iterations && plan.iterations.length > 0) {
+    plan.iterations.forEach((iter) => {
+      // Iteration request as user message
+      messages.push({
+        id: `iter-request-${iter.round_number}`,
+        type: 'user',
+        content: iter.iteration_request,
+        sender: '你',
+        timestamp: iter.created_at,
+      });
+
+      // Iteration discussion
+      if (iter.discussion && iter.discussion.length > 0) {
+        iter.discussion.forEach((msg, idx) => {
+          messages.push({
+            id: msg.id || `iter-disc-${iter.round_number}-${idx}`,
+            type: 'agent',
+            content: msg.content,
+            sender: msg.agent_name,
+            senderType: msg.agent_type,
+            timestamp: msg.timestamp,
+          });
+        });
+      }
+
+      // Iteration tasks
+      if (iter.tasks) {
+        iter.tasks.forEach((task) => {
+          if (task.status === 'completed') {
+            messages.push({
+              id: `iter-task-${task.id}`,
+              type: 'task',
+              content: task.title,
+              status: 'completed',
+              timestamp: new Date().toISOString(),
+            });
+          } else if (task.status === 'running') {
+            messages.push({
+              id: `iter-task-${task.id}`,
+              type: 'task',
+              content: task.title,
+              status: 'running',
+              isStreaming: true,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        });
+      }
+    });
+  }
+
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);
     const now = new Date();
@@ -137,28 +194,6 @@ export function ChatArea({ plan, plans, request, setRequest, onStart, starting, 
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Messages List */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {/* Back button when viewing a plan */}
-        {plan && (
-          <div className="flex items-center gap-2 mb-4">
-            <button
-              onClick={onClearPlan}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-800 text-gray-400 hover:text-white text-xs transition-all border border-gray-700/50 hover:border-gray-600"
-            >
-              <ArrowLeft size={14} />
-              <span>返回历史</span>
-            </button>
-            <button
-              onClick={() => {
-                setRequest('');
-                onStart();
-              }}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-pink-500/20 hover:bg-pink-500/30 text-pink-400 hover:text-pink-300 text-xs transition-all border border-pink-500/30 hover:border-pink-500/50"
-            >
-              <Plus size={14} />
-              <span>新建游戏</span>
-            </button>
-          </div>
-        )}
 
         {messages.length === 0 && !plan && (
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
@@ -270,7 +305,21 @@ export function ChatArea({ plan, plans, request, setRequest, onStart, starting, 
         ))}
 
         {/* Progress indicator */}
-        {plan?.status === 'executing' && totalTasks > 0 && (
+        {iterationExecuting && iterTotalTasks > 0 && (
+          <div className="bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
+            <div className="flex items-center gap-2 text-gray-400 mb-2">
+              <Clock size={12} />
+              <span className="text-xs">迭代进度 {iterCompletedTasks.length}/{iterTotalTasks}</span>
+            </div>
+            <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-pink-500 to-purple-500 transition-all duration-500"
+                style={{ width: `${(iterCompletedTasks.length / iterTotalTasks) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+        {!iterationExecuting && plan?.status === 'executing' && totalTasks > 0 && (
           <div className="bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
             <div className="flex items-center gap-2 text-gray-400 mb-2">
               <Clock size={12} />
@@ -296,7 +345,11 @@ export function ChatArea({ plan, plans, request, setRequest, onStart, starting, 
             value={request}
             onChange={(e) => setRequest(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="描述你的游戏想法..."
+            placeholder={
+              plan?.status === 'completed'
+                ? "描述你想要的修改，继续优化游戏..."
+                : "描述你的游戏想法..."
+            }
             className="w-full bg-gray-800/50 text-white rounded-xl px-4 py-3 pr-12 resize-none border border-gray-700 focus:border-pink-500/50 focus:ring-1 focus:ring-pink-500/20 focus:outline-none placeholder-gray-500 text-sm transition-all"
             rows={2}
             disabled={starting}

@@ -45,7 +45,7 @@ export function PipelinePanel() {
   } = useAgentStore();
 
   const [request, setRequest] = useState('');
-  const [targetOutput, setTargetOutput] = useState('ts-app');
+  const [targetOutput, setTargetOutput] = useState('web-app');
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
   const [starting, setStarting] = useState(false);
   const [resuming, setResuming] = useState(false);

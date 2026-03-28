@@ -277,5 +277,5 @@ class GLMClient:
 
 
 # Global instances
-glm_client = GLMClient()  # 用于分析、讨论、计划生成 (glm-4-flash)
-glm_coding_client = GLMClient(is_coding=True)  # 用于代码生成 (glm-5 + coding plan)
+glm_client = GLMClient()  # 用于聊天、讨论、任务拆解、计划生成 (glm-4.7-flash)
+glm_coding_client = GLMClient(is_coding=True)  # 用于代码编程类任务 (glm-5.1)

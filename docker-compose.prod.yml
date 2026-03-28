@@ -18,7 +18,7 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      - GLM_MODEL=${GLM_MODEL:-glm-5-turbo}
+      - GLM_MODEL=${GLM_MODEL:-glm-5.1}
       - DEBUG=${DEBUG:-false}
       - CORS_ORIGINS=${CORS_ORIGINS:-*}
     volumes:

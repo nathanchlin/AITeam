@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Gamepad2, Sparkles } from 'lucide-react';
+import { X, Gamepad2, Sparkles, ArrowLeft } from 'lucide-react';
 import { useAgentStore } from '../../stores/agentStore';
 import { ChatArea } from './VibeCodingPanel/ChatArea';
 import { PreviewArea } from './VibeCodingPanel/PreviewArea';
@@ -38,25 +38,45 @@ export function VibeCodingPanel() {
     setStarting(true);
 
     try {
-      const res = await fetch(`${API_BASE}/api/pipeline/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          request: request.trim(),
-          target_output: 'web-app',
-        }),
-      });
+      // If current plan is completed, iterate on it instead of creating new one
+      if (currentPlan && currentPlan.status === 'completed') {
+        const res = await fetch(`${API_BASE}/api/pipeline/iterate/${currentPlan.id}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            iteration_request: request.trim(),
+          }),
+        });
 
-      if (!res.ok) {
-        const error = await res.json();
-        console.error('Failed to start pipeline:', error);
-        return;
+        if (!res.ok) {
+          const error = await res.json();
+          console.error('Failed to start iteration:', error);
+          return;
+        }
+
+        setRequest('');
+      } else {
+        // No completed plan — create a new one
+        const res = await fetch(`${API_BASE}/api/pipeline/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            request: request.trim(),
+            target_output: 'web-app',
+          }),
+        });
+
+        if (!res.ok) {
+          const error = await res.json();
+          console.error('Failed to start pipeline:', error);
+          return;
+        }
+
+        const data = await res.json();
+        setVibeCodingPlanId(data.plan_id);
+        setRequest('');
+        clearDiscussion();
       }
-
-      const data = await res.json();
-      setVibeCodingPlanId(data.plan_id);
-      setRequest('');
-      clearDiscussion();
     } catch (error) {
       console.error('Failed to start pipeline:', error);
     } finally {
@@ -120,14 +140,26 @@ export function VibeCodingPanel() {
     <div className="vibe-coding-panel fixed inset-0 top-10 z-40 flex items-center justify-center p-4">
       {/* Main Container with border */}
       <div className="relative w-full h-full max-w-[1600px] flex rounded-2xl border border-gray-700/50 overflow-hidden shadow-2xl bg-gray-900">
-        {/* Close Button - positioned relative to the inner container */}
-        <button
-          onClick={toggleVibeCodingPanel}
-          className="absolute top-3 right-3 z-50 w-8 h-8 rounded-lg bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white transition-all flex items-center justify-center"
-          title="关闭 (Esc)"
-        >
-          <X size={16} />
-        </button>
+        {/* Top-right action buttons */}
+        <div className="absolute top-3 right-3 z-50 flex items-center gap-2">
+          {currentPlan && (
+            <button
+              onClick={() => setVibeCodingPlanId(null)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white text-xs transition-all"
+              title="返回历史"
+            >
+              <ArrowLeft size={14} />
+              <span>返回历史</span>
+            </button>
+          )}
+          <button
+            onClick={toggleVibeCodingPanel}
+            className="w-8 h-8 rounded-lg bg-gray-800/80 hover:bg-gray-700 text-gray-400 hover:text-white transition-all flex items-center justify-center"
+            title="关闭 (Esc)"
+          >
+            <X size={16} />
+          </button>
+        </div>
 
         {/* Left side: Chat Area */}
         <div
@@ -165,7 +197,6 @@ export function VibeCodingPanel() {
           onStart={handleStart}
           starting={starting}
           onSelectPlan={setVibeCodingPlanId}
-          onClearPlan={() => setVibeCodingPlanId(null)}
         />
       </div>
 

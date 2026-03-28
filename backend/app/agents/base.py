@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any, AsyncGenerator, List
 from datetime import datetime
 import uuid
 from app.models.schemas import AgentType, AgentStatus
-from app.llm.glm_client import glm_client
+from app.llm.glm_client import glm_client, glm_coding_client
 
 
 # =============================================================================
@@ -750,7 +750,8 @@ window.onload = () => new Game();
         else:
             full_prompt = task
 
-        async for chunk in glm_client.chat_stream(full_prompt, "coder", system_prompt):
+        # 代码生成任务使用 GLM-5 (glm_coding_client)
+        async for chunk in glm_coding_client.chat_stream(full_prompt, "coder", system_prompt):
             yield {"type": "stream", "content": chunk}
 
         self.update_status(AgentStatus.IDLE)

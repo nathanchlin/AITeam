@@ -493,7 +493,8 @@ class CoordinatorService:
                     }
                 })
 
-            async for chunk in glm_client.chat_stream(prompt, "coder"):
+            # 代码续写也使用 GLM-5
+            async for chunk in glm_coding_client.chat_stream(prompt, "coder"):
                 continuation += chunk
                 await self.broadcast({
                     "type": "stream",

@@ -5,15 +5,16 @@ from typing import Optional
 class Settings(BaseSettings):
     # GLM API Configuration
     glm_api_key: str = ""
-    glm_model: str = "glm-5"  # 统一使用 glm-5 进行所有任务
+    # 通用模型：用于聊天、讨论、任务拆解、计划生成等
+    glm_model: str = "glm-4.7-flash"
     glm_base_url: str = ""  # 可选的备用端点
 
-    # GLM Coding Model (用于代码生成，更强的能力)
-    glm_coding_model: str = "glm-5-turbo"  # 代码生成专用模型
-    glm_coding_base_url: str = "https://open.bigmodel.cn/api/coding/paas/v4"  # Coding Plan 端点
+    # GLM Coding Model (用于代码生成，更强的编程能力)
+    glm_coding_model: str = "glm-5.1"  # 代码生成专用模型
+    glm_coding_base_url: str = ""  # Coding Plan 端点 (可选)
 
     # Token limits
-    glm_max_tokens: int = 131072  # Maximum output tokens (128K for GLM-5)
+    glm_max_tokens: int = 131072  # Maximum output tokens (128K for GLM-5.1)
 
     # Server Configuration
     host: str = "0.0.0.0"

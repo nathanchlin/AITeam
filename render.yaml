@@ -12,7 +12,7 @@ services:
       - key: GLM_MODEL
         value: glm-4-flash
       - key: GLM_CODING_MODEL
-        value: glm-5-turbo
+        value: glm-5.1
       - key: CORS_ORIGINS
         value: https://aiteam.vercel.app
       - key: PYTHONUNBUFFERED

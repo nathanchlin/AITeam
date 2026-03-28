@@ -39,7 +39,7 @@ cd AITeam
 # 创建后端环境配置
 cat > backend/.env << EOF
 GLM_API_KEY=your_glm_api_key_here
-GLM_MODEL=glm-5-turbo
+GLM_MODEL=glm-5.1
 DEBUG=false
 CORS_ORIGINS=*
 EOF
