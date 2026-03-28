@@ -47,6 +47,7 @@ export function PipelinePanel() {
   const [request, setRequest] = useState('');
   const [targetOutput, setTargetOutput] = useState('web-app');
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
+  const [skipDiscussion, setSkipDiscussion] = useState(false);
   const [starting, setStarting] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [restarting, setRestarting] = useState(false);
@@ -72,6 +73,28 @@ export function PipelinePanel() {
   const [selectedTemplateCategory, setSelectedTemplateCategory] = useState<string | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<PipelineTemplate | null>(null);
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+  const [showAgentPicker, setShowAgentPicker] = useState(false);
+  const [showVersionPicker, setShowVersionPicker] = useState(false);
+  const versionPickerRef = useRef<HTMLDivElement>(null);
+
+  // Close pickers when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showAgentPicker && agentPickerRef.current && !agentPickerRef.current.contains(e.target as Node)) {
+        setShowAgentPicker(false);
+      }
+      if (showTemplatePicker && templatePickerRef.current && !templatePickerRef.current.contains(e.target as Node)) {
+        setShowTemplatePicker(false);
+      }
+      if (showVersionPicker && versionPickerRef.current && !versionPickerRef.current.contains(e.target as Node)) {
+        setShowVersionPicker(false);
+      }
+    };
+    if (showAgentPicker || showTemplatePicker || showVersionPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showAgentPicker, showTemplatePicker, showVersionPicker]);
   const [isFixingHtml, setIsFixingHtml] = useState(false);
   const [fixResult, setFixResult] = useState<{
     success: boolean;
@@ -87,6 +110,24 @@ export function PipelinePanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollingRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const agentPickerRef = useRef<HTMLDivElement>(null);
+  const templatePickerRef = useRef<HTMLDivElement>(null);
+
+  // Close pickers when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (showAgentPicker && agentPickerRef.current && !agentPickerRef.current.contains(e.target as Node)) {
+        setShowAgentPicker(false);
+      }
+      if (showTemplatePicker && templatePickerRef.current && !templatePickerRef.current.contains(e.target as Node)) {
+        setShowTemplatePicker(false);
+      }
+    };
+    if (showAgentPicker || showTemplatePicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showAgentPicker, showTemplatePicker]);
 
   // Panel size state with localStorage persistence
   const [panelSize, setPanelSize] = useState(() => {
@@ -457,6 +498,7 @@ export function PipelinePanel() {
           request: request.trim(),
           target_output: targetOutput,
           selected_agent_ids: selectedAgentIds,
+          skip_discussion: skipDiscussion,
         }),
       });
       const data = await res.json();
@@ -725,12 +767,19 @@ export function PipelinePanel() {
     const phases = [
       { key: 'draft', label: '需求分析', icon: '📋' },
       { key: 'discussing', label: '团队讨论', icon: '💬' },
-      { key: 'approved', label: '计划确认', icon: '✅' },
-      { key: 'pending_approval', label: '待确认', icon: '⏳' },
+      { key: 'pending_approval', label: '计划确认', icon: '✅' },
       { key: 'executing', label: '执行开发', icon: '⚙️' },
       { key: 'completed', label: '完成交付', icon: '🎉' },
     ];
-    const currentIndex = phases.findIndex(p => p.key === status);
+    const statusToPhase: Record<string, number> = {
+      draft: 0,
+      discussing: 1,
+      pending_approval: 2,
+      approved: 3,
+      executing: 3,
+      completed: 4,
+    };
+    const currentIndex = statusToPhase[status] ?? 0;
     return { phases, currentIndex };
   };
 
@@ -933,18 +982,19 @@ export function PipelinePanel() {
       {/* Input Section */}
       <div className="p-4 border-b border-gray-700 bg-gray-800/50">
         <div className="space-y-3">
-          {/* Template Picker */}
-          {!currentPlan || currentPlan.status === 'completed' ? (
-            <div className="relative">
-              <button
-                onClick={() => setShowTemplatePicker(!showTemplatePicker)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
-              >
-                <Sparkles size={14} className="text-yellow-400" />
-                <span>{selectedTemplate ? `${selectedTemplate.icon} ${selectedTemplate.name}` : '快速模板'}</span>
-              </button>
-              {showTemplatePicker && (
-                <div className="absolute top-full left-0 mt-1 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 max-h-96 overflow-hidden">
+          {/* Template Picker & Agent Selection - same row */}
+          <div className="flex items-center gap-2">
+            {!currentPlan || currentPlan.status === 'completed' ? (
+              <div className="relative" ref={templatePickerRef}>
+                <button
+                  onClick={() => setShowTemplatePicker(!showTemplatePicker)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
+                >
+                  <Sparkles size={14} className="text-yellow-400" />
+                  <span>{selectedTemplate ? `${selectedTemplate.icon} ${selectedTemplate.name}` : '快速模板'}</span>
+                </button>
+                {showTemplatePicker && (
+                  <div className="absolute top-full left-0 mt-1 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 max-h-96 overflow-hidden">
                   {/* Categories */}
                   <div className="flex border-b border-gray-700 overflow-x-auto">
                     <button
@@ -1003,6 +1053,90 @@ export function PipelinePanel() {
               )}
             </div>
           ) : null}
+          {/* Agent Selection Button */}
+          <div className="relative" ref={agentPickerRef}>
+            <button
+              onClick={() => setShowAgentPicker(!showAgentPicker)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm text-gray-300 transition-colors"
+            >
+              <Users size={14} className="text-blue-400" />
+              <span>{selectedAgentIds.length > 0 ? `已选择 ${selectedAgentIds.length} 个 Agent` : '协作 Agent'}</span>
+              {selectedAgentIds.length > 0 && (
+                <span className="flex -space-x-1">
+                  {selectedAgentIds.slice(0, 3).map(id => {
+                    const agent = agents.find(a => a.id === id);
+                    if (!agent) return null;
+                    const color = AGENT_COLORS[agent.type as keyof typeof AGENT_COLORS]?.primary || '#888';
+                    return (
+                      <div
+                        key={id}
+                        className="w-4 h-4 rounded-full border border-gray-800 flex items-center justify-center text-[8px] font-bold text-white"
+                        style={{ backgroundColor: color }}
+                      >
+                        {(agent.name || '?').charAt(0)}
+                      </div>
+                    );
+                  })}
+                  {selectedAgentIds.length > 3 && (
+                    <span className="w-4 h-4 rounded-full bg-gray-600 border border-gray-800 flex items-center justify-center text-[8px] text-gray-300">
+                      +{selectedAgentIds.length - 3}
+                    </span>
+                  )}
+                </span>
+              )}
+            </button>
+            {showAgentPicker && (
+              <div className="absolute top-full left-0 mt-1 w-96 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 overflow-hidden">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 bg-gray-800/80">
+                  <span className="text-xs text-gray-300 font-medium">选择协作 Agent</span>
+                  <div className="flex gap-2">
+                    <button onClick={selectAllAgents} className="text-xs text-purple-400 hover:text-purple-300">全选</button>
+                    <span className="text-gray-600">|</span>
+                    <button onClick={clearAgentSelection} className="text-xs text-gray-400 hover:text-gray-300">清除</button>
+                  </div>
+                </div>
+                <div className="p-3 grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+                  {agents.map((agent) => {
+                    const isSelected = selectedAgentIds.includes(agent.id);
+                    const agentColor = AGENT_COLORS[agent.type as keyof typeof AGENT_COLORS]?.primary || '#888';
+                    return (
+                      <button
+                        key={agent.id}
+                        onClick={() => toggleAgentSelection(agent.id)}
+                        className={`flex items-center gap-1.5 px-2.5 py-2 rounded-lg text-xs transition-all text-left ${
+                          isSelected ? 'ring-2 ring-offset-1 ring-offset-gray-800' : 'opacity-60 hover:opacity-100'
+                        }`}
+                        style={{
+                          backgroundColor: isSelected ? agentColor : `${agentColor}25`,
+                          color: isSelected ? 'white' : '#ccc',
+                        }}
+                      >
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                          style={{ backgroundColor: agentColor }}
+                        >
+                          {(agent.name || '?').charAt(0)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate">{agent.name}</div>
+                          <div className="text-[10px] opacity-70 truncate">{getAgentDisplayType(agent)}</div>
+                        </div>
+                        {isSelected && <Check size={14} className="flex-shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="px-3 py-2 border-t border-gray-700 bg-gray-800/80">
+                  {selectedAgentIds.length === 0 ? (
+                    <p className="text-xs text-yellow-500">未选择 Agent，将使用所有可用 Agent</p>
+                  ) : (
+                    <p className="text-xs text-gray-400">已选择 {selectedAgentIds.length} 个 Agent</p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          </div>
           <textarea
             value={request}
             onChange={(e) => setRequest(e.target.value)}
@@ -1018,83 +1152,39 @@ export function PipelinePanel() {
             disabled={starting || iterating}
           />
 
-          {/* Agent Selection */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-400">选择协作 Agent：</span>
-              <div className="flex gap-2">
-                <button
-                  onClick={selectAllAgents}
-                  className="text-xs text-purple-400 hover:text-purple-300"
-                >
-                  全选
-                </button>
-                <span className="text-gray-600">|</span>
-                <button
-                  onClick={clearAgentSelection}
-                  className="text-xs text-gray-400 hover:text-gray-300"
-                >
-                  清除
-                </button>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {agents.map((agent) => {
-                const isSelected = selectedAgentIds.includes(agent.id);
-                const agentColor = AGENT_COLORS[agent.type as keyof typeof AGENT_COLORS]?.primary || '#888';
-                return (
-                  <button
-                    key={agent.id}
-                    onClick={() => toggleAgentSelection(agent.id)}
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-all ${
-                      isSelected
-                        ? 'ring-2 ring-offset-1 ring-offset-gray-800'
-                        : 'opacity-60 hover:opacity-100'
-                    }`}
-                    style={{
-                      backgroundColor: isSelected ? agentColor : `${agentColor}40`,
-                      color: isSelected ? 'white' : '#ccc',
-                    }}
-                  >
-                    <div
-                      className="w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold"
-                      style={{ backgroundColor: agentColor }}
-                    >
-                      {(agent.name || '?').charAt(0)}
-                    </div>
-                    <span>{agent.name}</span>
-                    <span className="text-[10px] opacity-70">
-                      ({getAgentDisplayType(agent)})
-                    </span>
-                    {isSelected && (
-                      <Check size={12} className="ml-0.5" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-            {selectedAgentIds.length === 0 && (
-              <p className="text-xs text-yellow-500">
-                未选择 Agent，将使用所有可用 Agent
-              </p>
-            )}
-          </div>
 
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">目标输出：</span>
-              <select
-                value={targetOutput}
-                onChange={(e) => setTargetOutput(e.target.value)}
-                className="px-2 py-1 bg-gray-700 rounded text-white text-xs border border-gray-600"
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">目标输出：</span>
+                <select
+                  value={targetOutput}
+                  onChange={(e) => setTargetOutput(e.target.value)}
+                  className="px-2 py-1 bg-gray-700 rounded text-white text-xs border border-gray-600"
+                >
+                  <option value="web-app">Web应用</option>
+                  <option value="ts-app">TS工程应用</option>
+                  <option value="godot-game">Godot游戏</option>
+                  <option value="api">API服务</option>
+                  <option value="report">分析报告</option>
+                  <option value="documentation">文档</option>
+                </select>
+              </div>
+              <button
+                onClick={() => setSkipDiscussion(!skipDiscussion)}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-all ${
+                  skipDiscussion
+                    ? 'bg-blue-600/30 text-blue-400 border border-blue-500/40'
+                    : 'bg-gray-700/50 text-gray-500 border border-gray-600/50'
+                }`}
               >
-                <option value="web-app">Web应用</option>
-                <option value="ts-app">TS工程应用</option>
-                <option value="godot-game">Godot游戏</option>
-                <option value="api">API服务</option>
-                <option value="report">分析报告</option>
-                <option value="documentation">文档</option>
-              </select>
+                <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center transition-all ${
+                  skipDiscussion ? 'border-blue-400 bg-blue-500' : 'border-gray-500'
+                }`}>
+                  {skipDiscussion && <div className="w-1 h-1 rounded-full bg-white" />}
+                </div>
+                <span>跳过讨论</span>
+              </button>
             </div>
             <div className="flex items-center gap-2">
               {/* 当有输出文件时，显示迭代按钮（不需要等到完成） */}
@@ -1152,10 +1242,38 @@ export function PipelinePanel() {
           <>
             {/* Progress Bar */}
             <div className="p-4 border-b border-gray-700 bg-gray-800/30">
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between">
                 <span className={`text-sm font-medium ${getStatusColor(currentPlan.status)}`}>
                   {getStatusLabel(currentPlan.status)}
                 </span>
+                {/* Phase Progress */}
+                <div className="flex items-center">
+                  {phases.map((phase, index) => (
+                    <div key={phase.key} className="flex items-center">
+                      <div className="flex flex-col items-center">
+                        <div
+                          className={`flex items-center justify-center w-6 h-6 rounded-full text-xs transition-all ${
+                            index <= currentIndex
+                              ? `${getStatusBgColor(currentPlan.status)} text-white`
+                              : 'bg-gray-700 text-gray-500'
+                          } ${index === currentIndex ? 'ring-2 ring-white/30' : ''}`}
+                        >
+                          {index < currentIndex ? '✓' : phase.icon}
+                        </div>
+                        <span className={`text-xs leading-tight mt-0.5 whitespace-nowrap ${
+                          index <= currentIndex ? 'text-gray-300' : 'text-gray-600'
+                        } ${index === currentIndex ? 'font-medium' : ''}`}>
+                          {phase.label}
+                        </span>
+                      </div>
+                      {index < phases.length - 1 && (
+                        <div className={`w-6 h-px mx-1 rounded ${
+                          index < currentIndex ? 'bg-green-500' : 'bg-gray-700'
+                        }`} />
+                      )}
+                    </div>
+                  ))}
+                </div>
                 <div className="flex items-center gap-2 flex-wrap">
                   {totalTasks > 0 && (
                     <span className="text-xs text-gray-400">
@@ -1163,7 +1281,6 @@ export function PipelinePanel() {
                     </span>
                   )}
                   {(() => {
-                    // 根据当前 tab 获取正确的状态
                     if (activeIterationTab > 0) {
                       const iteration = currentPlan.iterations?.find(i => i.round_number === activeIterationTab);
                       return iteration?.status === 'executing' && completedTasksCount < totalTasks;
@@ -1214,42 +1331,6 @@ export function PipelinePanel() {
                 </div>
               </div>
 
-              {/* Phase Progress */}
-              <div className="mb-4">
-                <div className="flex items-center gap-1 mb-1">
-                  {phases.map((phase, index) => (
-                    <div key={phase.key} className="flex items-center flex-1">
-                      <div
-                        className={`flex items-center justify-center w-7 h-7 rounded-full text-xs transition-all ${
-                          index <= currentIndex
-                            ? `${getStatusBgColor(currentPlan.status)} text-white`
-                            : 'bg-gray-700 text-gray-500'
-                        } ${index === currentIndex ? 'ring-2 ring-white/30' : ''}`}
-                      >
-                        {index < currentIndex ? '✓' : phase.icon}
-                      </div>
-                      {index < phases.length - 1 && (
-                        <div className={`flex-1 h-0.5 mx-1 rounded ${
-                          index < currentIndex ? 'bg-green-500' : 'bg-gray-700'
-                        }`} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {/* Phase labels */}
-                <div className="flex items-center gap-1">
-                  {phases.map((phase, index) => (
-                    <div key={phase.key} className="flex-1 text-center">
-                      <span className={`text-[10px] ${
-                        index <= currentIndex ? 'text-gray-300' : 'text-gray-600'
-                      } ${index === currentIndex ? 'font-medium' : ''}`}>
-                        {phase.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               {/* Restart success hint */}
               {restartMessage && (
                 <div className="flex items-center gap-2 p-2 bg-blue-500/10 rounded border border-blue-500/30">
@@ -1295,7 +1376,7 @@ export function PipelinePanel() {
               )}
             </div>
 
-            {/* Iteration Tabs */}
+            {/* Iteration Tabs + Version Picker */}
             {currentPlan && currentPlan.iterations && currentPlan.iterations.length > 0 && (
               <div className="px-4 py-2 border-b border-gray-700 bg-gray-800/20 flex items-center gap-2 overflow-x-auto">
                 <Layers size={14} className="text-gray-400 flex-shrink-0" />
@@ -1308,51 +1389,25 @@ export function PipelinePanel() {
                   }`}
                 >
                   初始版本
-                  {archives.some(a => a.round_number === 0) && (
-                    <span title="已存档"><Archive size={10} className="text-blue-400 ml-1" /></span>
-                  )}
                 </button>
                 {currentPlan.iterations.map((iteration) => {
                   const isActive = activeIterationTab === iteration.round_number;
                   const isCompleted = iteration.status === 'completed';
                   const isExecuting = iteration.status === 'executing';
-                  const hasArchive = iteration.archive_path || archives.some(a => a.round_number === iteration.round_number);
                   return (
-                    <div key={iteration.round_number} className="relative group">
-                      <button
-                        onClick={() => setActiveIterationTab(iteration.round_number)}
-                        className={`px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
-                          isActive
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                        }`}
-                      >
-                        {isCompleted && <CheckCircle size={10} className="text-green-400" />}
-                        {isExecuting && <Loader2 size={10} className="animate-spin text-yellow-400" />}
-                        迭代{iteration.round_number}
-                        {hasArchive && (
-                          <span title="已存档"><Archive size={10} className="text-blue-400 ml-1" /></span>
-                        )}
-                      </button>
-                      {/* Restore dropdown for completed iterations with archive */}
-                      {isCompleted && hasArchive && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRestoreArchive(iteration.round_number);
-                          }}
-                          disabled={restoring}
-                          className="absolute -top-1 -right-1 w-5 h-5 bg-gray-600 hover:bg-blue-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          title={`还原到迭代${iteration.round_number}版本`}
-                        >
-                          {restoring ? (
-                            <Loader2 size={10} className="animate-spin text-white" />
-                          ) : (
-                            <Undo2 size={10} className="text-white" />
-                          )}
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      key={iteration.round_number}
+                      onClick={() => setActiveIterationTab(iteration.round_number)}
+                      className={`px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
+                        isActive
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      {isCompleted && <CheckCircle size={10} className="text-green-400" />}
+                      {isExecuting && <Loader2 size={10} className="animate-spin text-yellow-400" />}
+                      迭代{iteration.round_number}
+                    </button>
                   );
                 })}
                 {/* Restore message */}
@@ -1362,56 +1417,16 @@ export function PipelinePanel() {
                     {restoreMessage}
                   </div>
                 )}
-                {/* Archive management button */}
+                {/* Version & Archive Picker Button */}
                 {currentPlan?.status === 'completed' && archives.length > 0 && (
                   <button
-                    onClick={() => setShowArchivePanel(true)}
+                    onClick={() => setShowVersionPicker(!showVersionPicker)}
                     className="ml-auto px-3 py-1 rounded text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1 bg-gray-700 text-gray-300 hover:bg-gray-600"
                   >
                     <Archive size={12} />
-                    存档管理
+                    <span>存档与还原</span>
                   </button>
                 )}
-              </div>
-            )}
-
-            {/* Archive Restore Section for Initial Version */}
-            {currentPlan?.status === 'completed' && archives.length > 0 && activeIterationTab === 0 && archives.some(a => a.round_number === 0) && (
-              <div className="px-4 py-2 border-b border-gray-700 bg-gray-800/10">
-                <div className="flex items-center gap-2">
-                  <Archive size={12} className="text-blue-400" />
-                  <span className="text-xs text-gray-400">初始版本已存档</span>
-                  <button
-                    onClick={() => handleRestoreArchive(0)}
-                    disabled={restoring}
-                    className="ml-auto px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded flex items-center gap-1 disabled:opacity-50"
-                  >
-                    {restoring ? <Loader2 size={10} className="animate-spin" /> : <Undo2 size={10} />}
-                    还原到此版本
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Archive Restore Section for Iteration */}
-            {currentPlan?.status === 'completed' && activeIterationTab > 0 && (() => {
-              const iteration = currentPlan.iterations?.find(i => i.round_number === activeIterationTab);
-              const hasArchive = iteration?.archive_path || archives.some(a => a.round_number === activeIterationTab);
-              return hasArchive && iteration?.status === 'completed';
-            })() && (
-              <div className="px-4 py-2 border-b border-gray-700 bg-gray-800/10">
-                <div className="flex items-center gap-2">
-                  <Archive size={12} className="text-blue-400" />
-                  <span className="text-xs text-gray-400">迭代{activeIterationTab}版本已存档</span>
-                  <button
-                    onClick={() => handleRestoreArchive(activeIterationTab)}
-                    disabled={restoring}
-                    className="ml-auto px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded flex items-center gap-1 disabled:opacity-50"
-                  >
-                    {restoring ? <Loader2 size={10} className="animate-spin" /> : <Undo2 size={10} />}
-                    还原到此版本
-                  </button>
-                </div>
               </div>
             )}
 
@@ -1857,11 +1872,11 @@ export function PipelinePanel() {
                         )}
                         {archives.length > 0 && (
                           <button
-                            onClick={() => setShowArchivePanel(true)}
+                            onClick={() => setShowVersionPicker(true)}
                             className="px-3 py-2 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors flex items-center gap-2 text-sm"
                           >
                             <Archive size={14} />
-                            存档管理
+                            存档与还原
                           </button>
                         )}
                         <button
@@ -1998,6 +2013,80 @@ export function PipelinePanel() {
             <span>index.html</span>
           </div>
         </div>
+      )}
+
+      {/* Version & Archive Picker Popup */}
+      {showVersionPicker && currentPlan?.status === 'completed' && archives.length > 0 && (
+        <>
+          {/* Backdrop */}
+          <div className="fixed inset-0 z-40" onClick={() => setShowVersionPicker(false)} />
+          {/* Popup */}
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-96 bg-gray-800 border border-gray-600 rounded-lg shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800/90">
+              <div className="flex items-center gap-2">
+                <Archive size={16} className="text-blue-400" />
+                <span className="text-sm text-gray-200 font-medium">存档版本</span>
+                <span className="text-xs text-gray-500">({archives.length})</span>
+              </div>
+              <button
+                onClick={() => setShowVersionPicker(false)}
+                className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="max-h-80 overflow-y-auto">
+              {archives.map((archive) => (
+                <div
+                  key={archive.round_number}
+                  className="flex items-center justify-between px-4 py-3 hover:bg-gray-700/50 border-b border-gray-700/50 last:border-0 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-8 h-8 rounded-lg bg-blue-600/20 flex items-center justify-center flex-shrink-0">
+                      <Archive size={14} className="text-blue-400" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm text-white truncate">
+                        {archive.round_number === 0 ? '初始版本' : `迭代${archive.round_number}`}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        {new Date(archive.modified_at).toLocaleString()}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                    {activeIterationTab === archive.round_number && (
+                      <span className="text-xs text-purple-400 px-2 py-0.5 bg-purple-500/10 rounded">当前</span>
+                    )}
+                    <button
+                      onClick={() => {
+                        handleRestoreArchive(archive.round_number);
+                        setShowVersionPicker(false);
+                      }}
+                      disabled={restoring}
+                      className="px-3 py-1.5 text-xs bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 rounded flex items-center gap-1.5 disabled:opacity-50 transition-colors"
+                    >
+                      {restoring ? <Loader2 size={12} className="animate-spin" /> : <Undo2 size={12} />}
+                      还原
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-4 py-3 border-t border-gray-700 bg-gray-800/90">
+              <button
+                onClick={() => {
+                  setShowArchivePanel(true);
+                  setShowVersionPicker(false);
+                }}
+                className="w-full px-3 py-2 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-lg flex items-center justify-center gap-2 transition-colors"
+              >
+                <Layers size={14} />
+                打开存档管理面板
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Archive Management Panel */}

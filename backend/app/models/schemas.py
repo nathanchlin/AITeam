@@ -211,6 +211,7 @@ class Plan(PlanBase):
     selected_agent_ids: List[str] = Field(default_factory=list)  # Agent IDs selected for this plan
     iterations: List[IterationRound] = Field(default_factory=list)  # 迭代轮次列表
     current_iteration_round: int = 0  # 当前迭代轮次（0表示初始版本）
+    skip_discussion: bool = False  # Persist skip_discussion setting for resume/restart
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     started_at: Optional[datetime] = None
@@ -246,6 +247,7 @@ class PipelineRequest(BaseModel):
     request: str
     target_output: str = "web-app"  # web-app, ts-app, godot-game, api, report, etc.
     selected_agent_ids: List[str] = Field(default_factory=list)  # Agent IDs to use in pipeline
+    skip_discussion: bool = False  # Skip discussion phase, go directly to plan generation
 
 
 class IterationRequest(BaseModel):

@@ -21,6 +21,7 @@ class QueuedPipeline:
     request: str
     target_output: str
     selected_agent_ids: List[str]
+    skip_discussion: bool = False
     queued_at: datetime = field(default_factory=datetime.utcnow)
     started_at: Optional[datetime] = None
     position: int = 0
@@ -55,7 +56,8 @@ class PipelineQueueService:
         plan_id: str,
         request: str,
         target_output: str,
-        selected_agent_ids: List[str]
+        selected_agent_ids: List[str],
+        skip_discussion: bool = False
     ) -> dict:
         """Add a pipeline to the queue.
 
@@ -75,6 +77,7 @@ class PipelineQueueService:
                 request=request,
                 target_output=target_output,
                 selected_agent_ids=selected_agent_ids,
+                skip_discussion=skip_discussion,
                 position=len(self.queue) + 1,
             )
 
@@ -118,7 +121,8 @@ class PipelineQueueService:
 
             # Run the full pipeline
             await self._coordinator.analyze_request(pipeline.plan_id)
-            await self._coordinator.organize_discussion(pipeline.plan_id)
+            if not pipeline.skip_discussion:
+                await self._coordinator.organize_discussion(pipeline.plan_id)
             await self._coordinator.generate_plan(pipeline.plan_id)
             await self._coordinator.execute_plan(pipeline.plan_id)
 

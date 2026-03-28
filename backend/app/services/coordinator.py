@@ -2215,13 +2215,14 @@ class CoordinatorService:
         self,
         request: str,
         target_output: str = "web-app",
+        skip_discussion: bool = False,
     ) -> Plan:
         """Run the complete pipeline: Discussion → Planning → Execution"""
         # Create plan
         plan = await self.create_plan(request, target_output)
-        return await self.run_pipeline_with_plan(plan.id)
+        return await self.run_pipeline_with_plan(plan.id, skip_discussion=skip_discussion)
 
-    async def run_pipeline_with_plan(self, plan_id: str) -> Plan:
+    async def run_pipeline_with_plan(self, plan_id: str, skip_discussion: bool = False) -> Plan:
         """Run pipeline with existing plan"""
         plan = self.plans.get(plan_id)
         if not plan:
@@ -2231,8 +2232,9 @@ class CoordinatorService:
             # Phase 1: Analyze request
             await self.analyze_request(plan.id)
 
-            # Phase 2: Organize discussion
-            await self.organize_discussion(plan.id)
+            # Phase 2: Organize discussion (optional)
+            if not skip_discussion:
+                await self.organize_discussion(plan.id)
 
             # Phase 3: Generate plan
             plan = await self.generate_plan(plan.id)
@@ -2334,13 +2336,14 @@ class CoordinatorService:
             import traceback
             traceback.print_exc()
 
-        # Phase 2: 组织迭代讨论
-        try:
-            await self._organize_iteration_discussion(plan_id, iteration_round, existing_code, iteration_request)
-        except Exception as e:
-            print(f"[Coordinator] Error in _organize_iteration_discussion: {e}")
-            import traceback
-            traceback.print_exc()
+        # Phase 2: 组织迭代讨论（可选）
+        if not plan.skip_discussion:
+            try:
+                await self._organize_iteration_discussion(plan_id, iteration_round, existing_code, iteration_request)
+            except Exception as e:
+                print(f"[Coordinator] Error in _organize_iteration_discussion: {e}")
+                import traceback
+                traceback.print_exc()
 
         # Phase 3: 生成迭代计划
         try:

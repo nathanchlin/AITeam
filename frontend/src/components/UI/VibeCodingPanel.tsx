@@ -20,8 +20,23 @@ export function VibeCodingPanel() {
   const [request, setRequest] = useState('');
   const [starting, setStarting] = useState(false);
   const [leftWidth, setLeftWidth] = useState(40);
+  const [pendingMessages, setPendingMessages] = useState<string[]>([]);
 
   const currentPlan = plans.find(p => p.id === vibeCodingPlanId) as Plan | undefined;
+
+  // Clear pending messages once plan data arrives via WebSocket
+  useEffect(() => {
+    if (pendingMessages.length === 0) return;
+    // For new plans: original_request arrived
+    if (currentPlan?.original_request) {
+      setPendingMessages(prev => prev.filter(msg => msg !== currentPlan.original_request));
+    }
+    // For iterations: iteration requests arrived
+    if (currentPlan?.iterations) {
+      const iterRequests = currentPlan.iterations.map(i => i.iteration_request);
+      setPendingMessages(prev => prev.filter(msg => !iterRequests.includes(msg)));
+    }
+  }, [currentPlan?.original_request, currentPlan?.iterations]);
 
   const getPreviewUrl = (plan: Plan | undefined): string | null => {
     if (!plan) return null;
@@ -35,6 +50,8 @@ export function VibeCodingPanel() {
 
   const handleStart = async () => {
     if (!request.trim() || starting) return;
+    const msg = request.trim();
+    setPendingMessages(prev => [...prev, msg]);
     setStarting(true);
 
     try {
@@ -63,6 +80,7 @@ export function VibeCodingPanel() {
           body: JSON.stringify({
             request: request.trim(),
             target_output: 'web-app',
+            skip_discussion: true,
           }),
         });
 
@@ -197,6 +215,7 @@ export function VibeCodingPanel() {
           onStart={handleStart}
           starting={starting}
           onSelectPlan={setVibeCodingPlanId}
+          pendingMessages={pendingMessages}
         />
       </div>
 

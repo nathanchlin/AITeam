@@ -23,6 +23,7 @@ interface ChatAreaProps {
   onStart: () => void;
   starting: boolean;
   onSelectPlan: (planId: string) => void;
+  pendingMessages: string[];
 }
 
 const getAgentColor = (agentType: string): string => {
@@ -30,7 +31,7 @@ const getAgentColor = (agentType: string): string => {
   return colors?.primary || '#6b7280';
 };
 
-export function ChatArea({ plan, plans, request, setRequest, onStart, starting, onSelectPlan }: ChatAreaProps) {
+export function ChatArea({ plan, plans, request, setRequest, onStart, starting, onSelectPlan, pendingMessages }: ChatAreaProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -38,7 +39,7 @@ export function ChatArea({ plan, plans, request, setRequest, onStart, starting, 
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [plan?.discussion, plan?.tasks, plan?.iterations]);
+  }, [plan?.discussion, plan?.tasks, plan?.iterations, pendingMessages]);
 
   const handleSubmit = () => {
     if (!request.trim() || starting) return;
@@ -174,6 +175,17 @@ export function ChatArea({ plan, plans, request, setRequest, onStart, starting, 
       }
     });
   }
+
+  // Pending messages (submitted but not yet in plan data)
+  pendingMessages.forEach((msg, idx) => {
+    messages.push({
+      id: `pending-${idx}`,
+      type: 'user',
+      content: msg,
+      sender: '你',
+      timestamp: new Date().toISOString(),
+    });
+  });
 
   const formatTime = (dateStr: string) => {
     const date = new Date(dateStr);

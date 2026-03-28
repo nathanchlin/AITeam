@@ -40,12 +40,16 @@ async def start_pipeline(request: PipelineRequest, background_tasks: BackgroundT
         selected_agent_ids=request.selected_agent_ids,
     )
 
+    # Persist skip_discussion on plan for resume/restart
+    plan.skip_discussion = request.skip_discussion
+
     # Add to queue (will start immediately if under limit, otherwise queued)
     queue_result = await pipeline_queue.enqueue(
         plan_id=plan.id,
         request=request.request,
         target_output=request.target_output,
         selected_agent_ids=request.selected_agent_ids,
+        skip_discussion=request.skip_discussion,
     )
 
     return {
@@ -642,7 +646,8 @@ async def resume_pipeline(plan_id: str, background_tasks: BackgroundTasks):
     async def run_full_pipeline():
         try:
             await coordinator.analyze_request(plan_id)
-            await coordinator.organize_discussion(plan_id)
+            if not plan.skip_discussion:
+                await coordinator.organize_discussion(plan_id)
             await coordinator.generate_plan(plan_id)
             await coordinator.execute_plan(plan_id)
         except Exception as e:
@@ -721,7 +726,8 @@ async def restart_pipeline(plan_id: str, background_tasks: BackgroundTasks):
     async def run_pipeline_background():
         try:
             await coordinator.analyze_request(plan_id)
-            await coordinator.organize_discussion(plan_id)
+            if not plan.skip_discussion:
+                await coordinator.organize_discussion(plan_id)
             await coordinator.generate_plan(plan_id)
             await coordinator.execute_plan(plan_id)
         except Exception as e:
@@ -770,7 +776,8 @@ async def restart_iteration(plan_id: str, round_number: int, background_tasks: B
         try:
             existing_code = output_manager.read_existing_code(plan_id)
             await coordinator._analyze_iteration_request(plan_id, iteration, existing_code, iteration.iteration_request)
-            await coordinator._organize_iteration_discussion(plan_id, iteration, existing_code, iteration.iteration_request)
+            if not plan.skip_discussion:
+                await coordinator._organize_iteration_discussion(plan_id, iteration, existing_code, iteration.iteration_request)
             await coordinator._generate_iteration_plan(plan_id, iteration, existing_code, iteration.iteration_request)
             await coordinator._execute_iteration_plan(plan_id, iteration, existing_code)
         except Exception as e:
@@ -896,11 +903,13 @@ async def resume_iteration(plan_id: str, round_number: int, background_tasks: Ba
             if iteration.status == PlanStatus.DRAFT:
                 # Need to run full iteration pipeline
                 await coordinator._analyze_iteration_request(plan_id, iteration, existing_code, iteration.iteration_request)
-                await coordinator._organize_iteration_discussion(plan_id, iteration, existing_code, iteration.iteration_request)
+                if not plan.skip_discussion:
+                    await coordinator._organize_iteration_discussion(plan_id, iteration, existing_code, iteration.iteration_request)
                 await coordinator._generate_iteration_plan(plan_id, iteration, existing_code, iteration.iteration_request)
             elif iteration.status == PlanStatus.DISCUSSING:
                 # Resume from discussion
-                await coordinator._organize_iteration_discussion(plan_id, iteration, existing_code, iteration.iteration_request)
+                if not plan.skip_discussion:
+                    await coordinator._organize_iteration_discussion(plan_id, iteration, existing_code, iteration.iteration_request)
                 await coordinator._generate_iteration_plan(plan_id, iteration, existing_code, iteration.iteration_request)
             elif iteration.status == PlanStatus.APPROVED:
                 # Just execute the plan
