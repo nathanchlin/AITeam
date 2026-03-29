@@ -22,7 +22,7 @@ class QueuedPipeline:
     target_output: str
     selected_agent_ids: List[str]
     skip_discussion: bool = False
-    queued_at: datetime = field(default_factory=datetime.utcnow)
+    queued_at: datetime = field(default_factory=datetime.now)
     started_at: Optional[datetime] = None
     position: int = 0
 
@@ -84,7 +84,7 @@ class PipelineQueueService:
             # Check if we can start immediately
             if len(self.running) < self.MAX_CONCURRENT:
                 pipeline.position = 0  # 0 means running
-                pipeline.started_at = datetime.utcnow()
+                pipeline.started_at = datetime.now()
                 self.running[plan_id] = pipeline
                 # Start execution outside the lock
                 asyncio.create_task(self._start_pipeline(pipeline))
@@ -145,7 +145,7 @@ class PipelineQueueService:
             if self.queue and len(self.running) < self.MAX_CONCURRENT:
                 next_pipeline = self.queue.popleft()
                 next_pipeline.position = 0
-                next_pipeline.started_at = datetime.utcnow()
+                next_pipeline.started_at = datetime.now()
                 self.running[next_pipeline.plan_id] = next_pipeline
 
                 print(f"[PipelineQueue] Starting next pipeline {next_pipeline.plan_id} from queue")

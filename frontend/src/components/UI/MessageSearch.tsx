@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Search, X, Filter } from 'lucide-react';
+import { parseUTCTime } from '../../utils/time';
 
 export interface SearchFilters {
   keyword: string;
@@ -95,7 +96,7 @@ export function MessageSearch({
 
   // Format time for display
   const formatTime = (timestamp: string): string => {
-    const date = new Date(timestamp);
+    const date = parseUTCTime(timestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     if (diff < 60000) return '刚刚';

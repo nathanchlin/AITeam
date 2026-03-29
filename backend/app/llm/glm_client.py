@@ -191,7 +191,7 @@ class GLMClient:
 
         messages.append({"role": "user", "content": message})
 
-        # 重试逻辑（含429速率限制处理）
+        # 重试逻辑（含429速率限制处理 + OSError 重试）
         last_error = None
         for attempt in range(max_retries):
             try:
@@ -208,16 +208,19 @@ class GLMClient:
             except Exception as e:
                 last_error = str(e)
                 error_msg = str(e).lower()
-                # 检查是否是速率限制错误（429）
-                if "429" in error_msg or "rate" in error_msg or "limit" in error_msg or "速率" in error_msg or "频率" in error_msg or "1302" in error_msg:
-                    if attempt < max_retries - 1:
-                        # 指数退避 + 随机抖动：2^attempt * base + random(0, 1)
-                        base_wait = 2  # 基础等待时间
-                        wait_time = (2 ** attempt) * base_wait + random.uniform(0, 1)
-                        print(f"[GLMClient] Rate limit (429) hit, waiting {wait_time:.1f}s before retry {attempt + 2}/{max_retries}")
-                        await asyncio.sleep(wait_time)
-                        continue
+                # 检查是否是速率限制错误（429）或 OSError（Windows Errno 22 等）
+                is_rate_limit = "429" in error_msg or "rate" in error_msg or "limit" in error_msg or "速率" in error_msg or "频率" in error_msg or "1302" in error_msg
+                is_os_error = isinstance(e, OSError)
+                if (is_rate_limit or is_os_error) and attempt < max_retries - 1:
+                    # 指数退避 + 随机抖动：2^attempt * base + random(0, 1)
+                    base_wait = 2  # 基础等待时间
+                    wait_time = (2 ** attempt) * base_wait + random.uniform(0, 1)
+                    reason = "OSError (Windows)" if is_os_error else "Rate limit (429)"
+                    print(f"[GLMClient] {reason}, waiting {wait_time:.1f}s before retry {attempt + 2}/{max_retries}")
+                    await asyncio.sleep(wait_time)
+                    continue
                 # 其他错误直接返回
+                print(f"[GLMClient] Stream API call failed: {e}")
                 yield f"[错误] {str(e)}"
                 return
         else:
@@ -242,6 +245,8 @@ class GLMClient:
                             total_tokens=getattr(chunk.usage, 'total_tokens', 0) or 0,
                         )
             except Exception as e:
+                import traceback as _tb
+                print(f"[GLMClient] consume_stream error: {e}\n{_tb.format_exc()}")
                 loop.call_soon_threadsafe(queue.put_nowait, {"type": "error", "content": str(e)})
             finally:
                 # Send token usage info before terminating
@@ -391,6 +396,8 @@ class GLMClient:
                             total_tokens=getattr(chunk.usage, 'total_tokens', 0) or 0,
                         )
             except Exception as e:
+                import traceback as _tb
+                print(f"[GLMClient] tools_stream consume error: {e}\n{_tb.format_exc()}")
                 loop.call_soon_threadsafe(queue.put_nowait, {"type": "error", "content": str(e)})
             finally:
                 loop.call_soon_threadsafe(queue.put_nowait, {"type": "usage", "usage": token_usage})

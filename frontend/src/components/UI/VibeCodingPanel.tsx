@@ -78,7 +78,6 @@ export function VibeCodingPanel() {
           body: JSON.stringify({
             request: msg,
             target_output: 'web-app',
-            skip_discussion: true,
           }),
         });
 

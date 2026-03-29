@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Send, Loader2, Bot, User, Sparkles, CheckCircle2, Clock, History, Gamepad2 } from 'lucide-react';
 import type { Plan } from '../../../types';
 import { AGENT_COLORS } from '../../../types';
+import { parseUTCTime } from '../../../utils/time';
 
 const AGENT_LABELS_CN: Record<string, string> = {
   coder: '代码开发',
@@ -188,7 +189,7 @@ export function ChatArea({ plan, plans, request, setRequest, onStart, starting, 
   });
 
   const formatTime = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = parseUTCTime(dateStr);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / 60000);

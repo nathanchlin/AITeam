@@ -19,45 +19,31 @@ from app.services.pipeline_queue import pipeline_queue
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
-# In-page floating console panel injected into iframe HTML
+# Console hook injected into iframe HTML — captures logs and forwards to parent via postMessage
 _CONSOLE_HOOK = """<script data-console-hook>
 (function(){
-var _logs=[],_orig={},_open=false,_errCount=0;
-var _panel=document.createElement('div');
-_panel.innerHTML='<style>#_cp{position:fixed;bottom:8px;right:8px;z-index:99999;font-family:monospace;font-size:12px;max-width:50vw;pointer-events:none}#_cp button{pointer-events:auto}#_cp.open{width:min(50vw,500px);max-height:40vh;background:#1a1a2e;border:1px solid #333;border-radius:8px;display:flex;flex-direction:column;pointer-events:auto;box-shadow:0 4px 24px rgba(0,0,0,.5)}#_cp .tb{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;background:#16213e;border-radius:8px 8px 0 0;border-bottom:1px solid #333;flex-shrink:0}#_cp .tb span{color:#aab;font-size:11px}#_cp .tb button{background:none;border:none;color:#888;cursor:pointer;font-size:14px;padding:2px 6px}#_cp .tb button:hover{color:#fff}#_cp .lv{flex:1;overflow-y:auto;padding:4px 8px}#_cp .le{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:flex-start;gap:4px}#_cp .le .ic{flex-shrink:0;width:14px;text-align:center}#_cp .le .msg{color:#ccc;word-break:break-all;line-height:1.4}#_cp .le.e .msg{color:#ff6b6b}#_cp .le.w .msg{color:#ffd93d}#_cp .le.i .msg{color:#6bcbff}#_cp .le.d .msg{color:#888}#_cp .bb{position:fixed;bottom:8px;right:8px;z-index:99999;height:32px;padding:0 10px;border-radius:6px;background:#16213e;border:1px solid #333;color:#aaa;cursor:pointer;font-size:11px;font-family:monospace;display:flex;align-items:center;gap:6px;pointer-events:auto}#_cp .bb:hover{background:#1a1a2e}#_cp .bb .bd{background:#ff4757;color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;display:flex;align-items:center;justify-content:center;font-weight:700}</style><div id="_cp"></div>';
-document.documentElement.appendChild(_panel);
-var cp=document.getElementById('_cp');
-function _badge(n){return n>0?'<span class=\"bd\">'+(n>99?'99+':n)+'</span>':''}
-function _icon(t){return t==='error'?'<span class=\"ic\" style=\"color:#ff6b6b\">✕</span>':t==='warn'?'<span class=\"ic\" style=\"color:#ffd93d\">⚠</span>':t==='info'?'<span class=\"ic\" style=\"color:#6bcbff\">ℹ</span>':'<span class=\"ic\" style=\"color:#888\">›</span>'}
-function _cls(t){return t==='error'?'e':t==='warn'?'w':t==='info'?'i':'d'}
-function _render(){
-  if(!_open){cp.innerHTML='<button class=\"bb\" onclick=\"_cpt()\">🖥 Console'+_badge(_errCount)+'</button>';return}
-  var h='<div class=\"tb\"><span>Console ('+_logs.length+(_errCount?' · '+_errCount+' errors':'')+' )</span><div><button onclick=\"_cpy()\" title=\"Copy\">📋</button><button onclick=\"_cpc()\" title=\"Clear\">🗑</button><button onclick=\"_cpx()\" title=\"Close\">✕</button></div></div><div class=\"lv\">';
-  var start=Math.max(0,_logs.length-200);
-  for(var i=start;i<_logs.length;i++){var l=_logs[i];h+='<div class=\"le '+_cls(l.t)+'\">'+_icon(l.t)+'<span class=\"msg\">'+l.m.replace(/</g,'&lt;')+'</span></div>'}
-  h+='</div>';cp.innerHTML=h;var lv=cp.querySelector('.lv');if(lv)lv.scrollTop=lv.scrollHeight}
-function _add(t,m){_logs.push({t:t,m:m});if(t==='error'){_errCount++;try{parent.postMessage({type:'iframe-console-count',errors:_errCount},'*')}catch(x){}}_render()}
-window._cpt=function(){_open=true;_render()};
-window._cpc=function(){_logs=[];_errCount=0;try{parent.postMessage({type:'iframe-console-count',errors:0},'*')}catch(x){}_render()};
-window._cpx=function(){_open=false;_render()};
-window._cpy=function(){var txt=_logs.map(function(l){var p=l.t==='error'?'ERROR':l.t==='warn'?'WARN':l.t==='info'?'INFO':'LOG';return'['+p+'] '+l.m}).join('\\n');if(navigator.clipboard){navigator.clipboard.writeText(txt).then(function(){var b=cp.querySelector('[title=\"Copy\"]');if(b){b.textContent='✓';setTimeout(function(){b.textContent='📋'},1500)}})}else{var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta)}};
-window.addEventListener('message',function(e){if(e.data&&e.data.type==='toggle-console'){_open=!_open;_render()}});
+var _orig={},_errCount=0;
+function _send(d){try{parent.postMessage(d,'*')}catch(x){}}
 ['error','warn','log','info'].forEach(function(l){
   _orig[l]=console[l];
   console[l]=function(){
     var a=[].slice.call(arguments);
     var m=a.map(function(v){try{return typeof v==='object'?JSON.stringify(v,null,2):String(v)}catch(e){return String(v)}}).join(' ');
-    _add(l,m);_orig[l].apply(console,a);
+    _send({type:'iframe-log',level:l,message:m});
+    if(l==='error'){_errCount++;_send({type:'iframe-console-count',errors:_errCount})}
+    _orig[l].apply(console,a);
   };
 });
 window.addEventListener('error',function(e){
-  _add('error',e.message+(e.filename?' ('+e.filename+':'+e.lineno+':'+e.colno+')':''));
+  var m=e.message+(e.filename?' ('+e.filename+':'+e.lineno+':'+e.colno+')':'');
+  _send({type:'iframe-log',level:'error',message:m});
+  _errCount++;_send({type:'iframe-console-count',errors:_errCount});
 });
 window.addEventListener('unhandledrejection',function(e){
   var r=e.reason;var m=r?(r.stack||r.message||String(r)):'Unknown';
-  _add('error','Unhandled Promise: '+m);
+  _send({type:'iframe-log',level:'error',message:'Unhandled Promise: '+m});
+  _errCount++;_send({type:'iframe-console-count',errors:_errCount});
 });
-_render();
 })();
 </script>"""
 
@@ -101,6 +87,7 @@ async def start_pipeline(request: PipelineRequest, background_tasks: BackgroundT
 
     # Persist skip_discussion on plan for resume/restart
     plan.skip_discussion = request.skip_discussion
+    coordinator._save_plans()
 
     # Add to queue (will start immediately if under limit, otherwise queued)
     queue_result = await pipeline_queue.enqueue(
@@ -194,6 +181,7 @@ async def clear_queue():
 async def list_plans():
     """List all plans"""
     plans = coordinator.get_all_plans()
+    plans.sort(key=lambda p: p.created_at, reverse=True)
     return [p.model_dump() for p in plans]
 
 
@@ -226,7 +214,7 @@ async def complete_plan(plan_id: str):
     # Update plan status
     from datetime import datetime
     plan.status = "completed"
-    plan.completed_at = datetime.utcnow()
+    plan.completed_at = datetime.now()
     coordinator._save_plans()
 
     # Broadcast update to WebSocket clients
@@ -436,6 +424,17 @@ async def get_output_file(plan_id: str, file_path: str):
         raise HTTPException(status_code=400, detail="Invalid file path")
 
     if requested_path == "index.html":
+        # Fast path: index.html exists and is a real file (not placeholder)
+        if os.path.exists(filepath):
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    head = f.read(512)
+                if not output_manager._is_basic_html_placeholder(head):
+                    return _serve_html_with_console_hook(filepath)
+            except OSError:
+                pass
+
+        # Slow path: rebuild from fragments or check invalid candidate
         needs_rebuild = (not os.path.exists(filepath)) or output_manager.is_misleading_placeholder_index(plan_id)
 
         if needs_rebuild:
@@ -887,7 +886,7 @@ async def stop_iteration(plan_id: str, round_number: int):
     # 如果不是执行中，直接强制完成
     if iteration.status in [PlanStatus.APPROVED, PlanStatus.DISCUSSING, PlanStatus.DRAFT]:
         iteration.status = PlanStatus.COMPLETED
-        iteration.completed_at = datetime.utcnow()
+        iteration.completed_at = datetime.now()
         coordinator._save_plans()
 
         # 广播更新

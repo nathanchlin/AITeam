@@ -87,7 +87,7 @@ class AgentManager:
                     }
                     for agent in self.agents.values()
                 ],
-                'saved_at': datetime.utcnow().isoformat(),
+                'saved_at': datetime.now().isoformat(),
             }
 
             with open(self.data_file, 'w', encoding='utf-8') as f:
@@ -153,7 +153,7 @@ class AgentManager:
         if tags is not None:
             agent.tags = tags
 
-        agent.updated_at = datetime.utcnow()
+        agent.updated_at = datetime.now()
         self._save_agents()  # Persist after update
         return agent
 
@@ -210,15 +210,15 @@ class AgentManager:
         if status:
             task.status = status
             if status == TaskStatus.RUNNING:
-                task.started_at = datetime.utcnow()
+                task.started_at = datetime.now()
             elif status in [TaskStatus.COMPLETED, TaskStatus.FAILED]:
-                task.completed_at = datetime.utcnow()
+                task.completed_at = datetime.now()
         if progress is not None:
             task.progress = progress
         if result is not None:
             task.result = result
 
-        task.updated_at = datetime.utcnow()
+        task.updated_at = datetime.now()
         return task
 
     def delete_task(self, task_id: str) -> bool:
@@ -235,9 +235,9 @@ class AgentManager:
             return None
 
         task.agent_id = agent_id
-        task.updated_at = datetime.utcnow()
+        task.updated_at = datetime.now()
         agent.current_task_id = task_id
-        agent.updated_at = datetime.utcnow()
+        agent.updated_at = datetime.now()
 
         return task
 
@@ -248,7 +248,7 @@ class AgentManager:
                 "step": step,
                 "thought": thought,
                 "action": action,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now().isoformat(),
             })
 
 

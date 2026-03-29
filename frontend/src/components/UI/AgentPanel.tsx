@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS, getAgentDisplayType, type Task } from '../../types';
 import { X, Trash2, Edit2, Check, Loader2, TrendingUp, CheckCircle, Clock, AlertCircle, List, BarChart3, User, MousePointerClick, Plus, Sparkles } from 'lucide-react';
+import { parseUTCTime } from '../../utils/time';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
@@ -27,7 +28,7 @@ function RecentTasksSection({ agentId, tasks }: { agentId: string; tasks: Task[]
   };
 
   const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
+    const date = parseUTCTime(timestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     if (diff < 60000) return '刚刚';

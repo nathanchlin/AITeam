@@ -218,7 +218,7 @@ class MemoryService:
         if not strategies and not failures and not errors:
             return None
 
-        suggestions = [f"\n> 自动优化建议 ({datetime.utcnow().strftime('%Y-%m-%d %H:%M')})"]
+        suggestions = [f"\n> 自动优化建议 ({datetime.now().strftime('%Y-%m-%d %H:%M')})"]
 
         if strategies:
             suggestions.append("\n## 已验证的有效策略")

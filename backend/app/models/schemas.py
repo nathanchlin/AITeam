@@ -74,8 +74,8 @@ class AgentUpdate(BaseModel):
 class Agent(AgentBase):
     id: str
     status: AgentStatus = AgentStatus.IDLE
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
     current_task_id: Optional[str] = None
     workspace_id: Optional[str] = None  # Workspace 目录标识
 
@@ -113,8 +113,8 @@ class Task(TaskBase):
     progress: float = 0.0
     result: Optional[str] = None
     thinking_process: List[Dict[str, Any]] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
@@ -132,7 +132,7 @@ class DiscussionMessage(BaseModel):
     content: str
     message_type: str = "comment"  # comment, proposal, question, answer, agreement
     reply_to: Optional[str] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=datetime.now)
 
 
 class DiscussionMessageCreate(BaseModel):
@@ -177,7 +177,7 @@ class IterationRound(BaseModel):
     status: PlanStatus = PlanStatus.DRAFT
     tasks: List[IterationTask] = Field(default_factory=list)
     discussion: List[DiscussionMessage] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.now)
     completed_at: Optional[datetime] = None
     archive_path: Optional[str] = None  # 存档路径（相对于 output 目录）
 
@@ -213,8 +213,8 @@ class Plan(PlanBase):
     iterations: List[IterationRound] = Field(default_factory=list)  # 迭代轮次列表
     current_iteration_round: int = 0  # 当前迭代轮次（0表示初始版本）
     skip_discussion: bool = False  # Persist skip_discussion setting for resume/restart
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
@@ -227,20 +227,20 @@ class ChatMessage(BaseModel):
     agent_id: str
     role: str  # "user" or "agent"
     content: str
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=datetime.now)
 
 
 class WebSocketMessage(BaseModel):
     type: str  # "task_update", "agent_update", "thinking", "chat", "discussion", "plan_update"
     data: Dict[str, Any]
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=datetime.now)
 
 
 class ThinkingStep(BaseModel):
     step: int
     thought: str
     action: Optional[str] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=datetime.now)
 
 
 # Pipeline request
@@ -314,7 +314,7 @@ class FileAttachment(BaseModel):
     file_size: int
     mime_type: str
     upload_by: str
-    upload_at: datetime = Field(default_factory=datetime.utcnow)
+    upload_at: datetime = Field(default_factory=datetime.now)
 
 
 class GroupChatMember(BaseModel):
@@ -323,7 +323,7 @@ class GroupChatMember(BaseModel):
     name: str
     type: str  # "agent" 或 "user"
     avatar_color: Optional[str] = None
-    joined_at: datetime = Field(default_factory=datetime.utcnow)
+    joined_at: datetime = Field(default_factory=datetime.now)
 
 
 class GroupChatMessage(BaseModel):
@@ -337,7 +337,7 @@ class GroupChatMessage(BaseModel):
     message_type: str = "text"  # "text", "file", "system"
     attachments: List[FileAttachment] = Field(default_factory=list)
     reply_to: Optional[str] = None
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=datetime.now)
 
 
 class GroupChat(BaseModel):
@@ -348,8 +348,8 @@ class GroupChat(BaseModel):
     created_by: str
     members: List[GroupChatMember] = Field(default_factory=list)
     messages: List[GroupChatMessage] = Field(default_factory=list)
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
     is_active: bool = True
 
 

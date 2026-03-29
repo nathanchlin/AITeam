@@ -135,7 +135,7 @@ class GroupChatService:
                     }
                     for chat in self.chats.values()
                 ],
-                "saved_at": datetime.utcnow().isoformat(),
+                "saved_at": datetime.now().isoformat(),
             }
 
             with open(self.STORAGE_FILE, "w", encoding="utf-8") as f:
@@ -267,7 +267,7 @@ class GroupChatService:
             avatar_color=color_map.get(agent.type.value if hasattr(agent.type, "value") else str(agent.type), "#6b7280"),
         )
         chat.members.append(new_member)
-        chat.updated_at = datetime.utcnow()
+        chat.updated_at = datetime.now()
 
         # Add system message
         system_message = GroupChatMessage(
@@ -315,7 +315,7 @@ class GroupChatService:
             return chat
 
         chat.members.remove(member_to_remove)
-        chat.updated_at = datetime.utcnow()
+        chat.updated_at = datetime.now()
 
         # Add system message
         system_message = GroupChatMessage(
@@ -373,7 +373,7 @@ class GroupChatService:
         )
 
         chat.messages.append(message)
-        chat.updated_at = datetime.utcnow()
+        chat.updated_at = datetime.now()
         self._save_chats()
 
         # Broadcast message - convert datetime to ISO string for JSON serialization
@@ -574,7 +574,7 @@ class GroupChatService:
             file_size=file_size,
             mime_type=mime_type,
             upload_by=upload_by,
-            upload_at=datetime.utcnow(),
+            upload_at=datetime.now(),
         )
 
         return attachment

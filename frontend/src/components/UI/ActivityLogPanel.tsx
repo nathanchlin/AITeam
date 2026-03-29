@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { AGENT_COLORS } from '../../types';
 import { X, Clock, CheckCircle, MessageCircle, User, Activity, Search, TrendingUp, Calendar, Download, FileText } from 'lucide-react';
+import { parseUTCTime } from '../../utils/time';
 
 interface ActivityLogPanelProps {
   onClose: () => void;
@@ -156,7 +157,7 @@ export function ActivityLogPanel({ onClose }: ActivityLogPanelProps) {
   };
 
   const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
+    const date = parseUTCTime(timestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
 

@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { parseUTCTime } from '../../utils/time';
 import { useAgentStore } from '../../stores/agentStore';
 import { X, TrendingUp, TrendingDown, Minus, Clock, CheckCircle, XCircle, Users, BarChart3, Activity, Zap, Target, Award, Play, History, PieChart } from 'lucide-react';
 import { AGENT_COLORS } from '../../types';
@@ -648,7 +649,7 @@ export function DashboardPanel({ onClose }: DashboardPanelProps) {
 
                   // Format time
                   const formatEventTime = (timestamp: string) => {
-                    const date = new Date(timestamp);
+                    const date = parseUTCTime(timestamp);
                     const now = new Date();
                     const diff = now.getTime() - date.getTime();
                     if (diff < 60000) return '刚刚';

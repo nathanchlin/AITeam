@@ -103,8 +103,8 @@ class BaseAgent(ABC):
         self.position = position or {"x": 0, "y": 0, "z": 0}
         self.current_task_id: Optional[str] = None
         self.workspace_id: Optional[str] = None  # Workspace 目录标识
-        self.created_at = datetime.utcnow()
-        self.updated_at = datetime.utcnow()
+        self.created_at = datetime.now()
+        self.updated_at = datetime.now()
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -125,11 +125,11 @@ class BaseAgent(ABC):
 
     def update_status(self, status: AgentStatus):
         self.status = status
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
 
     def set_position(self, x: float, y: float, z: float):
         self.position = {"x": x, "y": y, "z": z}
-        self.updated_at = datetime.utcnow()
+        self.updated_at = datetime.now()
 
     def build_enriched_prompt(self, task: str = "", target_output: str = "web-app") -> str:
         """构建包含 workspace 上下文的增强 prompt

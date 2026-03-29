@@ -7,6 +7,7 @@ import { useAutoResize } from '../../hooks/useAutoResize';
 import { MessageSearch } from './MessageSearch';
 import { ReactionPicker, ReactionDisplay } from './ReactionPicker';
 import { highlightCode, parseCodeBlocks } from '../../utils/syntaxHighlight';
+import { parseUTCTime } from '../../utils/time';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
 
@@ -133,7 +134,7 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
 
   // Format timestamp for display
   const formatTimestamp = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseUTCTime(dateString);
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
     const timeStr = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });

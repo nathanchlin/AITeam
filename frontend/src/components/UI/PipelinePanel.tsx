@@ -47,7 +47,7 @@ export function PipelinePanel() {
   const [request, setRequest] = useState('');
   const [targetOutput, setTargetOutput] = useState('web-app');
   const [selectedAgentIds, setSelectedAgentIds] = useState<string[]>([]);
-  const [skipDiscussion, setSkipDiscussion] = useState(false);
+  const [skipDiscussion, setSkipDiscussion] = useState(true);
   const [starting, setStarting] = useState(false);
   const [resuming, setResuming] = useState(false);
   const [restarting, setRestarting] = useState(false);

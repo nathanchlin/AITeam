@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { X, Send, Edit2, Trash2, Check, AtSign, MessageCircle, History, Clock } from 'lucide-react';
 import type { Task, Agent, TaskHistoryEntry } from '../../types';
 import { useAutoResize } from '../../hooks/useAutoResize';
+import { parseUTCTime } from '../../utils/time';
 
 interface TaskCommentPanelProps {
   task: Task | null;
@@ -111,7 +112,7 @@ export function TaskCommentPanel({
 
   // Format time
   const formatTime = (timestamp: string): string => {
-    const date = new Date(timestamp);
+    const date = parseUTCTime(timestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     if (diff < 60000) return '刚刚';

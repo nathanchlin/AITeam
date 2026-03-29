@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Bell, X, CheckCircle, Clock, AlertTriangle, MessageCircle, AtSign, Check, Trash2 } from 'lucide-react';
 import type { Task } from '../../types';
+import { parseUTCTime } from '../../utils/time';
 
 export interface Notification {
   id: string;
@@ -149,7 +150,7 @@ export function NotificationPanel({ tasks, onTaskClick }: NotificationPanelProps
   };
 
   const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
+    const date = parseUTCTime(timestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
 

@@ -6,6 +6,7 @@ import { ClipboardList, Play, Plus, X, CheckCircle, Clock, AlertCircle, Trash2, 
 import { useTaskTemplates } from '../../hooks/useTaskTemplates';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 import { TaskCommentPanel } from './TaskCommentPanel';
+import { parseUTCTime } from '../../utils/time';
 
 interface TaskPanelProps {
   tasks: Task[];
@@ -2347,7 +2348,7 @@ function TaskItem({
 
   // Format timestamp to readable time
   const formatTime = (timestamp: string): string => {
-    const date = new Date(timestamp);
+    const date = parseUTCTime(timestamp);
     return date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
   };
 

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import { GitBranch, X, CheckCircle, Loader2, MessageCircle, Clock, Search, Filter } from 'lucide-react';
 import type { Plan } from '../../types';
+import { parseUTCTime } from '../../utils/time';
 
 type StatusFilter = 'all' | Plan['status'];
 
@@ -73,7 +74,7 @@ export function PipelineHistorySidebar() {
   };
 
   const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
+    const date = parseUTCTime(dateString);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / 60000);
@@ -97,19 +98,21 @@ export function PipelineHistorySidebar() {
 
   // Filter plans based on search and status
   const filteredPlans = useMemo(() => {
-    return plans.filter(plan => {
-      // Status filter
-      if (statusFilter !== 'all' && plan.status !== statusFilter) return false;
+    return plans
+      .filter(plan => {
+        // Status filter
+        if (statusFilter !== 'all' && plan.status !== statusFilter) return false;
 
-      // Search filter
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const titleMatch = (plan.title || '').toLowerCase().includes(query);
-        if (!titleMatch) return false;
-      }
+        // Search filter
+        if (searchQuery.trim()) {
+          const query = searchQuery.toLowerCase();
+          const titleMatch = (plan.title || '').toLowerCase().includes(query);
+          if (!titleMatch) return false;
+        }
 
-      return true;
-    });
+        return true;
+      })
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   }, [plans, searchQuery, statusFilter]);
 
   // Calculate stats

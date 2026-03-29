@@ -110,7 +110,7 @@ class WorkspaceManager:
         self._write_file_safe(os.path.join(ws_path, "USER.md"), user_content)
 
         # 创建 MEMORY.md
-        memory_content = f"# 持久记忆\n\n> 创建时间: {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}\n\n## 关键学习\n\n（暂无记录）\n\n## 常见模式\n\n（暂无记录）\n"
+        memory_content = f"# 持久记忆\n\n> 创建时间: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n## 关键学习\n\n（暂无记录）\n\n## 常见模式\n\n（暂无记录）\n"
         self._write_file_safe(os.path.join(ws_path, "MEMORY.md"), memory_content)
 
         print(f"[WorkspaceManager] Initialized workspace for {agent_name} ({agent_type.value}) at {ws_path}")
@@ -202,7 +202,7 @@ class WorkspaceManager:
         existing = self._read_file_safe(memory_path)
 
         # 构建新条目
-        timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M')
+        timestamp = datetime.now().strftime('%Y-%m-%d %H:%M')
         outcome_emoji = "✅" if outcome == "success" else "❌"
         entry = f"\n### {timestamp} - {outcome_emoji} {outcome}\n**任务**: {task_summary}\n"
 
@@ -237,12 +237,12 @@ class WorkspaceManager:
         memory_dir = os.path.join(ws_path, "memory")
         os.makedirs(memory_dir, exist_ok=True)
 
-        today = datetime.utcnow().strftime('%Y-%m-%d')
+        today = datetime.now().strftime('%Y-%m-%d')
         log_path = os.path.join(memory_dir, f"{today}.md")
 
         existing = self._read_file_safe(log_path)
 
-        timestamp = datetime.utcnow().strftime('%H:%M')
+        timestamp = datetime.now().strftime('%H:%M')
         new_line = f"- **{timestamp}** {entry}\n"
 
         if not existing:

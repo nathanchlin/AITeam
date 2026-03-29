@@ -1,7 +1,16 @@
 import asyncio
 import os
 import re
+import traceback
+import logging
 from typing import Optional, Dict, Any, List
+
+# Pipeline debug logger - writes to file, immune to uvicorn buffering
+_pipeline_logger = logging.getLogger('pipeline_debug')
+_pipeline_logger.setLevel(logging.DEBUG)
+_pipeline_fh = logging.FileHandler('pipeline_debug.log', encoding='utf-8')
+_pipeline_fh.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+_pipeline_logger.addHandler(_pipeline_fh)
 from datetime import datetime
 import uuid
 import json
@@ -321,7 +330,7 @@ class CoordinatorService:
                     all_completed = all(t.status == TaskStatus.COMPLETED for t in plan.tasks)
                     if all_completed:
                         plan.status = PlanStatus.COMPLETED
-                        plan.completed_at = datetime.utcnow()
+                        plan.completed_at = datetime.now()
                         fixed_count += 1
                         print(f"[Coordinator] Auto-fixed stuck plan: {plan.title[:30]}...")
 
@@ -422,7 +431,7 @@ class CoordinatorService:
             # Atomic write: write to temp file first, then rename
             temp_file = PLANS_STORAGE_FILE.with_suffix('.tmp')
             with open(temp_file, 'w', encoding='utf-8') as f:
-                json.dump({'plans': plans_data, 'saved_at': datetime.utcnow().isoformat()}, f, ensure_ascii=False, indent=2)
+                json.dump({'plans': plans_data, 'saved_at': datetime.now().isoformat()}, f, ensure_ascii=False, indent=2)
 
             # Atomic rename
             shutil.move(str(temp_file), str(PLANS_STORAGE_FILE))
@@ -567,7 +576,7 @@ class CoordinatorService:
             reply_to=reply_to,
         )
         plan.discussion.append(msg)
-        plan.updated_at = datetime.utcnow()
+        plan.updated_at = datetime.now()
         self._save_plans()  # Persist after adding message
 
         await self.broadcast({
@@ -1036,7 +1045,7 @@ class CoordinatorService:
             ]
 
         plan.status = PlanStatus.PENDING_APPROVAL
-        plan.updated_at = datetime.utcnow()
+        plan.updated_at = datetime.now()
         self._save_plans()
 
         await self.broadcast({
@@ -1058,7 +1067,7 @@ class CoordinatorService:
             return None
 
         plan.status = PlanStatus.APPROVED
-        plan.updated_at = datetime.utcnow()
+        plan.updated_at = datetime.now()
         self._save_plans()
 
         return plan
@@ -1070,7 +1079,7 @@ class CoordinatorService:
             return None
 
         plan.status = PlanStatus.DISCUSSING
-        plan.updated_at = datetime.utcnow()
+        plan.updated_at = datetime.now()
 
         # 添加反馈到讨论
         if feedback:
@@ -1095,7 +1104,7 @@ class CoordinatorService:
         for iteration in plan.iterations:
             if iteration.round_number == round_number:
                 iteration.status = PlanStatus.APPROVED
-                plan.updated_at = datetime.utcnow()
+                plan.updated_at = datetime.now()
                 self._save_plans()
                 return iteration
 
@@ -1110,7 +1119,7 @@ class CoordinatorService:
         for iteration in plan.iterations:
             if iteration.round_number == round_number:
                 iteration.status = PlanStatus.DISCUSSING
-                plan.updated_at = datetime.utcnow()
+                plan.updated_at = datetime.now()
 
                 # 添加反馈到迭代讨论
                 if feedback:
@@ -1142,7 +1151,7 @@ class CoordinatorService:
         self._save_plans()
 
         plan.status = PlanStatus.EXECUTING
-        plan.started_at = datetime.utcnow()
+        plan.started_at = datetime.now()
         self._save_plans()  # Persist status change
 
         # Post start message to group chat
@@ -1226,7 +1235,7 @@ class CoordinatorService:
 
                     # Update task status
                     task.status = TaskStatus.RUNNING
-                    task.started_at = datetime.utcnow()
+                    task.started_at = datetime.now()
 
                     await self.broadcast({
                         "type": "plan_update",
@@ -1374,26 +1383,43 @@ class CoordinatorService:
                         try:
                             async def execute_with_timeout():
                                 nonlocal full_response
-                                async for update in agent.execute_task(
-                                    task_description,
-                                    existing_code=existing_code,
-                                    incremental_mode=incremental_mode,
-                                    target_output=plan.target_output,
-                                ):
-                                    if update["type"] == "stream":
-                                        # Skip empty or whitespace-only content
-                                        content = update["content"]
-                                        if content and content.strip():
-                                            full_response += content
-                                            await self.broadcast({
-                                                "type": "stream",
-                                                "data": {
-                                                    "plan_id": plan_id,
-                                                    "task_id": task.id,
-                                                    "agent_id": agent.id,
-                                                    "content": content,
-                                                }
-                                            })
+                                # Only CoderAgent accepts target_output
+                                kwargs = {
+                                    "existing_code": existing_code,
+                                    "incremental_mode": incremental_mode,
+                                }
+                                if hasattr(agent, 'type') and agent.type.value == "coder":
+                                    kwargs["target_output"] = plan.target_output
+                                print(f"[Pipeline-DEBUG] Starting execute_task for: {task.title[:40]}")
+                                _pipeline_logger.info(f"Starting execute_task for: {task.title[:40]}")
+                                chunk_count = 0
+                                try:
+                                    async for update in agent.execute_task(
+                                        task_description,
+                                        **kwargs,
+                                    ):
+                                        if update["type"] == "stream":
+                                            # Skip empty or whitespace-only content
+                                            content = update["content"]
+                                            if content and content.strip():
+                                                full_response += content
+                                                chunk_count += 1
+                                                try:
+                                                    await self.broadcast({
+                                                        "type": "stream",
+                                                        "data": {
+                                                            "plan_id": plan_id,
+                                                            "task_id": task.id,
+                                                            "agent_id": agent.id,
+                                                            "content": content,
+                                                        }
+                                                    })
+                                                except Exception as bcast_err:
+                                                    _pipeline_logger.error(f"Broadcast error: {bcast_err}\n{traceback.format_exc()}")
+                                except Exception as inner_e:
+                                    _pipeline_logger.error(f"Error INSIDE execute_task loop: {inner_e}\n{traceback.format_exc()}")
+                                    raise
+                                _pipeline_logger.info(f"execute_task done, {chunk_count} chunks received")
 
                             await asyncio.wait_for(execute_with_timeout(), timeout=task_timeout)
 
@@ -1527,8 +1553,11 @@ class CoordinatorService:
 
                         except Exception as e:
                             # Task failed with error
+                            full_trace = traceback.format_exc()
                             error_msg = f"❌ 任务执行出错：{str(e)}"
                             print(f"[Pipeline] Task error: {task.title} - {e}")
+                            print(f"[Pipeline] Full traceback:\n{full_trace}")
+                            _pipeline_logger.error(f"Task error: {task.title} - {e}\n{full_trace}")
 
                             # PUA Agent: 记录失败并升级压力
                             pua_pressure_msg = ""
@@ -1544,7 +1573,7 @@ class CoordinatorService:
                                 agent_id=agent.id,
                                 agent_name=agent.name,
                                 agent_type=agent.type.value,
-                                content=error_msg + pua_pressure_msg,
+                                content=error_msg + f"\n\n```\n{full_trace}\n```" + pua_pressure_msg,
                                 message_type="comment",
                             )
 
@@ -1566,7 +1595,7 @@ class CoordinatorService:
                     full_response = "[任务未产生输出]"
 
                 task.status = TaskStatus.COMPLETED
-                task.completed_at = datetime.utcnow()
+                task.completed_at = datetime.now()
                 results.append({
                     "task": task.title,
                     "agent": agent.name,
@@ -1983,7 +2012,7 @@ class CoordinatorService:
                     else:
                         # No tester available, mark task as completed to avoid blocking
                         task.status = TaskStatus.COMPLETED
-                        task.completed_at = datetime.utcnow()
+                        task.completed_at = datetime.now()
                         self._save_plans()
                         print(f"[Coordinator] No tester agent available, skipping test task: {task.title}")
                         continue
@@ -1999,7 +2028,7 @@ class CoordinatorService:
                 )
 
                 task.status = TaskStatus.RUNNING
-                task.started_at = datetime.utcnow()
+                task.started_at = datetime.now()
                 agent.update_status(AgentStatus.WORKING)
 
                 # Read generated code for testing context
@@ -2138,7 +2167,7 @@ class CoordinatorService:
                         full_response += update["content"]
 
                 task.status = TaskStatus.COMPLETED
-                task.completed_at = datetime.utcnow()
+                task.completed_at = datetime.now()
                 results.append({
                     "task": task.title,
                     "agent": agent.name,
@@ -2188,7 +2217,7 @@ class CoordinatorService:
 
         # Final status
         plan.status = PlanStatus.COMPLETED
-        plan.completed_at = datetime.utcnow()
+        plan.completed_at = datetime.now()
 
         # 保存初始版本存档
         try:
@@ -2227,7 +2256,7 @@ class CoordinatorService:
                     "title": plan.title,
                     "original_request": plan.original_request,
                     "discussion": [msg.model_dump(mode='json') for msg in plan.discussion],
-                    "saved_at": datetime.utcnow().isoformat()
+                    "saved_at": datetime.now().isoformat()
                 }
                 with open(discussion_path, 'w', encoding='utf-8') as f:
                     json.dump(discussion_data, f, ensure_ascii=False, indent=2)
@@ -2451,7 +2480,7 @@ class CoordinatorService:
                 iteration.discussion.append(msg)
                 break
 
-        plan.updated_at = datetime.utcnow()
+        plan.updated_at = datetime.now()
         self._save_plans()
 
         await self.broadcast({
@@ -2918,7 +2947,7 @@ class CoordinatorService:
             if self.should_stop_iteration(plan_id, iteration_round.round_number):
                 print(f"[Coordinator] Iteration {iteration_round.round_number} stopped by user request")
                 iteration_round.status = PlanStatus.COMPLETED
-                iteration_round.completed_at = datetime.utcnow()
+                iteration_round.completed_at = datetime.now()
                 self._save_plans()
                 await self._add_iteration_discussion_message(
                     plan_id, iteration_round.round_number,
@@ -2950,7 +2979,7 @@ class CoordinatorService:
 
             agent.update_status(AgentStatus.WORKING)
             task.status = TaskStatus.RUNNING
-            task.started_at = datetime.utcnow()
+            task.started_at = datetime.now()
 
             await self._add_iteration_discussion_message(
                 plan_id, iteration_round.round_number,
@@ -3125,6 +3154,8 @@ function 函数名(参数) {{
                 full_response = f"任务超时（{task_timeout}秒）"
             except Exception as e:
                 full_response = f"任务执行出错：{str(e)}"
+                print(f"[Pipeline] Iteration task error: {e}")
+                print(f"[Pipeline] Full traceback:\n{traceback.format_exc()}")
             finally:
                 agent.update_status(AgentStatus.IDLE)
 
@@ -3203,7 +3234,7 @@ function 函数名(参数) {{
                                 build_payload = output_manager.build_ts_project(plan_id, plan.title)
                                 if build_payload.get("passed"):
                                     task.status = TaskStatus.COMPLETED
-                                    task.completed_at = datetime.utcnow()
+                                    task.completed_at = datetime.now()
                                     await self._add_iteration_discussion_message(
                                         plan_id, iteration_round.round_number,
                                         agent_id=agent.id,
@@ -3253,7 +3284,7 @@ function 函数名(参数) {{
                             is_complete, error_msg = self._validate_html_completeness(current_code)
                             if is_complete:
                                 task.status = TaskStatus.COMPLETED
-                                task.completed_at = datetime.utcnow()
+                                task.completed_at = datetime.now()
 
                                 try:
                                     plan_dir = output_manager.get_output_path(plan_id)
@@ -3284,7 +3315,7 @@ function 函数名(参数) {{
                                 )
                         else:
                             task.status = TaskStatus.COMPLETED
-                            task.completed_at = datetime.utcnow()
+                            task.completed_at = datetime.now()
                             print(f"[Coordinator] Task output is not valid HTML, skipping index.html update")
 
                             await self._add_iteration_discussion_message(
@@ -3299,7 +3330,7 @@ function 函数名(参数) {{
                     # 没有检测到有效代码，但可能是纯文本回复（如分析说明）
                     if full_response.strip():
                         task.status = TaskStatus.COMPLETED
-                        task.completed_at = datetime.utcnow()
+                        task.completed_at = datetime.now()
                         print(f"[Coordinator] Task completed without code changes")
                     else:
                         task.status = TaskStatus.FAILED
@@ -3328,7 +3359,7 @@ function 函数名(参数) {{
 
         # 迭代完成
         iteration_round.status = PlanStatus.COMPLETED
-        iteration_round.completed_at = datetime.utcnow()
+        iteration_round.completed_at = datetime.now()
 
         # 保存迭代存档
         try:
@@ -3340,7 +3371,7 @@ function 函数名(参数) {{
             print(f"[Coordinator] Failed to archive iteration: {e}")
 
         plan.status = PlanStatus.COMPLETED
-        plan.updated_at = datetime.utcnow()
+        plan.updated_at = datetime.now()
         self._save_plans()
 
         preview_entry = output_manager.resolve_preview_entry(plan_id, plan.target_output)

@@ -324,6 +324,10 @@ class OutputManager:
         if code_blocks:
             for i, block in enumerate(code_blocks):
                 filename = block['filename']
+                # Sanitize for Windows: remove * ? < > | " : and trailing dots/spaces
+                filename = re.sub(r'[*?<>|":]', '', filename).strip('. ')
+                if not filename:
+                    filename = 'code.txt'
 
                 # Always use numbered filenames to avoid overwriting
                 base, ext = os.path.splitext(filename)
@@ -341,6 +345,8 @@ class OutputManager:
         # Also save full content as markdown
         task_slug = re.sub(r'[^\w\s-]', '', task_title.lower())[:30]
         task_slug = re.sub(r'[\s-]+', '-', task_slug)
+        if not task_slug:
+            task_slug = f"task-{code_counter}"
         md_path = os.path.join(plan_dir, f"{task_slug}.md")
 
         with open(md_path, 'w', encoding='utf-8') as f:
