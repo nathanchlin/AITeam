@@ -293,6 +293,117 @@ class GLMClient:
 
         yield {"type": "complete", "content": full_response}
 
+    async def chat_with_tools_stream(
+        self,
+        message: str,
+        system_prompt: Optional[str] = None,
+        history: Optional[List[Dict[str, str]]] = None,
+        tools: Optional[List[Dict[str, Any]]] = None,
+        max_retries: int = 3,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """带 Function Calling 支持的流式对话
+
+        Yields:
+            {"type": "content", "content": str} - 文本内容
+            {"type": "tool_call", "name": str, "arguments": dict} - 工具调用请求
+            {"type": "usage", "usage": TokenUsage} - token 使用信息
+        """
+        if not self.client:
+            yield {"type": "content", "content": "错误：未配置 GLM API Key"}
+            return
+
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        if history:
+            messages.extend(history)
+        messages.append({"role": "user", "content": message})
+
+        # 构建 API 参数
+        api_params = {
+            "model": self.model,
+            "messages": messages,
+            "stream": True,
+            "max_tokens": settings.glm_max_tokens,
+        }
+        if tools:
+            api_params["tools"] = tools
+
+        # 重试
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                await self._throttle()
+                response = await asyncio.to_thread(
+                    self.client.chat.completions.create,
+                    **api_params,
+                )
+                break
+            except Exception as e:
+                last_error = str(e)
+                error_msg = str(e).lower()
+                if "429" in error_msg or "rate" in error_msg or "limit" in error_msg:
+                    if attempt < max_retries - 1:
+                        wait_time = (2 ** attempt) * 2 + random.uniform(0, 1)
+                        print(f"[GLMClient] Rate limit in tools_stream, waiting {wait_time:.1f}s")
+                        await asyncio.sleep(wait_time)
+                        continue
+                yield {"type": "content", "content": f"[错误] {str(e)}"}
+                return
+        else:
+            yield {"type": "content", "content": f"[错误] 重试失败: {last_error}"}
+            return
+
+        # 消费流式响应
+        queue: asyncio.Queue[Optional[Dict[str, Any]]] = asyncio.Queue()
+        loop = asyncio.get_event_loop()
+
+        def consume_stream():
+            token_usage = TokenUsage()
+            try:
+                for chunk in response:
+                    if not chunk.choices:
+                        continue
+                    delta = chunk.choices[0].delta
+
+                    # 文本内容
+                    if delta.content:
+                        loop.call_soon_threadsafe(queue.put_nowait, {
+                            "type": "content", "content": delta.content
+                        })
+
+                    # Tool calls
+                    if hasattr(delta, 'tool_calls') and delta.tool_calls:
+                        for tc in delta.tool_calls:
+                            if tc.function:
+                                loop.call_soon_threadsafe(queue.put_nowait, {
+                                    "type": "tool_call",
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments,
+                                    "id": getattr(tc, 'id', ''),
+                                })
+
+                    # Usage
+                    if hasattr(chunk, 'usage') and chunk.usage:
+                        token_usage = TokenUsage(
+                            prompt_tokens=getattr(chunk.usage, 'prompt_tokens', 0) or 0,
+                            completion_tokens=getattr(chunk.usage, 'completion_tokens', 0) or 0,
+                            total_tokens=getattr(chunk.usage, 'total_tokens', 0) or 0,
+                        )
+            except Exception as e:
+                loop.call_soon_threadsafe(queue.put_nowait, {"type": "error", "content": str(e)})
+            finally:
+                loop.call_soon_threadsafe(queue.put_nowait, {"type": "usage", "usage": token_usage})
+                loop.call_soon_threadsafe(queue.put_nowait, None)
+
+        threading.Thread(target=consume_stream, daemon=True).start()
+
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield item
+
 
 # Global instances
 glm_client = GLMClient()  # 用于聊天、讨论、任务拆解、计划生成 (glm-4.7-flash)

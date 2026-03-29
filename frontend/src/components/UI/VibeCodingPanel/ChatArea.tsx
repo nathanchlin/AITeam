@@ -316,35 +316,56 @@ export function ChatArea({ plan, plans, request, setRequest, onStart, starting, 
           </div>
         ))}
 
-        {/* Progress indicator */}
-        {iterationExecuting && iterTotalTasks > 0 && (
-          <div className="bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
-            <div className="flex items-center gap-2 text-gray-400 mb-2">
-              <Clock size={12} />
-              <span className="text-xs">迭代进度 {iterCompletedTasks.length}/{iterTotalTasks}</span>
+        {/* Task list with progress */}
+        {(() => {
+          // Determine active task list (iteration or main plan)
+          const activeTasks = iterationExecuting
+            ? (latestIteration?.tasks || [])
+            : (plan?.status === 'executing' ? (plan.tasks || []) : []);
+          const activeCompleted = iterationExecuting ? iterCompletedTasks.length : completedTasks.length;
+          const activeTotal = iterationExecuting ? iterTotalTasks : totalTasks;
+          const isExecuting = iterationExecuting || plan?.status === 'executing';
+
+          if (!isExecuting || activeTotal === 0) return null;
+
+          const label = iterationExecuting ? '迭代进度' : '执行进度';
+          const progress = activeTotal > 0 ? (activeCompleted / activeTotal) * 100 : 0;
+
+          return (
+            <div className="bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
+              <div className="flex items-center gap-2 text-gray-400 mb-2">
+                <Clock size={12} />
+                <span className="text-xs">{label} {activeCompleted}/{activeTotal}</span>
+              </div>
+              <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden mb-2.5">
+                <div
+                  className="h-full bg-gradient-to-r from-pink-500 to-purple-500 transition-all duration-500"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                {activeTasks.map((task) => (
+                  <div key={task.id} className="flex items-center gap-2 text-xs">
+                    {task.status === 'completed' ? (
+                      <CheckCircle2 size={12} className="text-emerald-400 flex-shrink-0" />
+                    ) : task.status === 'running' ? (
+                      <Loader2 size={12} className="text-blue-400 animate-spin flex-shrink-0" />
+                    ) : (
+                      <div className="w-3 h-3 rounded-full border border-gray-600 flex-shrink-0" />
+                    )}
+                    <span className={
+                      task.status === 'completed' ? 'text-emerald-400 line-through opacity-70' :
+                      task.status === 'running' ? 'text-blue-300 font-medium' :
+                      'text-gray-500'
+                    }>
+                      {task.title}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-pink-500 to-purple-500 transition-all duration-500"
-                style={{ width: `${(iterCompletedTasks.length / iterTotalTasks) * 100}%` }}
-              />
-            </div>
-          </div>
-        )}
-        {!iterationExecuting && plan?.status === 'executing' && totalTasks > 0 && (
-          <div className="bg-gray-800/50 rounded-xl p-3 border border-gray-700/50">
-            <div className="flex items-center gap-2 text-gray-400 mb-2">
-              <Clock size={12} />
-              <span className="text-xs">执行进度 {completedTasks.length}/{totalTasks}</span>
-            </div>
-            <div className="w-full h-1 bg-gray-700 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-pink-500 to-purple-500 transition-all duration-500"
-                style={{ width: `${(completedTasks.length / totalTasks) * 100}%` }}
-              />
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         <div ref={messagesEndRef} />
       </div>

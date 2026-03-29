@@ -13,6 +13,10 @@ from app.services.quality_scorer import quality_scorer
 from app.services.feedback_store import feedback_store
 from app.services.agent_growth_service import growth_service
 from app.services.motivation_service import motivation_service
+from app.services.workspace_manager import workspace_manager
+from app.services.memory_service import memory_service
+from app.services.workspace_manager import workspace_manager
+from app.services.memory_service import memory_service
 from app.models.schemas import (
     AgentType, AgentStatus, TaskStatus, PlanStatus,
     Plan, PlanTask, PlanCreate, DiscussionMessage, IterationTask, IterationRound
@@ -1401,6 +1405,22 @@ class CoordinatorService:
                                 agent.reset_pressure()
                                 print(f"[Pipeline] PUA Agent pressure reset after successful task")
 
+                            # === 记忆系统：任务成功后更新 workspace ===
+                            try:
+                                task_desc = task.title or task.description or "unknown task"
+                                learnings = memory_service.extract_learnings(
+                                    task_desc, full_response, "success"
+                                )
+                                workspace_manager.update_memory(
+                                    agent.id, task_desc, learnings, "success"
+                                )
+                                workspace_manager.update_daily_log(
+                                    agent.id,
+                                    f"✅ {task_desc[:100]} | 学习: {'; '.join(learnings[:2])}"
+                                )
+                            except Exception as mem_err:
+                                print(f"[Pipeline] Memory update error: {mem_err}")
+
                             # Check code completeness for coder tasks (including PUA Coder)
                             if agent.type.value in ("coder", "pua-coder") and full_response:
                                 completeness = output_manager.validate_code_completeness(full_response)
@@ -1439,6 +1459,22 @@ class CoordinatorService:
                             task_retry_count += 1
                             error_msg = f"⚠️ 任务超时（{task_timeout}秒/15分钟），第 {task_retry_count} 次尝试失败"
                             print(f"[Pipeline] Task timeout: {task.title}, retry {task_retry_count}/{max_task_retries}")
+
+                            # === 记忆系统：任务失败后更新 workspace ===
+                            try:
+                                task_desc = task.title or task.description or "unknown task"
+                                learnings = memory_service.extract_learnings(
+                                    task_desc, full_response, "failed"
+                                )
+                                workspace_manager.update_memory(
+                                    agent.id, task_desc, learnings, "failed"
+                                )
+                                workspace_manager.update_daily_log(
+                                    agent.id,
+                                    f"❌ {task_desc[:100]} | 教训: {'; '.join(learnings[:2])}"
+                                )
+                            except Exception as mem_err:
+                                print(f"[Pipeline] Memory update error (failure): {mem_err}")
 
                             # PUA Agent: 记录失败并升级压力
                             pua_pressure_msg = ""

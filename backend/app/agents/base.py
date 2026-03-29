@@ -2,8 +2,16 @@ from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, AsyncGenerator, List
 from datetime import datetime
 import uuid
+import json
+import re
 from app.models.schemas import AgentType, AgentStatus
 from app.llm.glm_client import glm_client, glm_coding_client
+
+
+def _get_workspace_manager():
+    """延迟导入 workspace_manager，避免循环依赖"""
+    from app.services.workspace_manager import workspace_manager
+    return workspace_manager
 
 
 # =============================================================================
@@ -94,6 +102,7 @@ class BaseAgent(ABC):
         self.status = AgentStatus.IDLE
         self.position = position or {"x": 0, "y": 0, "z": 0}
         self.current_task_id: Optional[str] = None
+        self.workspace_id: Optional[str] = None  # Workspace 目录标识
         self.created_at = datetime.utcnow()
         self.updated_at = datetime.utcnow()
 
@@ -109,6 +118,7 @@ class BaseAgent(ABC):
             "status": self.status.value if self.status else "idle",  # Defensive fallback
             "position": self.position or {"x": 0, "y": 0, "z": 0},
             "current_task_id": self.current_task_id,
+            "workspace_id": self.workspace_id,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
@@ -120,6 +130,282 @@ class BaseAgent(ABC):
     def set_position(self, x: float, y: float, z: float):
         self.position = {"x": x, "y": y, "z": z}
         self.updated_at = datetime.utcnow()
+
+    def build_enriched_prompt(self, task: str = "", target_output: str = "web-app") -> str:
+        """构建包含 workspace 上下文的增强 prompt
+
+        将 IDENTITY、SOUL、USER、MEMORY 等文件内容注入到 system prompt 中。
+        如果 workspace 不存在，回退到原始 get_system_prompt()。
+
+        Returns:
+            增强后的 system prompt
+        """
+        try:
+            ws_manager = _get_workspace_manager()
+            ws_context = ws_manager.load_workspace_context(self.id)
+
+            if not ws_context:
+                return self.get_system_prompt(target_output)
+
+            base_prompt = self.get_system_prompt(target_output)
+
+            return f"""# Workspace 上下文
+
+{ws_context}
+
+---
+
+# 系统指令
+
+{base_prompt}"""
+        except Exception as e:
+            print(f"[BaseAgent] Error enriching prompt: {e}")
+            return self.get_system_prompt(target_output)
+
+    def _get_agent_type_str(self) -> str:
+        """获取 agent type 的字符串表示，用于工具可用性判断"""
+        type_map = {
+            AgentType.CODER: "coder",
+            AgentType.ANALYST: "analyst",
+            AgentType.ASSISTANT: "assistant",
+            AgentType.TESTER: "tester",
+            AgentType.CUSTOM: "custom",
+            AgentType.PUA_CODER: "pua-coder",
+            AgentType.PUA_ANALYST: "pua-analyst",
+            AgentType.PUA_ASSISTANT: "pua-assistant",
+            AgentType.PUA_TESTER: "pua-tester",
+        }
+        return type_map.get(self.type, "assistant")
+
+    async def _execute_with_tools(
+        self,
+        task: str,
+        system_prompt: str,
+        llm_client,
+        max_tool_calls: int = 10,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        """带工具调用的任务执行循环
+
+        流程: LLM -> 检查 tool_call -> 执行工具 -> 返回结果给 LLM -> 循环
+        """
+        from app.tools.tool_registry import tool_registry
+
+        agent_type_str = self._get_agent_type_str()
+        tools_schema = tool_registry.get_tools_schema(agent_type_str)
+
+        if not tools_schema:
+            # 无可用工具，走普通流式
+            async for chunk in llm_client.chat_stream(task, agent_type_str, system_prompt):
+                yield {"type": "stream", "content": chunk}
+            return
+
+        # 工具调用循环
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": task},
+        ]
+
+        for turn in range(max_tool_calls):
+            tool_calls_collected: Dict[int, Dict[str, Any]] = {}
+            content_parts: List[str] = []
+            usage_info = None
+
+            try:
+                async for event in llm_client.chat_with_tools_stream(
+                    message=messages[-1]["content"] if len(messages) == 2 else messages[-1]["content"],
+                    system_prompt=None,  # 已在 messages 中
+                    history=messages[1:-1] if len(messages) > 2 else None,
+                    tools=tools_schema,
+                ):
+                    if event.get("type") == "content":
+                        content = event.get("content", "")
+                        if content:
+                            content_parts.append(content)
+                            yield {"type": "stream", "content": content}
+                    elif event.get("type") == "tool_call":
+                        tc_name = event.get("name", "")
+                        tc_args_str = event.get("arguments", "{}")
+                        tc_id = event.get("id", f"call_{turn}")
+                        try:
+                            import json
+                            tc_args = json.loads(tc_args_str) if isinstance(tc_args_str, str) else tc_args_str
+                        except Exception:
+                            tc_args = {}
+                        tool_calls_collected[turn * 10 + len(tool_calls_collected)] = {
+                            "id": tc_id,
+                            "name": tc_name,
+                            "arguments": tc_args,
+                        }
+                        yield {
+                            "type": "tool_call",
+                            "name": tc_name,
+                            "arguments": tc_args,
+                        }
+                    elif event.get("type") == "usage":
+                        usage_info = event.get("usage")
+            except Exception as e:
+                print(f"[BaseAgent] Tool stream error: {e}")
+                yield {"type": "stream", "content": f"[工具调用错误] {str(e)}"}
+                return
+
+            # 如果没有 tool_calls，本轮结束
+            if not tool_calls_collected:
+                break
+
+            # 拼接 assistant 消息（含 tool_calls）
+            full_content = "".join(content_parts)
+            assistant_msg = {"role": "assistant", "content": full_content or None}
+            messages.append(assistant_msg)
+
+            # 执行每个 tool_call 并追加结果
+            sandbox = {"workspace_path": str(self._get_workspace_path())}
+            for idx, tc in tool_calls_collected.items():
+                # 追加 tool call 到 messages
+                if "tool_calls" not in assistant_msg:
+                    assistant_msg["tool_calls"] = []
+                assistant_msg["tool_calls"].append({
+                    "id": tc["id"],
+                    "type": "function",
+                    "function": {
+                        "name": tc["name"],
+                        "arguments": json.dumps(tc["arguments"], ensure_ascii=False),
+                    }
+                })
+
+                # 执行工具
+                result = await tool_registry.execute_tool(
+                    tc["name"], tc["arguments"], sandbox
+                )
+                yield {
+                    "type": "tool_result",
+                    "name": tc["name"],
+                    "result": result[:500],  # 只发送前500字符到前端
+                }
+
+                # 追加 tool result
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": result,
+                })
+
+            # 下一轮：LLM 根据工具结果继续（用空 user 消息触发）
+            if turn < max_tool_calls - 1:
+                messages.append({"role": "user", "content": "请根据工具调用结果继续。如果已经可以给出最终答案，请直接回答。"})
+
+    def _get_workspace_path(self) -> str:
+        """获取 workspace 目录路径"""
+        from app.services.workspace_manager import workspace_manager
+        return workspace_manager._get_workspace_path(self.id)
+
+    @staticmethod
+    def _estimate_tokens(text: str) -> int:
+        """粗略估算 token 数（中文约 1.5 token/字，英文约 0.25 token/字）"""
+        chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
+        total_chars = len(text)
+        non_chinese = total_chars - chinese_chars
+        return int(chinese_chars * 1.5 + non_chinese * 0.25)
+
+    @staticmethod
+    def _trim_content(content: str, max_chars: int) -> str:
+        """截断内容到指定字符数"""
+        if len(content) <= max_chars:
+            return content
+        return content[:max_chars - 50] + "\n...（已截断）"
+
+    def build_enriched_prompt_v2(
+        self,
+        task: str = "",
+        target_output: str = "web-app",
+        max_context_tokens: int = 80000,
+    ) -> str:
+        """增强版 Prompt 构建 - 带上下文窗口管理和记忆注入
+
+        优先级（高→低，低优先级先被裁剪）：
+        1. 任务描述（不裁剪）
+        2. 系统核心指令（不裁剪）
+        3. Workspace SOUL.md
+        4. Workspace MEMORY.md
+        5. Few-shot 示例
+        6. 前序任务上下文
+        7. 讨论摘要
+        """
+        try:
+            from app.services.workspace_manager import workspace_manager
+            from app.services.memory_service import memory_service
+
+            # 加载各部分内容
+            ws_context = workspace_manager.load_workspace_context(self.id, max_chars=6000)
+            base_prompt = self.get_system_prompt(target_output)
+
+            # 尝试加载 Few-shot 上下文
+            few_shot = ""
+            try:
+                few_shot = memory_service.build_few_shot_context(self.id, task, max_examples=2)
+            except Exception:
+                pass
+
+            # 尝试加载错误模式警告
+            pattern_warning = ""
+            try:
+                warning = memory_service.get_pattern_warnings(self.id, task)
+                if warning:
+                    pattern_warning = warning
+            except Exception:
+                pass
+
+            # 计算 token 预算
+            task_tokens = self._estimate_tokens(task)
+            base_tokens = self._estimate_tokens(base_prompt)
+            remaining = max_context_tokens - task_tokens - base_tokens
+
+            if remaining < 5000:
+                # 空间不足，只保留核心
+                return base_prompt
+
+            # 按优先级分配预算
+            parts = []
+
+            # SOUL (最高优先级 workspace 内容)
+            if ws_context and remaining > 2000:
+                soul_budget = min(len(ws_context), remaining // 2)
+                parts.append(("workspace", self._trim_content(ws_context, soul_budget)))
+                remaining -= soul_budget
+
+            # Few-shot
+            if few_shot and remaining > 1000:
+                few_shot_budget = min(len(few_shot), remaining // 3)
+                parts.append(("few_shot", self._trim_content(few_shot, few_shot_budget)))
+                remaining -= few_shot_budget
+
+            # Pattern warning
+            if pattern_warning and remaining > 500:
+                parts.append(("warning", pattern_warning[:500]))
+                remaining -= min(len(pattern_warning), 500)
+
+            # 组装
+            context_sections = []
+            for label, content in parts:
+                if content.strip():
+                    context_sections.append(content)
+
+            if context_sections:
+                combined_context = "\n\n".join(context_sections)
+                return f"""# Workspace 上下文
+
+{combined_context}
+
+---
+
+# 系统指令
+
+{base_prompt}"""
+
+            return base_prompt
+
+        except Exception as e:
+            print(f"[BaseAgent] Error in build_enriched_prompt_v2: {e}")
+            return self.get_system_prompt(target_output)
 
     @abstractmethod
     async def execute_task(
@@ -697,7 +983,7 @@ window.onload = () => new Game();
         yield {"type": "thinking", "content": f"[{self.name}] 开始分析代码任务..."}
         yield {"type": "thinking", "content": f"[{self.name}] 理解需求：{task}"}
 
-        system_prompt = self.get_system_prompt(target_output)
+        system_prompt = self.build_enriched_prompt(task, target_output)
 
         if existing_code and incremental_mode:
             if target_output == "ts-app":
@@ -788,7 +1074,8 @@ class AnalystAgent(BaseAgent):
         yield {"type": "thinking", "content": f"[{self.name}] 开始数据分析..."}
         yield {"type": "thinking", "content": f"[{self.name}] 分析目标：{task}"}
 
-        async for chunk in glm_client.chat_stream(task, "analyst", self.custom_prompt):
+        enriched_prompt = self.build_enriched_prompt(task)
+        async for chunk in glm_client.chat_stream(task, "analyst", enriched_prompt):
             yield {"type": "stream", "content": chunk}
 
         self.update_status(AgentStatus.IDLE)
@@ -825,7 +1112,8 @@ class AssistantAgent(BaseAgent):
         yield {"type": "thinking", "content": f"[{self.name}] 处理请求..."}
         yield {"type": "thinking", "content": f"[{self.name}] 任务内容：{task}"}
 
-        async for chunk in glm_client.chat_stream(task, "assistant", self.custom_prompt):
+        enriched_prompt = self.build_enriched_prompt(task)
+        async for chunk in glm_client.chat_stream(task, "assistant", enriched_prompt):
             yield {"type": "stream", "content": chunk}
 
         self.update_status(AgentStatus.IDLE)
@@ -975,7 +1263,8 @@ class TesterAgent(BaseAgent):
         yield {"type": "thinking", "content": f"[{self.name}] 开始测试任务..."}
         yield {"type": "thinking", "content": f"[{self.name}] 测试目标：{task}"}
 
-        async for chunk in glm_client.chat_stream(task, "tester", self.custom_prompt):
+        enriched_prompt = self.build_enriched_prompt(task)
+        async for chunk in glm_client.chat_stream(task, "tester", enriched_prompt):
             yield {"type": "stream", "content": chunk}
 
         self.update_status(AgentStatus.IDLE)
@@ -1005,7 +1294,8 @@ class CustomAgent(BaseAgent):
         yield {"type": "thinking", "content": f"[{self.name}] 开始处理自定义任务..."}
         yield {"type": "thinking", "content": f"[{self.name}] 任务：{task}"}
 
-        async for chunk in glm_client.chat_stream(task, "custom", self.custom_prompt):
+        enriched_prompt = self.build_enriched_prompt(task)
+        async for chunk in glm_client.chat_stream(task, "custom", enriched_prompt):
             yield {"type": "stream", "content": chunk}
 
         self.update_status(AgentStatus.IDLE)

@@ -77,6 +77,7 @@ class Agent(AgentBase):
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     current_task_id: Optional[str] = None
+    workspace_id: Optional[str] = None  # Workspace 目录标识
 
     class Config:
         from_attributes = True

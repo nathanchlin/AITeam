@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   RefreshCw,
   Maximize2,
@@ -10,23 +10,8 @@ import {
   Gamepad2,
   ArrowLeft,
   Terminal,
-  Trash2,
-  AlertCircle,
-  Info,
-  AlertTriangle,
-  X
 } from 'lucide-react';
 import type { Plan } from '../../../types';
-
-interface LogEntry {
-  id: number;
-  type: 'error' | 'warn' | 'log' | 'info';
-  message: string;
-  source?: string;
-  line?: number;
-  column?: number;
-  timestamp: number;
-}
 
 interface PreviewAreaProps {
   previewUrl: string | null;
@@ -40,120 +25,24 @@ export function PreviewArea({ previewUrl, planId, plan, onBack }: PreviewAreaPro
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCode, setShowCode] = useState(false);
-  const [showLogs, setShowLogs] = useState(false);
   const [codeContent, setCodeContent] = useState<string>('');
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [errorCount, setErrorCount] = useState(0);
-  const logIdRef = useRef(0);
-  const logEndRef = useRef<HTMLDivElement>(null);
+  const [iframeErrors, setIframeErrors] = useState(0);
 
-  const addLog = useCallback((type: LogEntry['type'], message: string, source?: string, line?: number, column?: number) => {
-    const entry: LogEntry = {
-      id: ++logIdRef.current,
-      type,
-      message,
-      source,
-      line,
-      column,
-      timestamp: Date.now(),
-    };
-    setLogs(prev => [...prev.slice(-199), entry]);
-    if (type === 'error') {
-      setErrorCount(prev => prev + 1);
-    }
-  }, []);
-
-  // Listen for iframe console messages via postMessage
+  // Listen for error count updates from the injected console hook
   useEffect(() => {
     if (!previewUrl) return;
-
     const handleMessage = (e: MessageEvent) => {
-      if (e.data?.type === 'iframe-console') {
-        addLog(e.data.level, e.data.message, e.data.source, e.data.line, e.data.column);
+      if (e.data?.type === 'iframe-console-count') {
+        setIframeErrors(e.data.errors || 0);
       }
     };
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [previewUrl, addLog]);
-
-  // Inject console hook into iframe after load
-  useEffect(() => {
-    if (!previewUrl) return;
-
-    const iframe = iframeRef.current;
-    if (!iframe) return;
-
-    const handleLoad = () => {
-      try {
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (!doc || !iframe.contentWindow) return;
-
-        const script = doc.createElement('script');
-        script.textContent = `
-          (function() {
-            var origConsole = {};
-            ['error','warn','log','info'].forEach(function(level) {
-              origConsole[level] = console[level];
-              console[level] = function() {
-                var args = Array.prototype.slice.call(arguments);
-                var msg = args.map(function(a) {
-                  try { return typeof a === 'object' ? JSON.stringify(a) : String(a); }
-                  catch(e) { return String(a); }
-                }).join(' ');
-                try {
-                  window.parent.postMessage({
-                    type: 'iframe-console',
-                    level: level,
-                    message: msg
-                  }, '*');
-                } catch(e) {}
-                origConsole[level].apply(console, args);
-              };
-            });
-            window.addEventListener('error', function(e) {
-              try {
-                window.parent.postMessage({
-                  type: 'iframe-console',
-                  level: 'error',
-                  message: e.message,
-                  source: e.filename,
-                  line: e.lineno,
-                  column: e.colno
-                }, '*');
-              } catch(err) {}
-            });
-            window.addEventListener('unhandledrejection', function(e) {
-              try {
-                window.parent.postMessage({
-                  type: 'iframe-console',
-                  level: 'error',
-                  message: 'Unhandled Promise: ' + (e.reason ? (e.reason.stack || e.reason.message || String(e.reason)) : 'Unknown')
-                }, '*');
-              } catch(err) {}
-            });
-          })();
-        `;
-        (doc.head || doc.documentElement).appendChild(script);
-      } catch (e) {
-        // Cross-origin iframe — can't inject, rely on postMessage if available
-      }
-    };
-
-    iframe.addEventListener('load', handleLoad);
-    return () => iframe.removeEventListener('load', handleLoad);
   }, [previewUrl]);
-
-  // Auto-scroll log panel
-  useEffect(() => {
-    if (showLogs && logEndRef.current) {
-      logEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }, [logs, showLogs]);
 
   const handleRefresh = () => {
     setIsRefreshing(true);
-    setLogs([]);
-    setErrorCount(0);
+    setIframeErrors(0);
     if (iframeRef.current && previewUrl) {
       iframeRef.current.src = previewUrl + '?t=' + Date.now();
     }
@@ -191,6 +80,12 @@ export function PreviewArea({ previewUrl, planId, plan, onBack }: PreviewAreaPro
     }
   };
 
+  const handleToggleConsole = () => {
+    if (iframeRef.current?.contentWindow) {
+      iframeRef.current.contentWindow.postMessage({ type: 'toggle-console' }, '*');
+    }
+  };
+
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'draft': return { text: '正在分析需求...', color: 'text-gray-400' };
@@ -198,24 +93,6 @@ export function PreviewArea({ previewUrl, planId, plan, onBack }: PreviewAreaPro
       case 'pending_approval': return { text: '等待确认计划...', color: 'text-orange-400' };
       case 'executing': return { text: '正在生成游戏...', color: 'text-blue-400' };
       default: return { text: '', color: '' };
-    }
-  };
-
-  const getLogIcon = (type: LogEntry['type']) => {
-    switch (type) {
-      case 'error': return <AlertCircle size={12} className="text-red-400 flex-shrink-0" />;
-      case 'warn': return <AlertTriangle size={12} className="text-amber-400 flex-shrink-0" />;
-      case 'info': return <Info size={12} className="text-blue-400 flex-shrink-0" />;
-      default: return <Info size={12} className="text-gray-500 flex-shrink-0" />;
-    }
-  };
-
-  const getLogColor = (type: LogEntry['type']) => {
-    switch (type) {
-      case 'error': return 'text-red-300';
-      case 'warn': return 'text-amber-300';
-      case 'info': return 'text-blue-300';
-      default: return 'text-gray-400';
     }
   };
 
@@ -238,65 +115,11 @@ export function PreviewArea({ previewUrl, planId, plan, onBack }: PreviewAreaPro
     </div>
   );
 
-  const renderLogPanel = () => (
-    <div className="border-t border-gray-700 bg-gray-950 flex flex-col" style={{ height: showLogs ? '220px' : '0', transition: 'height 200ms ease' }}>
-      {/* Log header */}
-      <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-800 flex-shrink-0">
-        <div className="flex items-center gap-2">
-          <Terminal size={12} className="text-gray-500" />
-          <span className="text-xs text-gray-400">控制台</span>
-          {errorCount > 0 && (
-            <span className="px-1.5 py-0.5 rounded text-[10px] bg-red-500/20 text-red-400 font-mono">{errorCount}</span>
-          )}
-          <span className="text-[10px] text-gray-600 font-mono">{logs.length} 条</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => { setLogs([]); setErrorCount(0); }}
-            className="w-6 h-6 rounded hover:bg-gray-800 text-gray-500 hover:text-white transition-colors flex items-center justify-center"
-            title="清空日志"
-          >
-            <Trash2 size={12} />
-          </button>
-          <button
-            onClick={() => setShowLogs(false)}
-            className="w-6 h-6 rounded hover:bg-gray-800 text-gray-500 hover:text-white transition-colors flex items-center justify-center"
-            title="关闭"
-          >
-            <X size={12} />
-          </button>
-        </div>
-      </div>
-      {/* Log entries */}
-      <div className="flex-1 overflow-y-auto px-3 py-1 font-mono text-xs">
-        {logs.length === 0 ? (
-          <div className="text-gray-600 py-4 text-center">暂无日志</div>
-        ) : (
-          logs.map((log) => (
-            <div key={log.id} className="flex items-start gap-2 py-1 border-b border-gray-800/50">
-              {getLogIcon(log.type)}
-              <div className="flex-1 min-w-0">
-                <p className={`${getLogColor(log.type)} break-all leading-relaxed`}>{log.message}</p>
-                {log.source && (
-                  <p className="text-gray-600 text-[10px] truncate">
-                    {log.source}{log.line ? `:${log.line}:${log.column || ''}` : ''}
-                  </p>
-                )}
-              </div>
-            </div>
-          ))
-        )}
-        <div ref={logEndRef} />
-      </div>
-    </div>
-  );
-
   return (
     <div className={`flex flex-col h-full bg-gray-900 ${isFullscreen ? 'fixed inset-0 z-50' : ''}`}>
       {/* Toolbar */}
       {previewUrl && (
         <div className="flex items-center justify-between px-4 py-2">
-          {/* Back button */}
           {onBack && (
             <button
               onClick={onBack}
@@ -306,58 +129,57 @@ export function PreviewArea({ previewUrl, planId, plan, onBack }: PreviewAreaPro
               <span>返回历史</span>
             </button>
           )}
-          {/* Action buttons */}
           <div className="flex items-center gap-1 ml-auto">
-          <button
-            onClick={() => setShowLogs(!showLogs)}
-            className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center relative ${
-              showLogs ? 'bg-gray-800 text-pink-400' : 'hover:bg-gray-800 text-gray-500 hover:text-white'
-            }`}
-            title="控制台日志"
-          >
-            <Terminal size={14} />
-            {errorCount > 0 && !showLogs && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center font-bold">{errorCount > 9 ? '9+' : errorCount}</span>
-            )}
-          </button>
-          <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="w-8 h-8 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors flex items-center justify-center disabled:opacity-50"
-            title="刷新"
-          >
-            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-          </button>
-          <button
-            onClick={handleViewCode}
-            className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${
-              showCode ? 'bg-gray-800 text-pink-400' : 'hover:bg-gray-800 text-gray-500 hover:text-white'
-            }`}
-            title="查看代码"
-          >
-            <Code size={14} />
-          </button>
-          <button
-            onClick={handleDownload}
-            className="w-8 h-8 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors flex items-center justify-center"
-            title="下载"
-          >
-            <Download size={14} />
-          </button>
-          <button
-            onClick={handleOpenExternal}
-            className="w-8 h-8 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors flex items-center justify-center"
-            title="新窗口打开"
-          >
-            <ExternalLink size={14} />
-          </button>
-          <button
-            onClick={handleFullscreen}
-            className="w-8 h-8 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors flex items-center justify-center"
-            title={isFullscreen ? '退出全屏' : '全屏'}
-          >
-            {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-          </button>
+            <button
+              onClick={handleToggleConsole}
+              className="w-8 h-8 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors flex items-center justify-center relative"
+              title="控制台日志"
+            >
+              <Terminal size={14} />
+              {iframeErrors > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center font-bold">
+                  {iframeErrors > 99 ? '99+' : iframeErrors}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="w-8 h-8 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors flex items-center justify-center disabled:opacity-50"
+              title="刷新"
+            >
+              <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            </button>
+            <button
+              onClick={handleViewCode}
+              className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${
+                showCode ? 'bg-gray-800 text-pink-400' : 'hover:bg-gray-800 text-gray-500 hover:text-white'
+              }`}
+              title="查看代码"
+            >
+              <Code size={14} />
+            </button>
+            <button
+              onClick={handleDownload}
+              className="w-8 h-8 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors flex items-center justify-center"
+              title="下载"
+            >
+              <Download size={14} />
+            </button>
+            <button
+              onClick={handleOpenExternal}
+              className="w-8 h-8 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors flex items-center justify-center"
+              title="新窗口打开"
+            >
+              <ExternalLink size={14} />
+            </button>
+            <button
+              onClick={handleFullscreen}
+              className="w-8 h-8 rounded-lg hover:bg-gray-800 text-gray-500 hover:text-white transition-colors flex items-center justify-center"
+              title={isFullscreen ? '退出全屏' : '全屏'}
+            >
+              {isFullscreen ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+            </button>
           </div>
         </div>
       )}
@@ -383,9 +205,6 @@ export function PreviewArea({ previewUrl, planId, plan, onBack }: PreviewAreaPro
           />
         )}
       </div>
-
-      {/* Log Panel */}
-      {previewUrl && showLogs && renderLogPanel()}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useAgentStore } from '../../stores/agentStore';
 import type { Agent, Task, MessageReaction } from '../../types';
 import { AGENT_COLORS, getAgentDisplayType } from '../../types';
-import { X, Send, Loader2, Settings, Trash2, Check, Eraser, Copy, CheckCheck, Download, Brain, ChevronDown, ChevronRight, Search } from 'lucide-react';
+import { X, Send, Loader2, Settings, Trash2, Check, Eraser, Copy, CheckCheck, Download, Brain, ChevronDown, ChevronRight, Search, FileText, Save } from 'lucide-react';
 import { useAutoResize } from '../../hooks/useAutoResize';
 import { MessageSearch } from './MessageSearch';
 import { ReactionPicker, ReactionDisplay } from './ReactionPicker';
@@ -37,6 +37,13 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
   const textareaRef = useAutoResize({ value: message, minHeight: 40, maxHeight: 200 });
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [taskReactions, setTaskReactions] = useState<Record<string, MessageReaction[]>>({});
+
+  // Workspace file editing state
+  const [workspaceFiles, setWorkspaceFiles] = useState<Record<string, string>>({});
+  const [workspaceLoaded, setWorkspaceLoaded] = useState(false);
+  const [workspaceSaving, setWorkspaceSaving] = useState<string | null>(null);
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<string>('IDENTITY.md');
+  const workspaceTabs = ['IDENTITY.md', 'SOUL.md', 'USER.md', 'MEMORY.md'];
 
   const currentUserName = 'You';
 
@@ -257,6 +264,47 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
       setShowSettings(false);
     } catch (error) {
       console.error('Failed to save settings:', error);
+    }
+  };
+
+  // Load workspace files when settings open
+  useEffect(() => {
+    if (showSettings && !workspaceLoaded) {
+      (async () => {
+        try {
+          const res = await fetch(`${API_BASE}/api/agents/${agent.id}/workspace`);
+          if (res.ok) {
+            const data = await res.json();
+            setWorkspaceFiles(data.files || {});
+            setWorkspaceLoaded(true);
+          }
+        } catch (err) {
+          console.error('Failed to load workspace:', err);
+        }
+      })();
+    }
+    if (!showSettings) {
+      setWorkspaceLoaded(false);
+    }
+  }, [showSettings, agent.id]);
+
+  const handleSaveWorkspaceFile = async (filename: string) => {
+    const content = workspaceFiles[filename] || '';
+    setWorkspaceSaving(filename);
+    try {
+      const res = await fetch(`${API_BASE}/api/agents/${agent.id}/workspace/${filename}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content }),
+      });
+      if (!res.ok) {
+        alert(`保存 ${filename} 失败`);
+      }
+    } catch (err) {
+      console.error('Failed to save workspace file:', err);
+      alert(`保存 ${filename} 失败`);
+    } finally {
+      setWorkspaceSaving(null);
     }
   };
 
@@ -600,6 +648,77 @@ export function ChatPanel({ agent, streamContent: externalStreamContent, tasks }
             <p className="text-gray-500 text-xs mt-1">
               标签可以帮助分类和筛选 Agent
             </p>
+          </div>
+
+          {/* Workspace Files Editor */}
+          <div>
+            <label className="text-gray-400 text-xs block mb-2 flex items-center gap-1">
+              <FileText size={12} />
+              Workspace 人格文件
+            </label>
+
+            {/* File Tabs */}
+            <div className="flex gap-1 mb-2">
+              {workspaceTabs.map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveWorkspaceTab(tab)}
+                  className={`px-2.5 py-1.5 text-xs rounded-t transition-colors ${
+                    activeWorkspaceTab === tab
+                      ? 'bg-gray-700 text-white border-b-2 border-blue-500'
+                      : 'text-gray-400 hover:text-gray-300 hover:bg-gray-700/50'
+                  }`}
+                >
+                  {tab.replace('.md', '')}
+                </button>
+              ))}
+            </div>
+
+            {/* Editor Area */}
+            <div className="relative">
+              {workspaceLoaded ? (
+                <>
+                  <textarea
+                    value={workspaceFiles[activeWorkspaceTab] || ''}
+                    onChange={(e) =>
+                      setWorkspaceFiles((prev) => ({
+                        ...prev,
+                        [activeWorkspaceTab]: e.target.value,
+                      }))
+                    }
+                    className="w-full px-3 py-2 bg-gray-900 rounded text-white text-sm border border-gray-600 focus:border-blue-500 focus:outline-none resize-none font-mono"
+                    placeholder={`编辑 ${activeWorkspaceTab} 的内容...`}
+                    rows={10}
+                    spellCheck={false}
+                  />
+                  <div className="flex items-center justify-between mt-1.5">
+                    <p className="text-gray-500 text-[10px]">
+                      {activeWorkspaceTab === 'IDENTITY.md' && '定义 Agent 的名字、性格、沟通风格等人格信息'}
+                      {activeWorkspaceTab === 'SOUL.md' && '定义 Agent 的角色、专业领域、方法论'}
+                      {activeWorkspaceTab === 'USER.md' && '定义用户画像、偏好、项目背景'}
+                      {activeWorkspaceTab === 'MEMORY.md' && 'Agent 的持久记忆，包含关键学习和经验'}
+                    </p>
+                    <button
+                      onClick={() => handleSaveWorkspaceFile(activeWorkspaceTab)}
+                      disabled={workspaceSaving === activeWorkspaceTab}
+                      className="px-2.5 py-1 bg-blue-600/80 text-white rounded text-xs hover:bg-blue-500 transition-colors flex items-center gap-1 disabled:opacity-50"
+                    >
+                      {workspaceSaving === activeWorkspaceTab ? (
+                        <Loader2 size={10} className="animate-spin" />
+                      ) : (
+                        <Save size={10} />
+                      )}
+                      保存
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="w-full px-3 py-6 bg-gray-900/50 rounded text-center">
+                  <Loader2 size={16} className="animate-spin text-gray-500 mx-auto mb-2" />
+                  <p className="text-gray-500 text-xs">加载 Workspace 文件...</p>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex gap-2 pt-2">

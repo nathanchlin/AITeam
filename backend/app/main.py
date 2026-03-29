@@ -65,6 +65,21 @@ async def startup_event():
     pipeline_queue.set_websocket_manager(websocket_manager)
     print("[Startup] Pipeline queue initialized")
 
+    # Initialize tool registry
+    import app.tools  # noqa: F401 - triggers tool registration
+    print("[Startup] Tool registry initialized")
+
+    # Initialize workspace manager for all agents
+    from app.services.workspace_manager import workspace_manager
+    for agent in agent_manager.get_all_agents():
+        if not workspace_manager.workspace_exists(agent.id):
+            try:
+                workspace_manager.initialize_workspace(agent.id, agent.type, agent.name)
+                agent.workspace_id = agent.id
+            except Exception as e:
+                print(f"[Startup] Warning: Failed to init workspace for {agent.name}: {e}")
+    print(f"[Startup] Workspace manager initialized for {len(agent_manager.get_all_agents())} agents")
+
     # Only create default agents if no agents exist (first run)
     if len(agent_manager.get_all_agents()) > 0:
         print("[Startup] Agents loaded from storage, skipping default agent creation")

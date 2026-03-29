@@ -52,33 +52,31 @@ export function VibeCodingPanel() {
     if (!request.trim() || starting) return;
     const msg = request.trim();
     setPendingMessages(prev => [...prev, msg]);
+    setRequest('');
     setStarting(true);
 
     try {
-      // If current plan is completed, iterate on it instead of creating new one
-      if (currentPlan && currentPlan.status === 'completed') {
+      // If current plan exists, iterate on it instead of creating new one
+      if (currentPlan) {
         const res = await fetch(`${API_BASE}/api/pipeline/iterate/${currentPlan.id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            iteration_request: request.trim(),
+            iteration_request: msg,
           }),
         });
 
         if (!res.ok) {
           const error = await res.json();
           console.error('Failed to start iteration:', error);
-          return;
         }
-
-        setRequest('');
       } else {
         // No completed plan — create a new one
         const res = await fetch(`${API_BASE}/api/pipeline/start`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            request: request.trim(),
+            request: msg,
             target_output: 'web-app',
             skip_discussion: true,
           }),
@@ -92,7 +90,6 @@ export function VibeCodingPanel() {
 
         const data = await res.json();
         setVibeCodingPlanId(data.plan_id);
-        setRequest('');
         clearDiscussion();
       }
     } catch (error) {

@@ -400,6 +400,33 @@ export const useAgentStore = create<AgentState>((set, get) => ({
         );
         break;
 
+      case 'tool_call': {
+        // Agent 调用工具
+        const streamKey2 = (data.task_id || data.plan_id) as string;
+        if (streamKey2) {
+          get().appendStreamContent(
+            streamKey2,
+            `\n🔧 [工具调用] ${data.name || 'unknown'}(${JSON.stringify(data.arguments || {}).slice(0, 200)})\n`
+          );
+        }
+        break;
+      }
+
+      case 'tool_result': {
+        // 工具执行结果
+        const streamKey3 = (data.task_id || data.plan_id) as string;
+        if (streamKey3) {
+          const resultPreview = typeof data.result === 'string'
+            ? (data.result as string).slice(0, 300)
+            : JSON.stringify(data.result).slice(0, 300);
+          get().appendStreamContent(
+            streamKey3,
+            `📤 [工具结果] ${data.name || 'unknown'}: ${resultPreview}\n`
+          );
+        }
+        break;
+      }
+
       case 'stream': {
         // Stream can be for plan (discussion) or task (execution)
         const streamKey = (data.task_id || data.plan_id) as string;

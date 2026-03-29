@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     # Token limits
     glm_max_tokens: int = 131072  # Maximum output tokens (128K for GLM-5.1)
 
+    # Agent Workspace Configuration
+    workspace_base_path: str = ""  # 空字符串使用默认路径 backend/data/workspaces
+    workspace_max_context_chars: int = 8000  # workspace 上下文最大字符数
+
     # Rate limiting: minimum interval (seconds) between consecutive API calls
     glm_request_interval: float = 1.5
 

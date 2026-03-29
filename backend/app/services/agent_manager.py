@@ -5,6 +5,7 @@ import json
 import os
 from app.agents.base import BaseAgent, create_agent
 from app.models.schemas import AgentType, AgentStatus, Task, TaskStatus
+from app.services.workspace_manager import workspace_manager
 
 
 class AgentManager:
@@ -53,6 +54,15 @@ class AgentManager:
 
                         self.agents[agent.id] = agent
 
+                        # 为已有 Agent 初始化 workspace（向后兼容）
+                        try:
+                            workspace_manager.initialize_workspace(
+                                agent.id, agent_type, agent.name
+                            )
+                            agent.workspace_id = agent.id
+                        except Exception as e:
+                            print(f"[AgentManager] Warning: Failed to init workspace for {agent.name}: {e}")
+
                 print(f"[AgentManager] Loaded {len(self.agents)} agents from storage")
             except Exception as e:
                 print(f"[AgentManager] Error loading agents: {e}")
@@ -96,6 +106,14 @@ class AgentManager:
     ) -> BaseAgent:
         agent = create_agent(name, agent_type, description, custom_prompt, position, display_type)
         self.agents[agent.id] = agent
+
+        # 为新 Agent 初始化 workspace
+        try:
+            workspace_manager.initialize_workspace(agent.id, agent_type, name)
+            agent.workspace_id = agent.id
+        except Exception as e:
+            print(f"[AgentManager] Warning: Failed to init workspace for {name}: {e}")
+
         self._save_agents()  # Persist after creation
         return agent
 
