@@ -214,6 +214,7 @@ class Plan(PlanBase):
     current_iteration_round: int = 0  # 当前迭代轮次（0表示初始版本）
     skip_discussion: bool = False  # Persist skip_discussion setting for resume/restart
     quick_mode: bool = False  # 🚀 快速模式：减少任务数量，跳过测试阶段
+    auto_mode: bool = True  # 🤖 自动模式：根据复杂度自动选择执行模式（默认启用）
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
     started_at: Optional[datetime] = None
@@ -251,6 +252,7 @@ class PipelineRequest(BaseModel):
     selected_agent_ids: List[str] = Field(default_factory=list)  # Agent IDs to use in pipeline
     skip_discussion: bool = False  # Skip discussion phase, go directly to plan generation
     quick_mode: bool = False  # 🚀 快速模式：减少任务数量，跳过测试阶段
+    auto_mode: bool = True  # 🤖 自动模式：根据复杂度自动选择执行模式（默认启用）
 
 
 class IterationRequest(BaseModel):

@@ -126,6 +126,66 @@ class CoordinatorService:
 
         return selected_agent
 
+    def _assess_complexity(self, request: str) -> str:
+        """🤖 智能复杂度评估：根据需求自动判断使用哪种模式
+
+        Returns:
+            "single": 单任务模式 (5-8 分钟) - 简单项目
+            "quick": 快速模式 (16 分钟) - 中等项目
+            "normal": 普通模式 (62 分钟) - 复杂项目
+        """
+        request_lower = request.lower()
+
+        # 复杂度关键词评分
+        complexity_score = 0
+
+        # 简单关键词（降低复杂度）
+        simple_keywords = [
+            "简单", "快速", "原型", "demo", "示例", "基础", "小游戏",
+            "贪吃蛇", "俄罗斯方块", "打砖块", "ping-pong", "井字棋",
+            "single", "simple", "basic", "mini"
+        ]
+        for kw in simple_keywords:
+            if kw in request_lower:
+                complexity_score -= 2
+
+        # 中等复杂度关键词
+        medium_keywords = [
+            "游戏", "game", "交互", "动画", "计时器", "得分",
+            "界面", "页面", "表单", "列表"
+        ]
+        for kw in medium_keywords:
+            if kw in request_lower:
+                complexity_score += 1
+
+        # 复杂关键词（增加复杂度）
+        complex_keywords = [
+            "后台", "管理", "系统", "企业", "多页面", "多模块",
+            "数据库", "api", "登录", "权限", "用户", "支付",
+            "dashboard", "admin", "system", "enterprise", "multi",
+            "complex", "完整", "全栈"
+        ]
+        for kw in complex_keywords:
+            if kw in request_lower:
+                complexity_score += 3
+
+        # 根据需求长度评估
+        if len(request) < 50:
+            complexity_score -= 1
+        elif len(request) > 200:
+            complexity_score += 2
+
+        # 根据评分选择模式
+        if complexity_score <= 0:
+            print(f"[Coordinator] 🤖 智能模式选择: 单任务模式 (复杂度分数: {complexity_score})")
+            return "single"
+        elif complexity_score <= 3:
+            print(f"[Coordinator] 🤖 智能模式选择: 快速模式 (复杂度分数: {complexity_score})")
+            return "quick"
+        else:
+            print(f"[Coordinator] 🤖 智能模式选择: 普通模式 (复杂度分数: {complexity_score})")
+            return "normal"
+
     def _infer_web_app_profile(self, request: str = "", existing_code: Optional[str] = None) -> str:
         """Infer the most suitable implementation profile for a web-app task."""
         source = f"{request}\n{existing_code or ''}".lower()
@@ -1234,6 +1294,25 @@ class CoordinatorService:
         plan = self.plans.get(plan_id)
         if not plan:
             return "Plan not found"
+
+        # 🤖 智能模式选择：根据复杂度自动决定执行模式
+        if getattr(plan, 'auto_mode', True) and not plan.quick_mode:
+            complexity_mode = self._assess_complexity(plan.original_request)
+            if complexity_mode == "single":
+                # 单任务模式：强制只保留一个任务
+                plan.quick_mode = True
+                if len(plan.tasks) > 1:
+                    # 合并所有任务为一个
+                    merged_task = plan.tasks[0]
+                    merged_task.title = f"实现{plan.title}"
+                    merged_task.description = f"一次性完成：{plan.original_request}"
+                    plan.tasks = [merged_task]
+                    merged_task.order = 1
+                    print(f"[Coordinator] 单任务模式: 合并 {len(plan.tasks)} 个任务为 1 个")
+            elif complexity_mode == "quick":
+                # 快速模式
+                plan.quick_mode = True
+            # else: normal mode, 保持原样
 
         # 防止卡住：将任何处于 RUNNING 的任务重置为 PENDING，便于恢复或重新执行
         for task in plan.tasks:

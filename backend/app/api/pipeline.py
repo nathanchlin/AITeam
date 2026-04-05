@@ -88,6 +88,7 @@ async def start_pipeline(request: PipelineRequest, background_tasks: BackgroundT
     # Persist skip_discussion and quick_mode on plan for resume/restart
     plan.skip_discussion = request.skip_discussion
     plan.quick_mode = request.quick_mode
+    plan.auto_mode = request.auto_mode
     coordinator._save_plans()
 
     # Add to queue (will start immediately if under limit, otherwise queued)
