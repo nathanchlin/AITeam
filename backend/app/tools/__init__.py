@@ -5,6 +5,7 @@ from app.tools.file_tools import read_file, write_file, list_directory
 from app.tools.code_tools import check_syntax, analyze_code
 from app.tools.web_tools import search_web, fetch_url
 from app.tools.execution_tools import run_code
+from app.tools.ui_design_tools import generate_design_system, search_ui_style, get_stack_guidelines
 
 
 # === 文件工具（所有 Agent 可用 ===
@@ -120,6 +121,91 @@ tool_registry.register_tool(
     },
     handler=run_code,
     available_to=["coder", "pua-coder", "tester", "pua-tester"],
+)
+
+# === UI 设计工具（仅 custom 类型 = UI Designer 可用）===
+tool_registry.register_tool(
+    name="generate_design_system",
+    description="生成完整的 UI 设计系统。根据产品类型和风格描述，自动生成专业的颜色方案、字体搭配、布局模式、样式推荐。这是 UI 设计的核心工具，应该在开始任何设计工作时首先调用。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "设计需求描述，包含产品类型、行业、风格关键词。例如：'healthcare SaaS dashboard modern' 或 'beauty spa elegant luxury'"
+            },
+            "project_name": {
+                "type": "string",
+                "description": "项目名称（可选），用于设计系统标题"
+            },
+            "output_format": {
+                "type": "string",
+                "enum": ["markdown", "ascii"],
+                "default": "markdown",
+                "description": "输出格式，markdown 适合文档，ascii 适合终端显示"
+            },
+            "page": {
+                "type": "string",
+                "description": "页面名称（可选），用于生成页面特定的设计覆盖，如 'dashboard', 'checkout', 'settings'"
+            }
+        },
+        "required": ["query"]
+    },
+    handler=generate_design_system,
+    available_to=["custom"],  # 仅 UI Designer 可用
+)
+
+tool_registry.register_tool(
+    name="search_ui_style",
+    description="搜索 UI 设计资源。在特定领域（样式、颜色、字体、UX 等）搜索设计建议和最佳实践。用于补充设计系统或在特定主题上获取更多细节。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "搜索关键词，如 'glassmorphism', 'accessibility', 'dark mode'"
+            },
+            "domain": {
+                "type": "string",
+                "enum": ["product", "style", "typography", "color", "landing", "chart", "ux", "react", "web", "prompt"],
+                "default": "style",
+                "description": "搜索领域"
+            },
+            "max_results": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 10,
+                "default": 5,
+                "description": "最大返回结果数"
+            }
+        },
+        "required": ["query"]
+    },
+    handler=search_ui_style,
+    available_to=["custom"],
+)
+
+tool_registry.register_tool(
+    name="get_stack_guidelines",
+    description="获取技术栈特定的 UI 实现指南。根据目标技术栈（React、Vue、Next.js、Tailwind 等）获取实现最佳实践。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "查询主题，如 'layout responsive form', 'animation performance'"
+            },
+            "stack": {
+                "type": "string",
+                "enum": ["html-tailwind", "react", "nextjs", "vue", "svelte", "swiftui", "react-native", "flutter", "shadcn", "jetpack-compose"],
+                "default": "html-tailwind",
+                "description": "目标技术栈"
+            }
+        },
+        "required": ["query"]
+    },
+    handler=get_stack_guidelines,
+    available_to=["custom", "coder"],  # UI Designer 和 Coder 都可用
 )
 
 print(f"[Tools] Registered {len(tool_registry.list_tools())} tools: {', '.join(tool_registry.list_tools())}")

@@ -188,10 +188,18 @@ class BaseAgent(ABC):
 
         流程: LLM -> 检查 tool_call -> 执行工具 -> 返回结果给 LLM -> 循环
         """
+        import sys
         from app.tools.tool_registry import tool_registry
 
         agent_type_str = self._get_agent_type_str()
         tools_schema = tool_registry.get_tools_schema(agent_type_str)
+        
+        # 强制刷新的日志
+        sys.stdout.flush()
+        print(f"[BaseAgent._execute_with_tools] Agent: {self.name}, Type: {agent_type_str}, Tools: {len(tools_schema)}", flush=True)
+        if tools_schema:
+            print(f"[BaseAgent._execute_with_tools] Available tools: {[t['function']['name'] for t in tools_schema]}", flush=True)
+        sys.stdout.flush()
 
         if not tools_schema:
             # 无可用工具，走普通流式
@@ -273,9 +281,11 @@ class BaseAgent(ABC):
                 })
 
                 # 执行工具
+                print(f"[CustomAgent] Executing tool: {tc['name']} with args: {tc['arguments']}")
                 result = await tool_registry.execute_tool(
                     tc["name"], tc["arguments"], sandbox
                 )
+                print(f"[CustomAgent] Tool result length: {len(result)} chars")
                 yield {
                     "type": "tool_result",
                     "name": tc["name"],
@@ -1284,7 +1294,7 @@ class CustomAgent(BaseAgent):
         existing_code: Optional[str] = None,
         incremental_mode: bool = False
     ) -> AsyncGenerator[Dict[str, Any], None]:
-        """Execute a custom task.
+        """Execute a custom task with tool support.
 
         Note: existing_code and incremental_mode are accepted for interface
         consistency but are not used by CustomAgent (only CoderAgent uses them).
@@ -1295,8 +1305,15 @@ class CustomAgent(BaseAgent):
         yield {"type": "thinking", "content": f"[{self.name}] 任务：{task}"}
 
         enriched_prompt = self.build_enriched_prompt(task)
-        async for chunk in glm_client.chat_stream(task, "custom", enriched_prompt):
-            yield {"type": "stream", "content": chunk}
+        
+        # 使用带工具调用的执行方法
+        async for chunk in self._execute_with_tools(
+            task=task,
+            system_prompt=enriched_prompt,
+            llm_client=glm_client,
+            max_tool_calls=5
+        ):
+            yield chunk
 
         self.update_status(AgentStatus.IDLE)
         yield {"type": "complete", "content": "任务完成"}

@@ -964,7 +964,15 @@ class CoordinatorService:
 讨论摘要：
 {discussion_summary}
 
-可用的Agent类型：{agent_types_str}
+## 可用的 Agent 类型及其职责：
+
+- **coder**: 代码编写、功能开发、bug修复、技术实现
+- **analyst**: 数据分析、报告生成、数据可视化
+- **tester**: 测试用例编写、代码审查、质量保证
+- **assistant**: 项目协调、需求分析、任务分配
+- **custom**: 🎨 **UI/UX 设计** - 界面设计、设计系统生成、颜色方案、字体搭配、布局模式、用户体验优化
+
+**⚠️ 重要：涉及 UI 设计、界面布局、颜色方案、设计系统、用户体验优化的任务，必须分配给 custom 类型！**
 
 请以JSON格式输出执行计划，格式如下：
 {{
