@@ -240,7 +240,10 @@ export const useAgentStore = create<AgentState>((set, get) => ({
     set((state) => ({
       plans: state.plans.map((p) => (p.id === id ? { ...p, ...updates } : p)),
     })),
-  setCurrentPlan: (id) => set({ currentPlanId: id }),
+  setCurrentPlan: (id) => set({ 
+    currentPlanId: id,
+    activeIterationTab: 0  // 切换项目时重置到初始版本
+  }),
 
   // Iteration Tab State
   activeIterationTab: 0,
