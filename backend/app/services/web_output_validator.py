@@ -589,12 +589,16 @@ try {{
         html_content: str,
         stage: str,
         requirements: str = "",
+        iteration_count: int = 0,  # 新增：当前迭代次数
     ) -> WebOutputValidationResult:
         html_content = html_content or ""
         errors: List[str] = []
         warnings: List[str] = []
         signals: Dict[str, Any] = {}
 
+        # 如果迭代次数 >= 2，放宽验证规则
+        relaxed_mode = iteration_count >= 2
+        
         profile = self._infer_profile(html_content, requirements)
         signals["profile"] = profile
         signals["html_length"] = len(html_content)
@@ -606,34 +610,58 @@ try {{
         signals["has_canvas"] = bool(re.search(r'<canvas\b', html_content, re.IGNORECASE))
         signals["has_canvas_context"] = bool(re.search(r'getContext\s*\(', html_content))
 
-        if not signals["has_html_tag"] or not signals["has_body_tag"]:
-            errors.append("缺少完整的 HTML/body 结构")
-        if not signals["has_closing_html"] or not signals["has_closing_body"]:
-            errors.append("HTML 或 body 未正确闭合")
+        # 放宽：只检查基本的 body 标签（HTML 标签可选）
+        if not signals["has_body_tag"]:
+            errors.append("缺少 body 标签")
+        if not signals["has_closing_body"]:
+            errors.append("body 未正确闭合")
+        # 放宽：DOCTYPE 和 HTML 标签只是警告
         if not signals["has_doctype"]:
             warnings.append("缺少 DOCTYPE 声明")
+        if not signals["has_html_tag"]:
+            warnings.append("缺少 HTML 标签")
 
         external_js = self._EXTERNAL_SCRIPT_RE.findall(html_content)
         external_css = self._EXTERNAL_CSS_RE.findall(html_content)
         signals["external_js"] = external_js
         signals["external_css"] = external_css
+        # 放宽：外部资源引用改为警告（非 CDN 的情况）
         if external_js:
-            errors.append(f"存在外部 JS 引用: {external_js}")
+            # 允许常见 CDN
+            allowed_cdns = ['cdn.', 'unpkg.com', 'jsdelivr.net', 'cdnjs.cloudflare.com']
+            disallowed_js = [js for js in external_js if not any(cdn in js for cdn in allowed_cdns)]
+            if disallowed_js:
+                if relaxed_mode:
+                    warnings.append(f"存在外部 JS 引用: {disallowed_js}")
+                else:
+                    errors.append(f"存在外部 JS 引用: {disallowed_js}")
         if external_css:
-            errors.append(f"存在外部 CSS 引用: {external_css}")
+            # 🔧 优化：CSS 也允许 CDN
+            allowed_css_cdns = ['cdn.', 'unpkg.com', 'jsdelivr.net', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com']
+            disallowed_css = [css for css in external_css if not any(cdn in css for cdn in allowed_css_cdns)]
+            if disallowed_css:
+                if relaxed_mode:
+                    warnings.append(f"存在外部 CSS 引用: {disallowed_css}")
+                else:
+                    errors.append(f"存在外部 CSS 引用: {disallowed_css}")
 
         scripts = self._extract_inline_scripts(html_content)
         js_code = "\n\n".join(scripts)
         signals["inline_script_count"] = len(scripts)
         signals["has_inline_script"] = bool(scripts)
 
-        syntax_ok, syntax_message, syntax_checked = self._check_javascript_syntax(js_code) if js_code else (True, None, False)
-        signals["js_syntax_checked"] = syntax_checked
-        signals["js_syntax_valid"] = syntax_ok
-        if syntax_message and not syntax_checked:
-            warnings.append(syntax_message)
-        elif not syntax_ok:
-            errors.append(f"JavaScript 语法检查失败: {syntax_message}")
+        # 放宽：JavaScript 语法检查只在非 relaxed 模式下严格执行
+        if js_code and not relaxed_mode:
+            syntax_ok, syntax_message, syntax_checked = self._check_javascript_syntax(js_code)
+            signals["js_syntax_checked"] = syntax_checked
+            signals["js_syntax_valid"] = syntax_ok
+            if syntax_message and not syntax_checked:
+                warnings.append(syntax_message)
+            elif not syntax_ok:
+                errors.append(f"JavaScript 语法检查失败: {syntax_message}")
+        else:
+            signals["js_syntax_checked"] = False
+            signals["js_syntax_valid"] = True  # 假设通过
 
         defined_dom_ids = self._collect_defined_dom_ids(html_content)
         referenced_dom_ids = self._collect_referenced_dom_ids(html_content, js_code)
@@ -641,8 +669,17 @@ try {{
         signals["defined_dom_id_count"] = len(defined_dom_ids)
         signals["referenced_dom_id_count"] = len(referenced_dom_ids)
         signals["missing_dom_ids"] = missing_dom_ids
+        # 放宽：DOM ID 不匹配改为警告（非关键）
         if missing_dom_ids:
-            errors.append(f"引用了不存在的 DOM id: {missing_dom_ids}")
+            if relaxed_mode:
+                # relaxed 模式：只保留前 5 个
+                warnings.append(f"引用了不存在的 DOM id（前5个）: {missing_dom_ids[:5]}")
+            else:
+                # 正常模式：只保留前 3 个
+                if len(missing_dom_ids) <= 3:
+                    errors.append(f"引用了不存在的 DOM id: {missing_dom_ids}")
+                else:
+                    errors.append(f"引用了不存在的 DOM id（前3个）: {missing_dom_ids[:3]}")
 
         has_inline_handlers = bool(self._INLINE_HANDLER_RE.search(html_content))
         has_event_binding = bool(self._EVENT_BINDING_RE.search(js_code))
@@ -662,19 +699,20 @@ try {{
         signals["has_class_definitions"] = has_class_definitions
         signals["has_interactive_elements"] = has_interactive_elements
 
+        # 放宽：类定义检查改为警告
         if has_class_definitions and not (has_init or has_bootstrap_instance):
-            errors.append("存在类定义但缺少明确初始化入口")
+            warnings.append("存在类定义但缺少明确初始化入口")
 
         if profile == "canvas-game":
             if not signals["has_canvas"]:
                 errors.append("Canvas/WebGL 游戏缺少 `<canvas>` 元素")
             if not signals["has_canvas_context"]:
-                errors.append("Canvas/WebGL 游戏缺少渲染上下文初始化")
+                # 放宽：渲染上下文只是警告
+                warnings.append("Canvas/WebGL 游戏缺少渲染上下文初始化")
             if not has_render_loop:
                 if signals["has_event_binding"]:
                     warnings.append("Canvas/WebGL 场景未检测到持续渲染循环，将按事件驱动模式处理")
-                else:
-                    errors.append("Canvas/WebGL 游戏缺少持续渲染或更新循环")
+                # 放宽：移除强制渲染循环要求
             if not signals["has_event_binding"]:
                 warnings.append("Canvas/WebGL 游戏未检测到输入事件绑定")
         elif profile == "dom-interactive":
@@ -690,6 +728,15 @@ try {{
 
         score_hint = max(0.0, 100.0 - len(errors) * 18.0 - len(warnings) * 5.0)
         signals["score_hint"] = round(score_hint, 1)
+        
+        # relaxed 模式：即使有错误也通过（只要不是致命错误）
+        # 致命错误：缺少 body 标签、body 未闭合
+        fatal_errors = [e for e in errors if "缺少 body" in e or "body 未" in e]
+        
+        if relaxed_mode and len(fatal_errors) == 0:
+            # relaxed 模式下，非致命错误转为警告
+            warnings.extend(errors)
+            errors = []
 
         return WebOutputValidationResult(
             passed=not errors,

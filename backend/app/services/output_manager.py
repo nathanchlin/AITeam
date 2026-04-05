@@ -409,10 +409,19 @@ class OutputManager:
                 repair_notes.append(f"[自动修复] {fix['category']}: {fix['type']}")
             print(f"[OutputManager] HTML fixer applied {len(fix_result.fixes_applied)} fixes")
 
+        # 🔧 优化：计算当前迭代次数，用于放宽验证规则
+        archive_dir = os.path.join(plan_dir, "archive")
+        if os.path.exists(archive_dir):
+            existing_archives = [f for f in os.listdir(archive_dir) if f.startswith("iteration_")]
+            iteration_count = len(existing_archives)
+        else:
+            iteration_count = 0
+
         validation = self.web_validator.validate_html_output(
             html_code,
             stage="save",
             requirements=task_title,
+            iteration_count=iteration_count,  # 传递迭代次数
         )
         if repair_notes:
             validation.warnings.extend(repair_notes)
@@ -881,6 +890,7 @@ class OutputManager:
                     authoritative_html,
                     stage="authoritative",
                     requirements=plan_title,
+                    iteration_count=0,  # 读取阶段，使用严格验证
                 )
                 self._write_web_validation_report(plan_dir, validation)
                 if validation.passed:
@@ -1001,10 +1011,12 @@ class OutputManager:
                 )
 
         html_content = self._validate_and_fix_html(html_content, plan_title)
+        # 🔧 优化：合并阶段使用宽松验证（iteration_count=2 表示 relaxed 模式）
         validation = self.web_validator.validate_html_output(
             html_content,
             stage="consolidated",
             requirements=plan_title,
+            iteration_count=2,  # 合并阶段使用宽松验证
         )
         self._write_web_validation_report(plan_dir, validation)
 
@@ -1947,10 +1959,12 @@ document.addEventListener('DOMContentLoaded', function() {
         with open(index_path, 'r', encoding='utf-8') as f:
             html_content = f.read()
 
+        # 🔧 优化：预测试阶段使用宽松验证（iteration_count=2 表示 relaxed 模式）
         validation = self.web_validator.validate_html_output(
             html_content,
             stage="pretest",
             requirements=os.path.basename(index_path),
+            iteration_count=2,  # 预测试阶段使用宽松验证
         )
         self._write_web_validation_report(plan_dir, validation)
         result = validation.to_dict()

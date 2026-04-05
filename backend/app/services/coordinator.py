@@ -974,6 +974,8 @@ class CoordinatorService:
 
 **⚠️ 重要：涉及 UI 设计、界面布局、颜色方案、设计系统、用户体验优化的任务，必须分配给 custom 类型！**
 
+{"⚠️ 快速模式：任务数量控制在 2-3 个，优先分配给 coder 类型，跳过测试阶段！" if plan.quick_mode else ""}
+
 请以JSON格式输出执行计划，格式如下：
 {{
   "title": "计划标题",
@@ -988,7 +990,7 @@ class CoordinatorService:
   ]
 }}
 
-确保任务按顺序排列，每个任务明确分配给合适的Agent（从可用的Agent类型中选择）。"""
+{"⚠️ 快速模式约束：1) 最多 3 个任务 2) 只分配给 coder 和 custom 类型 3) 不需要测试任务" if plan.quick_mode else "确保任务按顺序排列，每个任务明确分配给合适的Agent（从可用的Agent类型中选择）。"}"""
 
         full_response = ""
         plan_generation_timeout = 90  # 计划生成最多 90 秒，超时用兜底任务，避免卡在“计划生成中”
@@ -1184,7 +1186,7 @@ class CoordinatorService:
         # Sort tasks by order
         sorted_tasks = sorted(plan.tasks, key=lambda t: t.order)
         results = []
-        max_fix_iterations = 3  # Maximum bug fix iterations
+        max_fix_iterations = 2  # 🔧 优化：减少修复迭代次数 (3 -> 2)
         fix_iteration = 0
 
         # Separate coding tasks and testing tasks
@@ -1996,8 +1998,10 @@ class CoordinatorService:
                     # Continue with execution even if validation fails
 
             # ===== 新增：测试框架集成阶段 =====
-            # 在编码完成后，执行自动化测试，并根据测试结果决定是否需要修复
-            if plan.target_output in ["web-app", "ts-app"]:
+            # 🚀 快速模式：跳过测试阶段
+            if plan.quick_mode:
+                print(f"[Coordinator] 快速模式：跳过测试阶段")
+            elif plan.target_output in ["web-app", "ts-app"]:
                 max_test_iterations = 2  # 最多测试 2 轮
                 test_iteration = 0
 

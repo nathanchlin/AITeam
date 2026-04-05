@@ -85,8 +85,9 @@ async def start_pipeline(request: PipelineRequest, background_tasks: BackgroundT
         selected_agent_ids=request.selected_agent_ids,
     )
 
-    # Persist skip_discussion on plan for resume/restart
+    # Persist skip_discussion and quick_mode on plan for resume/restart
     plan.skip_discussion = request.skip_discussion
+    plan.quick_mode = request.quick_mode
     coordinator._save_plans()
 
     # Add to queue (will start immediately if under limit, otherwise queued)
@@ -96,6 +97,7 @@ async def start_pipeline(request: PipelineRequest, background_tasks: BackgroundT
         target_output=request.target_output,
         selected_agent_ids=request.selected_agent_ids,
         skip_discussion=request.skip_discussion,
+        quick_mode=request.quick_mode,
     )
 
     return {
@@ -104,6 +106,7 @@ async def start_pipeline(request: PipelineRequest, background_tasks: BackgroundT
         "request": request.request,
         "target_output": request.target_output,
         "selected_agent_ids": request.selected_agent_ids,
+        "quick_mode": request.quick_mode,
         "queue_status": queue_result,
     }
 

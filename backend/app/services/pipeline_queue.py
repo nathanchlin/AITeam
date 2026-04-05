@@ -22,6 +22,7 @@ class QueuedPipeline:
     target_output: str
     selected_agent_ids: List[str]
     skip_discussion: bool = False
+    quick_mode: bool = False  # 🚀 快速模式
     queued_at: datetime = field(default_factory=datetime.now)
     started_at: Optional[datetime] = None
     position: int = 0
@@ -57,7 +58,8 @@ class PipelineQueueService:
         request: str,
         target_output: str,
         selected_agent_ids: List[str],
-        skip_discussion: bool = False
+        skip_discussion: bool = False,
+        quick_mode: bool = False
     ) -> dict:
         """Add a pipeline to the queue.
 
@@ -78,6 +80,7 @@ class PipelineQueueService:
                 target_output=target_output,
                 selected_agent_ids=selected_agent_ids,
                 skip_discussion=skip_discussion,
+                quick_mode=quick_mode,
                 position=len(self.queue) + 1,
             )
 
