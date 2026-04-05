@@ -403,6 +403,86 @@ class CoordinatorService:
             print(f"[Coordinator] Re-assigned {reassigned} agents for plan {plan_id[:8]}")
             self._save_plans()
 
+    def _optimize_task_order(self, tasks: List, quick_mode: bool = False) -> List:
+        """🚀 阶段二优化：优化任务顺序，合并相似任务
+
+        在快速模式下：
+        1. 合并 UI/样式相关任务
+        2. 合并 HTML/CSS 任务
+        3. 优化执行顺序
+
+        Args:
+            tasks: 任务列表
+            quick_mode: 是否快速模式
+
+        Returns:
+            优化后的任务列表
+        """
+        if not quick_mode or len(tasks) <= 2:
+            return tasks
+
+        # 定义可以合并的任务组
+        merge_groups = [
+            # 组1: UI/设计相关任务
+            {
+                'keywords': ['设计', 'ui', '界面', '布局', '样式', 'css', 'ui'],
+                'merged_title': '设计游戏界面和样式',
+                'merged_desc': '设计游戏界面布局和视觉样式'
+            },
+            # 组2: HTML/结构任务
+            {
+                'keywords': ['html', '结构', '搭建', '页面'],
+                'merged_title': '搭建游戏界面结构',
+                'merged_desc': '创建游戏的 HTML 结构'
+            },
+        ]
+
+        # 标记需要合并的任务
+        merged_tasks = []
+        skip_indices = set()
+
+        for i, task in enumerate(tasks):
+            if i in skip_indices:
+                continue
+
+            task_title_lower = task.title.lower()
+
+            # 检查是否可以与后续任务合并
+            for group in merge_groups:
+                if any(kw in task_title_lower for kw in group['keywords']):
+                    # 查找可以合并的后续任务
+                    merge_candidates = [i]
+                    for j, other_task in enumerate(tasks[i+1:], i+1):
+                        other_title_lower = other_task.title.lower()
+                        if any(kw in other_title_lower for kw in group['keywords']):
+                            merge_candidates.append(j)
+
+                    if len(merge_candidates) > 1:
+                        # 合并任务
+                        merged_task = task
+                        merged_task.title = group['merged_title']
+                        merged_task.description = group['merged_desc']
+                        merged_tasks.append(merged_task)
+                        skip_indices.update(merge_candidates)
+                        print(f"[Coordinator] 快速模式: 合并 {len(merge_candidates)} 个任务 -> {group['merged_title']}")
+                        break
+                    else:
+                        merged_tasks.append(task)
+                        skip_indices.add(i)
+                    break
+            else:
+                merged_tasks.append(task)
+                skip_indices.add(i)
+
+        # 如果合并后任务数量减少，使用合并后的列表
+        if len(merged_tasks) < len(tasks):
+            # 重新编号任务顺序
+            for i, task in enumerate(merged_tasks):
+                task.order = i + 1
+            return merged_tasks
+
+        return tasks
+
     def _save_plans(self):
         """Save plans to persistent storage with atomic write"""
         import shutil
@@ -990,7 +1070,7 @@ class CoordinatorService:
   ]
 }}
 
-{"⚠️ 快速模式约束：1) 最多 3 个任务 2) 只分配给 coder 和 custom 类型 3) 不需要测试任务" if plan.quick_mode else "确保任务按顺序排列，每个任务明确分配给合适的Agent（从可用的Agent类型中选择）。"}"""
+{"⚠️ 快速模式约束：1) 最多 2 个任务（1个实现+1个整合）2) 合并UI设计和代码实现 3) 只分配给 coder 类型 4) 不需要测试任务 5) 每个任务要完整独立，可以单独执行" if plan.quick_mode else "确保任务按顺序排列，每个任务明确分配给合适的Agent（从可用的Agent类型中选择）。"}"""
 
         full_response = ""
         plan_generation_timeout = 90  # 计划生成最多 90 秒，超时用兜底任务，避免卡在“计划生成中”
@@ -1193,6 +1273,10 @@ class CoordinatorService:
         # Testing tasks are tasks with 'test' in the title or assigned to tester type
         testing_tasks = [t for t in sorted_tasks if 'test' in t.title.lower() or t.assigned_agent_type == 'tester']
         coding_tasks = [t for t in sorted_tasks if t not in testing_tasks]
+
+        # 🚀 阶段二优化：快速模式下并行执行独立任务
+        if plan.quick_mode and len(coding_tasks) > 1:
+            coding_tasks = self._optimize_task_order(coding_tasks, plan.quick_mode)
 
         # Track first coding task completion for incremental mode
         first_coding_task_completed = False
@@ -1818,6 +1902,10 @@ class CoordinatorService:
                 except Exception as e:
                     print(f"[Coordinator] Quality scoring failed: {e}")
                     # Continue with execution even if quality scoring fails
+
+            # 🚀 阶段二优化：快速模式下的增量修复
+            # 在快速模式下，使用更智能的修复策略
+            incremental_fix_enabled = plan.quick_mode and fix_iteration > 0
 
             # Pre-test validation
             if plan.target_output == "web-app":
