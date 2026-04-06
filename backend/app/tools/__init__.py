@@ -6,6 +6,7 @@ from app.tools.code_tools import check_syntax, analyze_code
 from app.tools.web_tools import search_web, fetch_url
 from app.tools.execution_tools import run_code
 from app.tools.ui_design_tools import generate_design_system, search_ui_style, get_stack_guidelines
+from app.tools.animation_tools import generate_css_animation, generate_game_animation, list_available_animations
 
 
 # === 文件工具（所有 Agent 可用 ===
@@ -206,6 +207,90 @@ tool_registry.register_tool(
     },
     handler=get_stack_guidelines,
     available_to=["custom", "coder"],  # UI Designer 和 Coder 都可用
+)
+
+# === 动画工具（仅 custom 类型 = Animator 可用）===
+tool_registry.register_tool(
+    name="generate_css_animation",
+    description="生成 CSS 动画代码。支持弹跳、脉冲、抖动、淡入淡出、滑入、旋转、心跳、悬浮等 15+ 种动画。返回完整的 CSS 代码，可直接复制使用。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "animation_type": {
+                "type": "string",
+                "description": "动画类型：bounce(弹跳), pulse(脉冲), shake(抖动), fadeIn(淡入), fadeOut(淡出), slideInLeft(左滑入), slideInRight(右滑入), slideInUp(上滑入), rotate(旋转), swing(摇摆), heartbeat(心跳), float(悬浮), glow(发光), wiggle(扭动)"
+            },
+            "duration": {
+                "type": "number",
+                "default": 1.0,
+                "description": "动画持续时间（秒）"
+            },
+            "easing": {
+                "type": "string",
+                "default": "ease-in-out",
+                "description": "缓动函数：linear, ease, ease-in, ease-out, ease-in-out, bounce(弹性), elastic(橡皮筋), smooth(平滑)"
+            },
+            "iteration": {
+                "type": "string",
+                "default": "infinite",
+                "description": "动画次数：infinite(无限循环) 或数字"
+            },
+            "delay": {
+                "type": "number",
+                "default": 0.0,
+                "description": "动画延迟时间（秒）"
+            },
+            "custom_params": {
+                "type": "object",
+                "description": "自定义参数，如 bounce 的 amplitude(振幅), pulse 的 scale(缩放), float 的 amplitude(悬浮幅度)"
+            }
+        },
+        "required": ["animation_type"]
+    },
+    handler=generate_css_animation,
+    available_to=["custom"],
+)
+
+tool_registry.register_tool(
+    name="generate_game_animation",
+    description="生成游戏角色动画参数和代码示例。为 Canvas/Web 游戏生成角色动画的 JavaScript 参数，包括待机、行走、跳跃、攻击等动作。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "character_type": {
+                "type": "string",
+                "description": "角色类型：player(玩家), enemy(敌人), npc(NPC), boss(老板), projectile(投射物)"
+            },
+            "action": {
+                "type": "string",
+                "description": "动作类型：idle(待机), walk(行走), run(奔跑), jump(跳跃), attack(攻击), hurt(受伤), death(死亡), fly(飞行)"
+            },
+            "style": {
+                "type": "string",
+                "default": "cartoon",
+                "description": "动画风格：cartoon(卡通), realistic(写实), pixel-art(像素风), anime(动漫)"
+            },
+            "frame_count": {
+                "type": "integer",
+                "default": 8,
+                "description": "帧数"
+            }
+        },
+        "required": ["character_type", "action"]
+    },
+    handler=generate_game_animation,
+    available_to=["custom"],
+)
+
+tool_registry.register_tool(
+    name="list_available_animations",
+    description="列出所有可用的动画类型、参数和使用示例。",
+    parameters={
+        "type": "object",
+        "properties": {}
+    },
+    handler=list_available_animations,
+    available_to=["custom"],
 )
 
 print(f"[Tools] Registered {len(tool_registry.list_tools())} tools: {', '.join(tool_registry.list_tools())}")
