@@ -571,6 +571,15 @@ generate_game_animation(
 )
 ```
 
+### 4. 交互动画
+```
+generate_animation(
+  description="按钮悬停时放大并改变背景色",
+  trigger="hover",
+  framework="css"
+)
+```
+
 ## 最佳实践
 
 1. **UI 交互**: 使用 `pulse`, `bounce`, `shake`
@@ -578,6 +587,298 @@ generate_game_animation(
 3. **游戏角色**: 使用 `float`, `wiggle`, `rotate`
 4. **强调元素**: 使用 `glow`, `heartbeat`
 """
+
+
+async def generate_animation(
+    description: str,
+    trigger: str = "auto",
+    framework: str = "css",
+    duration: float = 0.5,
+    easing: str = "ease-in-out",
+    _sandbox: Optional[Dict[str, Any]] = None
+) -> str:
+    """根据自然语言描述生成动画代码
+    
+    Args:
+        description: 动画描述（自然语言）
+            示例："按钮悬停时放大并旋转"
+            "弹窗从底部滑入"
+            "图标左右摇晃"
+        
+        trigger: 触发方式
+            - "auto": 自动播放（默认）
+            - "hover": 鼠标悬停
+            - "click": 点击
+            - "scroll": 滚动触发
+            - "load": 页面加载
+        
+        framework: 输出框架
+            - "css": 纯 CSS（默认）
+            - "gsap": GSAP JavaScript 库
+            "animejs": Anime.js 库
+        
+        duration: 动画持续时间（秒），默认 0.5
+        
+        easing: 缓动函数，默认 "ease-in-out"
+    
+    Returns:
+        完整的动画代码（CSS/JS）
+    """
+    
+    description_lower = description.lower()
+    
+    # 基于描述智能选择动画类型
+    animation_type = "pulse"  # 默认
+    custom_params = {}
+    
+    # 匹配关键词
+    if any(kw in description_lower for kw in ["弹跳", "bounce", "跳"]):
+        animation_type = "bounce"
+    elif any(kw in description_lower for kw in ["悬停", "漂浮", "悬浮", "float", "hover"]):
+        animation_type = "float"
+    elif any(kw in description_lower for kw in ["摇摆", "摇晃", "shake", "wiggle"]):
+        animation_type = "wiggle" if "扭" in description_lower else "shake"
+    elif any(kw in description_lower for kw in ["淡入", "fadein", "出现"]):
+        animation_type = "fadeIn"
+    elif any(kw in description_lower for kw in ["淡出", "fadeout", "消失"]):
+        animation_type = "fadeOut"
+    elif any(kw in description_lower for kw in ["滑入", "slide"]):
+        if "左" in description_lower:
+            animation_type = "slideInLeft"
+        elif "右" in description_lower:
+            animation_type = "slideInRight"
+        else:
+            animation_type = "slideInUp"
+    elif any(kw in description_lower for kw in ["旋转", "rotate", "转"]):
+        animation_type = "rotate"
+        custom_params = {"degrees": 360}
+    elif any(kw in description_lower for kw in ["心跳", "pulse", "脉搏"]):
+        animation_type = "heartbeat"
+    elif any(kw in description_lower for kw in ["发光", "glow", "闪烁"]):
+        animation_type = "glow"
+    elif any(kw in description_lower for kw in ["放大", "缩放", "scale"]):
+        animation_type = "pulse"
+        custom_params = {"scale": 1.2, "opacity": 0.9}
+    
+    # 根据框架生成代码
+    if framework == "css":
+        return await _generate_css_with_trigger(
+            animation_type, trigger, duration, easing, custom_params
+        )
+    elif framework == "gsap":
+        return await _generate_gsap_animation(
+            description, animation_type, trigger, duration, easing
+        )
+    else:
+        return await _generate_css_with_trigger(
+            animation_type, trigger, duration, easing, custom_params
+        )
+
+
+async def _generate_css_with_trigger(
+    animation_type: str,
+    trigger: str,
+    duration: float,
+    easing: str,
+    custom_params: Dict[str, Any]
+) -> str:
+    """生成带触发器的 CSS 动画"""
+    
+    # 获取基础动画
+    base_animation = await generate_css_animation(
+        animation_type=animation_type,
+        duration=duration,
+        easing=easing,
+        iteration="infinite" if trigger == "auto" else "1",
+        custom_params=custom_params
+    )
+    
+    # 根据触发器添加额外代码
+    trigger_code = ""
+    
+    if trigger == "hover":
+        trigger_code = f"""
+/* 悬停触发 */
+.trigger-element {{
+  /* 默认状态 */
+  transition: all {duration}s {easing};
+}}
+
+.trigger-element:hover {{
+  animation: {animation_type} {duration}s {easing};
+}}
+"""
+    elif trigger == "click":
+        trigger_code = f"""
+/* 点击触发 - 需要 JavaScript */
+<button class="trigger-button" onclick="this.classList.toggle('animated')">
+  点击触发动画
+</button>
+
+<style>
+.trigger-button {{
+  /* 默认状态 */
+}}
+
+.trigger-button.animated {{
+  animation: {animation_type} {duration}s {easing};
+}}
+</style>
+"""
+    elif trigger == "scroll":
+        trigger_code = f"""
+/* 滚动触发 - 需要 JavaScript */
+<div class="scroll-animate" data-animation="{animation_type}">
+  滚动到此处触发动画
+</div>
+
+<script>
+// 使用 Intersection Observer
+const observer = new IntersectionObserver((entries) => {{
+  entries.forEach(entry => {{
+    if (entry.isIntersecting) {{
+      entry.target.style.animation = `${{entry.target.dataset.animation}} {duration}s {easing}`;
+      observer.unobserve(entry.target);
+    }}
+  }});
+}});
+
+document.querySelectorAll('.scroll-animate').forEach(el => observer.observe(el));
+</script>
+"""
+    elif trigger == "load":
+        trigger_code = f"""
+/* 页面加载触发 */
+.load-animate {{
+  animation: {animation_type} {duration}s {easing};
+  animation-delay: 0.2s;
+  animation-fill-mode: both;
+}}
+"""
+    
+    return f"{base_animation}\n\n{trigger_code}"
+
+
+async def _generate_gsap_animation(
+    description: str,
+    animation_type: str,
+    trigger: str,
+    duration: float,
+    easing: str
+) -> str:
+    """生成 GSAP 动画代码"""
+    
+    # GSAP 缓动映射
+    gsap_easing = {
+        "linear": "none",
+        "ease": "power1.out",
+        "ease-in": "power1.in",
+        "ease-out": "power1.out",
+        "ease-in-out": "power1.inOut",
+        "bounce": "bounce.out",
+        "elastic": "elastic.out(1, 0.3)",
+        "smooth": "power2.inOut",
+    }
+    
+    ease = gsap_easing.get(easing, "power1.inOut")
+    
+    # 根据动画类型生成 GSAP 代码
+    gsap_code = f"""// GSAP 动画: {description}
+// 需要引入 GSAP: <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+"""
+
+    if animation_type == "bounce":
+        gsap_code += f"""gsap.fromTo(".animated-element", 
+  {{ y: 0 }},
+  {{
+    y: -20,
+    duration: {duration / 2},
+    ease: "{ease}",
+    yoyo: true,
+    repeat: -1
+  }}
+);
+"""
+    elif animation_type == "float":
+        gsap_code += f"""gsap.to(".animated-element", {{
+  y: -10,
+  duration: {duration},
+  ease: "{ease}",
+  yoyo: true,
+  repeat: -1
+}});
+"""
+    elif animation_type == "fadeIn":
+        gsap_code += f"""gsap.from(".animated-element", {{
+  opacity: 0,
+  duration: {duration},
+  ease: "{ease}"
+}});
+"""
+    elif animation_type == "slideInUp":
+        gsap_code += f"""gsap.from(".animated-element", {{
+  y: 100,
+  opacity: 0,
+  duration: {duration},
+  ease: "{ease}"
+}});
+"""
+    elif animation_type == "rotate":
+        gsap_code += f"""gsap.to(".animated-element", {{
+  rotation: 360,
+  duration: {duration},
+  ease: "{ease}",
+  repeat: -1
+}});
+"""
+    else:
+        gsap_code += f"""// 自定义动画
+gsap.to(".animated-element", {{
+  duration: {duration},
+  ease: "{ease}"
+}});
+"""
+
+    # 添加触发器代码
+    if trigger == "hover":
+        gsap_code += f"""
+// 悬停触发
+const element = document.querySelector(".animated-element");
+element.addEventListener("mouseenter", () => {{
+  gsap.to(element, {{
+    scale: 1.1,
+    duration: {duration},
+    ease: "{ease}"
+  }});
+}});
+element.addEventListener("mouseleave", () => {{
+  gsap.to(element, {{
+    scale: 1,
+    duration: {duration},
+    ease: "{ease}"
+  }});
+}});
+"""
+    elif trigger == "scroll":
+        gsap_code += f"""
+// 滚动触发（需要 ScrollTrigger 插件）
+gsap.registerPlugin(ScrollTrigger);
+
+gsap.from(".animated-element", {{
+  scrollTrigger: {{
+    trigger: ".animated-element",
+    start: "top center",
+    toggleActions: "play none none reverse"
+  }},
+  opacity: 0,
+  y: 50,
+  duration: {duration},
+  ease: "{ease}"
+}});
+"""
+
+    return gsap_code
 
 
 # 工具元数据

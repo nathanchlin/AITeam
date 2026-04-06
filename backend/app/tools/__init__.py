@@ -6,7 +6,7 @@ from app.tools.code_tools import check_syntax, analyze_code
 from app.tools.web_tools import search_web, fetch_url
 from app.tools.execution_tools import run_code
 from app.tools.ui_design_tools import generate_design_system, search_ui_style, get_stack_guidelines
-from app.tools.animation_tools import generate_css_animation, generate_game_animation, list_available_animations
+from app.tools.animation_tools import generate_css_animation, generate_game_animation, list_available_animations, generate_animation
 
 
 # === 文件工具（所有 Agent 可用 ===
@@ -290,6 +290,45 @@ tool_registry.register_tool(
         "properties": {}
     },
     handler=list_available_animations,
+    available_to=["custom"],
+)
+
+tool_registry.register_tool(
+    name="generate_animation",
+    description="根据自然语言描述生成动画代码。智能识别动画意图，支持悬停、点击、滚动等多种触发方式，可输出 CSS 或 GSAP 框架代码。例如：'按钮悬停时放大'、'弹窗从底部滑入'。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "description": {
+                "type": "string",
+                "description": "动画描述（自然语言），如：'按钮悬停时放大并旋转'、'弹窗从底部滑入'、'图标左右摇晃'"
+            },
+            "trigger": {
+                "type": "string",
+                "enum": ["auto", "hover", "click", "scroll", "load"],
+                "default": "auto",
+                "description": "触发方式：auto(自动), hover(悬停), click(点击), scroll(滚动), load(页面加载)"
+            },
+            "framework": {
+                "type": "string",
+                "enum": ["css", "gsap"],
+                "default": "css",
+                "description": "输出框架：css(纯CSS), gsap(GSAP库)"
+            },
+            "duration": {
+                "type": "number",
+                "default": 0.5,
+                "description": "动画持续时间（秒）"
+            },
+            "easing": {
+                "type": "string",
+                "default": "ease-in-out",
+                "description": "缓动函数"
+            }
+        },
+        "required": ["description"]
+    },
+    handler=generate_animation,
     available_to=["custom"],
 )
 
