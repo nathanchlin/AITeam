@@ -43,7 +43,13 @@
       "Bash(cd D:/AIProject/AITeam1/AITeam/backend && source venv/Scripts/activate && python -c \"\nimport json\nwith open\\('data/plans.json', 'r', encoding='utf-8'\\) as f:\n    data = json.load\\(f\\)\n\nplan = data['plans'].get\\('86dc71f7-1b48-4f95-a96c-fb5ca4a59ed7', {}\\)\nprint\\(f'Status: {plan.get\\(\\\\\"status\\\\\"\\)}'\\)\nprint\\(f'Tasks: {len\\(plan.get\\(\\\\\"tasks\\\\\", []\\)\\)}'\\)\nfor task in plan.get\\('tasks', []\\):\n    print\\(f'  - {task.get\\(\\\\\"title\\\\\"\\)}: {task.get\\(\\\\\"status\\\\\"\\)}'\\)\nprint\\(f'Discussion messages: {len\\(plan.get\\(\\\\\"discussion\\\\\", []\\)\\)}'\\)\n\")",
       "Bash(cd D:/AIProject/AITeam1/AITeam/backend && source venv/Scripts/activate && python -c \"\nimport json\nwith open\\('data/plans.json', 'r', encoding='utf-8'\\) as f:\n    data = json.load\\(f\\)\n\nfor plan_id, plan in sorted\\(data['plans'].items\\(\\), key=lambda x: x[1].get\\('updated_at', ''\\), reverse=True\\)[:3]:\n    print\\(f'\\\\\\\\nPlan: {plan_id[:8]}'\\)\n    print\\(f'Title: {plan.get\\(\\\\\"title\\\\\", \\\\\"N/A\\\\\"\\)[:50]}'\\)\n    print\\(f'Status: {plan.get\\(\\\\\"status\\\\\"\\)}'\\)\n    tasks = plan.get\\('tasks', []\\)\n    print\\(f'Tasks \\({len\\(tasks\\)}\\):'\\)\n    for task in tasks:\n        print\\(f'  - {task.get\\(\\\\\"title\\\\\", \\\\\"?\\\\\"\\)}: {task.get\\(\\\\\"status\\\\\"\\)}'\\)\n\")",
       "Bash(git stash:*)",
-      "Bash(cd D:/AIProject/AITeam1/AITeam/frontend && npm run dev)"
+      "Bash(cd D:/AIProject/AITeam1/AITeam/frontend && npm run dev)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(echo:*)",
+      "Bash(git credential approve:*)"
     ]
   }
 }
