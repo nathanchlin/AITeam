@@ -12,7 +12,9 @@ from app.tools.animation_tools import (
     list_available_animations,
     generate_animation,
     generate_lottie_animation,
-    generate_godot_animation
+    generate_godot_animation,
+    generate_lottie_path_animation,
+    generate_lottie_shape_morph
 )
 
 
@@ -413,6 +415,94 @@ tool_registry.register_tool(
         "required": ["tracks"]
     },
     handler=generate_godot_animation,
+    available_to=["custom"],
+)
+
+# Lottie 高级功能
+tool_registry.register_tool(
+    name="generate_lottie_path_animation",
+    description="生成 SVG 路径绘制动画（Lottie 格式）。支持自定义 SVG 路径，自动生成描边动画效果，适合 Logo 描边、路径绘制等场景。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "path_data": {
+                "type": "string",
+                "description": "SVG 路径数据（d 属性），如：'M 100,100 L 200,100 L 150,50 Z'"
+            },
+            "duration": {
+                "type": "number",
+                "default": 2.0,
+                "description": "动画持续时间（秒）"
+            },
+            "stroke_width": {
+                "type": "number",
+                "default": 3.0,
+                "description": "描边宽度"
+            },
+            "stroke_color": {
+                "type": "string",
+                "default": "#4facfe",
+                "description": "描边颜色"
+            },
+            "fill_color": {
+                "type": "string",
+                "description": "填充颜色（可选）"
+            },
+            "width": {
+                "type": "integer",
+                "default": 400,
+                "description": "画布宽度"
+            },
+            "height": {
+                "type": "integer",
+                "default": 400,
+                "description": "画布高度"
+            }
+        },
+        "required": ["path_data"]
+    },
+    handler=generate_lottie_path_animation,
+    available_to=["custom"],
+)
+
+tool_registry.register_tool(
+    name="generate_lottie_shape_morph",
+    description="生成形状变化动画（Shape Morph）。支持圆形、方形、三角形、星形之间的平滑变换，适合 Loading 动画、图标变化等场景。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "start_shape": {
+                "type": "string",
+                "description": "起始形状：circle(圆形), square(方形), triangle(三角形), star(星形)"
+            },
+            "end_shape": {
+                "type": "string",
+                "description": "结束形状：circle(圆形), square(方形), triangle(三角形), star(星形)"
+            },
+            "duration": {
+                "type": "number",
+                "default": 1.5,
+                "description": "动画持续时间（秒）"
+            },
+            "width": {
+                "type": "integer",
+                "default": 200,
+                "description": "画布宽度"
+            },
+            "height": {
+                "type": "integer",
+                "default": 200,
+                "description": "画布高度"
+            },
+            "color": {
+                "type": "string",
+                "default": "#4facfe",
+                "description": "填充颜色"
+            }
+        },
+        "required": ["start_shape", "end_shape"]
+    },
+    handler=generate_lottie_shape_morph,
     available_to=["custom"],
 )
 

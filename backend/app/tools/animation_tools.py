@@ -1378,3 +1378,441 @@ ANIMATION_TOOLS = [
         "handler": generate_godot_animation,
     },
 ]
+
+# ==================== Lottie 高级功能 ====================
+
+async def generate_lottie_path_animation(
+    path_data: str,
+    duration: float = 2.0,
+    stroke_width: float = 3.0,
+    stroke_color: str = "#4facfe",
+    fill_color: Optional[str] = None,
+    width: int = 400,
+    height: int = 400,
+    _sandbox: Optional[Dict[str, Any]] = None
+) -> str:
+    """生成 SVG 路径动画（Lottie 格式）
+    
+    Args:
+        path_data: SVG 路径数据（d 属性）
+            示例："M 100,100 L 200,100 L 150,50 Z"
+        
+        duration: 动画持续时间（秒）
+        stroke_width: 描边宽度
+        stroke_color: 描边颜色
+        fill_color: 填充颜色（可选）
+        width: 画布宽度
+        height: 画布高度
+    
+    Returns:
+        路径绘制动画的 Lottie JSON
+    """
+    
+    fps = 60
+    total_frames = int(duration * fps)
+    
+    def hex_to_rgb(hex_color):
+        hex_color = hex_color.lstrip('#')
+        return [int(hex_color[i:i+2], 16) / 255 for i in (0, 2, 4)]
+    
+    stroke_rgb = hex_to_rgb(stroke_color)
+    fill_rgb = hex_to_rgb(fill_color) if fill_color else [1, 1, 1]
+    
+    lottie = {
+        "v": "5.7.1",
+        "fr": fps,
+        "ip": 0,
+        "op": total_frames,
+        "w": width,
+        "h": height,
+        "nm": "path_animation",
+        "ddd": 0,
+        "assets": [],
+        "layers": [{
+            "ddd": 0,
+            "ind": 1,
+            "ty": 4,
+            "nm": "path_layer",
+            "sr": 1,
+            "ks": {
+                "o": {"a": 0, "k": 100},
+                "r": {"a": 0, "k": 0},
+                "p": {"a": 0, "k": [width/2, height/2, 0]},
+                "a": {"a": 0, "k": [0, 0, 0]},
+                "s": {"a": 0, "k": [100, 100, 100]}
+            },
+            "ao": 0,
+            "shapes": [
+                {
+                    "ty": "gr",
+                    "it": [
+                        {
+                            "ty": "sh",
+                            "d": 1,
+                            "ks": {
+                                "a": 0,
+                                "k": {
+                                    "c": True,
+                                    "v": _parse_svg_path(path_data),
+                                    "i": [],
+                                    "o": []
+                                }
+                            }
+                        },
+                        {
+                            "ty": "st",
+                            "c": {"a": 0, "k": stroke_rgb},
+                            "o": {"a": 0, "k": 100},
+                            "w": {
+                                "a": 1,
+                                "k": [
+                                    {"t": 0, "s": [0], "e": [stroke_width]},
+                                    {"t": total_frames, "s": [stroke_width]}
+                                ]
+                            },
+                            "lc": 2,
+                            "lj": 2
+                        },
+                        {
+                            "ty": "tr",
+                            "p": {"a": 0, "k": [0, 0]},
+                            "a": {"a": 0, "k": [0, 0]},
+                            "s": {"a": 0, "k": [100, 100]},
+                            "r": {"a": 0, "k": 0},
+                            "o": {"a": 0, "k": 100}
+                        }
+                    ],
+                    "nm": "path_group"
+                }
+            ],
+            "ip": 0,
+            "op": total_frames,
+            "st": 0,
+            "bm": 0
+        }]
+    }
+    
+    # 如果有填充，添加填充形状
+    if fill_color:
+        lottie["layers"][0]["shapes"][0]["it"].insert(2, {
+            "ty": "fl",
+            "c": {"a": 0, "k": fill_rgb},
+            "o": {"a": 0, "k": 100},
+            "r": 1
+        })
+    
+    preview_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Lottie Path Animation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+</head>
+<body style="margin:0; display:flex; justify-content:center; align-items:center; min-height:100vh; background:#1a1a1a;">
+    <div id="animation" style="width:{width*1.5}px; height:{height*1.5}px; border:1px solid #333;"></div>
+    <script>
+        const anim = lottie.loadAnimation({{
+            container: document.getElementById('animation'),
+            renderer: 'svg',
+            loop: true,
+            autoplay: true,
+            animationData: {json.dumps(lottie)}
+        }});
+    </script>
+</body>
+</html>"""
+    
+    return json.dumps({
+        "lottie_json": lottie,
+        "preview_html": preview_html,
+        "usage": {
+            "description": "SVG 路径绘制动画",
+            "svg_path": path_data,
+            "duration": f"{duration}秒"
+        }
+    }, indent=2)
+
+
+def _parse_svg_path(path_data: str) -> List:
+    """解析 SVG 路径数据为 Lottie 顶点格式"""
+    # 简化的路径解析
+    vertices = []
+    commands = path_data.split()
+    
+    i = 0
+    while i < len(commands):
+        cmd = commands[i]
+        
+        if cmd == 'M':  # 移动
+            x, y = float(commands[i+1]), float(commands[i+2])
+            vertices.append([x - 200, y - 200])  # 居中
+            i += 3
+        elif cmd == 'L':  # 直线
+            x, y = float(commands[i+1]), float(commands[i+2])
+            vertices.append([x - 200, y - 200])
+            i += 3
+        elif cmd == 'Z':  # 闭合
+            i += 1
+        else:
+            i += 1
+    
+    return vertices
+
+
+async def generate_lottie_shape_morph(
+    start_shape: str,
+    end_shape: str,
+    duration: float = 1.5,
+    width: int = 200,
+    height: int = 200,
+    color: str = "#4facfe",
+    _sandbox: Optional[Dict[str, Any]] = None
+) -> str:
+    """生成形状变化动画（Shape Morph）
+    
+    Args:
+        start_shape: 起始形状
+            - "circle": 圆形
+            - "square": 正方形
+            - "triangle": 三角形
+            - "star": 星形
+        
+        end_shape: 结束形状（同上）
+        duration: 动画持续时间
+        width: 画布宽度
+        height: 画布高度
+        color: 填充颜色
+    
+    Returns:
+        形状变化动画的 Lottie JSON
+    """
+    
+    fps = 60
+    total_frames = int(duration * fps)
+    
+    def hex_to_rgb(hex_color):
+        hex_color = hex_color.lstrip('#')
+        return [int(hex_color[i:i+2], 16) / 255 for i in (0, 2, 4)]
+    
+    rgb = hex_to_rgb(color)
+    
+    # 定义形状顶点
+    shapes = {
+        "circle": {
+            "c": True,
+            "v": [[0, -40], [40, 0], [0, 40], [-40, 0]],
+            "i": [[0, -22], [22, 0], [0, 22], [-22, 0]],
+            "o": [[0, 22], [-22, 0], [0, -22], [22, 0]]
+        },
+        "square": {
+            "c": True,
+            "v": [[-35, -35], [35, -35], [35, 35], [-35, 35]],
+            "i": [[0, 0], [0, 0], [0, 0], [0, 0]],
+            "o": [[0, 0], [0, 0], [0, 0], [0, 0]]
+        },
+        "triangle": {
+            "c": True,
+            "v": [[0, -40], [40, 35], [-40, 35]],
+            "i": [[0, 0], [0, 0], [0, 0]],
+            "o": [[0, 0], [0, 0], [0, 0]]
+        },
+        "star": {
+            "c": True,
+            "v": [[0, -45], [12, -15], [45, -15], [20, 8], [28, 40], [0, 22], [-28, 40], [-20, 8], [-45, -15], [-12, -15]],
+            "i": [[0, 0]] * 10,
+            "o": [[0, 0]] * 10
+        }
+    }
+    
+    start = shapes.get(start_shape, shapes["circle"])
+    end = shapes.get(end_shape, shapes["square"])
+    
+    lottie = {
+        "v": "5.7.1",
+        "fr": fps,
+        "ip": 0,
+        "op": total_frames,
+        "w": width,
+        "h": height,
+        "nm": f"{start_shape}_to_{end_shape}_morph",
+        "ddd": 0,
+        "assets": [],
+        "layers": [{
+            "ddd": 0,
+            "ind": 1,
+            "ty": 4,
+            "nm": "morph_layer",
+            "sr": 1,
+            "ks": {
+                "o": {"a": 0, "k": 100},
+                "r": {"a": 0, "k": 0},
+                "p": {"a": 0, "k": [width/2, height/2, 0]},
+                "a": {"a": 0, "k": [0, 0, 0]},
+                "s": {"a": 0, "k": [100, 100, 100]}
+            },
+            "ao": 0,
+            "shapes": [
+                {
+                    "ty": "gr",
+                    "it": [
+                        {
+                            "ty": "sh",
+                            "d": 1,
+                            "ks": {
+                                "a": 1,
+                                "k": [
+                                    {
+                                        "t": 0,
+                                        "s": [start],
+                                        "e": [end]
+                                    },
+                                    {
+                                        "t": total_frames,
+                                        "s": [end]
+                                    }
+                                ]
+                            }
+                        },
+                        {
+                            "ty": "fl",
+                            "c": {"a": 0, "k": rgb},
+                            "o": {"a": 0, "k": 100},
+                            "r": 1
+                        },
+                        {
+                            "ty": "tr",
+                            "p": {"a": 0, "k": [0, 0]},
+                            "a": {"a": 0, "k": [0, 0]},
+                            "s": {"a": 0, "k": [100, 100]},
+                            "r": {"a": 0, "k": 0},
+                            "o": {"a": 0, "k": 100}
+                        }
+                    ],
+                    "nm": "morph_group"
+                }
+            ],
+            "ip": 0,
+            "op": total_frames,
+            "st": 0,
+            "bm": 0
+        }]
+    }
+    
+    preview_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Lottie Shape Morph</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+</head>
+<body style="margin:0; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:100vh; background:#1a1a1a;">
+    <h2 style="color:#fff; font-family:Arial;">{start_shape.title()} → {end_shape.title()}</h2>
+    <div id="animation" style="width:{width*2}px; height:{height*2}px;"></div>
+    <script>
+        const anim = lottie.loadAnimation({{
+            container: document.getElementById('animation'),
+            renderer: 'svg',
+            loop: true,
+            autoplay: true,
+            animationData: {json.dumps(lottie)}
+        }});
+    </script>
+</body>
+</html>"""
+    
+    return json.dumps({
+        "lottie_json": lottie,
+        "preview_html": preview_html,
+        "usage": {
+            "description": f"形状变化动画：{start_shape} → {end_shape}",
+            "duration": f"{duration}秒"
+        }
+    }, indent=2)
+
+
+# 更新 ANIMATION_TOOLS 列表
+ADVANCED_TOOLS = [
+    {
+        "name": "generate_lottie_path_animation",
+        "description": "生成 SVG 路径绘制动画（Lottie 格式）。支持自定义 SVG 路径，自动生成描边动画效果。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "path_data": {
+                    "type": "string",
+                    "description": "SVG 路径数据（d 属性），如：'M 100,100 L 200,100 L 150,50 Z'"
+                },
+                "duration": {
+                    "type": "number",
+                    "default": 2.0,
+                    "description": "动画持续时间（秒）"
+                },
+                "stroke_width": {
+                    "type": "number",
+                    "default": 3.0,
+                    "description": "描边宽度"
+                },
+                "stroke_color": {
+                    "type": "string",
+                    "default": "#4facfe",
+                    "description": "描边颜色"
+                },
+                "fill_color": {
+                    "type": "string",
+                    "description": "填充颜色（可选）"
+                },
+                "width": {
+                    "type": "integer",
+                    "default": 400,
+                    "description": "画布宽度"
+                },
+                "height": {
+                    "type": "integer",
+                    "default": 400,
+                    "description": "画布高度"
+                }
+            },
+            "required": ["path_data"]
+        },
+        "handler": generate_lottie_path_animation,
+    },
+    {
+        "name": "generate_lottie_shape_morph",
+        "description": "生成形状变化动画（Shape Morph）。支持圆形、方形、三角形、星形之间的平滑变换。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "start_shape": {
+                    "type": "string",
+                    "enum": ["circle", "square", "triangle", "star"],
+                    "description": "起始形状"
+                },
+                "end_shape": {
+                    "type": "string",
+                    "enum": ["circle", "square", "triangle", "star"],
+                    "description": "结束形状"
+                },
+                "duration": {
+                    "type": "number",
+                    "default": 1.5,
+                    "description": "动画持续时间（秒）"
+                },
+                "width": {
+                    "type": "integer",
+                    "default": 200,
+                    "description": "画布宽度"
+                },
+                "height": {
+                    "type": "integer",
+                    "default": 200,
+                    "description": "画布高度"
+                },
+                "color": {
+                    "type": "string",
+                    "default": "#4facfe",
+                    "description": "填充颜色"
+                }
+            },
+            "required": ["start_shape", "end_shape"]
+        },
+        "handler": generate_lottie_shape_morph,
+    },
+]
