@@ -6,7 +6,14 @@ from app.tools.code_tools import check_syntax, analyze_code
 from app.tools.web_tools import search_web, fetch_url
 from app.tools.execution_tools import run_code
 from app.tools.ui_design_tools import generate_design_system, search_ui_style, get_stack_guidelines
-from app.tools.animation_tools import generate_css_animation, generate_game_animation, list_available_animations, generate_animation
+from app.tools.animation_tools import (
+    generate_css_animation,
+    generate_game_animation,
+    list_available_animations,
+    generate_animation,
+    generate_lottie_animation,
+    generate_godot_animation
+)
 
 
 # === 文件工具（所有 Agent 可用 ===
@@ -329,6 +336,83 @@ tool_registry.register_tool(
         "required": ["description"]
     },
     handler=generate_animation,
+    available_to=["custom"],
+)
+
+# Lottie 和 Godot 动画工具
+tool_registry.register_tool(
+    name="generate_lottie_animation",
+    description="生成 Lottie JSON 动画。输出可在 Web/iOS/Android 播放的矢量动画，支持位置、缩放、旋转、透明度等动画类型。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "animation_type": {
+                "type": "string",
+                "description": "动画类型：move(移动), scale(缩放), rotate(旋转), fade(透明度), bounce(弹跳), shake(抖动)"
+            },
+            "duration": {
+                "type": "number",
+                "default": 1.0,
+                "description": "动画持续时间（秒）"
+            },
+            "width": {
+                "type": "integer",
+                "default": 100,
+                "description": "画布宽度（像素）"
+            },
+            "height": {
+                "type": "integer",
+                "default": 100,
+                "description": "画布高度（像素）"
+            },
+            "color": {
+                "type": "string",
+                "default": "#4facfe",
+                "description": "动画元素颜色（十六进制）"
+            },
+            "loop": {
+                "type": "boolean",
+                "default": True,
+                "description": "是否循环播放"
+            }
+        },
+        "required": ["animation_type"]
+    },
+    handler=generate_lottie_animation,
+    available_to=["custom"],
+)
+
+tool_registry.register_tool(
+    name="generate_godot_animation",
+    description="生成 Godot 4.x 引擎动画资源。输出 .tres 格式动画文件，可直接在 Godot 项目中使用。",
+    parameters={
+        "type": "object",
+        "properties": {
+            "animation_name": {
+                "type": "string",
+                "default": "default",
+                "description": "动画名称"
+            },
+            "duration": {
+                "type": "number",
+                "default": 1.0,
+                "description": "动画持续时间（秒）"
+            },
+            "tracks": {
+                "type": "array",
+                "description": "动画轨道列表，每个轨道包含 property(属性路径) 和 keys(关键帧)",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "property": {"type": "string"},
+                        "keys": {"type": "array"}
+                    }
+                }
+            }
+        },
+        "required": ["tracks"]
+    },
+    handler=generate_godot_animation,
     available_to=["custom"],
 )
 

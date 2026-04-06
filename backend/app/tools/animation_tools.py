@@ -1,9 +1,10 @@
 """动画生成工具 - 为 Animator Agent 提供动画代码生成能力
 
-支持生成 CSS 动画、GSAP 动画、游戏动画参数
+支持生成 CSS 动画、GSAP 动画、游戏动画参数、Lottie JSON、Godot 动画
 """
 
-from typing import Optional, Dict, Any
+import json
+from typing import Optional, Dict, Any, List
 
 
 # 预定义动画模板
@@ -882,6 +883,334 @@ gsap.from(".animated-element", {{
 
 
 # 工具元数据
+
+
+# ==================== Lottie 动画生成 ====================
+
+async def generate_lottie_animation(
+    animation_type: str,
+    duration: float = 1.0,
+    width: int = 100,
+    height: int = 100,
+    color: str = "#4facfe",
+    loop: bool = True,
+    custom_params: Optional[Dict[str, Any]] = None,
+    _sandbox: Optional[Dict[str, Any]] = None
+) -> str:
+    """生成 Lottie JSON 动画
+    
+    Args:
+        animation_type: 动画类型
+            - move: 位置移动
+            - scale: 缩放
+            - rotate: 旋转
+            - fade: 透明度变化
+            - bounce: 弹跳（组合动画）
+            - shake: 抖动（组合动画）
+        
+        duration: 动画持续时间（秒）
+        width: 画布宽度
+        height: 画布高度
+        color: 元素颜色
+        loop: 是否循环
+        custom_params: 自定义参数
+    
+    Returns:
+        Lottie JSON 格式的动画数据 + 预览 HTML
+    """
+    
+    # 解析颜色
+    def hex_to_rgb(hex_color):
+        hex_color = hex_color.lstrip('#')
+        return [int(hex_color[i:i+2], 16) / 255 for i in (0, 2, 4)]
+    
+    rgb = hex_to_rgb(color)
+    
+    # 帧率
+    fps = 60
+    total_frames = int(duration * fps)
+    
+    # 基础 Lottie 结构
+    lottie = {
+        "v": "5.7.1",
+        "fr": fps,
+        "ip": 0,
+        "op": total_frames,
+        "w": width,
+        "h": height,
+        "nm": f"{animation_type}_animation",
+        "ddd": 0,
+        "assets": [],
+        "layers": []
+    }
+    
+    # 默认参数
+    params = custom_params or {}
+    
+    # 创建形状层
+    layer = {
+        "ddd": 0,
+        "ind": 1,
+        "ty": 4,  # 形状层
+        "nm": "shape_layer",
+        "sr": 1,
+        "ks": {
+            "o": {"a": 0, "k": 100},  # 透明度
+            "r": {"a": 0, "k": 0},     # 旋转
+            "p": {"a": 0, "k": [width/2, height/2, 0]},  # 位置
+            "a": {"a": 0, "k": [0, 0, 0]},  # 锚点
+            "s": {"a": 0, "k": [100, 100, 100]}  # 缩放
+        },
+        "ao": 0,
+        "shapes": [
+            {
+                "ty": "rc",  # 矩形
+                "d": 1,
+                "s": {"a": 0, "k": [40, 40]},  # 尺寸
+                "p": {"a": 0, "k": [0, 0]},    # 位置
+                "r": {"a": 0, "k": 5},         # 圆角
+                "nm": "rectangle"
+            },
+            {
+                "ty": "fl",  # 填充
+                "c": {"a": 0, "k": rgb},
+                "o": {"a": 0, "k": 100},
+                "r": 1,
+                "nm": "fill"
+            }
+        ],
+        "ip": 0,
+        "op": total_frames,
+        "st": 0,
+        "bm": 0
+    }
+    
+    # 根据动画类型添加关键帧
+    if animation_type == "move":
+        move_x = params.get("move_x", 30)
+        move_y = params.get("move_y", 0)
+        
+        layer["ks"]["p"] = {
+            "a": 1,
+            "k": [
+                {
+                    "t": 0,
+                    "s": [width/2 - move_x, height/2 - move_y, 0],
+                    "e": [width/2 + move_x, height/2 + move_y, 0],
+                    "i": {"x": [0.4], "y": [1]},
+                    "o": {"x": [0.6], "y": [0]}
+                },
+                {"t": total_frames}
+            ]
+        }
+    
+    elif animation_type == "scale":
+        scale_from = params.get("scale_from", 50)
+        scale_to = params.get("scale_to", 150)
+        
+        layer["ks"]["s"] = {
+            "a": 1,
+            "k": [
+                {
+                    "t": 0,
+                    "s": [scale_from, scale_from, 100],
+                    "e": [scale_to, scale_to, 100],
+                    "i": {"x": [0.4], "y": [1]},
+                    "o": {"x": [0.6], "y": [0]}
+                },
+                {"t": total_frames}
+            ]
+        }
+    
+    elif animation_type == "rotate":
+        degrees = params.get("rotate_degrees", 360)
+        
+        layer["ks"]["r"] = {
+            "a": 1,
+            "k": [
+                {
+                    "t": 0,
+                    "s": [0],
+                    "e": [degrees],
+                    "i": {"x": [0.4], "y": [1]},
+                    "o": {"x": [0.6], "y": [0]}
+                },
+                {"t": total_frames}
+            ]
+        }
+    
+    elif animation_type == "fade":
+        opacity_from = params.get("opacity_from", 100)
+        opacity_to = params.get("opacity_to", 0)
+        
+        layer["ks"]["o"] = {
+            "a": 1,
+            "k": [
+                {
+                    "t": 0,
+                    "s": [opacity_from],
+                    "e": [opacity_to],
+                    "i": {"x": [0.4], "y": [1]},
+                    "o": {"x": [0.6], "y": [0]}
+                },
+                {"t": total_frames}
+            ]
+        }
+    
+    elif animation_type == "bounce":
+        # 弹跳：缩放 + 位置
+        amplitude = params.get("amplitude", 20)
+        
+        layer["ks"]["p"] = {
+            "a": 1,
+            "k": [
+                {"t": 0, "s": [width/2, height/2, 0], "e": [width/2, height/2 - amplitude, 0]},
+                {"t": total_frames // 4, "s": [width/2, height/2 - amplitude, 0], "e": [width/2, height/2, 0]},
+                {"t": total_frames // 2, "s": [width/2, height/2, 0], "e": [width/2, height/2 - amplitude/2, 0]},
+                {"t": total_frames * 3 // 4, "s": [width/2, height/2 - amplitude/2, 0], "e": [width/2, height/2, 0]},
+                {"t": total_frames}
+            ]
+        }
+    
+    elif animation_type == "shake":
+        # 抖动：旋转 + 位置
+        amplitude = params.get("amplitude", 5)
+        
+        shake_keys = []
+        for i in range(0, total_frames, total_frames // 10):
+            angle = amplitude if (i // (total_frames // 10)) % 2 == 0 else -amplitude
+            shake_keys.append({"t": i, "s": [angle]})
+        shake_keys.append({"t": total_frames, "s": [0]})
+        
+        layer["ks"]["r"] = {"a": 1, "k": shake_keys}
+    
+    lottie["layers"].append(layer)
+    
+    # 如果不循环，添加停止
+    if not loop:
+        lottie["op"] = total_frames
+    
+    # 生成预览 HTML
+    preview_html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>Lottie Animation Preview</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+</head>
+<body style="margin:0; display:flex; justify-content:center; align-items:center; min-height:100vh; background:#1a1a1a;">
+    <div id="animation" style="width:{width*2}px; height:{height*2}px;"></div>
+    <script>
+        const animationData = {json.dumps(lottie)};
+        
+        const anim = lottie.loadAnimation({{
+            container: document.getElementById('animation'),
+            renderer: 'svg',
+            loop: {str(loop).lower()},
+            autoplay: true,
+            animationData: animationData
+        }});
+    </script>
+</body>
+</html>"""
+    
+    return json.dumps({
+        "lottie_json": lottie,
+        "preview_html": preview_html,
+        "usage": {
+            "web": "使用 lottie-web 库播放",
+            "ios": "使用 Lottie iOS 库",
+            "android": "使用 Lottie Android 库",
+            "react": "使用 react-lottie 库"
+        }
+    }, indent=2)
+
+
+# ==================== Godot 动画生成 ====================
+
+async def generate_godot_animation(
+    animation_name: str,
+    duration: float,
+    tracks: List[Dict[str, Any]],
+    _sandbox: Optional[Dict[str, Any]] = None
+) -> str:
+    """生成 Godot 引擎动画资源
+    
+    Args:
+        animation_name: 动画名称
+        duration: 动画持续时间
+        tracks: 动画轨道列表
+            [
+                {
+                    "property": "position:y",
+                    "keys": [[0, 0, 1], [0.5, 100, 0.5], [1.0, 0, 1]]
+                    # [time, value, transition]
+                }
+            ]
+    
+    Returns:
+        Godot .tres 动画资源文件
+    """
+    
+    # 生成 .tres 文件内容
+    tres_content = f"""[gd_resource type="Animation" load_steps={len(tracks) + 1} format=3 uid="uid://animation_{animation_name}"]
+
+[resource]
+resource_name = "{animation_name}"
+length = {duration}
+loop_mode = 1
+step = 0.01
+"""
+    
+    # 添加轨道
+    for i, track in enumerate(tracks):
+        prop = track.get("property", "position:y")
+        keys = track.get("keys", [])
+        
+        tres_content += f"""
+tracks/{i}/type = "value"
+tracks/{i}/imported = false
+tracks/{i}/enabled = true
+tracks/{i}/path = NodePath("..:{prop}")
+tracks/{i}/interp = 1
+tracks/{i}/loop_wrap = true
+tracks/{i}/keys = {{
+"""
+        
+        # 添加关键帧
+        key_count = len(keys)
+        tres_content += f"subkeys = {key_count}, " + "\n"
+        
+        for j, key in enumerate(keys):
+            time, value, transition = key if len(key) == 3 else (key[0], key[1], 1.0)
+            tres_content += f"{time}, {transition}, {value}"
+            if j < key_count - 1:
+                tres_content += ", "
+        
+        tres_content += "\n}\n"
+    
+    # 生成使用示例
+    usage = f"""
+# Godot 使用示例
+# 1. 将此内容保存为 animation_{animation_name}.tres
+# 2. 在场景中添加 AnimationPlayer 节点
+# 3. 加载动画资源并播放
+
+extends Node2D
+
+@onready var animation_player = $AnimationPlayer
+
+func _ready():
+    var anim = load("res://animation_{animation_name}.tres")
+    animation_player.add_animation("{animation_name}", anim)
+    animation_player.play("{animation_name}")
+"""
+    
+    return json.dumps({
+        "tres_content": tres_content,
+        "gdscript_usage": usage,
+        "filename": f"animation_{animation_name}.tres"
+    }, indent=2)
+
 ANIMATION_TOOLS = [
     {
         "name": "generate_css_animation",
@@ -965,5 +1294,87 @@ ANIMATION_TOOLS = [
             "properties": {}
         },
         "handler": list_available_animations,
+    },
+    {
+        "name": "generate_lottie_animation",
+        "description": "生成 Lottie JSON 动画。支持位置、缩放、旋转、透明度动画，输出可在 Web/iOS/Android 播放的 JSON 文件。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "animation_type": {
+                    "type": "string",
+                    "description": "动画类型：move(移动), scale(缩放), rotate(旋转), fade(透明度), bounce(弹跳), shake(抖动)"
+                },
+                "duration": {
+                    "type": "number",
+                    "default": 1.0,
+                    "description": "动画持续时间（秒）"
+                },
+                "width": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "画布宽度（像素）"
+                },
+                "height": {
+                    "type": "integer",
+                    "default": 100,
+                    "description": "画布高度（像素）"
+                },
+                "color": {
+                    "type": "string",
+                    "default": "#4facfe",
+                    "description": "动画元素颜色（十六进制）"
+                },
+                "loop": {
+                    "type": "boolean",
+                    "default": True,
+                    "description": "是否循环播放"
+                },
+                "custom_params": {
+                    "type": "object",
+                    "description": "自定义参数：move_x, move_y, scale_from, scale_to, rotate_degrees, opacity_from, opacity_to"
+                }
+            },
+            "required": ["animation_type"]
+        },
+        "handler": generate_lottie_animation,
+    },
+    {
+        "name": "generate_godot_animation",
+        "description": "生成 Godot 引擎动画资源。支持 Godot 4.x 的 AnimationPlayer 格式，输出 .tres 文件。",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "animation_name": {
+                    "type": "string",
+                    "default": "default",
+                    "description": "动画名称"
+                },
+                "duration": {
+                    "type": "number",
+                    "default": 1.0,
+                    "description": "动画持续时间（秒）"
+                },
+                "tracks": {
+                    "type": "array",
+                    "description": "动画轨道列表",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "property": {
+                                "type": "string",
+                                "description": "属性路径，如 'position:y', 'scale', 'rotation_degrees'"
+                            },
+                            "keys": {
+                                "type": "array",
+                                "description": "关键帧数组 [[time, value, transition], ...]"
+                            }
+                        }
+                    }
+                }
+            },
+            "required": ["tracks"]
+        },
+        "handler": generate_godot_animation,
     },
 ]
