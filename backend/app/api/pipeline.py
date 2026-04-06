@@ -1,4 +1,6 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
+from starlette.responses import FileResponse
+import os
 from fastapi.responses import FileResponse, Response
 from typing import List, Optional
 import os
@@ -1405,3 +1407,107 @@ async def download_ts_app_project(plan_id: str):
         media_type="application/zip",
         filename=filename
     )
+
+
+# ==================== Godot 项目导出 ====================
+
+@router.get("/{plan_id}/godot/export")
+async def export_godot_project(plan_id: str):
+    """导出 Godot 项目为 ZIP 文件
+    
+    Returns:
+        {
+            "success": bool,
+            "download_url": str (如果成功),
+            "files_count": int,
+            "zip_size": int
+        }
+    """
+    from app.services.godot_export import export_godot_project, get_godot_project_files
+    
+    # 检查项目是否存在
+    project_info = get_godot_project_files(plan_id)
+    
+    if not project_info["exists"]:
+        raise HTTPException(status_code=404, detail="Godot 项目不存在")
+    
+    # 如果已有 ZIP，直接返回
+    if project_info["zip_path"]:
+        zip_size = os.path.getsize(project_info["zip_path"])
+        return {
+            "success": True,
+            "download_url": f"/api/pipeline/{plan_id}/godot/download",
+            "files_count": project_info["stats"]["total_files"],
+            "zip_size": zip_size,
+            "already_exported": True
+        }
+    
+    # 导出项目
+    zip_path = export_godot_project(plan_id)
+    
+    if not zip_path:
+        raise HTTPException(status_code=500, detail="导出失败")
+    
+    zip_size = os.path.getsize(zip_path)
+    
+    return {
+        "success": True,
+        "download_url": f"/api/pipeline/{plan_id}/godot/download",
+        "files_count": project_info["stats"]["total_files"],
+        "zip_size": zip_size,
+        "already_exported": False
+    }
+
+
+@router.get("/{plan_id}/godot/download")
+async def download_godot_project(plan_id: str):
+    """下载 Godot 项目 ZIP 文件"""
+    from app.services.godot_export import get_godot_project_files
+    
+    project_info = get_godot_project_files(plan_id)
+    
+    # 如果没有 ZIP，先导出
+    if not project_info["zip_path"]:
+        from app.services.godot_export import export_godot_project
+        zip_path = export_godot_project(plan_id)
+        if not zip_path:
+            raise HTTPException(status_code=500, detail="导出失败")
+    else:
+        zip_path = project_info["zip_path"]
+    
+    if not os.path.exists(zip_path):
+        raise HTTPException(status_code=404, detail="ZIP 文件不存在")
+    
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=f"godot_project_{plan_id[:8]}.zip"
+    )
+
+
+@router.get("/{plan_id}/godot/info")
+async def get_godot_project_info(plan_id: str):
+    """获取 Godot 项目信息
+    
+    Returns:
+        {
+            "exists": bool,
+            "has_project_file": bool,
+            "files": [文件列表],
+            "stats": {...}
+        }
+    """
+    from app.services.godot_export import get_godot_project_files
+    
+    project_info = get_godot_project_files(plan_id)
+    
+    # 检查是否有 project.godot
+    project_file_exists = any(
+        f["path"] == "project.godot" 
+        for f in project_info["files"]
+    )
+    
+    return {
+        **project_info,
+        "has_project_file": project_file_exists
+    }
