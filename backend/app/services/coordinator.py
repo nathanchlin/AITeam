@@ -878,7 +878,14 @@ class CoordinatorService:
         - Purpose section
         - Requirements with SHALL/MUST keywords
         - Scenarios with GIVEN-WHEN-THEN format
+        
+        🎛️ Can be disabled via environment variable: DISABLE_SPEC_GENERATION=true
         """
+        # 🔧 配置选项：可以通过环境变量关闭规范生成
+        if os.getenv('DISABLE_SPEC_GENERATION', '').lower() in ('true', '1', 'yes'):
+            _pipeline_logger.info(f"[Specs] Spec generation disabled by environment variable")
+            return ""
+        
         if not plan.discussion:
             return ""
         
@@ -889,7 +896,7 @@ class CoordinatorService:
         ])
         
         # Generate spec using GLM
-        prompt = f"""基于以下项目需求，生成一份结构化的规范文档。
+        prompt = f"""基于以下项目需求，生成一份简洁的规范文档。
 
 **项目需求：**
 {plan.original_request}
@@ -907,41 +914,54 @@ class CoordinatorService:
 # <功能名称> Specification
 
 ## Purpose
-<描述这个功能的目的和价值，50-200字符>
+<描述这个功能的目的，30-50字>
 
 ## Requirements
 
-### Requirement: <需求1名称>
-系统 SHALL <具体需求描述>
+### Requirement: <核心需求1>
+系统 SHALL <用户可见的功能描述>
 
-#### Scenario: <场景1名称>
-- **GIVEN** <前置条件>
-- **WHEN** <触发动作>
+#### Scenario: <验证场景>
+- **GIVEN** <初始状态>
+- **WHEN** <用户操作>
 - **THEN** <预期结果>
 
-#### Scenario: <场景2名称>
-- **GIVEN** <前置条件>
-- **WHEN** <触发动作>
-- **THEN** <预期结果>
+### Requirement: <核心需求2>
+系统 SHALL <用户可见的功能描述>
 
-### Requirement: <需求2名称>
-系统 MUST <具体需求描述>
-
-#### Scenario: <场景名称>
-- **GIVEN** <前置条件>
-- **WHEN** <触发动作>
+#### Scenario: <验证场景>
+- **GIVEN** <初始状态>
+- **WHEN** <用户操作>
 - **THEN** <预期结果>
 
 ---
 
-**重要规则：**
-1. 每个需求必须包含 SHALL 或 MUST 关键字
-2. 每个场景必须使用 GIVEN-WHEN-THEN 格式
-3. 需求数量控制在 2-4 个核心需求
-4. 每个需求至少包含 1-2 个验证场景
-5. 聚焦功能性需求，避免技术实现细节
+**关键约束：**
+1. ⏱️ **总长度 ≤ 600 字符**（简洁优先）
+2. 🎯 **只写 2-3 个核心需求**（聚焦重点）
+3. 👤 **描述用户可见功能**，避免技术实现细节（如模块化、数据结构）
+4. ✅ **每个需求有 1 个场景**即可
+5. 🚫 **禁止包含**：游戏循环、模块设计、性能优化等技术细节
 
-现在请生成规范文档："""
+示例（正确）：
+```
+### Requirement: 游戏控制
+系统 SHALL 允许玩家通过键盘控制角色移动。
+
+#### Scenario: 向上移动
+- **GIVEN** 游戏正在进行
+- **WHEN** 玩家按上键
+- **THEN** 角色向上移动
+```
+
+示例（错误，禁止）：
+```
+### Requirement: 模块化设计  ❌（技术实现）
+### Requirement: 数据结构优化  ❌（技术实现）
+### Requirement: 游戏循环管理  ❌（技术实现）
+```
+
+现在请生成简洁实用的规范（≤600字符）："""
 
         try:
             specs_content = ""
@@ -950,6 +970,21 @@ class CoordinatorService:
             
             # Validate basic structure
             if "## Purpose" in specs_content and "## Requirements" in specs_content:
+                # 📏 长度限制：如果超过 800 字符，截断并警告
+                if len(specs_content) > 800:
+                    _pipeline_logger.warning(f"[Specs] Generated specs too long ({len(specs_content)} chars), truncating")
+                    # 尝试在需求边界处截断
+                    lines = specs_content.split('\n')
+                    truncated = []
+                    char_count = 0
+                    for line in lines:
+                        if char_count + len(line) > 800:
+                            break
+                        truncated.append(line)
+                        char_count += len(line) + 1
+                    specs_content = '\n'.join(truncated)
+                    _pipeline_logger.info(f"[Specs] Truncated to {len(specs_content)} chars")
+                
                 _pipeline_logger.info(f"[Specs] Generated specs for plan {plan.id}: {len(specs_content)} chars")
                 return specs_content
             else:
