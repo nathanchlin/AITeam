@@ -14,6 +14,7 @@ import { AgentActivityPanel } from './components/UI/AgentActivityPanel';
 import { ActivityLogPanel } from './components/UI/ActivityLogPanel';
 import { DashboardPanel } from './components/UI/DashboardPanel';
 import { VibeCodingPanel } from './components/UI/VibeCodingPanel';
+import { MobileEntry } from './components/UI/MobileEntry';
 import { KeyboardHelpModal, type ShortcutItem } from './components/UI/KeyboardHelpModal';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import { ToastProvider } from './components/common/Toast';
@@ -27,7 +28,7 @@ import { useNotifications } from './hooks/useNotifications';
 import { useEventNotifications } from './hooks/useEventNotifications';
 import { useAutoRefresh } from './hooks/useAutoRefresh';
 import { usePanelPersistence } from './hooks/usePanelPersistence';
-import { GitBranch, Folder, MessageCircle, Keyboard, BarChart2, Sun, Moon, Activity, Bell, BellOff, Gamepad2 } from 'lucide-react';
+import { GitBranch, Folder, MessageCircle, Keyboard, BarChart2, Sun, Moon, Activity, Bell, BellOff, Gamepad2, Smartphone } from 'lucide-react';
 import type { Agent, TaskPriority } from './types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
@@ -40,6 +41,14 @@ function AppContent() {
   const [showAgentActivity, setShowAgentActivity] = useState(false);
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
+  
+  // 移动端精简模式
+  const [isMobileMode, setIsMobileMode] = useState(() => {
+    // 检测是否为移动设备
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isSmallScreen = window.innerWidth < 768;
+    return isMobile || isSmallScreen;
+  });
   const { theme, toggleTheme } = useTheme();
   const { enabled: notificationsEnabled, toggleNotifications, isSupported: notificationsSupported } = useNotifications();
   useWebSocket();
@@ -334,6 +343,19 @@ function AppContent() {
   const currentRunningTask = agentTasks.find((t) => t.status === 'running');
   const currentStreamContent = currentRunningTask ? (streamContent[currentRunningTask.id] || '') : '';
 
+  // 如果是移动端精简模式，渲染 MobileEntry
+  if (isMobileMode) {
+    return (
+      <ErrorBoundary>
+        <ToastProvider>
+          <MobileEntry onSwitchToFull={() => setIsMobileMode(false)} />
+          {/* VibeCoding 面板（可以从移动端打开） */}
+          {vibeCodingPanelOpen && <VibeCodingPanel />}
+        </ToastProvider>
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <div className="w-full h-full relative bg-gray-900">
       {/* 3D Canvas */}
@@ -419,6 +441,15 @@ function AppContent() {
         <Gamepad2 size={18} />
         <span className="text-sm font-medium">游戏工坊</span>
         <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] bg-gray-700/50 rounded border border-gray-600 text-gray-400 ml-1">V</kbd>
+      </button>
+
+      {/* Mobile Mode Button */}
+      <button
+        onClick={() => setIsMobileMode(true)}
+        className="absolute top-2 left-1/2 -translate-x-[calc(50%+420px)] z-20 px-3 py-2 bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+        title="切换到移动端模式"
+      >
+        <Smartphone size={18} />
       </button>
 
       {/* Pipeline Button */}
