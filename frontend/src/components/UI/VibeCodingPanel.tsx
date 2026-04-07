@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Gamepad2, Sparkles, ArrowLeft } from 'lucide-react';
+import { X, Gamepad2, Sparkles, ArrowLeft, FileText, MessageSquare } from 'lucide-react';
 import { useAgentStore } from '../../stores/agentStore';
 import { ChatArea } from './VibeCodingPanel/ChatArea';
 import { PreviewArea } from './VibeCodingPanel/PreviewArea';
@@ -21,6 +21,7 @@ export function VibeCodingPanel() {
   const [starting, setStarting] = useState(false);
   const [leftWidth, setLeftWidth] = useState(40);
   const [pendingMessages, setPendingMessages] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<'chat' | 'specs'>('chat'); // 📋 Tab 切换状态
 
   const currentPlan = plans.find(p => p.id === vibeCodingPlanId) as Plan | undefined;
 
@@ -202,17 +203,62 @@ export function VibeCodingPanel() {
           </div>
         </div>
 
-        {/* Chat Area */}
-        <ChatArea
-          plan={currentPlan}
-          plans={plans}
-          request={request}
-          setRequest={setRequest}
-          onStart={handleStart}
-          starting={starting}
-          onSelectPlan={setVibeCodingPlanId}
-          pendingMessages={pendingMessages}
-        />
+        {/* Tab Switcher */}
+        <div className="flex border-b border-gray-800">
+          <button
+            onClick={() => setActiveTab('chat')}
+            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+              activeTab === 'chat'
+                ? 'text-pink-400 border-b-2 border-pink-500 bg-gray-800/30'
+                : 'text-gray-400 hover:text-white hover:bg-gray-800/20'
+            }`}
+          >
+            <MessageSquare size={14} />
+            <span>对话</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('specs')}
+            disabled={!currentPlan?.specs}
+            className={`flex-1 px-4 py-2.5 text-sm font-medium transition-colors flex items-center justify-center gap-2 ${
+              activeTab === 'specs'
+                ? 'text-pink-400 border-b-2 border-pink-500 bg-gray-800/30'
+                : 'text-gray-400 hover:text-white hover:bg-gray-800/20'
+            } ${!currentPlan?.specs ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >
+            <FileText size={14} />
+            <span>规范文档</span>
+            {currentPlan?.specs && <span className="w-1.5 h-1.5 rounded-full bg-green-500" />}
+          </button>
+        </div>
+
+        {/* Content Area */}
+        {activeTab === 'chat' ? (
+          <ChatArea
+            plan={currentPlan}
+            plans={plans}
+            request={request}
+            setRequest={setRequest}
+            onStart={handleStart}
+            starting={starting}
+            onSelectPlan={setVibeCodingPlanId}
+            pendingMessages={pendingMessages}
+          />
+        ) : (
+          <div className="flex-1 overflow-auto p-5">
+            {currentPlan?.specs ? (
+              <div className="prose prose-invert prose-sm max-w-none">
+                <pre className="whitespace-pre-wrap text-gray-300 text-sm font-mono bg-gray-800/50 p-4 rounded-lg border border-gray-700/50">
+                  {currentPlan.specs}
+                </pre>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <FileText size={48} className="mb-3 opacity-50" />
+                <p className="text-sm">规范文档将在讨论阶段自动生成</p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Resizer */}

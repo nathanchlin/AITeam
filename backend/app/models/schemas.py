@@ -207,6 +207,7 @@ class Plan(PlanBase):
     tasks: List[PlanTask] = Field(default_factory=list)
     discussion: List[DiscussionMessage] = Field(default_factory=list)
     discussion_summary: Optional[str] = None  # Structured summary for Coder context
+    specs: Optional[str] = None  # 📋 OpenSpec-style specification document
     is_approved: bool = False
     created_by_agent_id: Optional[str] = None
     selected_agent_ids: List[str] = Field(default_factory=list)  # Agent IDs selected for this plan

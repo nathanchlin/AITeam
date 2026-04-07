@@ -871,6 +871,94 @@ class CoordinatorService:
 
         return "\n".join(summary_parts)
 
+    async def _generate_specs(self, plan: Plan) -> str:
+        """Generate OpenSpec-style specification document for the plan.
+        
+        Creates structured specification with:
+        - Purpose section
+        - Requirements with SHALL/MUST keywords
+        - Scenarios with GIVEN-WHEN-THEN format
+        """
+        if not plan.discussion:
+            return ""
+        
+        # Build context from discussion
+        discussion_context = "\n".join([
+            f"[{msg.agent_name}]: {msg.content[:300]}"
+            for msg in plan.discussion[-6:]  # Last 6 messages
+        ])
+        
+        # Generate spec using GLM
+        prompt = f"""基于以下项目需求，生成一份结构化的规范文档。
+
+**项目需求：**
+{plan.original_request}
+
+**目标输出：**
+{plan.target_output or 'web-app'}
+
+**团队讨论摘要：**
+{discussion_context}
+
+---
+
+请按照以下格式生成规范文档：
+
+# <功能名称> Specification
+
+## Purpose
+<描述这个功能的目的和价值，50-200字符>
+
+## Requirements
+
+### Requirement: <需求1名称>
+系统 SHALL <具体需求描述>
+
+#### Scenario: <场景1名称>
+- **GIVEN** <前置条件>
+- **WHEN** <触发动作>
+- **THEN** <预期结果>
+
+#### Scenario: <场景2名称>
+- **GIVEN** <前置条件>
+- **WHEN** <触发动作>
+- **THEN** <预期结果>
+
+### Requirement: <需求2名称>
+系统 MUST <具体需求描述>
+
+#### Scenario: <场景名称>
+- **GIVEN** <前置条件>
+- **WHEN** <触发动作>
+- **THEN** <预期结果>
+
+---
+
+**重要规则：**
+1. 每个需求必须包含 SHALL 或 MUST 关键字
+2. 每个场景必须使用 GIVEN-WHEN-THEN 格式
+3. 需求数量控制在 2-4 个核心需求
+4. 每个需求至少包含 1-2 个验证场景
+5. 聚焦功能性需求，避免技术实现细节
+
+现在请生成规范文档："""
+
+        try:
+            specs_content = ""
+            async for chunk in glm_client.chat_stream(prompt, "assistant"):
+                specs_content += chunk
+            
+            # Validate basic structure
+            if "## Purpose" in specs_content and "## Requirements" in specs_content:
+                _pipeline_logger.info(f"[Specs] Generated specs for plan {plan.id}: {len(specs_content)} chars")
+                return specs_content
+            else:
+                _pipeline_logger.warning(f"[Specs] Generated specs missing required sections")
+                return ""
+        except Exception as e:
+            _pipeline_logger.error(f"[Specs] Failed to generate specs: {e}")
+            return ""
+
     async def organize_discussion(self, plan_id: str) -> str:
         """Phase 2: Organize discussion between agents"""
         plan = self.plans.get(plan_id)
@@ -1034,6 +1122,12 @@ class CoordinatorService:
 
         # Build structured discussion summary and store it for Coder context
         plan.discussion_summary = self._build_discussion_summary(plan)
+        
+        # 📋 Generate OpenSpec-style specification document
+        if not plan.skip_discussion and plan.discussion:
+            _pipeline_logger.info(f"[Specs] Generating specs for plan {plan_id}")
+            plan.specs = await self._generate_specs(plan)
+            self._save_plans()
 
         # Also create a simple summary for plan generation prompt
         discussion_summary = "\n".join([

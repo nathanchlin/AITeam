@@ -170,11 +170,16 @@ export interface Plan {
   status: PlanStatus;
   tasks: PlanTask[];
   discussion: DiscussionMessage[];
+  discussion_summary?: string; // Structured summary for Coder context
+  specs?: string; // 📋 OpenSpec-style specification document
   is_approved: boolean;
   created_by_agent_id?: string;
   selected_agent_ids: string[];
   iterations: IterationRound[];
   current_iteration_round: number;
+  skip_discussion?: boolean;
+  quick_mode?: boolean;
+  auto_mode?: boolean;
   created_at: string;
   updated_at: string;
   started_at?: string;
