@@ -1433,11 +1433,18 @@ class CoordinatorService:
                 if len(plan.tasks) > 1:
                     # 合并所有任务为一个
                     merged_task = plan.tasks[0]
-                    merged_task.title = f"实现{plan.title}"
-                    merged_task.description = f"一次性完成：{plan.original_request}"
+                    # 🔧 修复：单任务模式必须分配给 coder
+                    merged_task.title = f"一次性实现 {plan.original_request}"
+                    merged_task.description = f"直接生成完整的可运行代码：{plan.original_request}"
+                    merged_task.assigned_agent_type = "coder"  # 强制分配给 coder
+                    # 找到第一个 coder agent
+                    for agent in agent_manager.get_all_agents():
+                        if agent.type.value == "coder":
+                            merged_task.assigned_agent_id = agent.id
+                            break
                     plan.tasks = [merged_task]
                     merged_task.order = 1
-                    print(f"[Coordinator] 单任务模式: 合并 {len(plan.tasks)} 个任务为 1 个")
+                    print(f"[Coordinator] 单任务模式: 合并任务为 1 个，强制分配给 coder")
             elif complexity_mode == "quick":
                 # 快速模式
                 plan.quick_mode = True
