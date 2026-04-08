@@ -4,6 +4,44 @@ from datetime import datetime
 from enum import Enum
 
 
+# ==================== Delta Spec 数据模型（Phase 2）====================
+
+class DeltaOperation(str, Enum):
+    """Delta 操作类型"""
+    ADDED = "ADDED"         # 新增需求
+    MODIFIED = "MODIFIED"   # 修改需求
+    REMOVED = "REMOVED"     # 删除需求
+    RENAMED = "RENAMED"     # 重命名需求
+
+
+class Scenario(BaseModel):
+    """验证场景（GIVEN-WHEN-THEN格式）"""
+    name: str = Field(..., min_length=1, max_length=100)
+    given: str = Field(..., min_length=10)  # GIVEN 前置条件
+    when: str = Field(..., min_length=5)    # WHEN 触发动作
+    then: str = Field(..., min_length=10)   # THEN 预期结果
+
+
+class Requirement(BaseModel):
+    """需求定义"""
+    text: str = Field(..., min_length=20, max_length=500)  # 需求文本（必须包含 SHALL/MUST）
+    scenarios: List[Scenario] = Field(default_factory=list)
+
+
+class DeltaSpec(BaseModel):
+    """增量规范（Delta Spec）"""
+    spec_name: str = Field(..., min_length=1, max_length=100)      # 规范文件名或标识
+    operation: DeltaOperation                                       # 操作类型
+    description: str = Field(..., min_length=10, max_length=500)  # 变更描述
+    requirement: Optional[Requirement] = None                      # 需求内容（ADDED/MODIFIED）
+    old_name: Optional[str] = None                                 # 旧名称（RENAMED）
+    new_name: Optional[str] = None                                 # 新名称（RENAMED）
+    reason: Optional[str] = None                                   # 删除原因（REMOVED）
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+# ==================== 原有模型 ====================
+
 class AgentType(str, Enum):
     CODER = "coder"
     ANALYST = "analyst"
@@ -208,6 +246,8 @@ class Plan(PlanBase):
     discussion: List[DiscussionMessage] = Field(default_factory=list)
     discussion_summary: Optional[str] = None  # Structured summary for Coder context
     specs: Optional[str] = None  # 📋 OpenSpec-style specification document
+    deltas: List[DeltaSpec] = Field(default_factory=list)  # 📝 Delta Spec 列表（Phase 2）
+    specs_version: int = 1  # 📊 规范版本号（Phase 2）
     is_approved: bool = False
     created_by_agent_id: Optional[str] = None
     selected_agent_ids: List[str] = Field(default_factory=list)  # Agent IDs selected for this plan

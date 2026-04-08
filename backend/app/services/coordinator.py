@@ -27,6 +27,7 @@ from app.services.memory_service import memory_service
 from app.services.workspace_manager import workspace_manager
 from app.services.memory_service import memory_service
 from app.services.tester_framework import tester_framework, TestReport, QualityScore
+from app.services.specs_merger import SpecsMerger  # Phase 2: Delta Spec 合并引擎
 from app.models.schemas import (
     AgentType, AgentStatus, TaskStatus, PlanStatus,
     Plan, PlanTask, PlanCreate, DiscussionMessage, IterationTask, IterationRound
@@ -993,6 +994,181 @@ class CoordinatorService:
         except Exception as e:
             _pipeline_logger.error(f"[Specs] Failed to generate specs: {e}")
             return ""
+
+    async def _generate_delta_specs(
+        self, 
+        plan: Plan, 
+        iteration_request: str
+    ) -> List[Any]:
+        """Phase 2: 基于迭代需求生成 Delta Spec
+        
+        Args:
+            plan: 当前计划
+            iteration_request: 迭代需求描述
+        
+        Returns:
+            Delta Spec 列表
+        """
+        from app.models.schemas import DeltaSpec, DeltaOperation, Requirement, Scenario
+        from app.services.specs_merger import create_delta_from_dict
+        
+        _pipeline_logger.info(f"[DeltaSpec] Generating deltas for plan {plan.id}")
+        
+        if not plan.specs:
+            _pipeline_logger.warning(f"[DeltaSpec] No base specs found, cannot generate deltas")
+            return []
+        
+        # 构建 prompt
+        prompt = f"""分析当前规范和迭代需求，生成 Delta Spec（增量变更规范）。
+
+**当前规范：**
+{plan.specs}
+
+**迭代需求：**
+{iteration_request}
+
+---
+
+请分析需要做哪些变更，并按以下 JSON 格式输出（每个变更一个对象）：
+
+```json
+[
+  {{
+    "spec_name": "需求名称",
+    "operation": "ADDED|MODIFIED|REMOVED|RENAMED",
+    "description": "变更描述",
+    "requirement": {{
+      "text": "系统 SHALL <需求描述>（必须包含 SHALL 或 MUST）",
+      "scenarios": [
+        {{
+          "name": "场景名称",
+          "given": "前置条件",
+          "when": "触发动作",
+          "then": "预期结果"
+        }}
+      ]
+    }},
+    "old_name": "旧名称（仅 RENAMED 需要）",
+    "new_name": "新名称（仅 RENAMED 需要）",
+    "reason": "删除原因（仅 REMOVED 需要）"
+  }}
+]
+```
+
+**操作类型说明：**
+- ADDED：新增需求
+- MODIFIED：修改现有需求内容
+- REMOVED：删除需求
+- RENAMED：仅修改需求名称，内容不变
+
+**注意事项：**
+1. 只输出 JSON 数组，不要包含其他文本
+2. 确保每个 ADDED/MODIFIED 的需求包含 SHALL 或 MUST
+3. 确保每个需求至少有 1 个验证场景
+4. 只生成必要的变更，避免过度修改
+
+现在请生成 Delta Spec："""
+
+        try:
+            delta_content = ""
+            async for chunk in glm_client.chat_stream(prompt, "assistant"):
+                delta_content += chunk
+            
+            # 解析 JSON
+            import json
+            delta_content = delta_content.strip()
+            
+            # 移除可能存在的 markdown 代码块标记
+            if delta_content.startswith('```'):
+                lines = delta_content.split('\n')
+                delta_content = '\n'.join(lines[1:-1] if lines[-1] == '```' else lines[1:])
+            
+            delta_list = json.loads(delta_content)
+            
+            # 转换为 DeltaSpec 对象
+            deltas = []
+            for delta_data in delta_list:
+                try:
+                    delta = create_delta_from_dict(delta_data)
+                    deltas.append(delta)
+                except Exception as e:
+                    _pipeline_logger.warning(f"[DeltaSpec] Failed to parse delta: {e}")
+                    continue
+            
+            _pipeline_logger.info(f"[DeltaSpec] Generated {len(deltas)} deltas")
+            return deltas
+            
+        except json.JSONDecodeError as e:
+            _pipeline_logger.error(f"[DeltaSpec] Failed to parse JSON: {e}")
+            return []
+        except Exception as e:
+            _pipeline_logger.error(f"[DeltaSpec] Failed to generate deltas: {e}")
+            return []
+
+    async def archive_iteration_deltas(self, plan_id: str, round_number: int):
+        """Phase 2: 归档迭代，合并 Delta Spec 到主规范
+        
+        Args:
+            plan_id: 计划 ID
+            round_number: 迭代轮次
+        """
+        from app.services.specs_merger import SpecsMerger
+        
+        plan = self.plans.get(plan_id)
+        if not plan:
+            _pipeline_logger.error(f"[DeltaSpec] Plan {plan_id} not found")
+            return
+        
+        iteration = None
+        for iter_round in plan.iterations:
+            if iter_round.round_number == round_number:
+                iteration = iter_round
+                break
+        
+        if not iteration:
+            _pipeline_logger.warning(f"[DeltaSpec] Iteration round {round_number} not found")
+            return
+        
+        _pipeline_logger.info(f"[DeltaSpec] Archiving iteration {plan_id}/{round_number}")
+        
+        # 1. 收集本轮的 Delta Spec
+        deltas = plan.deltas
+        
+        if not deltas:
+            _pipeline_logger.info(f"[DeltaSpec] No deltas to archive")
+            return
+        
+        # 2. 合并到主规范
+        merger = SpecsMerger()
+        old_specs = plan.specs or ""
+        new_specs = merger.merge_deltas(old_specs, deltas)
+        
+        # 3. 更新规范
+        plan.specs = new_specs
+        plan.specs_version += 1
+        
+        # 4. 清空 Delta
+        plan.deltas = []
+        
+        # 5. 保存
+        self._save_plans()
+        
+        _pipeline_logger.info(
+            f"[DeltaSpec] ✓ Archived deltas: "
+            f"v{plan.specs_version - 1} -> v{plan.specs_version}, "
+            f"{len(old_specs)} -> {len(new_specs)} chars"
+        )
+        
+        # 6. 通知前端
+        await self.broadcast({
+            "type": "specs_updated",
+            "data": {
+                "plan_id": plan_id,
+                "specs": plan.specs,
+                "version": plan.specs_version,
+                "merged_deltas": len(deltas)
+            }
+        })
 
     async def organize_discussion(self, plan_id: str) -> str:
         """Phase 2: Organize discussion between agents"""
@@ -3387,6 +3563,52 @@ class CoordinatorService:
             message_type="comment",
         )
 
+        # Phase 2: 生成 Delta Spec（如果当前有规范文档）
+        if plan.specs:
+            _pipeline_logger.info(f"[DeltaSpec] Generating delta specs for iteration {iteration_round.round_number}")
+            deltas = await self._generate_delta_specs(plan, iteration_request)
+            if deltas:
+                plan.deltas.extend(deltas)
+                self._save_plans()
+                
+                # 广播 Delta 生成事件
+                await self.broadcast({
+                    "type": "deltas_generated",
+                    "data": {
+                        "plan_id": plan_id,
+                        "iteration_round": iteration_round.round_number,
+                        "delta_count": len(deltas),
+                        "deltas": [
+                            {
+                                "spec_name": d.spec_name,
+                                "operation": d.operation.value,
+                                "description": d.description
+                            }
+                            for d in deltas
+                        ]
+                    }
+                })
+                
+                # 添加 Delta 摘要到讨论
+                delta_summary = f"📋 **Delta Spec 生成完成**\n\n已生成 {len(deltas)} 个变更：\n"
+                for d in deltas:
+                    emoji = {
+                        "ADDED": "➕",
+                        "MODIFIED": "✏️",
+                        "REMOVED": "➖",
+                        "RENAMED": "🔄"
+                    }.get(d.operation.value, "•")
+                    delta_summary += f"\n{emoji} **{d.operation.value}**: {d.spec_name}"
+                
+                await self._add_iteration_discussion_message(
+                    plan_id, iteration_round.round_number,
+                    agent_id="system",
+                    agent_name="系统",
+                    agent_type="assistant",
+                    content=delta_summary,
+                    message_type="comment",
+                )
+
     async def _generate_iteration_plan(
         self,
         plan_id: str,
@@ -4046,6 +4268,14 @@ function 函数名(参数) {{
                 print(f"[Coordinator] Iteration {iteration_round.round_number} archived at: {archive_path}")
         except Exception as e:
             print(f"[Coordinator] Failed to archive iteration: {e}")
+
+        # Phase 2: 归档 Delta Spec（合并到主规范）
+        if plan.deltas:
+            try:
+                await self.archive_iteration_deltas(plan_id, iteration_round.round_number)
+                _pipeline_logger.info(f"[DeltaSpec] Archived deltas for iteration {iteration_round.round_number}")
+            except Exception as e:
+                _pipeline_logger.error(f"[DeltaSpec] Failed to archive deltas: {e}")
 
         plan.status = PlanStatus.COMPLETED
         plan.updated_at = datetime.now()

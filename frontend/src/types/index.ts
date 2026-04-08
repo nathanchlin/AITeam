@@ -1,3 +1,32 @@
+// ==================== Delta Spec Types (Phase 2) ====================
+
+export type DeltaOperation = 'ADDED' | 'MODIFIED' | 'REMOVED' | 'RENAMED';
+
+export interface Scenario {
+  name: string;
+  given: string;
+  when: string;
+  then: string;
+}
+
+export interface Requirement {
+  text: string;
+  scenarios: Scenario[];
+}
+
+export interface DeltaSpec {
+  spec_name: string;
+  operation: DeltaOperation;
+  description: string;
+  requirement?: Requirement;
+  old_name?: string;
+  new_name?: string;
+  reason?: string;
+  created_at: string;
+}
+
+// ==================== Original Types ====================
+
 export type AgentType = 'coder' | 'analyst' | 'assistant' | 'tester' | 'custom' | 'pua-coder' | 'pua-analyst' | 'pua-assistant' | 'pua-tester';
 export type AgentStatus = 'idle' | 'working' | 'waiting' | 'error';
 export type TaskStatus = 'pending' | 'running' | 'completed' | 'failed';
@@ -172,6 +201,8 @@ export interface Plan {
   discussion: DiscussionMessage[];
   discussion_summary?: string; // Structured summary for Coder context
   specs?: string; // 📋 OpenSpec-style specification document
+  deltas?: DeltaSpec[]; // 📝 Delta Spec 列表（Phase 2）
+  specs_version?: number; // 📊 规范版本号（Phase 2）
   is_approved: boolean;
   created_by_agent_id?: string;
   selected_agent_ids: string[];

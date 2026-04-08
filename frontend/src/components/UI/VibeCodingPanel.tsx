@@ -3,6 +3,7 @@ import { X, Gamepad2, Sparkles, ArrowLeft, FileText, MessageSquare } from 'lucid
 import { useAgentStore } from '../../stores/agentStore';
 import { ChatArea } from './VibeCodingPanel/ChatArea';
 import { PreviewArea } from './VibeCodingPanel/PreviewArea';
+import DeltaSpecViewer from './DeltaSpecViewer';  // Phase 2: Delta Spec 显示组件
 import type { Plan } from '../../types';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
@@ -245,11 +246,32 @@ export function VibeCodingPanel() {
           />
         ) : (
           <div className="flex-1 overflow-auto p-5">
+            {/* 规范文档 */}
             {currentPlan?.specs ? (
               <div className="prose prose-invert prose-sm max-w-none">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold text-gray-300">
+                    主规范 (v{currentPlan.specs_version || 1})
+                  </h3>
+                  {currentPlan.deltas && currentPlan.deltas.length > 0 && (
+                    <span className="text-xs text-orange-400">
+                      待合并变更：{currentPlan.deltas.length}
+                    </span>
+                  )}
+                </div>
                 <pre className="whitespace-pre-wrap text-gray-300 text-sm font-mono bg-gray-800/50 p-4 rounded-lg border border-gray-700/50">
                   {currentPlan.specs}
                 </pre>
+                
+                {/* Delta Spec 显示组件 */}
+                {currentPlan.deltas && currentPlan.deltas.length > 0 && (
+                  <div className="mt-4 border-t border-gray-700 pt-4">
+                    <DeltaSpecViewer
+                      deltas={currentPlan.deltas}
+                      specsVersion={currentPlan.specs_version || 1}
+                    />
+                  </div>
+                )}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center h-full text-gray-500">
