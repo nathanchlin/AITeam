@@ -487,11 +487,17 @@ export function PipelinePanel() {
   }, [fetchQueueStatus]);
 
   const handleStartPipeline = async () => {
-    if (!request.trim() || starting) return;
+    console.log('[PipelinePanel] handleStartPipeline called', { request: request.trim(), starting });
+    if (!request.trim() || starting) {
+      console.warn('[PipelinePanel] Early return: request empty or starting=true', { requestEmpty: !request.trim(), starting });
+      return;
+    }
 
     setStarting(true);
     try {
-      const res = await fetch(`${API_BASE}/api/pipeline/start`, {
+      const url = `${API_BASE}/api/pipeline/start`;
+      console.log('[PipelinePanel] Sending POST to:', url);
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -501,8 +507,9 @@ export function PipelinePanel() {
           skip_discussion: skipDiscussion,
         }),
       });
+      console.log('[PipelinePanel] Response status:', res.status);
       const data = await res.json();
-      console.log('Pipeline started:', data);
+      console.log('[PipelinePanel] Response data:', data);
       setCurrentPlan(data.plan_id);
       setRequest('');
       setSelectedAgentIds([]);
@@ -510,7 +517,7 @@ export function PipelinePanel() {
       // Immediately fetch the new plan to refresh the list
       await fetchPlans();
     } catch (error) {
-      console.error('Failed to start pipeline:', error);
+      console.error('[PipelinePanel] Failed to start pipeline:', error);
     } finally {
       setStarting(false);
     }
@@ -1207,23 +1214,29 @@ export function PipelinePanel() {
                   )}
                 </button>
               )}
-              <button
-                onClick={handleStartPipeline}
-                disabled={!request.trim() || starting}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              <div
+                className="relative"
+                onMouseDown={(e) => { console.log('[PipelinePanel] Mouse down on button wrapper', { requestVal: request, requestTrimmed: request.trim(), starting }); }}
+                onClick={(e) => { console.log('[PipelinePanel] Click on button wrapper', { requestVal: request, requestTrimmed: request.trim(), starting, disabled: !request.trim() || starting }); }}
               >
-                {starting ? (
-                  <>
-                    <Loader2 size={16} className="animate-spin" />
-                    启动中...
-                  </>
-                ) : (
-                  <>
-                    <Play size={16} />
-                    启动流水线
-                  </>
-                )}
-              </button>
+                <button
+                  onClick={(e) => { console.log('[PipelinePanel] Button onClick fired', e); handleStartPipeline(); }}
+                  disabled={!request.trim() || starting}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {starting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      启动中...
+                    </>
+                  ) : (
+                    <>
+                      <Play size={16} />
+                      启动流水线
+                    </>
+                  )}
+                </button>
+              </div>
               {/* Queue Status Indicator */}
               {queueStatus && queueStatus.queue_length > 0 && (
                 <div className="mt-2 text-xs text-amber-400 flex items-center gap-1">
