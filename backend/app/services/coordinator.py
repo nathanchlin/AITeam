@@ -307,9 +307,13 @@ class CoordinatorService:
 失败详情：
 {summary}
 
-修复要求：
+🔴 **调试模式修复要求（必须严格遵守）**：
+1. **逐字阅读错误信息**，精确定位到出错的文件、函数、行号
+2. **只改报错的那一行/那一个函数**，不要重写整个文件
+3. **如果无法确定根因**，先在出错位置添加 console.log 输出关键变量值，缩小范围后再修
+4. **禁止重构**：不要改变量名、不要调整代码顺序、不要删除任何现有代码
 - 当前工程快照已经作为 existing_code 提供，请直接在现有文件基础上修复
-- 优先处理 errors 中点名的文件与首批报错，避免大面积无关重写
+- 优先处理 errors 中点名的文件与首批报错
 - 只输出本轮需要新增或替换的完整文件，保持 `// filename: src/...` 格式
 - 不要输出 package.json、tsconfig.json、vite.config.ts、index.html
 - 先修复 TypeScript 语法、类型、import/export 与缺失符号，再重新尝试 Vite build{targeted_hint_block}{guidance_block}
@@ -597,6 +601,33 @@ class CoordinatorService:
         elif self.websocket_manager:
             await self.websocket_manager.broadcast(message)
 
+    @staticmethod
+    def _deduplicate_continuation(original: str, continuation: str, overlap_window: int = 300) -> str:
+        """去除续写内容与原文末尾的重叠部分。
+
+        LLM 续写时经常会重复原文末尾的几句话，此方法检测并去除重叠。
+        """
+        if not original or not continuation or len(original) < 10 or len(continuation) < 10:
+            return continuation
+
+        # 从大到小尝试匹配重叠
+        window = min(overlap_window, len(continuation) // 2, len(original))
+        for size in range(window, 9, -1):
+            original_tail = original[-size:]
+            continuation_head = continuation[:size]
+            if original_tail == continuation_head:
+                removed = continuation[:size]
+                print(f"[Truncation] Dedup: removed {size} chars of overlapping content: ...{removed[-30:]}")
+                return continuation[size:]
+
+        # 未找到精确匹配，尝试更宽松的前缀匹配（续写开头包含在原文末尾中）
+        for size in range(min(100, len(continuation) // 2), 19, -1):
+            if original.endswith(continuation[:size]):
+                print(f"[Truncation] Dedup: removed {size} chars (suffix match)")
+                return continuation[size:]
+
+        return continuation
+
     async def request_continuation(
         self,
         partial_code: str,
@@ -620,20 +651,19 @@ class CoordinatorService:
         prompt = f"""之前的代码生成被截断了，存在以下问题：
 {issues_text}
 
-请从截断处继续完成代码。
-
 ⚠️ 重要提示：
-1. 只输出剩余部分的代码（不要重复已生成的代码）
-2. 如果截断处是函数或语句中间，先完成那个函数/语句
-3. 确保输出的代码能与之前的部分正确拼接
-4. 必须包含闭合标签（如 </script></body></html>）
+1. 分析下面代码的最后几行，找到截断的确切位置（可能是函数中间、语句中间、标签中间）
+2. 从截断处自然地继续，**绝对不要重复**已有的代码
+3. 先完成被截断的那个函数/语句/标签
+4. 然后继续生成剩余的所有代码，确保完整闭合
+5. 最终代码必须包含所有闭合标签（</script></body></html>）
 
-以下是之前生成的代码最后2000字符，请继续：
+以下是之前生成的代码（末尾 3000 字符）：
 ```
-{partial_code[-2000:]}
+{partial_code[-3000:]}
 ```
 
-请继续完成代码："""
+请从截断处继续完成所有剩余代码（不要重复已有内容）："""
 
         continuation = ""
         try:
@@ -1707,6 +1737,7 @@ class CoordinatorService:
                 task_retry_count = 0
                 task_success = False
 
+                saved_partial_code = ""  # 超时时保存已有代码，用于重试
                 while task_retry_count < max_task_retries and not task_success:
                     # Post task start to group chat
                     retry_msg = f" (第 {task_retry_count + 1} 次尝试)" if task_retry_count > 0 else ""
@@ -1735,15 +1766,24 @@ class CoordinatorService:
                     # Create task description
                     fix_context = ""
                     if fix_iteration > 0:
+                        debug_prefix = (
+                            "\n\n🔴 **调试模式（第 %d 轮修复）**" % fix_iteration +
+                            "\n\n**绝对禁止重写整个文件或重构代码结构！** 必须按以下步骤操作："
+                            "\n1. **逐字阅读错误信息**，精确定位到出错的文件、函数、行号"
+                            "\n2. **只修改报错的那一行/那一个函数**，不要碰周围正常运行的代码"
+                            "\n3. **如果无法确定根因**，先在出错位置前后添加 console.log / logging 调试语句，输出关键变量值，帮助定位问题"
+                            "\n4. **不要删除任何现有功能代码**，不要重命名变量，不要调整代码顺序"
+                            "\n5. 修复后确保代码可以正常运行"
+                        )
                         if latest_fix_feedback:
-                            fix_context = f"\n\n⚠️ 上一轮自动校验/构建发现问题，请优先修复以下问题：\n{latest_fix_feedback}"
+                            fix_context = f"{debug_prefix}\n\n上一轮自动校验/构建发现问题：\n{latest_fix_feedback}"
                         else:
                             feedback_results = [
                                 r for r in results
                                 if any(keyword in r.get('task', '') for keyword in ('测试', '验证', '构建'))
                             ]
                             if feedback_results:
-                                fix_context = f"\n\n⚠️ 之前的测试发现问题，请修复以下问题：\n{feedback_results[-1].get('result', '')}"
+                                fix_context = f"{debug_prefix}\n\n之前的测试发现问题：\n{feedback_results[-1].get('result', '')}"
 
                     # Build context from previously completed tasks
                     previous_tasks_context = ""
@@ -1771,6 +1811,12 @@ class CoordinatorService:
                         if existing_code:
                             incremental_mode = True
                             print(f"[Coordinator] Using ts-app incremental mode for task: {task.title} (existing code: {len(existing_code)} chars)")
+
+                    # 超时重试：如果有已保存的部分代码，使用增量模式继续
+                    if saved_partial_code and not existing_code and agent.type.value == "coder":
+                        existing_code = saved_partial_code
+                        incremental_mode = True
+                        print(f"[Pipeline] Retrying with saved partial code ({len(saved_partial_code)} chars)")
 
                     web_app_instructions = ""
                     if plan.target_output == "web-app" and agent.type.value == "coder":
@@ -1936,11 +1982,27 @@ class CoordinatorService:
                             # Check code completeness for coder tasks (including PUA Coder)
                             if agent.type.value in ("coder", "pua-coder") and full_response:
                                 completeness = output_manager.validate_code_completeness(full_response)
-                                if not completeness["is_complete"]:
-                                    print(f"[Pipeline] Truncation detected in task: {task.title}")
-                                    print(f"[Pipeline] Issues: {completeness['issues']}")
+                                finish_reason = glm_coding_client.get_last_finish_reason()
+                                is_api_truncated = (finish_reason == "length")
 
-                                    # Request continuation from LLM
+                                # 决定是否需要续写
+                                should_continue = False
+                                if is_api_truncated:
+                                    print(f"[Truncation] finish_reason=length detected in task: {task.title}")
+                                    should_continue = True
+                                elif not completeness["is_complete"]:
+                                    print(f"[Pipeline] Truncation detected via completeness check: {task.title}")
+                                    print(f"[Pipeline] Issues: {completeness['issues']}")
+                                    should_continue = True
+
+                                # 续写循环（最多 3 轮）
+                                max_continuation_rounds = 3
+                                continuation_round = 0
+                                while should_continue and continuation_round < max_continuation_rounds:
+                                    continuation_round += 1
+                                    print(f"[Truncation] Continuation round {continuation_round}/{max_continuation_rounds}")
+
+                                    # 请求续写
                                     continuation = await self.request_continuation(
                                         partial_code=full_response,
                                         issues=completeness["issues"],
@@ -1949,26 +2011,45 @@ class CoordinatorService:
                                     )
 
                                     if continuation and continuation.strip():
+                                        # 去重：移除续写内容与原文末尾的重叠部分
+                                        continuation = self._deduplicate_continuation(full_response, continuation)
                                         full_response += continuation
+                                        print(f"[Truncation] Continuation appended: +{len(continuation)} chars")
 
-                                        # Re-check after continuation
+                                        # 重新检查完整性
                                         new_completeness = output_manager.validate_code_completeness(full_response)
-                                        if new_completeness["is_complete"]:
-                                            print(f"[Pipeline] Code completed successfully after continuation")
+                                        new_finish = glm_coding_client.get_last_finish_reason()
+                                        completeness = new_completeness  # 更新用于下一轮循环
+
+                                        if new_completeness["is_complete"] and new_finish != "length":
+                                            print(f"[Pipeline] Code completed successfully after {continuation_round} continuation(s)")
+                                            should_continue = False
                                         else:
-                                            print(f"[Pipeline] Code still incomplete after continuation: {new_completeness['issues']}")
-                                            await self.add_discussion_message(
-                                                plan_id=plan_id,
-                                                agent_id=agent.id,
-                                                agent_name=agent.name,
-                                                agent_type=agent.type.value,
-                                                content=f"⚠️ 代码可能不完整：{', '.join(completeness['issues'])}",
-                                                message_type="comment",
-                                            )
+                                            print(f"[Pipeline] Code still incomplete after continuation round {continuation_round}: {new_completeness['issues']}")
+                                    else:
+                                        print(f"[Pipeline] Continuation returned empty, stopping")
+                                        should_continue = False
+
+                                # 最终检查仍不完整，记录警告
+                                if continuation_round > 0 and not output_manager.validate_code_completeness(full_response)["is_complete"]:
+                                    final_issues = output_manager.validate_code_completeness(full_response)["issues"]
+                                    await self.add_discussion_message(
+                                        plan_id=plan_id,
+                                        agent_id=agent.id,
+                                        agent_name=agent.name,
+                                        agent_type=agent.type.value,
+                                        content=f"⚠️ 代码可能不完整（续写 {continuation_round} 轮后）：{', '.join(final_issues)}",
+                                        message_type="comment",
+                                    )
 
                         except asyncio.TimeoutError:
-                            # Task timed out
+                            # Task timed out - save partial code for retry
                             task_retry_count += 1
+                            if full_response:
+                                saved_partial_code = full_response
+                                print(f"[Pipeline] Task timeout: {task.title}, saved {len(saved_partial_code)} chars for retry")
+                            else:
+                                saved_partial_code = ""
                             error_msg = f"⚠️ 任务超时（{task_timeout}秒/15分钟），第 {task_retry_count} 次尝试失败"
                             print(f"[Pipeline] Task timeout: {task.title}, retry {task_retry_count}/{max_task_retries}")
 
@@ -2977,7 +3058,12 @@ class CoordinatorService:
 **改进建议**:
 {chr(10).join(f'- {rec}' for rec in test_report.recommendations)}
 
-请根据以上测试报告修复代码，确保所有严重问题都得到解决，测试用例能够通过。
+🔴 **调试模式修复要求（必须严格遵守）**：
+1. **逐字阅读每条错误**，精确到出错的函数名和行号
+2. **只改出错的那一行/那一个函数**，不要重写整个文件
+3. **如果无法确定根因**，先在出错位置添加 console.log 输出关键变量，缩小范围后再修
+4. **禁止重构**：不要改变量名、不要调整代码顺序、不要删除看似"多余"的代码
+5. 修复后确保所有严重问题得到解决，测试用例能够通过
 """
 
         # 执行修复

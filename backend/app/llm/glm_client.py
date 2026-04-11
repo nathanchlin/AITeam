@@ -33,6 +33,7 @@ class GLMClient:
 
         # Track last token usage
         self._last_token_usage: TokenUsage = TokenUsage()
+        self._last_finish_reason: Optional[str] = None
 
         # Rate limiting
         self._lock = asyncio.Lock()
@@ -71,6 +72,15 @@ class GLMClient:
     def get_last_token_usage(self) -> TokenUsage:
         """Get the token usage from the last API call."""
         return self._last_token_usage
+
+    def get_last_finish_reason(self) -> Optional[str]:
+        """Get the finish reason from the last API call.
+
+        Returns:
+            'stop' for normal completion, 'length' for truncation due to max_tokens,
+            'tool_calls' for tool call responses, or None if not yet called.
+        """
+        return self._last_finish_reason
 
     async def _throttle(self):
         """Ensure minimum interval between consecutive API calls."""
@@ -154,6 +164,9 @@ class GLMClient:
                         completion_tokens=getattr(response.usage, 'completion_tokens', 0) or 0,
                         total_tokens=getattr(response.usage, 'total_tokens', 0) or 0,
                     )
+                # Extract finish reason
+                if response.choices and response.choices[0]:
+                    self._last_finish_reason = response.choices[0].finish_reason
                 return response.choices[0].message.content
             except Exception as e:
                 last_error = str(e)
@@ -233,10 +246,14 @@ class GLMClient:
 
         def consume_stream():
             token_usage = TokenUsage()
+            finish_reason = None
             try:
                 for chunk in response:
                     if chunk.choices and chunk.choices[0].delta.content:
                         loop.call_soon_threadsafe(queue.put_nowait, {"type": "content", "content": chunk.choices[0].delta.content})
+                    # Extract finish_reason
+                    if chunk.choices and chunk.choices[0].finish_reason:
+                        finish_reason = chunk.choices[0].finish_reason
                     # Extract usage from the last chunk
                     if hasattr(chunk, 'usage') and chunk.usage:
                         token_usage = TokenUsage(
@@ -249,6 +266,8 @@ class GLMClient:
                 print(f"[GLMClient] consume_stream error: {e}\n{_tb.format_exc()}")
                 loop.call_soon_threadsafe(queue.put_nowait, {"type": "error", "content": str(e)})
             finally:
+                # Send finish reason before terminating
+                loop.call_soon_threadsafe(queue.put_nowait, {"type": "finish_reason", "finish_reason": finish_reason})
                 # Send token usage info before terminating
                 loop.call_soon_threadsafe(queue.put_nowait, {"type": "usage", "usage": token_usage})
                 loop.call_soon_threadsafe(queue.put_nowait, None)
@@ -266,6 +285,8 @@ class GLMClient:
             elif item["type"] == "usage":
                 # Store usage for retrieval after stream ends
                 self._last_token_usage = item["usage"]
+            elif item["type"] == "finish_reason":
+                self._last_finish_reason = item["finish_reason"]
             elif item["type"] == "error":
                 yield f"[错误] {item['content']}"
                 return
@@ -365,6 +386,7 @@ class GLMClient:
 
         def consume_stream():
             token_usage = TokenUsage()
+            finish_reason = None  # 跟踪完成原因
             try:
                 for chunk in response:
                     if not chunk.choices:
@@ -388,6 +410,10 @@ class GLMClient:
                                     "id": getattr(tc, 'id', ''),
                                 })
 
+                    # Extract finish_reason
+                    if chunk.choices[0].finish_reason:
+                        finish_reason = chunk.choices[0].finish_reason
+
                     # Usage
                     if hasattr(chunk, 'usage') and chunk.usage:
                         token_usage = TokenUsage(
@@ -400,6 +426,8 @@ class GLMClient:
                 print(f"[GLMClient] tools_stream consume error: {e}\n{_tb.format_exc()}")
                 loop.call_soon_threadsafe(queue.put_nowait, {"type": "error", "content": str(e)})
             finally:
+                # Send finish_reason before usage and termination
+                loop.call_soon_threadsafe(queue.put_nowait, {"type": "finish_reason", "finish_reason": finish_reason})
                 loop.call_soon_threadsafe(queue.put_nowait, {"type": "usage", "usage": token_usage})
                 loop.call_soon_threadsafe(queue.put_nowait, None)
 
@@ -409,6 +437,8 @@ class GLMClient:
             item = await queue.get()
             if item is None:
                 break
+            if item["type"] == "finish_reason":
+                self._last_finish_reason = item["finish_reason"]
             yield item
 
 

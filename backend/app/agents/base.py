@@ -449,6 +449,14 @@ class CoderAgent(BaseAgent):
 
 ⚠️🚨 严格规则 - 违反将导致工程无法编译：
 
+【修复/调试模式 - 收到修复任务时必须遵守】
+🔴 当任务描述中包含"修复"、"fix"、"报错"、"错误"、"失败"等关键词时，进入调试模式：
+1. **逐字阅读错误信息**，精确定位到出错的文件、函数名、行号
+2. **只改报错的那一行/那一个函数**，其余文件保持不变
+3. **如果无法确定根因**，先在出错位置添加 console.log 输出关键变量值，缩小范围后再修
+4. **禁止重构**：不要改变量名、不要调整代码顺序、不要删除任何现有代码
+5. **禁止大面积重写**：只输出需要修改的文件，不要输出未报错的文件
+
 【项目形态】
 - 目标工程：Vite + TypeScript（浏览器端，不是 Node 服务）
 - 模板已预置：package.json、tsconfig.json、vite.config.ts、index.html
@@ -629,6 +637,14 @@ func _draw():
 
 ⚠️🚨 严格规则 - 违反将导致代码无法运行：
 
+【修复/调试模式 - 收到修复任务时必须遵守】
+🔴 当任务描述中包含"修复"、"fix"、"报错"、"错误"、"失败"等关键词时，进入调试模式：
+1. **逐字阅读错误信息**，精确定位到出错的函数名、变量名、行号
+2. **只改报错的那一行/那一个函数**，90% 的代码应保持不变
+3. **如果无法确定根因**，先在出错位置前后添加 console.log 输出关键变量值，缩小范围后再修
+4. **禁止重构**：不要改变量名、不要调整代码顺序、不要删除看似"多余"的代码
+5. **禁止大面积重写**：不要为了修一个 bug 而重写整个函数或文件
+
 【禁止事项 - 绝对不可】
 ❌ 禁止引用外部文件：<link href="css/xxx">, <script src="js/xxx">
 ❌ 禁止只写类骨架/空方法：禁止 class X { method() { /* 注释 */ } } 或 method() {} 无实现体
@@ -693,202 +709,33 @@ func _draw():
 - 保持代码紧凑，减少冗余注释
 
 【预生成检查清单 - 生成代码前必须确认】
+□ DOCTYPE/html/head/body 结构完整 □ class 只定义一次且在使用前 □ window.onload 初始化 □ 游戏循环 (requestAnimationFrame) □ 输入事件绑定 □ 所有函数有实际代码体 □ HTML/JS 闭合标签完整
 
-在开始写代码之前，先在脑子里过一遍这个清单，确保所有必需组件都会被包含：
+=== 代码骨架示例 ===
 
-□ HTML 结构 - DOCTYPE, html, head, body 标签
-□ Canvas 元素 - <canvas id="game"></canvas>
-□ CSS 样式 - canvas 居中、背景色、边框
-□ 游戏类 - class Game { ... }
-□ 构造函数 - constructor() 初始化所有状态变量
-□ 游戏循环 - requestAnimationFrame 或 setInterval
-□ 输入处理 - keydown/keyup 或 touch 事件
-□ 碰撞检测 - 边界、物体之间的碰撞
-□ 状态更新 - update() 方法修改游戏状态
-□ 渲染绘制 - draw() 方法使用 Canvas API 绘制
-□ 分数/状态显示 - 玩家可见的游戏信息
-□ 游戏结束条件 - 判断游戏何时结束
-□ 初始化代码 - window.onload 或 DOMContentLoaded 启动游戏
-
-=== 完整示例：可运行的贪吃蛇游戏 ===
-
-以下是一个完整的、可直接在浏览器运行的贪吃蛇游戏。你的代码必须达到同样的完整度：
-
+你的代码必须达到以下完整度（仅展示结构，不是完整实现）：
 ```html
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>贪吃蛇游戏</title>
-<style>
-body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #1a1a2e; font-family: monospace; }
-#gameContainer { position: relative; }
-canvas { border: 2px solid #4a9eff; background: #16213e; }
-#score { position: absolute; top: 10px; left: 10px; color: #4a9eff; font-size: 18px; }
-#gameOver { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #ff4a4a; font-size: 24px; display: none; text-align: center; }
-#restart { margin-top: 10px; padding: 10px 20px; background: #4a9eff; border: none; color: white; cursor: pointer; font-size: 16px; }
-</style>
-</head>
-<body>
-<div id="gameContainer">
-  <div id="score">得分: 0</div>
-  <canvas id="game" width="400" height="400"></canvas>
-  <div id="gameOver">
-    游戏结束!<br>
-    <button id="restart" onclick="restartGame()">重新开始</button>
-  </div>
-</div>
+<!DOCTYPE html><html><head><style>/* 所有 CSS 内联 */</style></head>
+<body><canvas id="game" width="400" height="400"></canvas>
 <script>
-class SnakeGame {
-  constructor() {
-    this.canvas = document.getElementById('game');
-    this.ctx = this.canvas.getContext('2d');
-    this.gridSize = 20;
-    this.tileCount = this.canvas.width / this.gridSize;
-    this.snake = [{x: 10, y: 10}];
-    this.direction = {x: 1, y: 0};
-    this.nextDirection = {x: 1, y: 0};
-    this.food = {x: 15, y: 15};
-    this.score = 0;
-    this.gameOver = false;
-    this.speed = 100;
-    this.lastTime = 0;
-    this.init();
-  }
-  init() {
-    document.addEventListener('keydown', (e) => this.handleInput(e));
-    document.getElementById('restart').addEventListener('click', () => this.restart());
-    requestAnimationFrame((time) => this.gameLoop(time));
-  }
-  handleInput(e) {
-    const keyMap = {
-      ArrowUp: {x: 0, y: -1}, ArrowDown: {x: 0, y: 1},
-      ArrowLeft: {x: -1, y: 0}, ArrowRight: {x: 1, y: 0},
-      w: {x: 0, y: -1}, s: {x: 0, y: 1}, a: {x: -1, y: 0}, d: {x: 1, y: 0}
-    };
-    const newDir = keyMap[e.key];
-    if (newDir && (newDir.x !== -this.direction.x || newDir.y !== -this.direction.y)) {
-      this.nextDirection = newDir;
-    }
-  }
-  spawnFood() {
-    let newFood;
-    do {
-      newFood = {
-        x: Math.floor(Math.random() * this.tileCount),
-        y: Math.floor(Math.random() * this.tileCount)
-      };
-    } while (this.snake.some(s => s.x === newFood.x && s.y === newFood.y));
-    this.food = newFood;
-  }
-  update() {
-    this.direction = this.nextDirection;
-    const head = {
-      x: this.snake[0].x + this.direction.x,
-      y: this.snake[0].y + this.direction.y
-    };
-    if (head.x < 0 || head.x >= this.tileCount || head.y < 0 || head.y >= this.tileCount) {
-      this.endGame();
-      return;
-    }
-    if (this.snake.some(s => s.x === head.x && s.y === head.y)) {
-      this.endGame();
-      return;
-    }
-    this.snake.unshift(head);
-    if (head.x === this.food.x && head.y === this.food.y) {
-      this.score += 10;
-      document.getElementById('score').textContent = '得分: ' + this.score;
-      this.spawnFood();
-    } else {
-      this.snake.pop();
-    }
-  }
-  draw() {
-    this.ctx.fillStyle = '#16213e';
-    this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
-    this.ctx.fillStyle = '#4a9eff';
-    this.snake.forEach((s, i) => {
-      const alpha = 1 - (i / this.snake.length) * 0.5;
-      this.ctx.fillStyle = `rgba(74, 158, 255, ${alpha})`;
-      this.ctx.fillRect(s.x * this.gridSize + 1, s.y * this.gridSize + 1, this.gridSize - 2, this.gridSize - 2);
-    });
-    this.ctx.fillStyle = '#ff4a4a';
-    this.ctx.beginPath();
-    this.ctx.arc(
-      this.food.x * this.gridSize + this.gridSize / 2,
-      this.food.y * this.gridSize + this.gridSize / 2,
-      this.gridSize / 2 - 2, 0, Math.PI * 2
-    );
-    this.ctx.fill();
-  }
-  gameLoop(time) {
-    if (this.gameOver) return;
-    if (time - this.lastTime >= this.speed) {
-      this.update();
-      this.draw();
-      this.lastTime = time;
-    }
-    requestAnimationFrame((t) => this.gameLoop(t));
-  }
-  endGame() {
-    this.gameOver = true;
-    document.getElementById('gameOver').style.display = 'block';
-  }
-  restart() {
-    this.snake = [{x: 10, y: 10}];
-    this.direction = {x: 1, y: 0};
-    this.nextDirection = {x: 1, y: 0};
-    this.score = 0;
-    this.gameOver = false;
-    document.getElementById('score').textContent = '得分: 0';
-    document.getElementById('gameOver').style.display = 'none';
-    this.spawnFood();
-    requestAnimationFrame((t) => this.gameLoop(t));
-  }
+class Game {
+  constructor() { this.ctx = document.getElementById('game').getContext('2d'); this.score = 0; this.gameOver = false; this.init(); }
+  init() { document.addEventListener('keydown', e => this.handleInput(e)); requestAnimationFrame(t => this.gameLoop(t)); }
+  handleInput(e) { /* 实际的输入处理逻辑 */ }
+  update() { /* 实际的状态更新逻辑 */ }
+  draw() { this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height); /* 实际的绘制逻辑 */ }
+  gameLoop(t) { if(!this.gameOver){ this.update(); this.draw(); } requestAnimationFrame(()=>this.gameLoop()); }
 }
-window.onload = () => new SnakeGame();
-</script>
-</body>
-</html>
+window.onload = () => new Game();
+</script></body></html>
 ```
 
-=== 反模式示例：绝对不要这样写 ===
-
-以下代码展示了常见错误，你的代码绝对不能出现这些模式：
-
-```javascript
-// ❌ 错误1: 空方法体
-class Game {
-  constructor() { /* TODO */ }  // 错误！构造函数是空的
-  update() { }                   // 错误！方法体为空
-  draw() { /* 待实现 */ }        // 错误！只有注释
-}
-
-// ❌ 错误2: 使用省略号或占位符
-function createEnemy() {
-  // ... 创建敌人的逻辑
-}
-
-// ❌ 错误3: 没有初始化
-class Game {
-  constructor() {
-    this.score = 0;
-  }
-}
-// 忘记 window.onload 或实例化！游戏永远不会启动
-
-// ❌ 错误4: 引用外部文件
-<link href="style.css">          // 错误！外部CSS
-<script src="game.js"></script>  // 错误！外部JS
-
-// ❌ 错误5: 使用未定义的变量
-class Game {
-  draw() {
-    ctx.fillRect(0, 0, 100, 100);  // 错误！ctx 未定义
-  }
-}
-```
+=== 绝对禁止的反模式 ===
+❌ 空方法体: method() { } 或 constructor() { /* TODO */ }
+❌ 占位符: // ... 实现逻辑
+❌ 缺少初始化: 有 class 但没有 window.onload 实例化
+❌ 外部文件引用: <link href="style.css"> 或 <script src="game.js">
+❌ 未定义变量: draw() { ctx.fillRect(...) } 但 ctx 未在 constructor 中赋值
 
 【增量修改规则 - 迭代时必须遵守】
 
@@ -922,55 +769,6 @@ font-size: 16px;
 ⚠️ 迭代修改时，只输出需要修改的部分！
 ⚠️ 如果用户请求是迭代/修改现有功能，必须分析当前代码，只修改需要变化的部分！
 
-【Canvas/WebGL 实时游戏模板 - 仅当需求明确属于实时绘制游戏时使用】
-此模板只适用于必须持续绘制的 Canvas/WebGL 游戏，不适用于普通 DOM 页面、棋盘类小游戏或表单/仪表盘：
-```html
-<!DOCTYPE html>
-<html>
-<head><style>canvas { border: 1px solid #000; }</style></head>
-<body>
-<canvas id="game" width="400" height="400"></canvas>
-<script>
-class Game {
-  constructor() {
-    this.canvas = document.getElementById('game');
-    this.ctx = this.canvas.getContext('2d');
-    this.init();
-  }
-  init() {
-    // 初始化游戏状态
-    this.score = 0;
-    this.gameOver = false;
-    this.bindEvents();
-    this.gameLoop();
-  }
-  bindEvents() {
-    document.addEventListener('keydown', (e) => this.handleInput(e));
-  }
-  handleInput(e) {
-    // 处理输入
-  }
-  update() {
-    // 更新游戏状态（必须有实际代码）
-  }
-  draw() {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    // 绘制游戏（必须有实际代码，调用 ctx 绘制方法）
-  }
-  gameLoop() {
-    if (!this.gameOver) {
-      this.update();
-      this.draw();
-    }
-    requestAnimationFrame(() => this.gameLoop());
-  }
-}
-window.onload = () => new Game();
-</script>
-</body>
-</html>
-```
-
 当代码需要作为独立文件时，请在代码块第一行标注文件名。"""
 
     async def execute_task(
@@ -993,7 +791,7 @@ window.onload = () => new Game();
         yield {"type": "thinking", "content": f"[{self.name}] 开始分析代码任务..."}
         yield {"type": "thinking", "content": f"[{self.name}] 理解需求：{task}"}
 
-        system_prompt = self.build_enriched_prompt(task, target_output)
+        system_prompt = self.build_enriched_prompt_v2(task, target_output)
 
         if existing_code and incremental_mode:
             if target_output == "ts-app":
@@ -1010,6 +808,13 @@ window.onload = () => new Game();
 ## 重要提示
 
 这是**TypeScript 工程增量修改任务**，你需要基于当前工程继续修改。
+
+🔴 **调试模式（必须严格遵守）**：
+1. **逐字阅读错误信息**，精确定位到出错的文件、函数、行号
+2. **只改报错的那一行/那一个函数**，不要重写整个文件，不要重构代码结构
+3. **如果无法确定根因**，先在出错位置添加 console.log / console.error 输出关键变量值，缩小范围后再修
+4. **禁止重构**：不要改变量名、不要调整代码顺序、不要删除任何现有代码
+5. **禁止大面积重写**：只输出本轮需要修改的文件，保持其余文件不变
 
 ⚠️ **输出要求**：
 1. 只输出本轮需要新增或替换的完整文件
@@ -1034,6 +839,13 @@ window.onload = () => new Game();
 ## 重要提示
 
 这是**增量修改任务**，你需要基于上面的当前代码进行修改。
+
+🔴 **调试模式（必须严格遵守）**：
+1. **逐字阅读错误信息**，精确定位到出错的函数和行号
+2. **只改报错的那一行/那一个函数**，不要重写整个 HTML，不要重构代码结构
+3. **如果无法确定根因**，先在出错位置添加 console.log 输出关键变量值，缩小范围后再修
+4. **禁止重构**：不要改变量名、不要调整代码顺序、不要删除任何现有代码
+5. **禁止大面积重写**：90% 的代码应保持不变，只修改出错的部分
 
 ⚠️ **输出要求**：
 1. 输出**完整的修改后的 HTML 代码**（不是增量格式，而是完整的可运行代码）
