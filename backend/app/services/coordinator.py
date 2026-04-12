@@ -917,14 +917,17 @@ class CoordinatorService:
             _pipeline_logger.info(f"[Specs] Spec generation disabled by environment variable")
             return ""
         
-        if not plan.discussion:
+        if not plan.discussion and not plan.original_request:
             return ""
         
-        # Build context from discussion
-        discussion_context = "\n".join([
-            f"[{msg.agent_name}]: {msg.content[:300]}"
-            for msg in plan.discussion[-6:]  # Last 6 messages
-        ])
+        # Build context from discussion (fallback to original_request if no discussion)
+        if plan.discussion:
+            discussion_context = "\n".join([
+                f"[{msg.agent_name}]: {msg.content[:300]}"
+                for msg in plan.discussion[-6:]  # Last 6 messages
+            ])
+        else:
+            discussion_context = f"项目需求：{plan.original_request}"
         
         # Generate spec using GLM
         prompt = f"""基于以下项目需求，生成一份简洁的规范文档。
@@ -1365,7 +1368,7 @@ class CoordinatorService:
         plan.discussion_summary = self._build_discussion_summary(plan)
         
         # 📋 Generate OpenSpec-style specification document
-        if not plan.skip_discussion and plan.discussion:
+        if not plan.specs:
             _pipeline_logger.info(f"[Specs] Generating specs for plan {plan_id}")
             plan.specs = await self._generate_specs(plan)
             self._save_plans()
@@ -1898,12 +1901,23 @@ class CoordinatorService:
 {plan.discussion_summary}
 """
 
+                    # 📋 注入 OpenSpec 规范文档（如果有）
+                    specs_context = ""
+                    if plan.specs and agent.type.value == "coder":
+                        specs_context = f"""
+
+📋 **项目规范（必须遵循）：**
+{plan.specs}
+
+⚠️ 请严格按照以上规范实现功能。
+"""
+
                     task_description = f"""任务：{task.title}
 
 描述：{task.description or '无详细描述'}
 
 原始需求上下文：{plan.original_request}
-{discussion_context}{previous_tasks_context}{fix_context}{web_app_instructions}{ts_app_instructions}{godot_instructions}
+{specs_context}{discussion_context}{previous_tasks_context}{fix_context}{web_app_instructions}{ts_app_instructions}{godot_instructions}
 
 请完成你的任务部分，提供详细的输出。"""
 
@@ -4357,11 +4371,21 @@ function 函数名(参数) {{
 
         # Phase 2: 归档 Delta Spec（合并到主规范）
         if plan.deltas:
+            _pipeline_logger.info(f"[DeltaSpec] Found {len(plan.deltas)} deltas to archive")
             try:
                 await self.archive_iteration_deltas(plan_id, iteration_round.round_number)
-                _pipeline_logger.info(f"[DeltaSpec] Archived deltas for iteration {iteration_round.round_number}")
+                _pipeline_logger.info(f"[DeltaSpec] ✓ Archived deltas for iteration {iteration_round.round_number}")
             except Exception as e:
                 _pipeline_logger.error(f"[DeltaSpec] Failed to archive deltas: {e}")
+                # 兜底：即使归档失败，也保留 deltas 不丢失
+                _pipeline_logger.warning(f"[DeltaSpec] Deltas preserved for manual recovery")
+        else:
+            # 没有 deltas 但有 specs → Delta 生成可能失败，记日志
+            if plan.specs:
+                _pipeline_logger.warning(
+                    f"[DeltaSpec] Iteration completed but no deltas generated "
+                    f"(specs exists: {len(plan.specs)} chars)"
+                )
 
         plan.status = PlanStatus.COMPLETED
         plan.updated_at = datetime.now()

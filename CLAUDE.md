@@ -93,6 +93,25 @@ Plans persist to `backend/data/plans.json`. On server restart, the coordinator r
 - `discussion` - New discussion message
 - `plan_update` - Plan status change
 
+## 调试原则（Debug Mode）
+
+遇到日志报错或运行时错误时，**必须遵守以下原则**：
+
+1. **禁止大改结构** - 不重构、不改架构、不改整体逻辑流程。只改出错的那一行/那一个函数。
+2. **多加日志定位** - 在报错相关的关键路径上插入 `logging.debug()` / `print()`，逐步追踪数据流。
+3. **分步缩小范围** - 先确认数据走到哪一步、变量是什么值，再决定修复方案。
+4. **最小改动修复** - 找到根因后只做最小改动，不顺便"优化"周围代码。
+
+**正确做法示例**：
+```python
+# 在出错函数的入口和关键分支加日志
+logging.debug(f"[debug] enter process_task, task_id={task.id}, status={task.status}")
+result = do_something(data)
+logging.debug(f"[debug] result={result}, type={type(result)}")
+```
+
+**错误做法**：整个函数重写、重构类结构、改接口签名、添加抽象层。
+
 ## Key Patterns
 
 - **Async Generators**: Used for streaming LLM responses - `async for chunk in agent.execute_task(task)`
